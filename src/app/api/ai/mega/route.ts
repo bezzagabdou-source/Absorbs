@@ -28,7 +28,7 @@ import {
 import { MAX_STUDIO_ADDON } from "@/lib/max-engine";
 
 export const runtime = "nodejs";
-export const maxDuration = 800; // Vercel Pro max. On Hobby set 300.
+export const maxDuration = 300; // Hobby max. Vercel Pro: you may raise to 800 (then also raise REQUEST_* in lib/limits.ts)
 
 async function readAll(stream: ReadableStream<string>): Promise<string> {
   const r = stream.getReader();

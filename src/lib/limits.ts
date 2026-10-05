@@ -22,9 +22,9 @@ export const FREE_GAP_CAP_MS = 5 * 60 * 1000;
 
 /**
  * Time budget. ONE serverless request cannot live 40-60 minutes (Vercel caps a function: Hobby 300 s, Pro 800 s).
- * So: every request runs ~13 minutes (maxDuration = 800 in the route files), then the client chains the next
+ * So: every request runs up to its maxDuration (300 s on Hobby, 800 s on Pro), then the client chains the next
  * request automatically (continueFrom) until the answer is finished or SESSION_MAX_MS (60 min) is reached.
  */
-export const REQUEST_GUARD_MS = 790_000; // release the keep-alive just before the 800 s platform limit
-export const REQUEST_DEADLINE_MS = 760_000; // stop STARTING new continuation rounds after this
+export const REQUEST_GUARD_MS = 290_000; // release the keep-alive just before the 300 s limit (Pro/800: use 790_000)
+export const REQUEST_DEADLINE_MS = 255_000; // stop STARTING new rounds after this (Pro/800: use 760_000)
 export const SESSION_MAX_MS = 60 * 60 * 1000; // client chain: one hour without stopping

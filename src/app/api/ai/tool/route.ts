@@ -10,7 +10,7 @@ import { db } from "@/db";
 import { toolRuns } from "@/db/schema";
 
 export const runtime = "nodejs";
-export const maxDuration = 800; // Vercel Pro max. On Hobby set 300.
+export const maxDuration = 300; // Hobby max. Vercel Pro: you may raise to 800 (then also raise REQUEST_* in lib/limits.ts)
 
 const MAX_FIELD = 5000;
 const MAX_FIELD_PRO = 20000; // code snippets are longer than prose
