@@ -8,7 +8,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 
-/** Dedicated Postgres schema: Barq never touches tables of other apps sharing this database. */
+/** Dedicated Postgres schema: Nexus AI v8.4 never touches tables of other apps sharing this database. */
 export const barq = pgSchema("barq");
 
 /** Firebase-authenticated users (id = Firebase uid) */

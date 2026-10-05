@@ -18,14 +18,14 @@ const plex = IBM_Plex_Sans_Arabic({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   alternates: { canonical: "/" },
-  applicationName: "برق",
+  applicationName: "Nexus AI v8.4",
   title: {
-    default: "برق — مساعدك اليومي للكتابة والترجمة والدراسة",
-    template: "%s | برق",
+    default: "Nexus AI v8.4 — مساعدك اليومي للكتابة والترجمة والدراسة",
+    template: "%s | Nexus AI v8.4",
   },
   description:
     "مساعدك اليومي بالعربية والدارجة والفرنسية — محادثة، أدوات محتوى للتجار، ترجمة، سيرة ذاتية ومساعد دراسة. مجاني كل يوم.",
-  keywords: ["الجزائر", "دارجة", "مساعد", "ترجمة", "Algeria", "Barq", "برق"],
+  keywords: ["الجزائر", "دارجة", "مساعد", "ترجمة", "Algeria", "Nexus AI v8.4", "Nexus AI v8.4"],
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -37,16 +37,16 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "برق",
+    title: "Nexus AI v8.4",
   },
   openGraph: {
-    title: "برق",
+    title: "Nexus AI v8.4",
     description:
       "مساعدك اليومي بالعربية والدارجة والفرنسية — مجاني كل يوم.",
-    siteName: "برق",
+    siteName: "Nexus AI v8.4",
     type: "website",
     locale: "ar_DZ",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "برق" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Nexus AI v8.4" }],
   },
   twitter: { card: "summary_large_image", images: ["/og.png"] },
 };

@@ -15,7 +15,7 @@ import {
 
 export const runtime = "nodejs";
 
-/** POST { code } — redeems one of the fixed promo codes and activates Barq v8 Pro */
+/** POST { code } — redeems one of the fixed promo codes and activates Nexus AI v8.4 Pro */
 export async function POST(req: Request) {
   const user = await verifyRequest(req);
   if (!user) return json(401, { code: "UNAUTHENTICATED" });

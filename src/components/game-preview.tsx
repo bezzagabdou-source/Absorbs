@@ -267,7 +267,7 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
   const [device, setDevice] = useState<"phone" | "tablet" | "desktop">("desktop");
   const [flash, setFlash] = useState("");
   const boxRef = useRef<HTMLDivElement>(null);
-  const title = useMemo(() => (html.match(/<title>([^<]{1,60})<\/title>/i)?.[1] ?? "معاينة برق").trim(), [html]);
+  const title = useMemo(() => (html.match(/<title>([^<]{1,60})<\/title>/i)?.[1] ?? "معاينة Nexus AI v8.4").trim(), [html]);
   const widths = { phone: 390, tablet: 768, desktop: 0 } as const;
   const isClient = useIsClient();
 

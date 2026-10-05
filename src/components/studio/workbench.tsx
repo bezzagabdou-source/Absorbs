@@ -453,7 +453,7 @@ export function Workbench({
       </div>
 
       {deployOpen && files.length > 0 && (
-        <DeployPanel files={files} title={(/<title>([^<]{1,80})<\/title>/i.exec(current)?.[1] ?? "Barq project").trim()} onClose={() => setDeployOpen(false)} onNetlify={deploy} />
+        <DeployPanel files={files} title={(/<title>([^<]{1,80})<\/title>/i.exec(current)?.[1] ?? "Nexus AI v8.4 project").trim()} onClose={() => setDeployOpen(false)} onNetlify={deploy} />
       )}
 
       {flash && (

@@ -11,10 +11,10 @@ export default function NotFound() {
         <p className="text-6xl font-black tracking-tight text-brand-300">404</p>
         <h1 className="mt-3 text-xl font-black text-white">هذه الصفحة غير موجودة</h1>
         <p className="mt-2 text-sm leading-relaxed text-slate-400">
-          ربما تغيّر الرابط أو حُذفت الصفحة. ارجع إلى برق وكمّل من حيث توقفت.
+          ربما تغيّر الرابط أو حُذفت الصفحة. ارجع إلى Nexus AI v8.4 وكمّل من حيث توقفت.
         </p>
         <Link href="/app" className="btn-primary mt-7 px-7 py-3 text-sm">
-          العودة إلى برق
+          العودة إلى Nexus AI v8.4
         </Link>
       </div>
     </div>

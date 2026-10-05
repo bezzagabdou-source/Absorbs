@@ -41,7 +41,7 @@ const PHASE_LABEL: Record<Phase, string> = {
   idle: "نجهّز المكالمة…",
   listening: "أسمعك… تكلّم",
   thinking: "نفكّر…",
-  speaking: "برق يتكلّم — اضغط على الكرة باش تقاطعه",
+  speaking: "Nexus AI v8.4 يتكلّم — اضغط على الكرة باش تقاطعه",
   paused: "اضغط على الكرة باش نكملو",
   error: "صرا مشكل",
 };
@@ -635,7 +635,7 @@ export function VoiceCall({
           transition={{ duration: 0.22 }}
           role="dialog"
           aria-modal="true"
-          aria-label="مكالمة صوتية مع برق"
+          aria-label="مكالمة صوتية مع Nexus AI v8.4"
           className="fixed inset-0 z-[95] flex flex-col bg-ink-950/95 text-white backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]"
         >
           {/* header */}
@@ -680,21 +680,21 @@ export function VoiceCall({
             <p aria-live="polite" className="text-center text-sm font-black text-slate-200">
               {phase === "error" && err ? err : muted && phase === "paused" ? "المايك مسكّر" : PHASE_LABEL[phase]}
             </p>
-            {!sttOk && <p className="max-w-xs text-center text-xs text-amber-300">متصفحك ما يدعمش التعرّف على الصوت — اكتب رسائلك وبرق يرد عليك بصوته.</p>}
+            {!sttOk && <p className="max-w-xs text-center text-xs text-amber-300">متصفحك ما يدعمش التعرّف على الصوت — اكتب رسائلك وNexus AI v8.4 يرد عليك بصوته.</p>}
             {!ttsOk && <p className="max-w-xs text-center text-xs text-amber-300">متصفحك ما يدعمش القراءة الصوتية — الرد يظهر مكتوب.</p>}
 
             {/* captions */}
             <div ref={capRef} className="scroll-y max-h-[30vh] w-full max-w-xl space-y-2 rounded-2xl bg-white/[0.04] px-4 py-3 text-center">
               {shownUser && <p className="text-[13px] leading-relaxed text-slate-400">{shownUser}</p>}
               {reply && <p className="text-[17px] font-bold leading-relaxed text-white">{reply}</p>}
-              {!shownUser && !reply && <p className="text-[13px] text-slate-500">كلامك وردّ برق يظهرو هنا مباشرة</p>}
+              {!shownUser && !reply && <p className="text-[13px] text-slate-500">كلامك وردّ Nexus AI v8.4 يظهرو هنا مباشرة</p>}
             </div>
           </div>
 
           {/* persona + language: only while paused / before talking, so the call screen stays clean */}
           {(phase === "paused" || phase === "idle" || phase === "error") && (
           <div className="space-y-2 px-3">
-            <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="radiogroup" aria-label="شخصية برق">
+            <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="radiogroup" aria-label="شخصية Nexus AI v8.4">
               {VOICE_PERSONAS.map((p) => (
                 <button
                   key={p.id}
@@ -745,7 +745,7 @@ export function VoiceCall({
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="اكتب لبرق…"
+                placeholder="اكتب لNexus AI v8.4…"
                 className="input-base min-w-0 flex-1"
                 autoFocus
               />
@@ -786,7 +786,7 @@ export function VoiceCall({
               type="button"
               onClick={onOrb}
               aria-label="قاطع أو أرسل الآن"
-              title="قاطع برق أو أرسل كلامك الآن"
+              title="قاطع Nexus AI v8.4 أو أرسل كلامك الآن"
               className="grid size-14 place-items-center rounded-full border border-white/12 bg-white/[0.06] text-slate-200 transition active:scale-90"
             >
               <Hand className="size-6" />

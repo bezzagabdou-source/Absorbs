@@ -58,7 +58,7 @@ export function CommandPalette() {
     return [
       {
         id: "voice",
-        label: "مكالمة صوتية مع برق",
+        label: "مكالمة صوتية مع Nexus AI v8.4",
         hint: "تكلّم فيرد بصوته",
         icon: Headphones,
         run: () => {

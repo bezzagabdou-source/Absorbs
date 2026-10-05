@@ -28,8 +28,8 @@ export const LOCALE_DIR: Record<Locale, "rtl" | "ltr"> = {
 /* ------------------------------------------------------------------ */
 const ar = {
   common: {
-    appName: "برق",
-    appTag: "برق",
+    appName: "Nexus AI v8.4",
+    appTag: "Nexus AI v8.4",
     loading: "جارٍ التحميل…",
     error: "حدث خطأ، حاول مجددًا",
     retry: "إعادة المحاولة",
@@ -38,7 +38,7 @@ const ar = {
     copied: "تم النسخ",
     close: "إغلاق",
     soon: "قريبًا",
-    generating: "برق يكتب…",
+    generating: "Nexus AI v8.4 يكتب…",
     free: "مجاني",
     pro: "احترافي",
     new: "جديد",
@@ -64,7 +64,7 @@ const ar = {
     titleA: "مساعد واحد،",
     titleB: "ألف مهمة تخلص لك",
     titleC: "",
-    sub: "برق مساعدك اليومي بالعربية والدارجة والفرنسية: محادثة، كتابة محتوى، ترجمة، سيرة ذاتية، مساعدة في الدراسة، وأدوات جاهزة للتجار وأصحاب المشاريع في الجزائر.",
+    sub: "Nexus AI v8.4 مساعدك اليومي بالعربية والدارجة والفرنسية: محادثة، كتابة محتوى، ترجمة، سيرة ذاتية، مساعدة في الدراسة، وأدوات جاهزة للتجار وأصحاب المشاريع في الجزائر.",
     cta1: "جرّبه مجانًا الآن",
     cta2: "اكتشف الأدوات",
     note: "بدون بطاقة بنكية • 20 نقطة مجانية كل يوم",
@@ -90,7 +90,7 @@ const ar = {
   ],
   stats: {
     users: "مستخدم",
-    usersLabel: "يثقون في برق",
+    usersLabel: "يثقون في Nexus AI v8.4",
     gens: "نص مولَّد",
     gensLabel: "بواسطة الذكاء الاصطناعي",
     tools: "أداة ذكية",
@@ -99,17 +99,17 @@ const ar = {
     langsLabel: "عربية، دارجة، فرنسية، إنجليزية",
   },
   features: {
-    kicker: "لماذا برق؟",
+    kicker: "لماذا Nexus AI v8.4؟",
     title: "كل ما تحتاجه،",
     highlight: "في منصة واحدة",
-    sub: "صممنا برق ليكون رفيقك اليومي: للطالب، التاجر، صانع المحتوى، والموظف.",
+    sub: "صممنا Nexus AI v8.4 ليكون رفيقك اليومي: للطالب، التاجر، صانع المحتوى، والموظف.",
     items: [
       {
         t: "يفهم الدارجة",
         d: "أول مساعد يفهم ويكتب بالدارجة الجزائرية طبيعيًا، كيما تحكي مع صاحبك.",
       },
       {
-        t: "أسرع من البرق",
+        t: "أسرع من الضوء",
         d: "ردود فورية — تشوف الرد وهو يتكتب حرفًا بحرف.",
       },
       {
@@ -134,7 +134,7 @@ const ar = {
     kicker: "صندوق الأدوات",
     title: "10 أدوات جاهزة",
     highlight: "تخدمك في كل يوم",
-    sub: "أدوات احترافية جاهزة — املأ الخانات فقط وبرق يفعل الباقي.",
+    sub: "أدوات احترافية جاهزة — املأ الخانات فقط وNexus AI v8.4 يفعل الباقي.",
     open: "استعمل الأداة",
     all: "كل الأدوات",
   },
@@ -163,7 +163,7 @@ const ar = {
       cta: "ابدأ مجانًا",
     },
     pro: {
-      name: "برق Pro",
+      name: "Nexus AI v8.4 Pro",
       desc: "للمحترفين والتجار والطلبة الجادين",
       price: "990",
       priceYear: "9 900",
@@ -185,7 +185,7 @@ const ar = {
     highlight: "عندنا الجواب",
     items: [
       {
-        q: "هل برق مجاني فعلًا؟",
+        q: "هل Nexus AI v8.4 مجاني فعلًا؟",
         a: "نعم! تحصل على 20 نقطة مجانية تتجدد كل يوم، بدون بطاقة بنكية. كل رسالة أو استعمال أداة يستهلك نقطة واحدة فقط.",
       },
       {
@@ -198,7 +198,7 @@ const ar = {
       },
       {
         q: "هل أحتاج تثبيت تطبيق؟",
-        a: "لا. برق تطبيق ويب تقدمي (PWA): افتحه في المتصفح واضغط 'تثبيت التطبيق' ليصبح على شاشتك الرئيسية كأي تطبيق، بحجم صغير جدًا.",
+        a: "لا. Nexus AI v8.4 تطبيق ويب تقدمي (PWA): افتحه في المتصفح واضغط 'تثبيت التطبيق' ليصبح على شاشتك الرئيسية كأي تطبيق، بحجم صغير جدًا.",
       },
       {
         q: "ماذا عن خصوصية بياناتي؟",
@@ -212,7 +212,7 @@ const ar = {
   },
   cta: {
     title: "جاهز تربح وقتك؟",
-    sub: "انضم لآلاف الجزائريين الذين يستعملون برق كل يوم — مجانًا.",
+    sub: "انضم لآلاف الجزائريين الذين يستعملون Nexus AI v8.4 كل يوم — مجانًا.",
     btn: "أنشئ حسابك المجاني",
     note: "30 ثانية وتبدأ",
   },
@@ -233,7 +233,7 @@ const ar = {
   },
   auth: {
     loginTitle: "مرحبًا بعودتك",
-    loginSub: "سجّل دخولك لإكمال رحلتك مع برق",
+    loginSub: "سجّل دخولك لإكمال رحلتك مع Nexus AI v8.4",
     signupTitle: "أنشئ حسابك المجاني",
     signupSub: "20 نقطة مجانية كل يوم — بدون بطاقة بنكية",
     name: "الاسم الكامل",
@@ -249,7 +249,7 @@ const ar = {
     forgot: "نسيت كلمة المرور؟",
     resetSent: "أرسلنا رابط إعادة التعيين إلى بريدك ✉️",
     brandLine: "مساعد يفهمك",
-    brandSub: "بالدارجة، بالعربية، بالفرنسية — برق معاك في كل مهامك.",
+    brandSub: "بالدارجة، بالعربية، بالفرنسية — Nexus AI v8.4 معاك في كل مهامك.",
     brandPoints: [
       "محادثة بلا حدود",
       "10 أدوات للمحتوى والتجارة والدراسة",
@@ -291,8 +291,8 @@ const ar = {
     stop: "إيقاف",
     remainingToday: "محاولة متبقية اليوم",
     jumpToEnd: "إلى آخر الرسائل",
-    thinking: "برق يفكر",
-    disclaimer: "برق قد يخطئ أحيانًا — تحقق من المعلومات المهمة.",
+    thinking: "Nexus AI v8.4 يفكر",
+    disclaimer: "Nexus AI v8.4 قد يخطئ أحيانًا — تحقق من المعلومات المهمة.",
     quotaTitle: "خلصت نقاطك اليومية",
     quotaSub: "نقاطك المجانية تتجدد غدًا، أو رقِّ إلى Pro لنقاط غير محدودة.",
     quotaBtn: "رقِّ إلى Pro",
@@ -316,7 +316,7 @@ const ar = {
     chatsTab: "المحادثات",
     runsTab: "نتائج الأدوات",
     viewChat: "افتح",
-    upgradeTitle: "رقِّ إلى برق v8 Pro",
+    upgradeTitle: "رقِّ إلى Nexus AI v8.4 Pro",
     upgradeSub: "نقاط شبه غير محدودة، سرعة أعلى، وميزات حصرية.",
     currentPlan: "خطتك الحالية",
     activeUntil: "صالحة حتى",
@@ -327,7 +327,7 @@ const ar = {
     redeemTitle: "عندك كود تفعيل؟",
     redeemPh: "أدخل الكود",
     redeemBtn: "تفعيل",
-    redeemOk: "مبروك! تم تفعيلك على برق v8 Pro 🎉",
+    redeemOk: "مبروك! تم تفعيلك على Nexus AI v8.4 Pro 🎉",
     redeemBad: "كود غير صالح أو مستعمل",
     monthPlan: "باقة شهرية",
     yearPlan: "باقة سنوية",
@@ -360,8 +360,8 @@ export type Dict = typeof ar;
 /* ------------------------------------------------------------------ */
 const fr: Dict = {
   common: {
-    appName: "Barq",
-    appTag: "برق",
+    appName: "Nexus AI v8.4",
+    appTag: "Nexus AI v8.4",
     loading: "Chargement…",
     error: "Une erreur est survenue, réessayez",
     retry: "Réessayer",
@@ -370,7 +370,7 @@ const fr: Dict = {
     copied: "Copié",
     close: "Fermer",
     soon: "Bientôt",
-    generating: "Barq écrit…",
+    generating: "Nexus AI v8.4 écrit…",
     free: "Gratuit",
     pro: "Pro",
     new: "Nouveau",
@@ -396,7 +396,7 @@ const fr: Dict = {
     titleA: "Une seule IA,",
     titleB: "mille tâches accomplies",
     titleC: "",
-    sub: "Barq est votre assistant intelligent en arabe, darija et français : chat intelligent, rédaction, traduction, CV, aide aux études et outils prêts pour les vendeurs et entrepreneurs d'Algérie.",
+    sub: "Nexus AI v8.4 est votre assistant intelligent en arabe, darija et français : chat intelligent, rédaction, traduction, CV, aide aux études et outils prêts pour les vendeurs et entrepreneurs d'Algérie.",
     cta1: "Essayer gratuitement",
     cta2: "Découvrir les outils",
     note: "Sans carte bancaire • 20 crédits gratuits chaque jour",
@@ -422,7 +422,7 @@ const fr: Dict = {
   ],
   stats: {
     users: "utilisateurs",
-    usersLabel: "font confiance à Barq",
+    usersLabel: "font confiance à Nexus AI v8.4",
     gens: "textes générés",
     gensLabel: "par l'intelligence artificielle",
     tools: "outils IA",
@@ -431,10 +431,10 @@ const fr: Dict = {
     langsLabel: "arabe, darija, français, anglais",
   },
   features: {
-    kicker: "Pourquoi Barq ?",
+    kicker: "Pourquoi Nexus AI v8.4 ?",
     title: "Tout ce qu'il vous faut,",
     highlight: "dans une seule plateforme",
-    sub: "Barq est votre compagnon quotidien : étudiant, vendeur, créateur de contenu ou employé.",
+    sub: "Nexus AI v8.4 est votre compagnon quotidien : étudiant, vendeur, créateur de contenu ou employé.",
     items: [
       {
         t: "Comprend la darija",
@@ -466,7 +466,7 @@ const fr: Dict = {
     kicker: "Boîte à outils",
     title: "10 outils IA",
     highlight: "à votre service",
-    sub: "Des outils professionnels prêts — remplissez les champs, Barq fait le reste.",
+    sub: "Des outils professionnels prêts — remplissez les champs, Nexus AI v8.4 fait le reste.",
     open: "Utiliser",
     all: "Tous les outils",
   },
@@ -495,7 +495,7 @@ const fr: Dict = {
       cta: "Commencer gratuitement",
     },
     pro: {
-      name: "Barq Pro",
+      name: "Nexus AI v8.4 Pro",
       desc: "Pour les pros, vendeurs et étudiants sérieux",
       price: "990",
       priceYear: "9 900",
@@ -517,7 +517,7 @@ const fr: Dict = {
     highlight: "On a la réponse",
     items: [
       {
-        q: "Barq est-il vraiment gratuit ?",
+        q: "Nexus AI v8.4 est-il vraiment gratuit ?",
         a: "Oui ! 20 crédits gratuits renouvelés chaque jour, sans carte bancaire. Chaque message ou outil consomme 1 crédit.",
       },
       {
@@ -530,7 +530,7 @@ const fr: Dict = {
       },
       {
         q: "Faut-il installer une application ?",
-        a: "Non. Barq est une PWA : ouvrez-le dans le navigateur puis 'Installer l'app' pour l'avoir sur votre écran d'accueil, très légère.",
+        a: "Non. Nexus AI v8.4 est une PWA : ouvrez-le dans le navigateur puis 'Installer l'app' pour l'avoir sur votre écran d'accueil, très légère.",
       },
       {
         q: "Et la confidentialité ?",
@@ -544,7 +544,7 @@ const fr: Dict = {
   },
   cta: {
     title: "Prêt à gagner du temps ?",
-    sub: "Rejoignez des milliers d'Algériens qui utilisent Barq chaque jour — gratuitement.",
+    sub: "Rejoignez des milliers d'Algériens qui utilisent Nexus AI v8.4 chaque jour — gratuitement.",
     btn: "Créer mon compte gratuit",
     note: "30 secondes pour commencer",
   },
@@ -565,7 +565,7 @@ const fr: Dict = {
   },
   auth: {
     loginTitle: "Bon retour",
-    loginSub: "Connectez-vous pour continuer avec Barq",
+    loginSub: "Connectez-vous pour continuer avec Nexus AI v8.4",
     signupTitle: "Créez votre compte gratuit",
     signupSub: "20 crédits gratuits par jour — sans carte bancaire",
     name: "Nom complet",
@@ -581,7 +581,7 @@ const fr: Dict = {
     forgot: "Mot de passe oublié ?",
     resetSent: "Lien de réinitialisation envoyé ✉️",
     brandLine: "Une IA qui vous comprend",
-    brandSub: "En darija, arabe ou français — Barq est avec vous dans toutes vos tâches.",
+    brandSub: "En darija, arabe ou français — Nexus AI v8.4 est avec vous dans toutes vos tâches.",
     brandPoints: [
       "Chat intelligent illimité",
       "10 outils contenu, commerce & études",
@@ -623,8 +623,8 @@ const fr: Dict = {
     stop: "Arrêter",
     remainingToday: "essais restants aujourd'hui",
     jumpToEnd: "Aller au dernier message",
-    thinking: "Barq réfléchit",
-    disclaimer: "Barq peut se tromper — vérifiez les informations importantes.",
+    thinking: "Nexus AI v8.4 réfléchit",
+    disclaimer: "Nexus AI v8.4 peut se tromper — vérifiez les informations importantes.",
     quotaTitle: "Crédits du jour épuisés",
     quotaSub: "Vos crédits gratuits reviennent demain, ou passez Pro pour du quasi-illimité.",
     quotaBtn: "Passer à Pro",
@@ -648,7 +648,7 @@ const fr: Dict = {
     chatsTab: "Conversations",
     runsTab: "Résultats d'outils",
     viewChat: "Ouvrir",
-    upgradeTitle: "Passez à Barq Pro",
+    upgradeTitle: "Passez à Nexus AI v8.4 Pro",
     upgradeSub: "Crédits quasi illimités, vitesse accrue et fonctions exclusives.",
     currentPlan: "Votre plan actuel",
     activeUntil: "Valable jusqu'au",
@@ -659,7 +659,7 @@ const fr: Dict = {
     redeemTitle: "Un code d'activation ?",
     redeemPh: "Entrez le code",
     redeemBtn: "Activer",
-    redeemOk: "Félicitations ! Barq v8 Pro activé 🎉",
+    redeemOk: "Félicitations ! Nexus AI v8.4 Pro activé 🎉",
     redeemBad: "Code invalide ou déjà utilisé",
     monthPlan: "Plan mensuel",
     yearPlan: "Plan annuel",
@@ -690,8 +690,8 @@ const fr: Dict = {
 /* ------------------------------------------------------------------ */
 const en: Dict = {
   common: {
-    appName: "Barq",
-    appTag: "برق",
+    appName: "Nexus AI v8.4",
+    appTag: "Nexus AI v8.4",
     loading: "Loading…",
     error: "Something went wrong, try again",
     retry: "Retry",
@@ -700,7 +700,7 @@ const en: Dict = {
     copied: "Copied",
     close: "Close",
     soon: "Soon",
-    generating: "Barq is writing…",
+    generating: "Nexus AI v8.4 is writing…",
     free: "Free",
     pro: "Pro",
     new: "New",
@@ -726,7 +726,7 @@ const en: Dict = {
     titleA: "One AI,",
     titleB: "a thousand tasks done",
     titleC: "",
-    sub: "Barq is your all-in-one smart assistant in Arabic, Darija and French: smart chat, content writing, translation, CVs, study help and ready-made tools for Algerian sellers and entrepreneurs.",
+    sub: "Nexus AI v8.4 is your all-in-one smart assistant in Arabic, Darija and French: smart chat, content writing, translation, CVs, study help and ready-made tools for Algerian sellers and entrepreneurs.",
     cta1: "Try it free now",
     cta2: "Explore the tools",
     note: "No credit card • 20 free credits every day",
@@ -752,7 +752,7 @@ const en: Dict = {
   ],
   stats: {
     users: "users",
-    usersLabel: "trust Barq",
+    usersLabel: "trust Nexus AI v8.4",
     gens: "texts generated",
     gensLabel: "by artificial intelligence",
     tools: "AI tools",
@@ -761,10 +761,10 @@ const en: Dict = {
     langsLabel: "Arabic, Darija, French, English",
   },
   features: {
-    kicker: "Why Barq?",
+    kicker: "Why Nexus AI v8.4?",
     title: "Everything you need,",
     highlight: "in one platform",
-    sub: "Barq is your daily companion: student, seller, content creator or employee.",
+    sub: "Nexus AI v8.4 is your daily companion: student, seller, content creator or employee.",
     items: [
       {
         t: "Understands Darija",
@@ -796,7 +796,7 @@ const en: Dict = {
     kicker: "Toolbox",
     title: "10 AI tools",
     highlight: "at your service",
-    sub: "Professional ready-made tools — fill the fields, Barq does the rest.",
+    sub: "Professional ready-made tools — fill the fields, Nexus AI v8.4 does the rest.",
     open: "Use tool",
     all: "All tools",
   },
@@ -825,7 +825,7 @@ const en: Dict = {
       cta: "Start for free",
     },
     pro: {
-      name: "Barq Pro",
+      name: "Nexus AI v8.4 Pro",
       desc: "For pros, sellers and serious students",
       price: "990",
       priceYear: "9,900",
@@ -847,7 +847,7 @@ const en: Dict = {
     highlight: "We've got answers",
     items: [
       {
-        q: "Is Barq really free?",
+        q: "Is Nexus AI v8.4 really free?",
         a: "Yes! 20 free credits renewed every day, no card needed. Each message or tool run costs 1 credit.",
       },
       {
@@ -860,7 +860,7 @@ const en: Dict = {
       },
       {
         q: "Do I need to install an app?",
-        a: "No. Barq is a PWA: open it in the browser, tap 'Install app' and it lives on your home screen, super light.",
+        a: "No. Nexus AI v8.4 is a PWA: open it in the browser, tap 'Install app' and it lives on your home screen, super light.",
       },
       {
         q: "What about my privacy?",
@@ -874,7 +874,7 @@ const en: Dict = {
   },
   cta: {
     title: "Ready to win back your time?",
-    sub: "Join thousands of Algerians using Barq every day — for free.",
+    sub: "Join thousands of Algerians using Nexus AI v8.4 every day — for free.",
     btn: "Create my free account",
     note: "30 seconds to start",
   },
@@ -895,7 +895,7 @@ const en: Dict = {
   },
   auth: {
     loginTitle: "Welcome back",
-    loginSub: "Sign in to continue with Barq",
+    loginSub: "Sign in to continue with Nexus AI v8.4",
     signupTitle: "Create your free account",
     signupSub: "20 free credits every day — no card needed",
     name: "Full name",
@@ -911,7 +911,7 @@ const en: Dict = {
     forgot: "Forgot password?",
     resetSent: "Reset link sent to your inbox ✉️",
     brandLine: "An AI that understands you",
-    brandSub: "In Darija, Arabic or French — Barq is with you in every task.",
+    brandSub: "In Darija, Arabic or French — Nexus AI v8.4 is with you in every task.",
     brandPoints: [
       "Unlimited smart chat",
       "10 tools for content, commerce & study",
@@ -953,8 +953,8 @@ const en: Dict = {
     stop: "Stop",
     remainingToday: "tries left today",
     jumpToEnd: "Jump to latest",
-    thinking: "Barq is thinking",
-    disclaimer: "Barq can make mistakes — double-check important info.",
+    thinking: "Nexus AI v8.4 is thinking",
+    disclaimer: "Nexus AI v8.4 can make mistakes — double-check important info.",
     quotaTitle: "Daily credits used up",
     quotaSub: "Free credits renew tomorrow — or upgrade to Pro for near-unlimited use.",
     quotaBtn: "Upgrade to Pro",
@@ -978,7 +978,7 @@ const en: Dict = {
     chatsTab: "Conversations",
     runsTab: "Tool results",
     viewChat: "Open",
-    upgradeTitle: "Upgrade to Barq Pro",
+    upgradeTitle: "Upgrade to Nexus AI v8.4 Pro",
     upgradeSub: "Near-unlimited credits, higher speed and exclusive features.",
     currentPlan: "Current plan",
     activeUntil: "Valid until",
@@ -989,7 +989,7 @@ const en: Dict = {
     redeemTitle: "Have an activation code?",
     redeemPh: "Enter your code",
     redeemBtn: "Activate",
-    redeemOk: "Congrats! Barq v8 Pro activated 🎉",
+    redeemOk: "Congrats! Nexus AI v8.4 Pro activated 🎉",
     redeemBad: "Invalid or already used code",
     monthPlan: "Monthly plan",
     yearPlan: "Yearly plan",

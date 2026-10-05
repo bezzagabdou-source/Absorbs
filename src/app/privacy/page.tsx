@@ -3,7 +3,7 @@ import { PublicShell } from "@/components/public-shell";
 
 export const metadata: Metadata = {
   title: "سياسة الخصوصية",
-  description: "كيف يجمع برق بياناتك ويستعملها ويحميها.",
+  description: "كيف يجمع Nexus AI v8.4 بياناتك ويستعملها ويحميها.",
   alternates: { canonical: "/privacy" },
 };
 

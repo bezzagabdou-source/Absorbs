@@ -97,7 +97,7 @@ export function MegaBuilder({ isPro }: { isPro: boolean }) {
       {idle && (
         <div className="glass-deep rounded-2xl p-3">
           <p className="px-1 pb-2 text-sm text-slate-300">
-            صف مشروعاً كبيراً — يخطّط برق الملفات ثم يكتب كل ملف على حدة بلا توقف، وتحصل على ZIP (حتى {MEGA_MAX_FILES} ملف / {mb(MEGA_MAX_TOTAL)}MB — الألعاب لا تقل عن 3MB).
+            صف مشروعاً كبيراً — يخطّط Nexus AI v8.4 الملفات ثم يكتب كل ملف على حدة بلا توقف، وتحصل على ZIP (حتى {MEGA_MAX_FILES} ملف / {mb(MEGA_MAX_TOTAL)}MB — الألعاب لا تقل عن 3MB).
           </p>
           <textarea
             value={input}

@@ -391,7 +391,7 @@ function fallbackProviders(): Compat[] {
         "anthropic/claude-opus-4.5",
         "anthropic/claude-haiku-4.5",
       ]),
-      headers: { "X-Title": "Barq AI" },
+      headers: { "X-Title": "Nexus AI v8.4" },
     });
   }
   const dKey = clean(env.DEEPSEEK_API_KEY);
@@ -432,11 +432,11 @@ function fallbackProviders(): Compat[] {
       key: orKey,
       models: withCustom(clean(env.OPENROUTER_MODEL), [
         "openrouter/free",
-        "deepseek/deepseek-chat-v3.1:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "qwen/qwen3-235b-a22b:free",
+        "qwen/qwen3.8-27b:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "google/gemma-4-31b-it:free",
       ]),
-      headers: { "X-Title": "Barq AI" },
+      headers: { "X-Title": "Nexus AI v8.4" },
     });
   }
   const gKey = clean(env.GROQ_API_KEY);
@@ -697,9 +697,41 @@ export async function streamGemini(opts: {
   task?: Task;
   /** let the engines ranked above Gemini for this task (Claude by default) answer first; Gemini is the safety net */
   primaryFirst?: boolean;
+  /** Nexus: force one free OpenRouter model (validated catalog id) before anything else */
+  freeModel?: string;
   onModel?: (model: string) => void;
   onDone?: (full: string) => void | Promise<void>;
 }): Promise<ReadableStream<string>> {
+  const orForced = opts.freeModel ? clean(process.env.OPENROUTER_API_KEY) : "";
+  if (opts.freeModel && !orForced) {
+    throw new GeminiError("NO_KEY", "OPENROUTER_API_KEY is not configured");
+  }
+  if (opts.freeModel && orForced) {
+    const lead = await openCompat(
+      opts.system,
+      opts.messages,
+      opts.temperature ?? 0.5,
+      Math.min(opts.maxTokens ?? 8192, 32000),
+      {
+        providers: [
+          {
+            name: "openrouter",
+            kind: "openai",
+            url: "https://openrouter.ai/api/v1/chat/completions",
+            key: orForced,
+            // chosen model first, the auto-router is the safety net
+            models: Array.from(new Set([opts.freeModel, "openrouter/free"])),
+            headers: { "X-Title": "Nexus AI v8.4" },
+          },
+        ],
+      }
+    );
+    if (lead && lead.res.body) {
+      opts.onModel?.(lead.model);
+      return pumpStream(lead.res, lead.kind, opts.onDone);
+    }
+    throw new GeminiError("BUSY", "Free OpenRouter models are busy or rate-limited");
+  }
   const key = getGeminiKey() ?? "";
   if (!key && (opts.noFallback || fallbackProviders().length === 0)) {
     throw new GeminiError("NO_KEY", "Gemini API key is not configured");
@@ -916,7 +948,7 @@ export function isHardRequest(text: string, hasFiles = false): boolean {
 
 const EPIC_RULES = `
 
-EPIC MODE (Barq 6 Pro): the final deliverable MUST be a large, complete, flawless product of real, working code (never padding, comments or blank lines): games at least 3000 lines; websites / apps / UI as long as the design needs (typically 1200-3500 lines) — quality beats length. Merge the best ideas of every draft, then polish: more real content, more working interactions, better mobile layout. Never summarise, never abbreviate, never write "rest of code". Write every line in full until the file is finished.`;
+EPIC MODE (Nexus 6 Pro): the final deliverable MUST be a large, complete, flawless product of real, working code (never padding, comments or blank lines): games at least 3000 lines; websites / apps / UI as long as the design needs (typically 1200-3500 lines) — quality beats length. Merge the best ideas of every draft, then polish: more real content, more working interactions, better mobile layout. Never summarise, never abbreviate, never write "rest of code". Write every line in full until the file is finished.`;
 
 const DRAFT_RULES = `
 
@@ -1260,8 +1292,8 @@ export function ensembleStream(
           opts.kind === "build" && atts.length === 0 && members.length > 0 && (opts.site === true || isSiteRequest(lastText));
         if (!studio) put(
           opts.kind === "hard"
-            ? `> 🧠 برق فعّل **فريق الذكاء الاصطناعي**، وكل واحد بتخصصه: ${names.join(" + ")} — يحلّون المهمة معًا ثم يدمجون أقوى إجابة…\n\n`
-            : `> ⚡ فريق برق يشتغل، وكل محرّك بتخصصه: **${names.join(" + ")}** — كل واحد يبني نسخته ثم يندمجون في نتيجة واحدة أقوى…\n\n`
+            ? `> 🧠 Nexus AI v8.4 فعّل **فريق الذكاء الاصطناعي**، وكل واحد بتخصصه: ${names.join(" + ")} — يحلّون المهمة معًا ثم يدمجون أقوى إجابة…\n\n`
+            : `> ⚡ فريق Nexus AI v8.4 يشتغل، وكل محرّك بتخصصه: **${names.join(" + ")}** — كل واحد يبني نسخته ثم يندمجون في نتيجة واحدة أقوى…\n\n`
         );
 
         const MS = Number(process.env.BARQ_DRAFT_MS) > 5000 ? Number(process.env.BARQ_DRAFT_MS) : opts.epic ? 40_000 : 55_000;
@@ -1272,7 +1304,7 @@ export function ensembleStream(
           // Studio mode: each engine plays ONE role and writes a short brief (not a full draft)
           const plan = assignRoles(members);
           put(
-            `> 🎬 برق يشتغل كاستوديو، كل واحد بدوره: ${plan
+            `> 🎬 Nexus AI v8.4 يشتغل كاستوديو، كل واحد بدوره: ${plan
               .map((p) => `${p.role.emoji} ${p.role.labelAr} (**${ENGINE_LABEL[p.engine] ?? p.engine}**)`)
               .join(" + ")} — ثم يبني المصمّم الأول الموقع النهائي…\n\n`
           );

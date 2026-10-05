@@ -3,7 +3,7 @@ import { PublicShell } from "@/components/public-shell";
 
 export const metadata: Metadata = {
   title: "شروط الاستخدام",
-  description: "شروط استخدام خدمة برق.",
+  description: "شروط استخدام خدمة Nexus AI v8.4.",
   alternates: { canonical: "/terms" },
 };
 
@@ -12,7 +12,7 @@ export default function TermsPage() {
     <PublicShell>
       <article className="glass mx-auto mt-6 max-w-3xl space-y-5 rounded-3xl p-6 leading-loose text-slate-300 sm:p-10">
         <h1 className="text-3xl font-black text-white">شروط الاستخدام</h1>
-        <p>باستعمالك برق فإنك توافق على الشروط التالية.</p>
+        <p>باستعمالك Nexus AI v8.4 فإنك توافق على الشروط التالية.</p>
 
         <h2 className="text-xl font-bold text-white">الاستعمال المقبول</h2>
         <ul className="list-disc space-y-1 ps-6">

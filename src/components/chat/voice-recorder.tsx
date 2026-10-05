@@ -271,7 +271,7 @@ export function VoiceSettings({ className }: { className?: string }) {
                 <button
                   type="button"
                   onClick={() =>
-                    speak("مرحبا، أنا برق. هذا هو صوتي.", undefined, { ...prefs, lang: "ar-SA" })
+                    speak("مرحبا، أنا Nexus AI v8.4. هذا هو صوتي.", undefined, { ...prefs, lang: "ar-SA" })
                   }
                   className="flex-1 rounded-lg bg-brand-500/15 px-3 py-2 text-xs font-black text-brand-600 ring-1 ring-brand-400/30 dark:text-brand-300"
                 >

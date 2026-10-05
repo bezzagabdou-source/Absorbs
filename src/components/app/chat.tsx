@@ -45,6 +45,7 @@ import {
   Zap,
   Sparkles,
   Rocket,
+  ImagePlus,
   type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -81,6 +82,67 @@ import {
 /** v8: "generate me an image" requests (the image engine is not available yet). */
 const IMAGE_INTENT =
   /(ولّ?د|اصنع|أنشئ|انشئ|صمّ?م|ارسم|اعمل|سوّ?ي|توليد|generate|create|make|draw|génère|genere|crée|cree|dessine)\s+(لي\s+|لنا\s+|me\s+|moi\s+)?(an?\s+|une?\s+|des\s+)?(صور[ةه]?|صور|image|images|picture|pictures|photo|photos)(?![\w\u0600-\u06FF])/i;
+
+/* ---- Nexus AI v8.4: free OpenRouter catalog (inline, no extra file) ---- */
+const DEFAULT_FREE_MODEL = "openrouter/free";
+
+interface FreeModel {
+  id: string;
+  label: string;
+}
+interface FreeModelGroup {
+  group: string;
+  models: FreeModel[];
+}
+
+const FREE_MODEL_GROUPS: readonly FreeModelGroup[] = [
+  {
+    group: "🚀 Fast Default & Routing",
+    models: [
+      { id: "openrouter/free", label: "Auto-Router (fastest available) — Default" },
+      { id: "qwen/qwen3.8-27b:free", label: "Qwen 3.8 27B (ultra-fast)" },
+    ],
+  },
+  {
+    group: "💻 Code & Game Development",
+    models: [
+      { id: "cohere/north-mini-code:free", label: "Cohere North Mini Code" },
+      { id: "poolside/laguna-s-2.1:free", label: "Poolside Laguna S 2.1" },
+      { id: "poolside/laguna-xs-2.1:free", label: "Poolside Laguna XS 2.1" },
+    ],
+  },
+  {
+    group: "🧠 Deep Reasoning & 1M Context",
+    models: [
+      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra 550B (1M ctx)" },
+      { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B" },
+      { id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron 3.5 Lightning" },
+      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", label: "Nemotron 3 Nano Omni 30B Reasoning" },
+      { id: "thinkingmachines/inkling:free", label: "Thinking Machines Inkling" },
+      { id: "thinkingmachines/inkling-small:free", label: "Thinking Machines Inkling Small" },
+      { id: "apodex/apodex-1.1-mini:free", label: "Apodex 1.1 Mini" },
+    ],
+  },
+  {
+    group: "🌐 General & Multimodal",
+    models: [
+      { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B IT" },
+      { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B A4B IT" },
+      { id: "dots-studio/dots-3-note-preview:free", label: "dots 3 Note Preview" },
+      { id: "liquid/lfm-2.5-2.6b:free", label: "Liquid LFM 2.5 2.6B" },
+      { id: "inclusionai/ling-3.0-flash-sante:free", label: "Ling 3.0 Flash Santé" },
+      { id: "stealth/space-bunny-alpha", label: "Space Bunny Alpha (stealth)" },
+    ],
+  },
+];
+
+const ALL_IDS: ReadonlySet<string> = new Set(FREE_MODEL_GROUPS.flatMap((g) => g.models.map((m) => m.id)));
+
+/** Runtime guard for model ids coming from a request body (only catalog ids are accepted). */
+function isFreeModel(v: unknown): v is string {
+  return typeof v === "string" && ALL_IDS.has(v);
+}
+
 
 type Msg = {
   id: number;
@@ -274,7 +336,7 @@ function BuildThinking({ info }: { info: CodeInfo | null }) {
           <Sparkles className="h-4 w-4 text-orange-600" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-black text-slate-100">برق يفكّر ويبني…</p>
+          <p className="text-[14px] font-black text-slate-100">Nexus AI v8.4 يفكّر ويبني…</p>
           <p className="truncate text-[12.5px] font-semibold text-slate-400">{BUILD_STEPS[i]}…</p>
         </div>
       </div>
@@ -591,6 +653,15 @@ export function ChatPage() {
   const [showJump, setShowJump] = useState(false);
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [deep, setDeep] = useState(false);
+  const [freeModel, setFreeModel] = useState<string>(DEFAULT_FREE_MODEL);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("nexus_model");
+      if (isFreeModel(saved)) setFreeModel(saved);
+    } catch {
+      /* private mode */
+    }
+  }, []);
   const router = useRouter();
   const [tier, setTier] = useState<TierId>("v8");
   const [persona, setPersona] = useState("genius");
@@ -974,6 +1045,8 @@ export function ChatPage() {
                     .map((f) => ({ name: f.name, text: f.text })),
                 }
               : {}),
+            // free accounts: the chosen free OpenRouter model; Pro keeps its premium engines unless a specific model is picked
+            ...(!isPro || freeModel !== DEFAULT_FREE_MODEL ? { freeModel } : {}),
             ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
             ...(isPro && tier === "v6" ? { v6: true } : {}),
             ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
@@ -1047,7 +1120,7 @@ export function ChatPage() {
         // NEVER STOP IN THE MIDDLE OF CODE: while the answer still ends inside a code
         // block (limit / network / screen lock), ask the server to finish it — up to 12 rounds,
         // surviving dropped connections; stops only when two rounds in a row bring nothing new.
-        if (isPro) {
+        if (isPro && freeModel === DEFAULT_FREE_MODEL) {
           let idle = 0;
           for (let r = 0; r < 12 && mine() && codeLooksCut(acc); r++) {
             if (r > 0) await new Promise((res) => setTimeout(res, idle ? 1500 : 500));
@@ -1432,7 +1505,7 @@ export function ChatPage() {
                 {isPro && (
                   <Link
                     href="/app/settings/memory"
-                    aria-label="ذاكرة برق"
+                    aria-label="ذاكرة Nexus AI v8.4"
                     className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-amber-200"
                   >
                     <Brain className="h-4 w-4" />
@@ -1659,6 +1732,37 @@ export function ChatPage() {
                 </div>
               )}
 
+              {/* Nexus: free OpenRouter models */}
+              <div className="flex w-full items-center gap-2 px-3 pt-2.5">
+                <Zap className="h-4 w-4 shrink-0 text-aqua-300" aria-hidden />
+                <select
+                  id="modelSelect"
+                  value={freeModel}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!isFreeModel(v)) return;
+                    setFreeModel(v);
+                    try {
+                      localStorage.setItem("nexus_model", v);
+                    } catch {
+                      /* private mode */
+                    }
+                  }}
+                  aria-label="AI model"
+                  className="h-10 min-w-0 flex-1 rounded-full border border-white/15 bg-ink-950 px-3 text-[13px] font-bold text-slate-100 outline-none focus:border-aqua-300"
+                >
+                  {FREE_MODEL_GROUPS.map((g) => (
+                    <optgroup key={g.group} label={g.group}>
+                      {g.models.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
               {/* model switch: its own full-width row so no button is ever clipped (MAX included) */}
               <div
                 role="radiogroup"
@@ -1666,8 +1770,8 @@ export function ChatPage() {
                 className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
               >
                 {(isPro
-                  ? ([["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
-                  : ([["v4", "برق 4"], ["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
+                  ? ([["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
+                  : ([["v4", "Nexus 4"], ["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
                 ).map(([id, label]) => {
                   const on = (isPro ? tier : "v4") === id;
                   const locked = !isPro && id !== "v4";
@@ -1707,7 +1811,7 @@ export function ChatPage() {
               </div>
 
               {isPro && (tier === "v8" || tier === "max") && (
-                <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="وضع برق">
+                <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="وضع Nexus AI v8.4">
                   {PERSONAS.map((p) => (
                     <button
                       key={p.id}
@@ -1777,31 +1881,34 @@ export function ChatPage() {
                 >
                   <Paperclip className="h-5 w-5" />
                 </button>
-                {voiceOk && !streaming && !talk && (
-                  <VoiceRecorder
-                    lang={locale === "ar" ? "ar-DZ" : locale === "fr" ? "fr-FR" : "en-US"}
-                    getBase={() => input}
-                    onText={(txt) => {
-                      setInput(txt);
-                      const el = taRef.current;
-                      if (el) {
-                        el.style.height = "auto";
-                        el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
-                      }
-                    }}
-                    onBeforeStart={() => {
-                      if (isPro) return true;
-                      setProHint(true);
-                      return false;
-                    }}
-                  />
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prompt = input.trim();
+                    if (!prompt || streaming) return;
+                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 600))}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1e9)}`;
+                    setMsgs((m) => [
+                      ...m,
+                      { id: nextId(), role: "user", content: `🎨 ${prompt}` },
+                      { id: nextId(), role: "assistant", content: `![${prompt.replace(/[\[\]]/g, "")}](${url})` },
+                    ]);
+                    setInput("");
+                    const el = taRef.current;
+                    if (el) el.style.height = "auto";
+                  }}
+                  disabled={!input.trim() || streaming}
+                  aria-label="Generate image"
+                  title="Generate image (Pollinations AI): type a description, then tap"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-white/8 hover:text-brand-300 active:scale-90 disabled:opacity-40"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
                 <button
                   type="button"
                   onClick={() => (isPro ? setCall(true) : setProHint(true))}
                   aria-pressed={call}
                   aria-label="مكالمة صوتية"
-                  title="مكالمة صوتية مباشرة: تكلّم مع برق ويرد عليك بصوته"
+                  title="مكالمة صوتية مباشرة: تكلّم مع Nexus AI v8.4 ويرد عليك بصوته"
                   className={cn(
                     "grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-90",
                     call
@@ -1856,6 +1963,21 @@ export function ChatPage() {
                   >
                     <ArrowUp className="h-5 w-5" strokeWidth={2.6} />
                   </button>
+                )}
+                {voiceOk && !streaming && !talk && (
+                  <VoiceRecorder
+                    lang={locale === "ar" ? "ar-DZ" : locale === "fr" ? "fr-FR" : "en-US"}
+                    getBase={() => input}
+                    onText={(txt) => {
+                      setInput(txt);
+                      const el = taRef.current;
+                      if (el) {
+                        el.style.height = "auto";
+                        el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
+                      }
+                    }}
+                    onBeforeStart={() => true}
+                  />
                 )}
               </div>
             </div>

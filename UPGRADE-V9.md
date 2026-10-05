@@ -1,4 +1,4 @@
-# Barq v9 — Master Upgrade
+# Nexus AI v8.4 v9 — Master Upgrade
 
 Run after unzipping:
 

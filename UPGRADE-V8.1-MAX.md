@@ -1,4 +1,4 @@
-# Barq v8.1 — MAX
+# Nexus AI v8.4.1 — MAX
 
 ## New
 - **MAX engine** (`src/lib/max-engine.ts`, tier "MAX" in the chat model switch, Pro only)
@@ -27,7 +27,7 @@
 
 # v8.2 — Voice Call (مكالمة صوتية)
 
-Tap the headphones button in the chat box (Pro), or Ctrl/⌘+K -> "مكالمة صوتية مع برق".
+Tap the headphones button in the chat box (Pro), or Ctrl/⌘+K -> "مكالمة صوتية مع Nexus AI v8.4".
 
 ## What it does
 - Full-screen call: a living orb (listening / thinking / speaking colours, ring spectrum), live captions, call timer, screen kept awake.

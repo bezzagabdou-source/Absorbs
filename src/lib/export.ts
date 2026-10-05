@@ -26,8 +26,8 @@ function visible(msgs: ExportMessage[]) {
 /* ---------- Markdown ---------- */
 
 export function toMarkdown(msgs: ExportMessage[], o: ExportOptions = {}): string {
-  const title = o.title ?? "Barq AI";
-  const ai = o.assistantName ?? "⚡ Barq";
+  const title = o.title ?? "Nexus AI v8.4";
+  const ai = o.assistantName ?? "⚡ Nexus AI v8.4";
   const me = o.userName ?? "👤";
   const body = visible(msgs)
     .map((m) => `### ${m.role === "user" ? me : ai}\n\n${m.content.trim()}`)
@@ -164,8 +164,8 @@ a{color:#1d4ed8}ul,ol{padding-inline-start:1.4em}
 `;
 
 export function buildPrintHtml(msgs: ExportMessage[], o: ExportOptions = {}): string {
-  const title = esc(o.title ?? "Barq AI");
-  const ai = esc(o.assistantName ?? "⚡ Barq");
+  const title = esc(o.title ?? "Nexus AI v8.4");
+  const ai = esc(o.assistantName ?? "⚡ Nexus AI v8.4");
   const me = esc(o.userName ?? "👤");
   const body = visible(msgs)
     .map((m) => {

@@ -1,9 +1,9 @@
-# Barq v8.3 — MAX fix
+# Nexus AI v8.4.3 — MAX fix
 
 - src/lib/max-engine.ts: new strict MAX contract (huge size floor, deep game systems, zero-error rules, no draft merging, MAX DESIGN LAW = modern UI/UX, never flat black). MAX_STUDIO_ADDON for the Studio mega builder.
 - src/app/api/ai/chat/route.ts: MAX build = ONE strongest engine writes everything (no ensemble merge), 64k tokens, 30 auto-continue rounds.
 - src/lib/prompts.ts: removed the "dark + neon by default" rules (game + site specs) -> modern colour-rich UI/UX.
-- src/components/app/chat.tsx: model row (برق 5 / 6 / 8 / MAX) is its own full-width row — nothing is clipped, MAX is orange and always visible. Big code is hidden: "thinking" progress while it builds, then a result card (open / download / show code). Live preview still opens automatically.
+- src/components/app/chat.tsx: model row (Nexus 5 / 6 / 8 / MAX) is its own full-width row — nothing is clipped, MAX is orange and always visible. Big code is hidden: "thinking" progress while it builds, then a result card (open / download / show code). Live preview still opens automatically.
 - Theme: orange + white background with black text is now the default (storage key barq_theme_v2; dark stays available in the toggle).
 - Voice call: picks the most natural installed voice (Google / Neural / Online), shorter breaths, first clause spoken at once, human phone-style prompt (fast, dialect-matched, no markdown).
 

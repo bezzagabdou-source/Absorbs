@@ -80,7 +80,7 @@ export function parsePlan(text: string): MegaPlan | null {
   for (const f of files) f.needs = f.needs.filter((n) => valid.has(n) && n !== f.path);
 
   return {
-    title: typeof r.title === "string" && r.title.trim() ? r.title.trim().slice(0, 80) : "Barq project",
+    title: typeof r.title === "string" && r.title.trim() ? r.title.trim().slice(0, 80) : "Nexus AI v8.4 project",
     kind: typeof r.kind === "string" ? r.kind.slice(0, 20) : "site",
     contract: typeof r.contract === "string" ? r.contract.slice(0, 8000) : "",
     files,
@@ -164,7 +164,7 @@ export function digestOf(path: string, text: string): string {
 /* Prompts                                                              */
 /* ------------------------------------------------------------------ */
 
-export const PLAN_SYSTEM = `You are the chief architect of Barq Pro. You plan a COMPLETE static web project (a site, web app or game) that is delivered as a ZIP and opens by double-clicking index.html or on any static host.
+export const PLAN_SYSTEM = `You are the chief architect of Nexus AI v8.4 Pro. You plan a COMPLETE static web project (a site, web app or game) that is delivered as a ZIP and opens by double-clicking index.html or on any static host.
 
 Return ONLY one JSON object — no prose, no code fence:
 {"title": string, "kind": "game" | "site" | "app", "contract": string, "files": [{"path": string, "desc": string, "needs": [string], "kb": number}]}
@@ -185,7 +185,7 @@ export function planUserPrompt(prompt: string): string {
   return `Project request:\n${prompt.slice(0, 12_000)}`;
 }
 
-export const FILE_SYSTEM = `You are a senior engineer on the Barq Pro team. You write ONE file of a larger static project; other engineers write the other files at the same time.
+export const FILE_SYSTEM = `You are a senior engineer on the Nexus AI v8.4 Pro team. You write ONE file of a larger static project; other engineers write the other files at the same time.
 
 OUTPUT: only the complete file inside a single fenced code block with the correct language tag (use a four-backtick fence for .md files). No words before or after the block.
 

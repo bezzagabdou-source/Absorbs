@@ -129,7 +129,7 @@ export function DeployPanel({ files, title, onClose, onNetlify }: { files: ZipFi
       <button type="button" onClick={onNetlify} className="mt-2 w-full text-center text-[11px] text-slate-500 underline hover:text-slate-300">
         بدون مفتاح: حمّل ZIP وافتح Netlify Drop
       </button>
-      <p className="mt-2 text-[10px] leading-relaxed text-slate-600">يُرسل المفتاح عبر HTTPS لتنفيذ هذه العملية فقط ولا يُخزَّن على خوادم برق.</p>
+      <p className="mt-2 text-[10px] leading-relaxed text-slate-600">يُرسل المفتاح عبر HTTPS لتنفيذ هذه العملية فقط ولا يُخزَّن على خوادم Nexus AI v8.4.</p>
     </div>
   );
 }

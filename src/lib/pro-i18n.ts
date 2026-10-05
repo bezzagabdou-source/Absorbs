@@ -5,7 +5,7 @@ import { useI18n, type Locale } from "@/lib/i18n";
 /** Strings for the v8 Pro features. Kept apart from i18n.tsx so the core dictionary stays untouched. */
 const P = {
   ar: {
-    proOnly: "هذي الميزة في برق Pro فقط",
+    proOnly: "هذي الميزة في Nexus AI v8.4 Pro فقط",
     proOnlyHint: "ارفع الصور والملفات، فكّر بعمق، واستعمل أدوات الكود وصانع الألعاب.",
     upgrade: "رقِّ إلى Pro",
     attach: "إرفاق صورة أو ملف",
@@ -30,7 +30,7 @@ const P = {
     toolsProSub: "حلّل كودك، صلّح أخطاءه، واصنع ألعابًا كاملة تلعبها مباشرة.",
     toolsFree: "الأدوات العامة",
     locked: "Pro",
-    toolLockedTitle: "هذي الأداة لمشتركي برق Pro",
+    toolLockedTitle: "هذي الأداة لمشتركي Nexus AI v8.4 Pro",
     toolLockedSub: "رقِّ حسابك لتستعمل أدوات تحليل الكود وصانع الألعاب المتقدم.",
     gameTitle: "معاينة اللعبة",
     gameBuilding: "نبني لعبتك…",
@@ -44,7 +44,7 @@ const P = {
     codeCopied: "تم النسخ",
     codePreview: "معاينة",
     codeDownload: "تحميل",
-    proFeaturesTitle: "ميزات برق 8 Pro الأسطورية",
+    proFeaturesTitle: "ميزات Nexus AI v8.4 Pro الأسطورية",
     proFeatures: [
       "عقل عبقري يفهم الدارجة والأخطاء وأي صياغة ويرد فورًا",
       "فريق ذكاء اصطناعي (Claude + Gemini + DeepSeek + Grok) يدمج أقوى إجابة في كل مهمة صعبة: برمجة، تعديل، تقارير",
@@ -57,7 +57,7 @@ const P = {
     ],
   },
   fr: {
-    proOnly: "Cette fonction est réservée à Barq Pro",
+    proOnly: "Cette fonction est réservée à Nexus AI v8.4 Pro",
     proOnlyHint: "Joignez images et fichiers, réfléchissez en profondeur, utilisez les outils de code et le créateur de jeux.",
     upgrade: "Passer à Pro",
     attach: "Joindre une image ou un fichier",
@@ -82,7 +82,7 @@ const P = {
     toolsProSub: "Analysez votre code, corrigez les bugs et créez des jeux complets jouables tout de suite.",
     toolsFree: "Outils généraux",
     locked: "Pro",
-    toolLockedTitle: "Cet outil est réservé aux abonnés Barq Pro",
+    toolLockedTitle: "Cet outil est réservé aux abonnés Nexus AI v8.4 Pro",
     toolLockedSub: "Passez à Pro pour utiliser l'analyse de code et le créateur de jeux avancé.",
     gameTitle: "Aperçu du jeu",
     gameBuilding: "Construction de votre jeu…",
@@ -109,7 +109,7 @@ const P = {
     ],
   },
   en: {
-    proOnly: "This feature is for Barq Pro only",
+    proOnly: "This feature is for Nexus AI v8.4 Pro only",
     proOnlyHint: "Attach images and files, think deeper, and use the code tools and the game builder.",
     upgrade: "Upgrade to Pro",
     attach: "Attach an image or file",
@@ -134,7 +134,7 @@ const P = {
     toolsProSub: "Analyze your code, fix bugs, and build complete games you can play instantly.",
     toolsFree: "General tools",
     locked: "Pro",
-    toolLockedTitle: "This tool is for Barq Pro members",
+    toolLockedTitle: "This tool is for Nexus AI v8.4 Pro members",
     toolLockedSub: "Upgrade to use the code analysis tools and the advanced game builder.",
     gameTitle: "Game preview",
     gameBuilding: "Building your game…",

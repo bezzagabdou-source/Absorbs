@@ -275,7 +275,7 @@ function SparkCanvas({ burst }: { burst: number }) {
 }
 
 /**
- * The legendary "Barq 8 Pro activated" experience.
+ * The legendary "Nexus AI v8.4 Pro activated" experience.
  * Shown after a code is redeemed / payment succeeds / on demand from the upgrade page.
  */
 export function ProActivation({ open, onClose, fresh = true }: { open: boolean; onClose: () => void; fresh?: boolean }) {
@@ -319,7 +319,7 @@ export function ProActivation({ open, onClose, fresh = true }: { open: boolean; 
       },
       reveal: { ar: "اكتشف الميزات", fr: "Découvrir les fonctions", en: "Explore features" },
       tryIt: { ar: "جرّبها", fr: "Essayer", en: "Try it" },
-      start: { ar: "ابدأ مع برق 8 Pro", fr: "Commencer avec Barq 8 Pro", en: "Start with Barq 8 Pro" },
+      start: { ar: "ابدأ مع Nexus AI v8.4 Pro", fr: "Commencer avec Nexus AI v8.4 Pro", en: "Start with Nexus AI v8.4 Pro" },
       close: { ar: "إغلاق", fr: "Fermer", en: "Close" },
       badge: { ar: "الأسرع · الأذكى · لا ينقطع", fr: "Plus rapide · Plus intelligent · Sans coupure", en: "Fastest · Smartest · Never cut off" },
     }),
@@ -340,7 +340,7 @@ export function ProActivation({ open, onClose, fresh = true }: { open: boolean; 
           key="pro-activation"
           role="dialog"
           aria-modal="true"
-          aria-label="Barq 8 Pro"
+          aria-label="Nexus AI v8.4 Pro"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.3 } }}

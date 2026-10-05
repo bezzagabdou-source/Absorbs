@@ -19,7 +19,7 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
       >
         <div style={{ maxWidth: 360 }}>
           <div style={{ fontSize: 48 }}>⚡</div>
-          <h1 style={{ fontSize: 22, margin: "14px 0 8px", color: "#fafafa" }}>برق يحتاج إعادة تشغيل</h1>
+          <h1 style={{ fontSize: 22, margin: "14px 0 8px", color: "#fafafa" }}>Nexus AI v8.4 يحتاج إعادة تشغيل</h1>
           <p style={{ color: "#a1a1aa", lineHeight: 1.9, margin: "0 0 22px" }}>صار خلل غير متوقع. اضغط الزر وكمّل.</p>
           <button
             onClick={reset}

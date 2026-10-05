@@ -285,7 +285,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-black text-white">
-                  {profile?.user.displayName ?? user.displayName ?? "Barq"}
+                  {profile?.user.displayName ?? user.displayName ?? "Nexus AI v8.4"}
                 </p>
                 <p className="truncate text-[11px] text-slate-500" dir="ltr">
                   {user.email}

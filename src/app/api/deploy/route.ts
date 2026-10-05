@@ -57,7 +57,7 @@ async function pushGithub(token: string, repoName: string, files: F[], title: st
   if (!/^[A-Za-z0-9._-]{1,100}$/.test(repoName)) return json(400, { code: "BAD_REPO_NAME" });
   const made = await gh(token, "/user/repos", {
     method: "POST",
-    body: { name: repoName, description: `${title} — generated with Barq AI`.slice(0, 300), private: true, auto_init: true },
+    body: { name: repoName, description: `${title} — generated with Nexus AI v8.4`.slice(0, 300), private: true, auto_init: true },
   });
   if (!made.ok) {
     if (made.status === 401) return json(401, { code: "BAD_TOKEN" });
@@ -100,7 +100,7 @@ async function pushGithub(token: string, repoName: string, files: F[], title: st
   if (!tree.ok || typeof tree.data.sha !== "string") return json(502, { code: "GITHUB_ERROR", detail: "tree" });
   const commit = await gh(token, `/repos/${full}/git/commits`, {
     method: "POST",
-    body: { message: "Initial commit from Barq AI", tree: tree.data.sha, parents: [baseSha] },
+    body: { message: "Initial commit from Nexus AI v8.4", tree: tree.data.sha, parents: [baseSha] },
   });
   if (!commit.ok || typeof commit.data.sha !== "string") return json(502, { code: "GITHUB_ERROR", detail: "commit" });
   const upd = await gh(token, `/repos/${full}/git/refs/heads/${branch}`, { method: "PATCH", body: { sha: commit.data.sha } });
@@ -143,7 +143,7 @@ export async function POST(req: Request): Promise<Response> {
   const files = cleanFiles(body.files);
   if (!files) return json(400, { code: "BAD_FILES" });
   const name = typeof body.name === "string" ? body.name.slice(0, 100) : "barq-project";
-  const title = typeof body.title === "string" ? body.title.slice(0, 80) : "Barq project";
+  const title = typeof body.title === "string" ? body.title.slice(0, 80) : "Nexus AI v8.4 project";
 
   try {
     if (body.provider === "github") return await pushGithub(token, name, files, title);

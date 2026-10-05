@@ -4,7 +4,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================================
-   Barq v8 — Electric Gold
+   Nexus AI v8.4 — Electric Gold
    Deep midnight-blue surfaces, saturated electric blue + cyan + hot orange energy, and a
    luxurious gold reserved for everything Pro. Colour is back, on purpose.
    ========================================================================== */
@@ -553,7 +553,7 @@ dialog, [role="dialog"] { color-scheme: dark; }
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-/* ---------- Barq 8 Pro — legendary activation ---------- */
+/* ---------- Nexus AI v8.4 Pro — legendary activation ---------- */
 .v8-aurora { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55; will-change: transform; }
 .v8-aurora-a { width: 60vmax; height: 60vmax; top: -22vmax; inset-inline-start: -16vmax; background: radial-gradient(circle, rgba(251,191,36,0.55), transparent 65%); animation: aur-a 16s ease-in-out infinite alternate; }
 .v8-aurora-b { width: 55vmax; height: 55vmax; bottom: -20vmax; inset-inline-end: -14vmax; background: radial-gradient(circle, rgba(34,211,238,0.5), transparent 65%); animation: aur-b 19s ease-in-out infinite alternate; }
