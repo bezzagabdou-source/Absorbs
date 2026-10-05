@@ -34,6 +34,7 @@ import { Logo } from "@/components/logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPalette } from "@/components/command-palette";
+import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -348,7 +349,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         {/* ---------------- content ---------------- */}
-        <main className="scroll-y min-h-0 min-w-0 flex-1">{children}</main>
+        <main className="scroll-y min-h-0 min-w-0 flex-1">
+          <VerifyEmailBanner />
+          {children}
+        </main>
 
         {/* ---------------- mobile bottom nav ---------------- */}
         <nav className="app-bottom-nav z-40 shrink-0 border-t border-brand-400/20 bg-ink-950/95 pb-[env(safe-area-inset-bottom)] lg:hidden">

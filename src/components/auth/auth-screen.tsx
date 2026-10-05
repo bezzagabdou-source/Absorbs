@@ -16,8 +16,6 @@ import {
   LogIn,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useAuth, authErrorKey } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
 import { Logo } from "@/components/logo";
@@ -49,7 +47,7 @@ function GoogleMark() {
 
 export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   const { t, dir } = useI18n();
-  const { user, loading, signInEmail, signUpEmail, signInGoogle } = useAuth();
+  const { user, loading, signInEmail, signUpEmail, signInGoogle, sendReset } = useAuth();
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -111,7 +109,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
       return;
     }
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendReset(email);
       setNotice(t.auth.resetSent);
       setError(null);
     } catch (err) {
@@ -264,7 +262,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
                 <input
                   type={showPass ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={isSignup ? 8 : 6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t.auth.password}

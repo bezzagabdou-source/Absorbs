@@ -111,6 +111,7 @@ export default function SettingsPage() {
         <section className="space-y-3">
           <Row icon={Globe} title={t.common.language} desc={LOCALE_NAMES[locale]} href="/app/settings/language" />
           <Row icon={Brain} title="ذاكرة برق" desc="ما يتذكره برق عنك في كل محادثة" href="/app/settings/memory" />
+          <Row icon={ShieldCheck} title="مركز الأمان" desc="تفعيل البريد، كلمة المرور، سجل الدخول" href="/app/settings/security" />
           <Row icon={ShieldCheck} title="الخصوصية" desc="حذف المحادثات والسياسات" href="/app/settings/privacy" />
           <Row icon={Bell} title="الإشعارات" desc="تذكيرات وعروض" href="/app/settings/notifications" />
           <Row icon={HardDrive} title="التخزين" desc="مسح الذاكرة المؤقتة" href="/app/settings/storage" />

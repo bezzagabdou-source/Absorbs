@@ -17,6 +17,7 @@ import {
   ArrowUp,
   BookOpen,
   Check,
+  Code2,
   Brain,
   Headphones,
   Volume2,
@@ -202,6 +203,133 @@ function ThinkingOrb({ label }: { label: string }) {
   );
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Hidden code: show "thinking" while building, then a result card     */
+/* ------------------------------------------------------------------ */
+
+type CodeInfo = { text: string; chars: number; lines: number };
+/** Strips big fenced code blocks (also a half-written last one) and reports how much code there is. */
+function analyseCode(body: string): CodeInfo | null {
+  const first = body.indexOf("```");
+  if (first < 0) return null;
+  let chars = 0;
+  let lines = 0;
+  let text = "";
+  let i = 0;
+  while (i < body.length) {
+    const open = body.indexOf("```", i);
+    if (open < 0) {
+      text += body.slice(i);
+      break;
+    }
+    text += body.slice(i, open);
+    const nl = body.indexOf("\n", open);
+    if (nl < 0) break;
+    const close = body.indexOf("```", nl + 1);
+    const end = close < 0 ? body.length : close;
+    const code = body.slice(nl + 1, end);
+    chars += code.length;
+    for (let k = 0; k < code.length; k++) if (code.charCodeAt(k) === 10) lines++;
+    i = close < 0 ? body.length : close + 3;
+  }
+  return chars >= 1200 ? { text: text.trim(), chars, lines } : null;
+}
+
+const BUILD_STEPS = [
+  "يفكّر في الفكرة والبنية",
+  "يخطّط للأنظمة والمراحل",
+  "يصمّم الواجهة (UI/UX)",
+  "يكتب المحرّك والفيزياء",
+  "يضيف الأعداء والمستويات",
+  "يلمّع الحركات والأصوات",
+  "يفحص الأخطاء سطراً بسطر",
+  "يجهّز المعاينة",
+];
+
+function BuildThinking({ info }: { info: CodeInfo | null }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((v) => Math.min(BUILD_STEPS.length - 1, v + 1)), 5200);
+    return () => clearInterval(id);
+  }, []);
+  const lines = info?.lines ?? 0;
+  const pct = Math.min(96, Math.round((lines / 5000) * 100));
+  return (
+    <div className="mt-2 rounded-2xl border border-orange-300/40 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
+      <div className="flex items-center gap-3">
+        <span className="relative grid h-9 w-9 shrink-0 place-items-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-orange-400/30" />
+          <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-orange-500 border-e-amber-300" style={{ animationDuration: "1.1s" }} />
+          <Sparkles className="h-4 w-4 text-orange-600" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-black text-slate-100">برق يفكّر ويبني…</p>
+          <p className="truncate text-[12.5px] font-semibold text-slate-400">{BUILD_STEPS[i]}…</p>
+        </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-orange-400/20">
+        <div className="h-full rounded-full bg-gradient-to-l from-amber-400 to-orange-500 transition-[width] duration-700" style={{ width: `${Math.max(6, pct)}%` }} />
+      </div>
+      {info && (
+        <p className="mt-2 text-[11.5px] font-bold text-slate-400" dir="ltr">
+          {info.lines.toLocaleString("en-US")} lines · {(info.chars / 1024).toFixed(0)} KB
+        </p>
+      )}
+    </div>
+  );
+}
+
+function BuildDone({
+  info,
+  onPreview,
+  onDownload,
+  showCode,
+  toggleCode,
+  canPreview,
+  files,
+}: {
+  info: CodeInfo;
+  onPreview: () => void;
+  onDownload: () => void;
+  showCode: boolean;
+  toggleCode: () => void;
+  canPreview: boolean;
+  files: number;
+}) {
+  return (
+    <div className="mt-2 rounded-2xl border border-orange-300/45 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white">
+          <Check className="h-5 w-5" strokeWidth={3} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14.5px] font-black text-slate-100">تم البناء بنجاح</p>
+          <p className="text-[12px] font-bold text-slate-400" dir="ltr">
+            {info.lines.toLocaleString("en-US")} lines · {(info.chars / 1024).toFixed(0)} KB{files > 1 ? ` · ${files} files` : ""}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {canPreview && (
+          <button type="button" onClick={onPreview} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-4 text-[13px] font-black text-white shadow-[0_8px_22px_-10px_rgba(234,88,12,0.9)] transition active:scale-95">
+            <Maximize2 className="h-4 w-4" />
+            افتح اللعبة / المعاينة
+          </button>
+        )}
+        <button type="button" onClick={onDownload} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-orange-300/60 bg-white/10 px-3.5 text-[13px] font-black text-slate-100 transition active:scale-95">
+          <Download className="h-4 w-4" />
+          تحميل
+        </button>
+        <button type="button" onClick={toggleCode} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-orange-300/40 px-3.5 text-[13px] font-bold text-slate-300 transition active:scale-95">
+          <Code2 className="h-4 w-4" />
+          {showCode ? "إخفاء الكود" : "عرض الكود"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const MessageRow = memo(function MessageRow({
   m,
   name,
@@ -229,6 +357,7 @@ const MessageRow = memo(function MessageRow({
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const isUser = m.role === "user";
   const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
   const done = !isUser && !m.pending && !!body;
@@ -239,6 +368,8 @@ const MessageRow = memo(function MessageRow({
   );
   const showZip =
     zipFiles.length > 1 && zipFiles.some((f) => typeof f.data === "string" && f.data.length > 400);
+  // big code is hidden on screen: "thinking" while it streams, a result card when it is done
+  const codeInfo = useMemo(() => (!isUser && pro ? analyseCode(body) : null), [isUser, pro, body]);
 
   const act =
     "inline-flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[12px] font-bold text-slate-400 transition active:scale-95 hover:bg-white/[0.07] hover:text-slate-100";
@@ -292,14 +423,47 @@ const MessageRow = memo(function MessageRow({
               <ThinkingOrb label={thinking} />
               <MessageSkeleton lines={3} avatar={false} className="mt-3 max-w-md opacity-80" />
             </div>
+          ) : codeInfo && !showCode ? (
+            <>
+              {codeInfo.text && (
+                <Markdown pro={pro} plainCode>
+                  {codeInfo.text}
+                </Markdown>
+              )}
+              {m.pending ? (
+                <BuildThinking info={codeInfo} />
+              ) : (
+                <BuildDone
+                  info={codeInfo}
+                  canPreview={!!html && html.length > 800}
+                  files={showZip ? zipFiles.length : 1}
+                  onPreview={() => html && onPreview(html)}
+                  onDownload={() =>
+                    showZip
+                      ? downloadBlob(createZip(zipFiles), "barq-project.zip")
+                      : downloadBlob(new Blob([html ?? body], { type: html ? "text/html" : "text/plain" }), html ? "barq-build.html" : "barq-build.txt")
+                  }
+                  showCode={showCode}
+                  toggleCode={() => setShowCode(true)}
+                />
+              )}
+            </>
           ) : (
-            <Markdown pro={pro} plainCode={!!m.pending}>
-              {body}
-            </Markdown>
+            <>
+              <Markdown pro={pro} plainCode={!!m.pending}>
+                {body}
+              </Markdown>
+              {codeInfo && !m.pending && (
+                <button type="button" onClick={() => setShowCode(false)} className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl border border-orange-300/40 px-3 text-[12.5px] font-bold text-slate-300 transition active:scale-95">
+                  <Code2 className="h-4 w-4" />
+                  إخفاء الكود
+                </button>
+              )}
+            </>
           )}
         </div>
 
-        {showZip && (
+        {showZip && !(codeInfo && !showCode) && (
           <button
             type="button"
             onClick={() => downloadBlob(createZip(zipFiles), "barq-project.zip")}
@@ -1444,6 +1608,53 @@ export function ChatPage() {
                 </div>
               )}
 
+              {/* model switch: its own full-width row so no button is ever clipped (MAX included) */}
+              <div
+                role="radiogroup"
+                aria-label="النموذج"
+                className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
+              >
+                {(isPro
+                  ? ([["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
+                  : ([["v4", "برق 4"], ["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
+                ).map(([id, label]) => {
+                  const on = (isPro ? tier : "v4") === id;
+                  const locked = !isPro && id !== "v4";
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => pickTier(id)}
+                      className={cn(
+                        "inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
+                        id === "max"
+                          ? on
+                            ? "max-pill border-transparent shadow-[0_8px_22px_-6px_rgba(255,100,0,0.95)]"
+                            : "border-orange-500 bg-orange-500/15 text-orange-600 ring-1 ring-orange-400/50"
+                          : on
+                            ? id === "v8"
+                              ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
+                              : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
+                            : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
+                      )}
+                    >
+                      {locked ? (
+                        <Lock className="h-3.5 w-3.5" />
+                      ) : id === "max" ? (
+                        <Rocket className="h-4 w-4" />
+                      ) : id === "v8" ? (
+                        <Crown className="h-4 w-4" />
+                      ) : id === "v6" ? (
+                        <Sparkles className="h-4 w-4" />
+                      ) : null}
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {isPro && (tier === "v8" || tier === "max") && (
                 <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="وضع برق">
                   {PERSONAS.map((p) => (
@@ -1566,53 +1777,6 @@ export function ChatPage() {
                     <Brain className="h-5 w-5" />
                   </button>
                 )}
-
-                {/* model switch: برق 5 / برق 6 live inside the message box */}
-                <div
-                  role="radiogroup"
-                  aria-label="النموذج"
-                  className="ms-1 flex min-w-0 items-center rounded-full border border-white/10 bg-black/30 p-0.5"
-                >
-                  {(isPro
-                    ? ([["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
-                    : ([["v4", "برق 4"], ["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
-                  ).map(([id, label]) => {
-                    const on = (isPro ? tier : "v4") === id;
-                    const locked = !isPro && id !== "v4";
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        onClick={() => pickTier(id)}
-                        className={cn(
-                          "inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[12px] font-black transition active:scale-95",
-                          on
-                            ? id === "max"
-                              ? "max-pill shadow-[0_6px_18px_-6px_rgba(255,100,0,0.9)]"
-                              : id === "v8"
-                              ? "v8-pill shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
-                              : id === "v6"
-                                ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
-                                : "bg-ink-700 text-slate-200"
-                            : id === "max"
-                              ? "text-orange-400 hover:text-orange-300"
-                              : id === "v8"
-                              ? "text-gold-300 hover:text-gold-200"
-                              : "text-slate-400 hover:text-slate-100"
-                        )}
-                      >
-                        {(id === "v6" || id === "v8" || id === "max") && !locked ? (
-                          id === "max" ? <Rocket className="h-3.5 w-3.5" /> : id === "v8" ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />
-                        ) : locked ? (
-                          <Lock className="h-3 w-3" />
-                        ) : null}
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
 
                 <span className="flex-1" />
 

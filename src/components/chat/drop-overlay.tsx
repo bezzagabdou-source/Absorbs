@@ -23,7 +23,7 @@ export function useFileDrop(onFiles: (files: File[]) => void) {
   const onDragOver = useCallback((e: DragEvent) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
   }, []);
   const onDragLeave = useCallback((e: DragEvent) => {
     if (!hasFiles(e)) return;
@@ -36,7 +36,7 @@ export function useFileDrop(onFiles: (files: File[]) => void) {
       e.preventDefault();
       depth.current = 0;
       setDragging(false);
-      const list = Array.from(e.dataTransfer.files);
+      const list = Array.from(e.dataTransfer?.files ?? []);
       if (list.length) onFiles(list);
     },
     [onFiles]

@@ -435,6 +435,33 @@ export async function POST(req: Request) {
           },
           onDone: saveAnswer,
         })
+      : max && build
+      ? // MAX build: ONE strongest engine writes the whole thing top to bottom (no draft merging),
+        // with the strict MAX contract and a long never-stop continuation chain.
+        await (async () => {
+          const system =
+            BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) +
+            QUALITY_CONTRACT.split("\n6.")[0] +
+            maxAddon +
+            persona +
+            memBlock;
+          const base = await streamGemini({
+            system,
+            messages: capped,
+            tier: "pro",
+            task: "code",
+            primaryFirst: true,
+            mode: "quality",
+            epic: true,
+            maxTokens: 64000,
+            temperature: 0.7,
+            attachments: parsed.files,
+            onModel: (m) => {
+              usedModel = m;
+            },
+          });
+          return withAutoContinue(base, { system, messages: capped, rounds: 30, keepAlive: true, onDone: saveAnswer });
+        })()
       : build
       ? ensembleStream({
           system:
@@ -507,7 +534,7 @@ export async function POST(req: Request) {
       "x-conversation-id": fixedConvId ?? "",
       "x-credits-remaining": String(credit.remaining),
       "x-plan": credit.plan,
-      ...(isPro ? { "x-model": usedModel, "x-engine": build || hard ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
+      ...(isPro ? { "x-model": usedModel, "x-engine": (build || hard) && !(max && build) ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
     });
   } catch (e) {
     release();

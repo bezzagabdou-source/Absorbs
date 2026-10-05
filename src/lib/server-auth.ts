@@ -14,6 +14,9 @@ export type VerifiedUser = {
   email?: string;
   name?: string;
   picture?: string;
+  /** from the signed token, never from the client */
+  emailVerified?: boolean;
+  provider?: string;
 };
 
 const PROJECT_ID = firebaseConfig.projectId;
@@ -64,8 +67,10 @@ export function verifyIdTokenWithKeys(
     iat?: number;
     auth_time?: number;
     email?: string;
+    email_verified?: boolean;
     name?: string;
     picture?: string;
+    firebase?: { sign_in_provider?: string };
   };
   try {
     header = JSON.parse(b64urlToBuf(parts[0]).toString("utf8"));
@@ -103,6 +108,8 @@ export function verifyIdTokenWithKeys(
       email: payload.email,
       name: payload.name,
       picture: payload.picture,
+      emailVerified: payload.email_verified === true,
+      provider: payload.firebase?.sign_in_provider,
     },
     expMs: payload.exp * 1000,
   };

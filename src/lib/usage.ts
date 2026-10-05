@@ -186,3 +186,20 @@ export async function recordLogin(
     values (${uid}, ${o.kind}, ${provider}, ${o.userAgent.slice(0, 200)})
   `);
 }
+
+
+/** Keeps users.email_verified equal to the signed token claim. */
+export async function syncVerified(uid: string, verified: boolean): Promise<void> {
+  await db.execute(sql`update barq.users set email_verified = ${verified} where id = ${uid} and email_verified <> ${verified}`);
+}
+
+/** Last sign-ins of one user (security center). */
+export async function recentLogins(uid: string, limit = 12) {
+  const r = await db.execute(sql`
+    select kind, provider, user_agent as "userAgent", created_at as "createdAt"
+    from barq.login_events where user_id = ${uid}
+    order by created_at desc limit ${limit}
+  `);
+  const rows = (r as unknown as { rows?: unknown[] }).rows ?? (r as unknown as unknown[]);
+  return rows as { kind: string; provider: string; userAgent: string; createdAt: string }[];
+}

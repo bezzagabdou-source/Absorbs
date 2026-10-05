@@ -45,8 +45,8 @@ export type VoicePrefs = {
   pitch: number;
 };
 
-export const DEFAULT_VOICE_PREFS: VoicePrefs = { voiceURI: "", rate: 1.04, pitch: 1 };
-const KEY = "barq:voice-prefs:v1";
+export const DEFAULT_VOICE_PREFS: VoicePrefs = { voiceURI: "", rate: 1.0, pitch: 1 };
+const KEY = "barq:voice-prefs:v2";
 const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n));
 
 export function loadVoicePrefs(): VoicePrefs {
@@ -89,6 +89,7 @@ export function plainForSpeech(md: string): string {
     .replace(/\$\$[\s\S]*?\$\$/g, " ")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/<[^>]+>/g, " ")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, " ")
     .replace(/[#*_>|~=-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -124,6 +125,24 @@ export function getVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
+/** Score a voice: natural / neural / network voices sound far more human than the default robot voice. */
+function voiceScore(v: SpeechSynthesisVoice, lang: string): number {
+  const base = lang.slice(0, 2).toLowerCase();
+  const vl = v.lang.toLowerCase().replace("_", "-");
+  if (!vl.startsWith(base)) return -1;
+  let n = 0;
+  if (vl === lang.toLowerCase()) n += 4;
+  if (base === "ar" && /ar-(dz|ma|tn|eg|sa)/.test(vl)) n += 2;
+  const name = v.name.toLowerCase();
+  if (/natural|neural|online|premium|enhanced|wavenet|studio/.test(name)) n += 12;
+  if (/google/.test(name)) n += 8;
+  if (/microsoft/.test(name)) n += 5;
+  if (/hamed|naayf|salma|shakir|zariyah|maged|laila|hoda|samia|amina|ismael|fatima|denise|henri|eloise|jenny|aria|guy/.test(name)) n += 4;
+  if (!v.localService) n += 3;
+  if (/espeak|compact|mbrola/.test(name)) n -= 8;
+  return n;
+}
+
 export function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | undefined {
   const voices = window.speechSynthesis.getVoices();
   const base = lang.slice(0, 2).toLowerCase();
@@ -132,7 +151,17 @@ export function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | und
     // only use the chosen voice when it can actually speak this language
     if (chosen && chosen.lang.toLowerCase().startsWith(base)) return chosen;
   }
-  return undefined;
+  // automatic: the most natural-sounding installed voice for this language
+  let best: SpeechSynthesisVoice | undefined;
+  let bestScore = -1;
+  for (const v of voices) {
+    const sc = voiceScore(v, lang);
+    if (sc > bestScore) {
+      best = v;
+      bestScore = sc;
+    }
+  }
+  return best;
 }
 
 export type SpeakOptions = Partial<VoicePrefs> & { lang?: string };
@@ -148,7 +177,7 @@ export function speak(text: string, onEnd?: () => void, opts: SpeakOptions = {})
   const lang = opts.lang ?? detectLang(clean);
   const voice = pickVoice(lang, prefs.voiceURI);
   // short chunks: long utterances get cut off by Chrome
-  const parts = (clean.match(/[^.!؟?،;\n]{1,170}[.!؟?،;\n]?/g) ?? [clean])
+  const parts = (clean.match(/[^.!؟?،;\n]{1,110}[.!؟?،;:\n]?/g) ?? [clean])
     .map((x) => x.trim())
     .filter(Boolean);
   parts.forEach((part, i) => {
@@ -262,7 +291,7 @@ export function createSpeechQueue(o: {
       const clean = plainForSpeech(text);
       if (!clean) return;
       const prefs = loadVoicePrefs();
-      const parts = (clean.match(/[^.!؟?،;\n]{1,170}[.!؟?،;\n]?/g) ?? [clean]).map((x) => x.trim()).filter(Boolean);
+      const parts = (clean.match(/[^.!؟?،;\n]{1,110}[.!؟?،;:\n]?/g) ?? [clean]).map((x) => x.trim()).filter(Boolean);
       for (const part of parts) {
         const lang = o.lang ?? detectLang(part);
         const voice = pickVoice(lang, prefs.voiceURI);

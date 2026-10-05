@@ -1,13 +1,14 @@
 /** Theme helpers: "dark" (Electric Gold, default) and "orange-claude" (light peach). */
 export type ThemeId = "dark" | "orange-claude";
-export const THEME_KEY = "barq_theme";
+export const THEME_KEY = "barq_theme_v2";
 const META_COLOR: Record<ThemeId, string> = { dark: "#030712", "orange-claude": "#fffaf5" };
 
 export function readTheme(): ThemeId {
   try {
-    return localStorage.getItem(THEME_KEY) === "orange-claude" ? "orange-claude" : "dark";
+    // orange + white background with black text is the default look
+    return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "orange-claude";
   } catch {
-    return "dark";
+    return "orange-claude";
   }
 }
 
@@ -34,4 +35,4 @@ export function applyTheme(theme: ThemeId, persist = true): void {
 }
 
 /** Runs before first paint (inlined in <head>) so there is no dark flash. */
-export const THEME_BOOT_SCRIPT = `try{if(localStorage.getItem('${THEME_KEY}')==='orange-claude'){document.documentElement.setAttribute('data-theme','orange-claude');document.addEventListener('DOMContentLoaded',function(){document.body.classList.add('bg-orange-animated');var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content','${META_COLOR["orange-claude"]}')})}}catch(e){}`;
+export const THEME_BOOT_SCRIPT = `try{if(localStorage.getItem('${THEME_KEY}')!=='dark'){document.documentElement.setAttribute('data-theme','orange-claude');document.addEventListener('DOMContentLoaded',function(){document.body.classList.add('bg-orange-animated');var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content','${META_COLOR["orange-claude"]}')})}}catch(e){document.documentElement.setAttribute('data-theme','orange-claude')}`;

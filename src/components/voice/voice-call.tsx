@@ -76,6 +76,15 @@ function sentenceCut(s: string, final: boolean): number {
       if (next === undefined ? final : /\s/.test(next)) cut = i + 1;
     }
   }
+  if (cut === 0) {
+    // speak the first clause at once (at a comma) so the voice starts almost instantly
+    for (let i = 14; i < s.length - 1; i++) {
+      if ((s[i] === "،" || s[i] === ",") && /\s/.test(s[i + 1])) {
+        cut = i + 1;
+        break;
+      }
+    }
+  }
   if (cut === 0 && s.length > 220) {
     const j = Math.max(s.lastIndexOf("،", 210), s.lastIndexOf(",", 210), s.lastIndexOf(" ", 210));
     if (j > 40) cut = j + 1;

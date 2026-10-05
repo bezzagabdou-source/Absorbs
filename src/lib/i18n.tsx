@@ -258,7 +258,7 @@ const ar = {
     errors: {
       invalid: "البريد الإلكتروني غير صالح",
       used: "هذا البريد مسجّل من قبل، جرّب تسجيل الدخول",
-      weak: "كلمة المرور ضعيفة — 6 أحرف على الأقل",
+      weak: "كلمة المرور ضعيفة — 8 أحرف على الأقل مع حروف وأرقام",
       wrong: "البريد أو كلمة المرور غير صحيحة",
       cancelled: "تم إلغاء تسجيل الدخول",
       tooMany: "محاولات كثيرة، انتظر قليلًا ثم حاول",
@@ -590,7 +590,7 @@ const fr: Dict = {
     errors: {
       invalid: "Adresse e-mail invalide",
       used: "Cet e-mail est déjà utilisé, essayez de vous connecter",
-      weak: "Mot de passe trop faible — 6 caractères minimum",
+      weak: "Mot de passe trop faible — 8 caractères minimum avec lettres et chiffres",
       wrong: "E-mail ou mot de passe incorrect",
       cancelled: "Connexion annulée",
       tooMany: "Trop de tentatives, patientez puis réessayez",
@@ -920,7 +920,7 @@ const en: Dict = {
     errors: {
       invalid: "Invalid e-mail address",
       used: "This e-mail is already used, try signing in",
-      weak: "Password too weak — at least 6 characters",
+      weak: "Password too weak — at least 8 characters with letters and numbers",
       wrong: "Incorrect e-mail or password",
       cancelled: "Sign-in cancelled",
       tooMany: "Too many attempts, wait a moment and retry",
