@@ -158,7 +158,7 @@ export function GamePreview({
     <div
       ref={boxRef}
       className={cn(
-        "flex flex-col overflow-hidden rounded-2xl border border-brand-400/35 bg-ink-950 shadow-[0_20px_50px_-30px_rgba(47, 123, 255,0.8)]",
+        "flex flex-col overflow-hidden rounded-2xl border border-brand-400/35 bg-ink-950 shadow-[0_20px_50px_-30px_rgba(47,123,255,0.8)]",
         className
       )}
     >

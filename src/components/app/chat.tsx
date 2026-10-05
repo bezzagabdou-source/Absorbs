@@ -43,6 +43,7 @@ import {
   Info,
   Zap,
   Sparkles,
+  Rocket,
   type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -58,6 +59,7 @@ import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { FullPreview } from "@/components/game-preview";
+import { VoiceCall } from "@/components/voice/voice-call";
 import {
   codeLooksCut,
   createZip,
@@ -151,7 +153,7 @@ async function copyText(text: string): Promise<boolean> {
 /* v8 helpers: follow-up chips, read-aloud                             */
 /* ------------------------------------------------------------------ */
 
-type TierId = "v4" | "v5" | "v6" | "v8";
+type TierId = "v4" | "v5" | "v6" | "v8" | "max";
 const PERSONAS: { id: string; label: string; emoji: string }[] = [
   { id: "genius", label: "ذكي", emoji: "🧠" },
   { id: "coder", label: "مبرمج", emoji: "💻" },
@@ -250,7 +252,7 @@ const MessageRow = memo(function MessageRow({
         className="flex w-full justify-end gap-2.5"
       >
         <div className="max-w-[86%] min-w-0 sm:max-w-[78%]">
-          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-white shadow-[0_10px_30px_-14px_rgba(0, 180, 255,0.9)] ring-1 ring-white/20">
+          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-white shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
             <p className="whitespace-pre-wrap break-words">{m.content}</p>
             {m.files && m.files.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -413,6 +415,7 @@ export function ChatPage() {
   const [tier, setTier] = useState<TierId>("v8");
   const [persona, setPersona] = useState("genius");
   const [talk, setTalk] = useState(false);
+  const [call, setCall] = useState(false);
   const talkRef = useRef(false);
   const transcriptRef = useRef("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -423,11 +426,46 @@ export function ChatPage() {
       if (localStorage.getItem("barq_v8_default") !== "1") {
         localStorage.setItem("barq_v8_default", "1");
         localStorage.setItem("barq_tier", "v8");
-      } else if (v === "v4" || v === "v5" || v === "v6" || v === "v8") setTier(v);
+      } else if (v === "v4" || v === "v5" || v === "v6" || v === "v8" || v === "max") setTier(v);
       const pr = localStorage.getItem("barq_persona");
       if (pr && PERSONAS.some((x) => x.id === pr)) setPersona(pr);
     } catch {}
   }, []);
+  // MAX starters (command palette / Ctrl+K): fill the box and switch to the MAX engine
+  useEffect(() => {
+    const take = () => {
+      if (!profile) return; // wait for the plan to load so the MAX switch is not lost
+      try {
+        const raw = sessionStorage.getItem("barq_prefill");
+        if (!raw) return;
+        sessionStorage.removeItem("barq_prefill");
+        const d = JSON.parse(raw) as { text?: string; tier?: string };
+        if (typeof d.text === "string" && d.text) {
+          setInput(d.text);
+          if (d.tier === "max" && isPro) {
+            setTier("max");
+            try { localStorage.setItem("barq_tier", "max"); } catch {}
+          }
+          setTimeout(() => taRef.current?.focus(), 60);
+        }
+      } catch {}
+    };
+    take();
+    window.addEventListener("barq:prefill", take);
+    return () => window.removeEventListener("barq:prefill", take);
+  }, [isPro, profile]);
+  // "voice call" can also be started from the command palette (Ctrl+K)
+  useEffect(() => {
+    const open = () => {
+      if (!isPro) {
+        setProHint(true);
+        return;
+      }
+      setCall(true);
+    };
+    window.addEventListener("barq:voice-call", open);
+    return () => window.removeEventListener("barq:voice-call", open);
+  }, [isPro]);
   // a Pro account never runs on the free engine: 4 → 5
   useEffect(() => {
     if (isPro && tier === "v4") setTier("v5");
@@ -749,7 +787,7 @@ export function ChatPage() {
               : {}),
             ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
             ...(isPro && tier === "v6" ? { v6: true } : {}),
-            ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
+            ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
           }),
           signal: controller.signal,
         });
@@ -823,6 +861,8 @@ export function ChatPage() {
                   messages: [...history, { role: "user", content }],
                   continueFrom: acc,
                   v6: tier === "v6",
+                  ...(tier === "v8" || tier === "max" ? { v8: true } : {}),
+                  ...(tier === "max" ? { max: true } : {}),
                 }),
                 signal: controller.signal,
               });
@@ -1015,23 +1055,6 @@ export function ChatPage() {
     }
   }, [isPro, locale, input]);
   startListeningRef.current = beginListening;
-
-  const toggleTalk = () => {
-    if (!isPro) {
-      setProHint(true);
-      return;
-    }
-    if (talk) {
-      talkRef.current = false;
-      setTalk(false);
-      stopSpeaking();
-      recRef.current?.stop();
-      return;
-    }
-    talkRef.current = true;
-    setTalk(true);
-    beginListening();
-  };
 
   // stop the microphone when leaving the page
   useEffect(
@@ -1421,7 +1444,7 @@ export function ChatPage() {
                 </div>
               )}
 
-              {isPro && tier === "v8" && (
+              {isPro && (tier === "v8" || tier === "max") && (
                 <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="وضع برق">
                   {PERSONAS.map((p) => (
                     <button
@@ -1511,24 +1534,22 @@ export function ChatPage() {
                     }}
                   />
                 )}
-                {voiceOk && (
-                  <button
-                    type="button"
-                    onClick={toggleTalk}
-                    aria-pressed={talk}
-                    aria-label="محادثة صوتية"
-                    title="محادثة صوتية مباشرة: تكلّم فيرد بصوته"
-                    className={cn(
-                      "grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-90",
-                      talk
-                        ? "animate-pulse bg-aqua-400/25 text-aqua-200 ring-1 ring-aqua-300/50"
-                        : "text-slate-400 hover:bg-white/8 hover:text-aqua-300"
-                    )}
-                  >
-                    <Headphones className="h-5 w-5" />
-                  </button>
-                )}
-                {isPro && (tier === "v5" || tier === "v8") && (
+                <button
+                  type="button"
+                  onClick={() => (isPro ? setCall(true) : setProHint(true))}
+                  aria-pressed={call}
+                  aria-label="مكالمة صوتية"
+                  title="مكالمة صوتية مباشرة: تكلّم مع برق ويرد عليك بصوته"
+                  className={cn(
+                    "grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-90",
+                    call
+                      ? "animate-pulse bg-aqua-400/25 text-aqua-200 ring-1 ring-aqua-300/50"
+                      : "text-slate-400 hover:bg-white/8 hover:text-aqua-300"
+                  )}
+                >
+                  <Headphones className="h-5 w-5" />
+                </button>
+                {isPro && (tier === "v5" || tier === "v8" || tier === "max") && (
                   <button
                     type="button"
                     onClick={() => setDeep((v) => !v)}
@@ -1553,8 +1574,8 @@ export function ChatPage() {
                   className="ms-1 flex min-w-0 items-center rounded-full border border-white/10 bg-black/30 p-0.5"
                 >
                   {(isPro
-                    ? ([["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"]] as const)
-                    : ([["v4", "برق 4"], ["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"]] as const)
+                    ? ([["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
+                    : ([["v4", "برق 4"], ["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"], ["max", "MAX"]] as const)
                   ).map(([id, label]) => {
                     const on = (isPro ? tier : "v4") === id;
                     const locked = !isPro && id !== "v4";
@@ -1568,18 +1589,22 @@ export function ChatPage() {
                         className={cn(
                           "inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[12px] font-black transition active:scale-95",
                           on
-                            ? id === "v8"
+                            ? id === "max"
+                              ? "max-pill shadow-[0_6px_18px_-6px_rgba(255,100,0,0.9)]"
+                              : id === "v8"
                               ? "v8-pill shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
                               : id === "v6"
                                 ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
                                 : "bg-ink-700 text-slate-200"
-                            : id === "v8"
+                            : id === "max"
+                              ? "text-orange-400 hover:text-orange-300"
+                              : id === "v8"
                               ? "text-gold-300 hover:text-gold-200"
                               : "text-slate-400 hover:text-slate-100"
                         )}
                       >
-                        {(id === "v6" || id === "v8") && !locked ? (
-                          id === "v8" ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />
+                        {(id === "v6" || id === "v8" || id === "max") && !locked ? (
+                          id === "max" ? <Rocket className="h-3.5 w-3.5" /> : id === "v8" ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />
                         ) : locked ? (
                           <Lock className="h-3 w-3" />
                         ) : null}
@@ -1610,7 +1635,7 @@ export function ChatPage() {
                     className={cn(
                       "grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-150 active:scale-90",
                       canSend
-                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-white shadow-[0_8px_24px_-8px_rgba(0, 180, 255,0.9)] hover:brightness-110"
+                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-white shadow-[0_8px_24px_-8px_rgba(0,180,255,0.9)] hover:brightness-110"
                         : "bg-white/[0.07] text-slate-500"
                     )}
                   >
@@ -1657,6 +1682,19 @@ export function ChatPage() {
       </div>
 
       {preview && <FullPreview html={preview} onClose={() => setPreview(null)} />}
+
+      <VoiceCall
+        open={call}
+        locale={locale}
+        onClose={(id) => {
+          setCall(false);
+          if (id) {
+            void loadConvs();
+            // the server saves the last spoken answer a moment after the stream ends
+            setTimeout(() => void openConv(id), 900);
+          }
+        }}
+      />
     </div>
   );
 }

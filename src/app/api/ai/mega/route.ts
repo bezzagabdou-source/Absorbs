@@ -15,11 +15,16 @@ import {
   MEGA_MAX_FILE,
   MEGA_MAX_FILES,
   fileUserPrompt,
+  minTotalKb,
   parsePlan,
+  planTotalKb,
   planUserPrompt,
+  scalePlan,
+  type MegaPlan,
   safePath,
   type MegaFileRequest,
 } from "@/lib/mega";
+import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -71,20 +76,31 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
     try {
-      for (let attempt = 0; attempt < 2; attempt++) {
+      let best: MegaPlan | null = null;
+      let extra = "";
+      for (let attempt = 0; attempt < 3; attempt++) {
         const stream = await streamGemini({
-          system: PLAN_SYSTEM,
-          messages: [{ role: "user", text: planUserPrompt(prompt) }],
+          system: PLAN_SYSTEM + MAX_ENGINE_CONFIG.systemPromptAddon,
+          messages: [{ role: "user", text: planUserPrompt(prompt) + extra }],
           tier: "pro",
           primaryFirst: true,
           mode: "speed",
           lowThink: true,
           task: "code",
           temperature: 0.5,
-          maxTokens: 16_000,
+          maxTokens: 24_000,
         });
         const plan = parsePlan(await readAll(stream));
-        if (plan) return json(200, { plan });
+        if (!plan) continue;
+        if (!best || planTotalKb(plan) > planTotalKb(best)) best = plan;
+        const min = minTotalKb(plan.kind, prompt);
+        if (planTotalKb(plan) >= min * 0.8) break;
+        // too small for this kind of project: ask the architect again, with the exact numbers
+        extra = `\n\nYOUR PREVIOUS PLAN WAS TOO SMALL (${planTotalKb(plan)} KB, ${plan.files.length} files). Return a NEW, bigger plan: at least ${min} KB in total and at least ${Math.ceil(min / 90)} files, every file with a real job (more systems, levels, pages, data, features).`;
+      }
+      if (best) {
+        const fixed = scalePlan(best, minTotalKb(best.kind, prompt));
+        return json(200, { plan: fixed });
       }
       throw new GeminiError("ERROR", "plan could not be parsed");
     } catch (e) {
@@ -112,7 +128,7 @@ export async function POST(req: Request): Promise<Response> {
       .map((f) => {
         const x = (f ?? {}) as { path?: unknown; desc?: unknown; kb?: unknown };
         const p = safePath(x.path);
-        return p ? { path: p, desc: str(x.desc, 400), kb: typeof x.kb === "number" ? Math.min(Math.max(x.kb, 1), 250) : 12 } : null;
+        return p ? { path: p, desc: str(x.desc, 400), kb: typeof x.kb === "number" ? Math.min(Math.max(x.kb, 1), 150) : 20 } : null;
       })
       .filter((f): f is { path: string; desc: string; kb: number } => !!f);
     const needIn = Array.isArray(body.needTexts) ? body.needTexts.slice(0, 4) : [];
@@ -131,14 +147,14 @@ export async function POST(req: Request): Promise<Response> {
       plan,
       path,
       desc: str(body.desc, 400),
-      kb: typeof body.kb === "number" ? Math.min(Math.max(body.kb, 1), 250) : 12,
+      kb: typeof body.kb === "number" ? Math.min(Math.max(body.kb, 1), 150) : 20,
       digest: str(body.digest, 40_000),
       needTexts,
     };
     const messages: ChatTurn[] = [{ role: "user", text: fileUserPrompt(request) }];
     try {
       const base = await streamGemini({
-        system: FILE_SYSTEM,
+        system: FILE_SYSTEM + MAX_ENGINE_CONFIG.systemPromptAddon,
         messages,
         tier: "pro",
         primaryFirst: true,
@@ -146,10 +162,10 @@ export async function POST(req: Request): Promise<Response> {
         lowThink: true,
         task: "code",
         temperature: 0.6,
-        maxTokens: Math.min(48_000, Math.max(12_000, Math.round(request.kb * 420))),
+        maxTokens: Math.min(60_000, Math.max(16_000, Math.round(request.kb * 450))),
       });
       // if the file is cut by the token limit, it is continued (up to 8 rounds) inside this same request
-      const stream = withAutoContinue(base, { system: FILE_SYSTEM, messages, rounds: 8 });
+      const stream = withAutoContinue(base, { system: FILE_SYSTEM + MAX_ENGINE_CONFIG.systemPromptAddon, messages, rounds: 12 });
       return streamToResponse(stream, { "x-mega-max": String(MEGA_MAX_FILE) });
     } catch (e) {
       console.error("[mega] file failed:", e);

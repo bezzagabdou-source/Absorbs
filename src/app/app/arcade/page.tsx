@@ -58,7 +58,7 @@ export default function ArcadePage() {
 
       <div
         ref={boxRef}
-        className="relative mx-auto min-h-0 w-full max-w-[520px] flex-1 overflow-hidden rounded-3xl border border-brand-400/35 bg-ink-950 shadow-[0_30px_80px_-40px_rgba(47, 123, 255,0.9)]"
+        className="relative mx-auto min-h-0 w-full max-w-[520px] flex-1 overflow-hidden rounded-3xl border border-brand-400/35 bg-ink-950 shadow-[0_30px_80px_-40px_rgba(47,123,255,0.9)]"
       >
         {ready ? (
           <iframe

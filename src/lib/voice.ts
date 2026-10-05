@@ -124,7 +124,7 @@ export function getVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
-function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | undefined {
+export function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | undefined {
   const voices = window.speechSynthesis.getVoices();
   const base = lang.slice(0, 2).toLowerCase();
   if (uri) {
@@ -215,6 +215,93 @@ export function createRecognizer(o: RecognizerOptions): Recognizer | null {
         r.stop();
       } catch {
         /* already stopped */
+      }
+    },
+  };
+}
+
+/* ---------- streaming speech queue (voice calls) ----------
+ * Sentences are queued while the answer is still being written, so the voice starts
+ * after the FIRST sentence instead of after the whole reply. */
+
+export type SpeechQueue = {
+  /** queue text to read (markdown is stripped) */
+  enqueue: (text: string) => void;
+  /** no more text is coming: onIdle fires once everything queued has been spoken */
+  finish: () => void;
+  /** stop talking immediately and forget everything queued */
+  cancel: () => void;
+};
+
+export function createSpeechQueue(o: {
+  lang?: string;
+  onStart?: () => void;
+  onIdle?: () => void;
+}): SpeechQueue {
+  let pending = 0;
+  let inputDone = false;
+  let started = false;
+  let dead = false;
+  let idleFired = false;
+  const token = ++speakToken;
+  try {
+    window.speechSynthesis?.cancel();
+  } catch {
+    /* unsupported */
+  }
+
+  const maybeIdle = () => {
+    if (dead || idleFired || !inputDone || pending > 0) return;
+    idleFired = true;
+    o.onIdle?.();
+  };
+
+  return {
+    enqueue(text) {
+      if (dead || !isSynthesisSupported()) return;
+      const clean = plainForSpeech(text);
+      if (!clean) return;
+      const prefs = loadVoicePrefs();
+      const parts = (clean.match(/[^.!؟?،;\n]{1,170}[.!؟?،;\n]?/g) ?? [clean]).map((x) => x.trim()).filter(Boolean);
+      for (const part of parts) {
+        const lang = o.lang ?? detectLang(part);
+        const voice = pickVoice(lang, prefs.voiceURI);
+        const u = new SpeechSynthesisUtterance(part);
+        u.lang = voice?.lang ?? lang;
+        if (voice) u.voice = voice;
+        u.rate = prefs.rate;
+        u.pitch = prefs.pitch;
+        pending++;
+        u.onstart = () => {
+          if (dead || token !== speakToken) return;
+          if (!started) {
+            started = true;
+            o.onStart?.();
+          }
+        };
+        const end = () => {
+          if (token !== speakToken) return;
+          pending = Math.max(0, pending - 1);
+          maybeIdle();
+        };
+        u.onend = end;
+        u.onerror = end;
+        window.speechSynthesis.speak(u);
+      }
+    },
+    finish() {
+      inputDone = true;
+      maybeIdle();
+    },
+    cancel() {
+      dead = true;
+      pending = 0;
+      if (token === speakToken) {
+        try {
+          window.speechSynthesis?.cancel();
+        } catch {
+          /* unsupported */
+        }
       }
     },
   };

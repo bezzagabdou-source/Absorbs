@@ -14,6 +14,7 @@ import {
   HardDrive,
   ShieldCheck,
   Brain,
+  Palette,
 } from "lucide-react";
 import { Row } from "@/components/settings-ui";
 import { motion } from "framer-motion";
@@ -21,6 +22,7 @@ import { useAuth } from "@/lib/auth-context";
 import { LOCALE_NAMES, useI18n } from "@/lib/i18n";
 import { useCredits, UserAvatar } from "@/components/app/app-shell";
 import { InstallButton } from "@/components/pwa";
+import { ThemeCard } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
@@ -89,6 +91,20 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+        </motion.section>
+
+        {/* appearance */}
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="glass rounded-3xl p-6"
+        >
+          <h2 className="mb-5 flex items-center gap-2 text-sm font-black text-slate-300">
+            <Palette className="h-4.5 w-4.5 text-brand-300" />
+            المظهر
+          </h2>
+          <ThemeCard />
         </motion.section>
 
         {/* sections — each opens its own page */}

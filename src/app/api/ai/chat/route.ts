@@ -15,6 +15,8 @@ import {
   type ChatTurn,
 } from "@/lib/gemini";
 import { classifyTask } from "@/lib/task-router";
+import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
+import { VOICE_SYSTEM, personaById } from "@/lib/voice-call";
 import {
   CHAT_SYSTEM,
   CHAT_SYSTEM_PRO,
@@ -183,6 +185,12 @@ export async function POST(req: Request) {
     v6?: boolean;
     /** Barq 8 Pro: genius brain + AI team on every hard task */
     v8?: boolean;
+    /** Live voice call turn (Pro only): short spoken answers, fast engine */
+    voice?: boolean;
+    /** voice persona id (friend | coach | teacher | storyteller | interpreter | interviewer) */
+    voicePersona?: string;
+    /** MAX engine: giant games / websites (implies v8, Pro only) */
+    max?: boolean;
     /** v8 persona key: genius | coder | writer | teacher | analyst */
     persona?: string;
     /** Pro: the answer stopped inside a code block — finish it (no credit used) */
@@ -223,8 +231,9 @@ export async function POST(req: Request) {
     const seed = body.continueFrom.slice(0, 320_000);
     const convId = typeof body.conversationId === "string" ? body.conversationId : null;
     const system =
-      (body.v8 === true ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
-      QUALITY_CONTRACT.split("\n6.")[0];
+      (body.v8 === true || body.max === true ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
+      QUALITY_CONTRACT.split("\n6.")[0] +
+      (body.max === true ? MAX_ENGINE_CONFIG.systemPromptAddon : "");
     const lastTurn = turns[turns.length - 1];
     const stream = withAutoContinue(emptyStream(), {
       system,
@@ -278,7 +287,7 @@ export async function POST(req: Request) {
   // attachments and deep mode are Pro features — the server is the real gate
   if (
     !isPro &&
-    (parsed.files.length > 0 || textFiles.length > 0 || body.deep === true)
+    (parsed.files.length > 0 || textFiles.length > 0 || body.deep === true || body.voice === true)
   ) {
     if (credit.tracked) await refundCredit(user.uid);
     return json(403, { code: "PRO_ONLY" });
@@ -392,24 +401,46 @@ export async function POST(req: Request) {
     }
   };
 
-  const v8 = isPro && body.v8 === true;
+  const max = isPro && body.max === true;
+  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon : "";
+  const v8 = isPro && (body.v8 === true || max);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
   try {
     // Pro + "build me a game / site / app": the whole AI team works together
     const task = classifyTask(lastUser, parsed.files.length > 0);
-    const build = isPro && isBuildRequest(lastUser);
+    const voice = isPro && body.voice === true;
+    const build = !voice && isPro && isBuildRequest(lastUser);
     // v8: EVERY hard request (code edit, debugging, architecture, long docs…) gets the AI team
-    const hard = v8 && !build && isHardRequest(lastUser, hasFiles);
+    // MAX: every non-build message also gets the full team treatment
+    const hard = !voice && v8 && !build && (max || isHardRequest(lastUser, hasFiles));
     const onFail = async () => {
       if (credit.tracked) await refundCredit(user.uid);
       release();
     };
-    const stream = build
+    const stream = voice
+      ? await streamGemini({
+          system: VOICE_SYSTEM + personaById(body.voicePersona).system + memBlock,
+          messages: capped,
+          tier: "pro",
+          // fastest strong engine first: the first sentence must start fast
+          task: "quick",
+          primaryFirst: true,
+          mode: "speed",
+          lowThink: true,
+          temperature: 0.8,
+          maxTokens: 1800,
+          onModel: (m) => {
+            usedModel = m;
+          },
+          onDone: saveAnswer,
+        })
+      : build
       ? ensembleStream({
           system:
             (v8 ? BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) : BUILD_SYSTEM_PRO) +
             QUALITY_CONTRACT.split("\n6.")[0] +
+            maxAddon +
             persona +
             memBlock,
           kind: "build",
@@ -428,10 +459,10 @@ export async function POST(req: Request) {
         })
       : hard
         ? ensembleStream({
-            system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + persona + memBlock,
+            system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + persona + memBlock,
             kind: "hard",
             task,
-            maxTokens: 32000,
+            maxTokens: max ? 64000 : 32000,
             messages: capped,
             attachments: parsed.files,
             temperature: 0.6,
@@ -476,7 +507,7 @@ export async function POST(req: Request) {
       "x-conversation-id": fixedConvId ?? "",
       "x-credits-remaining": String(credit.remaining),
       "x-plan": credit.plan,
-      ...(isPro ? { "x-model": usedModel, "x-engine": build || hard ? "team" : "fast", "x-task": task } : {}),
+      ...(isPro ? { "x-model": usedModel, "x-engine": build || hard ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
     });
   } catch (e) {
     release();

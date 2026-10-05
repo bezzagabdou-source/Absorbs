@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ar" dir="rtl" style="background:#050505;color-scheme:dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#050505" />
+    <meta name="color-scheme" content="dark" />
+    <title>برق — غير متصل</title>
+    <style>
+      * { margin: 0; box-sizing: border-box; }
+      html, body { height: 100%; background: #050505; }
+      body {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        color: #e4e4e7;
+        font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, system-ui, sans-serif;
+        padding: 24px;
+        text-align: center;
+        overflow: hidden;
+        position: relative;
+      }
+      .orb { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; }
+      .o1 { width: 70vmax; height: 70vmax; left: -25vmax; top: -30vmax; background: radial-gradient(circle, rgba(255,255,255,.12), transparent 65%); animation: a 18s ease-in-out infinite alternate; }
+      .o2 { width: 55vmax; height: 55vmax; right: -22vmax; bottom: -26vmax; background: radial-gradient(circle, rgba(227,176,75,.28), transparent 65%); animation: b 24s ease-in-out infinite alternate; }
+      @keyframes a { to { transform: translate3d(12vmax, 8vmax, 0) scale(1.12); } }
+      @keyframes b { to { transform: translate3d(-12vmax, -8vmax, 0) scale(1.15); } }
+      .card {
+        position: relative; max-width: 380px; width: 100%;
+        padding: 34px 26px; border-radius: 28px;
+        background: rgba(13, 22, 18, .72);
+        border: 1px solid rgba(239, 217, 171, .14);
+        box-shadow: 0 30px 80px -30px rgba(0,0,0,.9);
+        -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      }
+      .logo {
+        width: 72px; height: 72px; margin: 0 auto 22px;
+        border-radius: 20px;
+        display: grid; place-items: center;
+        font-size: 44px; font-weight: 700; line-height: 1;
+        color: #050505;
+        background: #ffffff;
+        box-shadow: 0 14px 34px -12px rgba(255,255,255,.25), inset 0 1px 0 rgba(255,255,255,.3);
+      }
+      h1 { font-size: 26px; font-weight: 700; margin-bottom: 10px; color: #fafafa; }
+      p { color: #a1a1aa; line-height: 1.9; margin-bottom: 26px; }
+      button {
+        border: none; cursor: pointer;
+        padding: 13px 32px; border-radius: 14px;
+        font: inherit; font-weight: 700; font-size: 15px; color: #fff;
+        background: #ffffff;
+        box-shadow: 0 12px 28px -12px rgba(255,255,255,.25);
+      }
+      button:active { transform: scale(.97); }
+      @media (prefers-reduced-motion: reduce) { .orb { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <i class="orb o1"></i><i class="orb o2"></i>
+    <div class="card">
+      <div class="logo" aria-hidden="true">ب</div>
+      <h1>أنت غير متصل</h1>
+      <p>ما كاش إنترنت حاليًا. تحقق من الشبكة وأعد المحاولة، وبرق يرجع يخدم تلقائيًا.</p>
+      <button onclick="location.reload()">إعادة المحاولة</button>
+    </div>
+    <script>
+      window.addEventListener("online", function () { location.reload(); });
+    </script>
+  </body>
+</html>

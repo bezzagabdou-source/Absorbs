@@ -6,6 +6,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { PwaRegister } from "@/components/pwa";
 import { StableViewport } from "@/components/stable-viewport";
 import { siteUrl } from "@/lib/site";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
 const plex = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
@@ -67,6 +68,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className={`${plex.variable} antialiased`}>
         <div className="aurora" aria-hidden>
           <i />
