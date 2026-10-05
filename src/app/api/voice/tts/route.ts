@@ -93,7 +93,7 @@ async function geminiTts(text: string, wanted: string, lang: string): Promise<Re
   const voiceName = GEMINI_VOICES.includes(wanted) ? wanted : GEMINI_VOICES.includes(envVoice) ? envVoice : "Zephyr";
   const style = STYLE[lang] ?? STYLE.ar;
   const models = [cleanKey(process.env.GEMINI_TTS_MODEL), "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"].filter(Boolean);
-  for (const model of models) {
+  for (const model of models.flatMap((m) => [m, m])) {
     try {
       const r = await withTimeout(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -110,7 +110,10 @@ async function geminiTts(text: string, wanted: string, lang: string): Promise<Re
         },
         20_000
       );
-      if (!r.ok) continue;
+      if (!r.ok) {
+        if (r.status === 429 || r.status >= 500) await new Promise((res) => setTimeout(res, 500));
+        continue;
+      }
       const j = (await r.json()) as {
         candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[];
       };

@@ -246,19 +246,26 @@ export function VoiceCall({
   // clear cloud voice (ElevenLabs / Gemini TTS) — falls back to the browser voice by itself
   useEffect(() => {
     setCloudVoice(async (text, signal) => {
-      try {
-        const voice = PERSONA_VOICE[personaRef.current] ?? "Zephyr";
-        const res = await authFetch("/api/voice/tts", {
-          method: "POST",
-          body: JSON.stringify({ text, voice, lang: langRef.current.slice(0, 2) }),
-          signal,
-        });
-        if (!res.ok) return null;
-        const b = await res.blob();
-        return b.size > 500 ? b : null;
-      } catch {
-        return null;
+      // Gemini voice is the only voice: retry a few times before giving up
+      const voice = PERSONA_VOICE[personaRef.current] ?? "Zephyr";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (signal.aborted) return null;
+        try {
+          const res = await authFetch("/api/voice/tts", {
+            method: "POST",
+            body: JSON.stringify({ text, voice, lang: langRef.current.slice(0, 2) }),
+            signal,
+          });
+          if (res.ok) {
+            const b = await res.blob();
+            if (b.size > 500) return b;
+          }
+        } catch {
+          if (signal.aborted) return null;
+        }
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
       }
+      return null;
     });
     return () => setCloudVoice(null);
   }, [authFetch]);

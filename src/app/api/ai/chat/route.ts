@@ -37,6 +37,14 @@ const FREE_MODEL_IDS: ReadonlySet<string> = new Set(["openrouter/free", "qwen/qw
 function isFreeModel(v: unknown): v is string {
   return typeof v === "string" && FREE_MODEL_IDS.has(v);
 }
+const LEGEND_ADDON = `
+
+LEGENDARY BUILD MODE - merged game + code engine:
+- Deliver ONE self-contained, working HTML file (HTML5 canvas / WebGL-free vanilla JS, CSS inline). Size is NOT a limit: 1-2 MB of real code is welcome and expected. Never shorten, never skip, never leave placeholders.
+- Games must feel like a finished commercial product: smooth 60fps requestAnimationFrame loop with delta time, polished menu / HUD / pause / game over / shop screens, particles, screen shake, procedural WebAudio sound and music, touch + keyboard + gamepad controls, save progress, difficulty scaling, bosses, power-ups, achievements, many levels or endless escalation.
+- Code quality: zero runtime errors, every id/function consistent, all tags closed, no external assets (draw everything with canvas/SVG/CSS, sounds with WebAudio).
+- Start writing the code immediately with no intro, and continue until the final closing tag.`;
+
 const NEXUS_SYSTEM = `You are Nexus AI v8.4.
 STRICT OUTPUT RULES:
 - Zero filler: never open with "Certainly", "Sure", "Of course", "Here is...", never close with offers or recaps. Start directly with the final answer or the code.
@@ -60,7 +68,7 @@ async function streamFreeModel(o: {
       model,
       stream: true,
       temperature: 0.4,
-      max_tokens: 8192,
+      max_tokens: 12000,
       messages: [
         { role: "system", content: o.system },
         ...o.messages.map((m) => ({ role: m.role === "model" ? "assistant" : "user", content: m.text })),
@@ -513,8 +521,9 @@ export async function POST(req: Request) {
     }
   };
 
-  const max = isPro && body.max === true;
-  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon : "";
+  // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
+  const max = isPro && (body.max === true || isBuildRequest(lastUser));
+  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") : "";
   const v8 = isPro && (body.v8 === true || max);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
@@ -525,23 +534,39 @@ export async function POST(req: Request) {
     // Nexus: a free OpenRouter model (default: openrouter/free) answers when a key exists; otherwise the classic engines run
     const pickedModel: unknown = body.freeModel;
     const freeModel: string | undefined =
-      !voice && isFreeModel(pickedModel) && (process.env.OPENROUTER_API_KEY ?? "").trim() ? pickedModel : undefined;
-    const build = !freeModel && !voice && isPro && isBuildRequest(lastUser);
+      !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0 && isFreeModel(pickedModel) && (process.env.OPENROUTER_API_KEY ?? "").trim()
+        ? pickedModel
+        : undefined;
+    // opened first; if every free model is busy, the classic engines (Gemini...) answer instead of an error
+    const freeStream = freeModel
+      ? await streamFreeModel({
+          model: freeModel,
+          system: NEXUS_SYSTEM,
+          messages: capped,
+          onModel: (m) => {
+            usedModel = m;
+          },
+          onDone: saveAnswer,
+        }).catch(() => null)
+      : null;
+    const build = !freeStream && !voice && isPro && isBuildRequest(lastUser);
     // v8: EVERY hard request (code edit, debugging, architecture, long docs…) gets the AI team
     // MAX: every non-build message also gets the full team treatment
-    const hard = !freeModel && !voice && v8 && !build && (max || isHardRequest(lastUser, hasFiles));
+    const hard = !freeStream && !voice && v8 && !build && (max || isHardRequest(lastUser, hasFiles));
     const onFail = async () => {
       if (credit.tracked) await refundCredit(user.uid);
       release();
     };
-    const stream = voice
+    const stream = freeStream
+      ? freeStream
+      : voice
       ? await streamGemini({
           system: VOICE_SYSTEM + personaById(body.voicePersona).system + memBlock,
           messages: capped,
           tier: "pro",
-          // fastest strong engine first: the first sentence must start fast
+          // Gemini speaks first in calls (clear, fast); other engines are only the safety net
           task: "quick",
-          primaryFirst: true,
+          primaryFirst: false,
           mode: "speed",
           lowThink: true,
           temperature: 0.8,
@@ -566,7 +591,7 @@ export async function POST(req: Request) {
             messages: capped,
             tier: "pro",
             task: "code",
-            primaryFirst: true,
+            primaryFirst: false,
             mode: "quality",
             epic: true,
             maxTokens: 64000,
@@ -616,16 +641,6 @@ export async function POST(req: Request) {
             onDone: saveAnswer,
             onFail,
           })
-      : freeModel
-      ? await streamFreeModel({
-          model: freeModel,
-          system: NEXUS_SYSTEM,
-          messages: capped,
-          onModel: (m) => {
-            usedModel = m;
-          },
-          onDone: saveAnswer,
-        })
       : await (async () => {
           const system = isPro
             ? (v8 ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +

@@ -430,7 +430,7 @@ export function createSpeechQueue(o: {
   };
 
   const request = (text: string): Promise<Blob | null> => {
-    if (!cloudFetcher || cloudFails >= 3) return Promise.resolve(null);
+    if (!cloudFetcher || cloudFails >= 12) return Promise.resolve(null);
     return cloudFetcher(text, ctrl.signal)
       .then((b) => {
         if (b) cloudFails = 0;

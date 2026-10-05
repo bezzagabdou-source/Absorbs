@@ -27,10 +27,10 @@ export function Logo({
           paddingBottom: size * 0.04,
         }}
       >
-        ب
+        N
       </span>
       {withText && (
-        <span className="text-xl font-bold tracking-tight text-gradient">
+        <span className="whitespace-nowrap text-base font-bold tracking-tight text-gradient">
           {t.common.appName}
         </span>
       )}

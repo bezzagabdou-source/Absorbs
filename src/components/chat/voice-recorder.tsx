@@ -111,7 +111,7 @@ export function VoiceRecorder({
         aria-label={listening ? "إيقاف التسجيل" : "تكلّم"}
         title={listening ? "إيقاف التسجيل" : "تكلّم"}
         className={cn(
-          "relative grid size-10 shrink-0 place-items-center rounded-full transition active:scale-90 disabled:opacity-40",
+          "relative grid size-8 shrink-0 place-items-center rounded-full transition active:scale-90 disabled:opacity-40",
           listening
             ? "bg-rose-500/20 text-rose-600 dark:text-rose-200"
             : "text-slate-500 hover:bg-slate-900/8 hover:text-brand-600 dark:text-slate-400 dark:hover:bg-white/8 dark:hover:text-brand-300",
@@ -138,7 +138,7 @@ export function VoiceRecorder({
             ))}
           </span>
         ) : (
-          <Mic className="size-5" />
+          <Mic className="size-4" />
         )}
         <span className="sr-only">{listening ? "Recording" : "Voice input"}</span>
       </button>

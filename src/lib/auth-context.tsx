@@ -47,6 +47,17 @@ function actionSettings() {
   return origin ? { url: `${origin}/app`, handleCodeInApp: false } : undefined;
 }
 
+/** Firebase rejects the e-mail when our domain is not in "Authorized domains": retry without the continue URL so the mail still goes out. */
+async function mailWithFallback(send: (s?: { url: string; handleCodeInApp: boolean }) => Promise<void>) {
+  try {
+    await send(actionSettings());
+  } catch (e) {
+    const code = (e as { code?: string }).code ?? "";
+    if (/continue-uri|unauthorized-domain/.test(code)) await send(undefined);
+    else throw e;
+  }
+}
+
 /** Client-side password rules (Firebase enforces the 6-character floor; we ask for more). */
 export function passwordProblem(pw: string): "short" | "weak" | null {
   if (pw.length < 8) return "short";
@@ -105,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await updateProfile(cred.user, { displayName: name.trim() });
       }
       // a real verification e-mail (non-blocking: the account works immediately)
-      sendEmailVerification(cred.user, actionSettings()).catch(() => undefined);
+      mailWithFallback((s) => sendEmailVerification(cred.user, s)).catch(() => undefined);
       await syncUser(cred.user, "signup", "password");
     },
     []
@@ -124,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendVerification = useCallback(async () => {
     const u = auth.currentUser;
     if (!u) throw Object.assign(new Error("no user"), { code: "auth/user-not-found" });
-    await sendEmailVerification(u, actionSettings());
+    await mailWithFallback((s) => sendEmailVerification(u, s));
   }, []);
 
   const refreshVerified = useCallback(async () => {
@@ -140,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const sendReset = useCallback(async (email: string) => {
-    await sendPasswordResetEmail(auth, email.trim().toLowerCase(), actionSettings());
+    await mailWithFallback((s) => sendPasswordResetEmail(auth, email.trim().toLowerCase(), s));
   }, []);
 
   const authFetch = useCallback(
