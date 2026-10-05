@@ -25,6 +25,7 @@ import { useI18n } from "@/lib/i18n";
 import { usePro } from "@/lib/pro-i18n";
 import { InlineNotice, useCredits } from "@/components/app/app-shell";
 import { cn } from "@/lib/utils";
+import { TierCompare } from "@/components/app/tier-compare";
 import { PRO_ACTIVATED_EVENT, PRO_SHOW_TOUR_EVENT } from "@/components/pro-welcome-gate";
 
 function UpgradeInner() {
@@ -216,6 +217,13 @@ function UpgradeInner() {
           {L("استعرض ميزات Nexus AI v8.4 Pro وجرّبها", "Découvrir et essayer Nexus AI v8.4 Pro", "Explore and try Nexus AI v8.4 Pro")}
         </button>
       )}
+
+      {/* ---------------- the four levels ---------------- */}
+      <h2 className="mb-4 flex items-center gap-2 text-sm font-black text-gold-300">
+        <Rocket className="h-4 w-4" />
+        الفرق بين Nexus 5 و6 و8 وMAX
+      </h2>
+      <TierCompare className="mb-10" />
 
       {/* ---------------- what Pro adds ---------------- */}
       <h2 className="mb-4 flex items-center gap-2 text-sm font-black text-gold-300">

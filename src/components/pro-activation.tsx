@@ -184,7 +184,7 @@ export const V8_FEATURES: Feature[] = [
 ];
 
 const GOLD = ["#fff1b8", "#fde68a", "#fbbf24", "#f59e0b"];
-const CYAN = ["#67e8f9", "#22d3ee", "#9fd0ff", "#4da3ff"];
+const CYAN = ["#e6d5b8", "#d4bf98", "#f0b49f", "#e8946f"];
 
 /** Gold + electric-blue spark explosion. Pure canvas, ~220 particles, stops by itself. */
 function SparkCanvas({ burst }: { burst: number }) {

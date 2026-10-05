@@ -17,6 +17,7 @@ import {
 } from "@/lib/gemini";
 import { classifyTask } from "@/lib/task-router";
 import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
+import { chatModeById } from "@/lib/chat-modes";
 import { VOICE_SYSTEM, personaById } from "@/lib/voice-call";
 import {
   CHAT_SYSTEM,
@@ -322,6 +323,8 @@ export async function POST(req: Request) {
     voicePersona?: string;
     /** MAX engine: giant games / websites (implies v8, Pro only) */
     max?: boolean;
+    /** tools-menu mode: video | music | canvas | research | guided (Pro only) */
+    mode?: string;
     /** v8 persona key: genius | coder | writer | teacher | analyst */
     persona?: string;
     /** Pro: the answer stopped inside a code block — finish it (no credit used) */
@@ -440,7 +443,8 @@ export async function POST(req: Request) {
   }
 
   const lastUser = capped[capped.length - 1].text;
-  const memBlock = isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "";
+  const chatMode = isPro ? chatModeById(body.mode) : undefined;
+  const memBlock = (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") + (chatMode?.addon ?? "");
   if (isPro && credit.tracked) void rememberFrom(user.uid, lastUser);
   const fileNames = [...parsed.names, ...textFiles.map((f) => f.name)];
   const savedUser =
@@ -538,7 +542,7 @@ export async function POST(req: Request) {
   // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
   const max = isPro && (body.max === true || isBuildRequest(lastUser));
   const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") + MARATHON_ADDON : "";
-  const v8 = isPro && (body.v8 === true || max);
+  const v8 = isPro && (body.v8 === true || max || chatMode?.hard === true);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
   try {
@@ -569,7 +573,7 @@ export async function POST(req: Request) {
     const build = !freeStream && !voice && isPro && isBuildRequest(lastUser);
     // v8: EVERY hard request (code edit, debugging, architecture, long docs…) gets the AI team
     // MAX: every non-build message also gets the full team treatment
-    const hard = !freeStream && !voice && v8 && !build && (max || isHardRequest(lastUser, hasFiles));
+    const hard = !freeStream && !voice && v8 && !build && (max || chatMode?.hard === true || isHardRequest(lastUser, hasFiles));
     const onFail = async () => {
       if (credit.tracked) await refundCredit(user.uid);
       release();

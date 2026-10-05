@@ -8,6 +8,7 @@ import { useI18n } from "@/lib/i18n";
 import { SectionHeading } from "@/components/landing/sections";
 import { Logo } from "@/components/logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { SystemFooter } from "@/components/system-footer";
 import { cn } from "@/lib/utils";
 
 export function Faq() {
@@ -200,27 +201,6 @@ export function Footer() {
                 </a>
               </li>
             </ul>
-            <h4 className="mb-4 mt-7 text-sm font-black text-white">
-              {t.footer.legal}
-            </h4>
-            <ul className="space-y-2.5">
-              <li>
-                <a
-                  href="/privacy"
-                  className="text-sm text-slate-400 transition hover:text-brand-300"
-                >
-                  {t.footer.privacy}
-                </a>
-              </li>
-              <li>
-                <a
-                  href="/terms"
-                  className="text-sm text-slate-400 transition hover:text-brand-300"
-                >
-                  {t.footer.terms}
-                </a>
-              </li>
-            </ul>
           </div>
 
           <div>
@@ -235,6 +215,8 @@ export function Footer() {
             </div>
           </div>
         </div>
+
+        <SystemFooter className="-mx-4 sm:-mx-6" />
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-white/5 py-7 sm:flex-row">
           <p className="text-xs text-slate-500">

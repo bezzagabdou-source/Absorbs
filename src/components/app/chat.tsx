@@ -45,7 +45,7 @@ import {
   Zap,
   Sparkles,
   Rocket,
-  ImagePlus,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -58,6 +58,10 @@ import { MessageSkeleton } from "@/components/ui/skeleton";
 import { ExportMenu } from "@/components/chat/export-menu";
 import { VoiceRecorder, VoiceSettings } from "@/components/chat/voice-recorder";
 import { DropOverlay, useFileDrop } from "@/components/chat/drop-overlay";
+import { ImageStudio } from "@/components/app/image-studio";
+import { ToolsMenu, type ToolMenuId } from "@/components/app/tools-menu";
+import { TierCompare } from "@/components/app/tier-compare";
+import { CHAT_MODES, chatModeById, type ChatModeId } from "@/lib/chat-modes";
 import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
@@ -664,6 +668,9 @@ export function ChatPage() {
   const [showJump, setShowJump] = useState(false);
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [deep, setDeep] = useState(false);
+  const [mode, setMode] = useState<ChatModeId | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [imgOpen, setImgOpen] = useState(false);
   const [freeModel, setFreeModel] = useState<string>(DEFAULT_FREE_MODEL);
   useEffect(() => {
     try {
@@ -758,10 +765,20 @@ export function ChatPage() {
   const lastTextRef = useRef("");
   const lastFilesRef = useRef<PendingFile[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** true once the page was hidden (app switch / screen lock) during the current answer */
+  const hiddenRef = useRef(false);
   const recRef = useRef<SpeechRec | null>(null);
 
   useEffect(() => {
     setVoiceOk(!!getSpeech());
+  }, []);
+
+  useEffect(() => {
+    const onVis = (): void => {
+      if (document.visibilityState === "hidden") hiddenRef.current = true;
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
   /* ---------- scrolling: follow the answer unless the reader scrolled up ---------- */
@@ -858,7 +875,8 @@ export function ChatPage() {
         }
       }
       if (seq === openSeq.current) {
-        setMsgs((m) => m.filter((x) => !x.pending));
+        // keep whatever was already written instead of throwing it away
+        setMsgs((m) => m.map((x) => (x.pending ? { ...x, pending: false } : x)).filter((x) => !(x.role === "assistant" && !x.content)));
         setStreaming(false);
         setError("busy");
       }
@@ -1030,6 +1048,8 @@ export function ChatPage() {
       };
 
       res0Ok.current = false;
+      hiddenRef.current = false;
+      let dropped = false;
       let waiting = false;
       // keep the screen awake while building: a locked phone suspends the connection (the glitch you saw)
       type WL = { release: () => Promise<void> };
@@ -1060,6 +1080,7 @@ export function ChatPage() {
             ...(!isPro || freeModel !== DEFAULT_FREE_MODEL ? { freeModel } : {}),
             ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
             ...(isPro && tier === "v6" ? { v6: true } : {}),
+            ...(isPro && mode ? { mode } : {}),
             ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
           }),
           signal: controller.signal,
@@ -1125,6 +1146,7 @@ export function ChatPage() {
           // connection dropped in the middle (screen lock, weak network, server time limit):
           // a Pro build is finished by the continuation loop below instead of stopping
           if ((re as Error).name === "AbortError" || !isPro || acc.length === 0) throw re;
+          dropped = true;
         }
         acc += decoder.decode();
 
@@ -1147,6 +1169,7 @@ export function ChatPage() {
                   messages: [...history, { role: "user", content }],
                   continueFrom: acc,
                   v6: tier === "v6",
+                  ...(isPro && mode ? { mode } : {}),
                   ...(tier === "v8" || tier === "max" ? { v8: true } : {}),
                   ...(tier === "max" ? { max: true } : {}),
                 }),
@@ -1175,6 +1198,20 @@ export function ChatPage() {
               idle++;
               if (idle >= 3) break;
             } else idle = 0;
+          }
+        }
+
+        // The connection died in the background (app switch / screen lock) and the answer is still cut:
+        // never show a half answer as finished. The server keeps writing and saves the full text, so wait for it.
+        if (isPro && mine() && activeConv) {
+          const cut = codeLooksCut(acc);
+          const plainDrop = dropped && !acc.includes("```");
+          if (plainDrop || (cut && (dropped || hiddenRef.current))) {
+            if (timer) clearTimeout(timer);
+            flush();
+            waiting = true;
+            void waitForAnswer(activeConv, content.slice(0, 40), mySeq);
+            return;
           }
         }
 
@@ -1240,7 +1277,7 @@ export function ChatPage() {
         }
       }
     },
-    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, pro.defaultAsk]
+    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, pro.defaultAsk]
   );
 
   sendRef.current = send;
@@ -1792,6 +1829,13 @@ export function ChatPage() {
                 })}
               </div>
 
+              <details className="group px-3 pt-1.5">
+                <summary className="cursor-pointer list-none text-[12px] font-bold text-slate-400 hover:text-brand-300">
+                  ما الفرق بين Nexus 5 و6 و8 وMAX؟
+                </summary>
+                <TierCompare className="mt-2 max-h-[46dvh] overflow-y-auto pb-2" />
+              </details>
+
               {isPro && (tier === "v8" || tier === "max") && (
                 <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="Nexus">
                   {PERSONAS.map((p) => (
@@ -1822,6 +1866,17 @@ export function ChatPage() {
                 </div>
               )}
 
+              {isPro && mode && (
+                <div className="flex items-center gap-2 px-3 pt-2.5">
+                  <span className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-brand-500/15 px-3 text-xs font-black text-brand-300 ring-1 ring-brand-500/40">
+                    {chatModeById(mode)?.label}
+                    <button type="button" onClick={() => setMode(null)} aria-label="إلغاء الوضع" className="grid h-5 w-5 place-items-center rounded-full hover:bg-white/10">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                </div>
+              )}
+
               <textarea
                 ref={taRef}
                 value={input}
@@ -1847,7 +1902,7 @@ export function ChatPage() {
                 rows={1}
                 enterKeyHint="send"
                 autoComplete="off"
-                placeholder={t.app.inputPlaceholder}
+                placeholder={(mode && chatModeById(mode)?.placeholder) || t.app.inputPlaceholder}
                 aria-label={t.app.inputPlaceholder}
                 className="block max-h-[190px] min-h-[44px] w-full resize-none bg-transparent px-4 pb-0.5 pt-3 text-[16px] leading-relaxed text-slate-50 outline-none placeholder:text-slate-500"
               />
@@ -1908,25 +1963,15 @@ export function ChatPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const prompt = input.trim();
-                    if (!prompt || streaming) return;
-                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 600))}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1e9)}`;
-                    setMsgs((m) => [
-                      ...m,
-                      { id: nextId(), role: "user", content: `🎨 ${prompt}` },
-                      { id: nextId(), role: "assistant", content: `![${prompt.replace(/[\[\]]/g, "")}](${url})` },
-                    ]);
-                    setInput("");
-                    const el = taRef.current;
-                    if (el) el.style.height = "auto";
-                  }}
-                  disabled={!input.trim() || streaming}
-                  aria-label="Generate image"
-                  title="Generate image (Pollinations AI): type a description, then tap"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-white/8 hover:text-brand-300 active:scale-90 disabled:opacity-40"
+                  onClick={() => setToolsOpen(true)}
+                  aria-label="أدوات الإنشاء"
+                  title="صور · فيديو · موسيقى · Canvas · Deep Research"
+                  className={cn(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-90",
+                    mode ? "bg-brand-500/20 text-brand-300 ring-1 ring-brand-500/50" : "text-slate-400 hover:bg-white/8 hover:text-brand-300"
+                  )}
                 >
-                  <ImagePlus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
@@ -2029,6 +2074,43 @@ export function ChatPage() {
       </div>
 
       {preview && <FullPreview html={preview} onClose={() => setPreview(null)} />}
+
+      <ToolsMenu
+        open={toolsOpen}
+        onClose={() => setToolsOpen(false)}
+        isPro={isPro}
+        activeMode={mode}
+        onSelect={(id: ToolMenuId) => {
+          setToolsOpen(false);
+          if (id === "upload") {
+            if (isPro) fileRef.current?.click();
+            else setProHint(true);
+            return;
+          }
+          if (!isPro) {
+            router.push("/app/upgrade");
+            return;
+          }
+          if (id === "personal") {
+            router.push("/app/settings/memory");
+            return;
+          }
+          if (id === "image") {
+            setImgOpen(true);
+            return;
+          }
+          if (CHAT_MODES.some((m) => m.id === id)) {
+            setMode(id);
+            setTimeout(() => taRef.current?.focus(), 60);
+          }
+        }}
+      />
+      <ImageStudio
+        open={imgOpen}
+        onClose={() => setImgOpen(false)}
+        tier={tier === "v5" || tier === "v6" || tier === "v8" || tier === "max" ? tier : "v5"}
+        initialPrompt={input.trim().slice(0, 600)}
+      />
 
       <VoiceCall
         open={call}

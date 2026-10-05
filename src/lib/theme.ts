@@ -1,14 +1,14 @@
-/** Theme helpers: "dark" (Electric Gold, default) and "orange-claude" (light peach). */
+/** Theme helpers: "dark" (Claude warm dark, default) and "orange-claude" (light peach). */
 export type ThemeId = "dark" | "orange-claude";
-export const THEME_KEY = "barq_theme_v2";
-const META_COLOR: Record<ThemeId, string> = { dark: "#030712", "orange-claude": "#fffaf5" };
+export const THEME_KEY = "nexus_theme_v3";
+const META_COLOR: Record<ThemeId, string> = { dark: "#181816", "orange-claude": "#fffaf5" };
 
 export function readTheme(): ThemeId {
   try {
-    // orange + white background with black text is the default look
-    return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "orange-claude";
+    // warm dark is the default look; the light theme is an explicit opt-in
+    return localStorage.getItem(THEME_KEY) === "orange-claude" ? "orange-claude" : "dark";
   } catch {
-    return "orange-claude";
+    return "dark";
   }
 }
 
@@ -34,5 +34,5 @@ export function applyTheme(theme: ThemeId, persist = true): void {
   window.dispatchEvent(new CustomEvent("barq:theme", { detail: theme }));
 }
 
-/** Runs before first paint (inlined in <head>) so there is no dark flash. */
-export const THEME_BOOT_SCRIPT = `try{if(localStorage.getItem('${THEME_KEY}')!=='dark'){document.documentElement.setAttribute('data-theme','orange-claude');document.addEventListener('DOMContentLoaded',function(){document.body.classList.add('bg-orange-animated');var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content','${META_COLOR["orange-claude"]}')})}}catch(e){document.documentElement.setAttribute('data-theme','orange-claude')}`;
+/** Runs before first paint (inlined in <head>) so there is no flash of the wrong theme. */
+export const THEME_BOOT_SCRIPT = `try{if(localStorage.getItem('${THEME_KEY}')==='orange-claude'){document.documentElement.setAttribute('data-theme','orange-claude');document.addEventListener('DOMContentLoaded',function(){document.body.classList.add('bg-orange-animated');var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content','${META_COLOR["orange-claude"]}')})}}catch(e){}`;

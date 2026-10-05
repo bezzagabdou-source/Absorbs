@@ -240,7 +240,7 @@ export function GamePreview({
           <code>{html}</code>
         </pre>
       ) : (
-        <div className="flex flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#102766,#030712)] p-0 sm:p-3">
+        <div className="flex flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#2a2926,#181816)] p-0 sm:p-3">
           <Frame
             runKey={run}
             title={p.gameTitle}
@@ -399,7 +399,7 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
           <code>{html}</code>
         </pre>
       ) : (
-        <div className="flex min-h-0 flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#102766,#030712)] sm:p-3">
+        <div className="flex min-h-0 flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#2a2926,#181816)] sm:p-3">
           <Frame
             runKey={run}
             title={title}

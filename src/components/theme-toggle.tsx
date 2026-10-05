@@ -45,16 +45,16 @@ export function ThemeCard() {
   const [theme, set] = useTheme();
   const opts: { id: ThemeId; title: string; desc: string; swatch: string }[] = [
     {
-      id: "orange-claude",
-      title: "المظهر العصري (تشيني وأبيض)",
-      desc: "خلفية بيضاء متحركة مع لمسات برتقالية ناعمة",
-      swatch: "linear-gradient(135deg,#fffaf5,#ffeede 55%,#f97316)",
+      id: "dark",
+      title: "الداكن الدافئ (Claude)",
+      desc: "فحمي دافئ مع لمسة تيراكوتا — المظهر الافتراضي",
+      swatch: "linear-gradient(135deg,#181816,#2a2926 55%,#d97757)",
     },
     {
-      id: "dark",
-      title: "الليلي الذهبي",
-      desc: "المظهر الأصلي: أزرق ليلي مع ذهبي",
-      swatch: "linear-gradient(135deg,#030712,#102766 55%,#fbbf24)",
+      id: "orange-claude",
+      title: "المظهر الفاتح (برتقالي وأبيض)",
+      desc: "خلفية بيضاء متحركة مع لمسات برتقالية ناعمة",
+      swatch: "linear-gradient(135deg,#fffaf5,#ffeede 55%,#f97316)",
     },
   ];
   return (

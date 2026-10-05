@@ -344,7 +344,7 @@ export function VoiceCall({
         }
         setTimeout(() => {
           if (activeRef.current && phaseRef.current === "listening" && id === recIdRef.current) listen();
-        }, 250);
+        }, 120);
       },
       onError: (code) => {
         if (id !== recIdRef.current) return;
@@ -398,7 +398,7 @@ export function VoiceCall({
       onIdle: () =>
         setTimeout(() => {
           if (live() && phaseRef.current !== "error") listen();
-        }, 350),
+        }, 180),
     });
     queueRef.current = q;
 

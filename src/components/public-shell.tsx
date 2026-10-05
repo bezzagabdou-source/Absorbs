@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { SystemFooter } from "@/components/system-footer";
 
 /** Light server-rendered frame for public (indexable) pages. */
 export function PublicShell({ children }: { children: React.ReactNode }) {
@@ -19,9 +20,10 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
       <main className="mx-auto max-w-5xl px-4 pb-20 sm:px-6">{children}</main>
-      <footer className="border-t border-white/10 py-8 text-center text-sm text-slate-500">
+      <SystemFooter />
+      <footer className="border-t border-white/10 py-6 text-center text-sm text-slate-500">
         <Link href="/" className="hover:text-slate-300">
-          Nexus AI v8.4
+          Nexus AI
         </Link>{" "}
         · صُنع في الجزائر 🇩🇿
       </footer>
