@@ -182,7 +182,7 @@ async function planProject(authFetch: AuthFetch, job: MegaJob, signal: AbortSign
         if (j.plan && j.plan.files.length > 0) return j.plan;
       } else {
         const code = await errorCode(res);
-        if (code === "QUOTA") throw new Fatal("انتهت نقاطك لليوم.");
+        if (code === "QUOTA") throw new Fatal("انتهت طاقتك المجانية، تتجدد بعد ساعتين.");
         if (code === "PRO_ONLY") throw new Fatal("المشاريع الضخمة لخطة Pro.");
         if (code === "UNAUTHENTICATED") throw new Fatal("سجّل الدخول من جديد.");
       }

@@ -26,7 +26,6 @@ import {
   Wand2,
   Gamepad2,
   Sparkles,
-  Search,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
@@ -41,11 +40,25 @@ import { cn } from "@/lib/utils";
 /* Credits context — refreshed from /api/user/me                       */
 /* ------------------------------------------------------------------ */
 
+/** "62%" or, when empty, "0% · يتجدد بعد 1:12:05" */
+export function meterLabel(p: { meterPercent?: number; creditsLeft: number; meterResetAt?: string | null } | null): string {
+  if (!p) return "…";
+  const pct = Math.round(p.meterPercent ?? p.creditsLeft);
+  if (pct > 0 || !p.meterResetAt) return `${pct}%`;
+  const ms = Math.max(0, new Date(p.meterResetAt).getTime() - Date.now());
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `0% · يتجدد بعد ${h}:${String(m).padStart(2, "0")}`;
+}
+
 export type Profile = {
   plan: "free" | "pro";
   creditsLeft: number;
   dailyLimit: number;
   creditsUsed: number;
+  /** free plan: percentage of the 2h time meter left (0-100) and when it refills once empty */
+  meterPercent?: number;
+  meterResetAt?: string | null;
   planExpiresAt: string | null;
   user: {
     id: string;
@@ -148,6 +161,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (user) void refresh();
   }, [user, refresh]);
 
+  // free plan: keep the percentage meter live (it drains while the user works, refills after the reset time)
+  useEffect(() => {
+    if (!user || profile?.plan === "pro") return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 45_000);
+    return () => window.clearInterval(id);
+  }, [user, profile?.plan, refresh]);
+
   const applyHeaders = useCallback((res: Response) => {
     const left = res.headers.get("x-credits-remaining");
     if (left !== null) {
@@ -247,7 +269,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <Coins className="h-3.5 w-3.5 text-aqua-400" />
                   {profile?.plan === "pro"
                     ? t.app.unlimited
-                    : `${profile?.creditsLeft ?? "…"}/${profile?.dailyLimit ?? ""} ${t.app.creditsLeft}`}
+                    : meterLabel(profile)}
                 </span>
                 <span
                   className={cn(
@@ -308,44 +330,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        {/* ---------------- mobile top bar ---------------- */}
-        <header className="z-40 flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-brand-400/15 bg-ink-950/90 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
-          <div className="flex min-w-0 items-center gap-2">
-            {pathname !== "/app" && (
-              <button
-                type="button"
-                onClick={() => {
-                  // a real "back": history if there is one, otherwise the chat
-                  if (window.history.length > 1) router.back();
-                  else router.replace("/app");
-                }}
-                aria-label="رجوع"
-                className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-200 transition active:scale-90"
-              >
-                <ChevronRight className="h-5 w-5 rtl:rotate-0 ltr:rotate-180" />
-              </button>
-            )}
-            <Link href="/" className="flex items-center gap-2">
-              <Logo size={30} />
-            </Link>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span className="flex items-center gap-1.5 rounded-full border border-gold-400/30 bg-gold-400/10 px-3 py-1.5 text-[11px] font-black text-gold-200">
-              <Coins className="h-3.5 w-3.5 text-gold-400" />
-              {profile?.plan === "pro" ? "∞" : `${profile?.creditsLeft ?? "…"}/${profile?.dailyLimit ?? ""}`}
-            </span>
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event("barq:palette"))}
-              aria-label="بحث سريع"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-brand-500/10 hover:text-white active:scale-90"
-            >
-              <Search className="h-4 w-4" />
-            </button>
-            <ThemeToggle />
-            <LanguageSwitcher compact />
-          </div>
-        </header>
+        {/* mobile: NO top bar (more screen for the chat). Sub-pages only get a tiny floating back button. */}
+        {pathname !== "/app" && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) router.back();
+              else router.replace("/app");
+            }}
+            aria-label="رجوع"
+            className="fixed start-2.5 top-[max(0.5rem,env(safe-area-inset-top))] z-40 grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-ink-950/80 text-slate-200 shadow-lg backdrop-blur transition active:scale-90 lg:hidden"
+          >
+            <ChevronRight className="h-5 w-5 rtl:rotate-0 ltr:rotate-180" />
+          </button>
+        )}
 
         {/* ---------------- content ---------------- */}
         <main className="scroll-y min-h-0 min-w-0 flex-1">

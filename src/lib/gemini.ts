@@ -5,6 +5,7 @@
  */
 
 import { findHuggingFaceKey, huggingFaceModels, HF_URL } from "@/lib/huggingface";
+import { MAX_OUTPUT_TOKENS, MAX_SEGMENT_TOKENS } from "@/lib/limits";
 import { assignRoles, isSiteRequest, packBriefs, STUDIO_LEAD_RULES, type RoleId } from "@/lib/site-team";
 import { engineOrder, roleFor, sortByTask, SPECIALTY_AR, type EngineName, type Task } from "@/lib/task-router";
 
@@ -1184,7 +1185,7 @@ async function streamLead(
 ): Promise<{ stream: ReadableStream<string>; model: string }> {
   const key = getGeminiKey() ?? "";
   const providers = fallbackProviders();
-  const maxTokens = opts.segment ?? Math.max(opts.maxTokens ?? 0, opts.epic ? 64_000 : 32_000);
+  const maxTokens = opts.segment ?? Math.max(opts.maxTokens ?? 0, opts.epic ? MAX_OUTPUT_TOKENS : 32_000);
   let lastErr: unknown = null;
   for (const name of leadOrder(opts.task)) {
     try {
@@ -1587,6 +1588,8 @@ export function withAutoContinue(
     onDone?: (full: string) => void | Promise<void>;
     /** keep generating + saving even if the browser disconnects */
     keepAlive?: boolean;
+    /** epoch ms: do not start another continuation round after this (lets the request end cleanly before the host limit) */
+    deadlineAt?: number;
   }
 ): ReadableStream<string> {
   let reader: ReadableStreamDefaultReader<string> | null = null;
@@ -1613,13 +1616,13 @@ export function withAutoContinue(
           put(value);
         }
         const rounds = o.rounds ?? 14;
-        for (let r = 0; r < rounds && !cancelled && acc.length > 300 && looksCut(acc); r++) {
+        for (let r = 0; r < rounds && !cancelled && acc.length > 300 && looksCut(acc) && (!o.deadlineAt || Date.now() < o.deadlineAt); r++) {
           const lastUser = [...o.messages].reverse().find((m) => m.role === "user");
           const cont = await streamLead(
             {
               system: o.system + CONTINUE_RULES,
               temperature: 0.5,
-              segment: 24_000,
+              segment: MAX_SEGMENT_TOKENS,
               messages: [
                 { role: "user", text: (lastUser?.text ?? "").slice(0, 24_000) },
                 { role: "model", text: acc.slice(-170_000) },

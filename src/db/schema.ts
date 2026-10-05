@@ -5,6 +5,7 @@ import {
   integer,
   uuid,
   boolean,
+  bigint,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -22,6 +23,9 @@ export const users = barq.table("users", {
   planExpiresAt: timestamp("plan_expires_at", { withTimezone: true }),
   creditsUsed: integer("credits_used").notNull().default(0),
   usageDay: text("usage_day"), // YYYY-MM-DD (Africa/Algiers)
+  meterUsedMs: bigint("meter_used_ms", { mode: "number" }).notNull().default(0),
+  meterResetAt: timestamp("meter_reset_at", { withTimezone: true }),
+  meterLastAt: timestamp("meter_last_at", { withTimezone: true }),
   totalRuns: integer("total_runs").notNull().default(0),
   provider: text("provider").notNull().default("password"), // password | google
   emailVerified: boolean("email_verified").notNull().default(false),

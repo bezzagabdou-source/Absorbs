@@ -20,7 +20,7 @@ import { Row } from "@/components/settings-ui";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { LOCALE_NAMES, useI18n } from "@/lib/i18n";
-import { useCredits, UserAvatar } from "@/components/app/app-shell";
+import { useCredits, UserAvatar, meterLabel } from "@/components/app/app-shell";
 import { InstallButton } from "@/components/pwa";
 import { ThemeCard } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -144,7 +144,7 @@ export default function SettingsPage() {
                 <Coins className="h-4 w-4 text-aqua-400" />
                 {isPro
                   ? t.app.unlimited
-                  : `${profile?.creditsLeft ?? "…"} ${t.app.creditsLeft}`}
+                  : meterLabel(profile)}
               </p>
             </div>
             {!isPro && (

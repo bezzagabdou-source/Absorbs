@@ -51,7 +51,8 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
-import { useCredits, UserAvatar } from "@/components/app/app-shell";
+import { useCredits, UserAvatar, meterLabel } from "@/components/app/app-shell";
+import { SESSION_MAX_MS } from "@/lib/limits";
 import { Markdown } from "@/components/markdown";
 import { MessageSkeleton } from "@/components/ui/skeleton";
 import { ExportMenu } from "@/components/chat/export-menu";
@@ -135,6 +136,16 @@ const FREE_MODEL_GROUPS: readonly FreeModelGroup[] = [
     ],
   },
 ];
+
+/** free accounts may only use these lighter models; the rest is Pro */
+const FREE_ALLOWED: ReadonlySet<string> = new Set([
+  "openrouter/free",
+  "qwen/qwen3.8-27b:free",
+  "poolside/laguna-xs-2.1:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "liquid/lfm-2.5-2.6b:free",
+]);
 
 const ALL_IDS: ReadonlySet<string> = new Set(FREE_MODEL_GROUPS.flatMap((g) => g.models.map((m) => m.id)));
 
@@ -1046,7 +1057,7 @@ export function ChatPage() {
                 }
               : {}),
             // free accounts: the chosen free OpenRouter model; Pro keeps its premium engines unless a specific model is picked
-            freeModel,
+            ...(!isPro || freeModel !== DEFAULT_FREE_MODEL ? { freeModel } : {}),
             ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
             ...(isPro && tier === "v6" ? { v6: true } : {}),
             ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
@@ -1120,9 +1131,11 @@ export function ChatPage() {
         // NEVER STOP IN THE MIDDLE OF CODE: while the answer still ends inside a code
         // block (limit / network / screen lock), ask the server to finish it — up to 12 rounds,
         // surviving dropped connections; stops only when two rounds in a row bring nothing new.
-        if (isPro) {
+        if (isPro && freeModel === DEFAULT_FREE_MODEL) {
           let idle = 0;
-          for (let r = 0; r < 12 && mine() && codeLooksCut(acc); r++) {
+          // one hour of chained ~13-minute requests without stopping (time-based, not a fixed 12 rounds)
+          const chainStart = Date.now();
+          for (let r = 0; r < 200 && Date.now() - chainStart < SESSION_MAX_MS && mine() && codeLooksCut(acc); r++) {
             if (r > 0) await new Promise((res) => setTimeout(res, idle ? 1500 : 500));
             if (!mine()) break;
             const before = acc.length;
@@ -1160,7 +1173,7 @@ export function ChatPage() {
             }
             if (acc.length === before) {
               idle++;
-              if (idle >= 2) break;
+              if (idle >= 3) break;
             } else idle = 0;
           }
         }
@@ -1732,6 +1745,83 @@ export function ChatPage() {
                 </div>
               )}
 
+              {/* model switch: its own full-width row so no button is ever clipped (MAX included) */}
+              <div
+                role="radiogroup"
+                aria-label="النموذج"
+                className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
+              >
+                {(isPro
+                  ? ([["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
+                  : ([["v4", "Nexus 4"], ["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
+                ).map(([id, label]) => {
+                  const on = (isPro ? tier : "v4") === id;
+                  const locked = !isPro && id !== "v4";
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => pickTier(id)}
+                      className={cn(
+                        "inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
+                        id === "max"
+                          ? on
+                            ? "max-pill border-transparent shadow-[0_8px_22px_-6px_rgba(255,100,0,0.95)]"
+                            : "border-orange-500 bg-orange-500/15 text-orange-600 ring-1 ring-orange-400/50"
+                          : on
+                            ? id === "v8"
+                              ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
+                              : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
+                            : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
+                      )}
+                    >
+                      {locked ? (
+                        <Lock className="h-3.5 w-3.5" />
+                      ) : id === "max" ? (
+                        <Rocket className="h-4 w-4" />
+                      ) : id === "v8" ? (
+                        <Crown className="h-4 w-4" />
+                      ) : id === "v6" ? (
+                        <Sparkles className="h-4 w-4" />
+                      ) : null}
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {isPro && (tier === "v8" || tier === "max") && (
+                <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="Nexus">
+                  {PERSONAS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={persona === p.id}
+                      onClick={() => {
+                        setPersona(p.id);
+                        try {
+                          localStorage.setItem("barq_persona", p.id);
+                        } catch {
+                          /* private mode */
+                        }
+                      }}
+                      className={cn(
+                        "inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[11.5px] font-black transition active:scale-95",
+                        persona === p.id
+                          ? "bg-gold-400/20 text-gold-200 ring-1 ring-gold-400/50"
+                          : "text-slate-400 hover:bg-white/8 hover:text-slate-100"
+                      )}
+                    >
+                      <span aria-hidden>{p.emoji}</span>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <textarea
                 ref={taRef}
                 value={input}
@@ -1794,13 +1884,14 @@ export function ChatPage() {
                   }}
                   aria-label="AI model"
                   title="AI model"
-                  className="h-8 w-[104px] shrink-0 rounded-full border border-white/12 bg-transparent px-2 text-[11px] font-bold text-slate-300 outline-none focus:border-aqua-300"
+                  dir="ltr"
+                  className="h-8 w-[104px] shrink-0 truncate rounded-full border border-white/12 bg-transparent px-2 text-[11px] font-bold text-slate-300 outline-none focus:border-aqua-300"
                 >
                   {FREE_MODEL_GROUPS.map((g) => (
                     <optgroup key={g.group} label={g.group}>
                       {g.models.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
+                        <option key={m.id} value={m.id} disabled={!isPro && !FREE_ALLOWED.has(m.id)}>
+                          {!isPro && !FREE_ALLOWED.has(m.id) ? `🔒 ${m.label}` : m.label}
                         </option>
                       ))}
                     </optgroup>
@@ -1916,7 +2007,7 @@ export function ChatPage() {
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-500",
-                        profile.creditsLeft <= 3 ? "bg-amber-400" : "bg-brand-500"
+                        profile.creditsLeft <= 15 ? "bg-amber-400" : "bg-brand-500"
                       )}
                       style={{
                         width: `${Math.max(0, Math.min(100, (profile.creditsLeft / profile.dailyLimit) * 100))}%`,
@@ -1924,7 +2015,7 @@ export function ChatPage() {
                     />
                   </div>
                   <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-400">
-                    {profile.creditsLeft}/{profile.dailyLimit} {t.app.remainingToday}
+                    {meterLabel(profile)}
                   </span>
                 </>
               )}

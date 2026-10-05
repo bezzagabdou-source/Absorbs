@@ -1,4 +1,5 @@
 import { json } from "@/lib/http";
+import { MAX_OUTPUT_TOKENS, PRO_OUTPUT_TOKENS } from "@/lib/limits";
 import { rateLimit } from "@/lib/rate-limit";
 import { verifyRequest } from "@/lib/server-auth";
 import { takeCredit, refundCredit, getProfile } from "@/lib/usage";
@@ -27,7 +28,7 @@ import {
 import { MAX_STUDIO_ADDON } from "@/lib/max-engine";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800; // Vercel Pro max. On Hobby set 300.
 
 async function readAll(stream: ReadableStream<string>): Promise<string> {
   const r = stream.getReader();
@@ -88,7 +89,7 @@ export async function POST(req: Request): Promise<Response> {
           lowThink: true,
           task: "code",
           temperature: 0.5,
-          maxTokens: 24_000,
+          maxTokens: PRO_OUTPUT_TOKENS,
         });
         const plan = parsePlan(await readAll(stream));
         if (!plan) continue;
@@ -162,7 +163,7 @@ export async function POST(req: Request): Promise<Response> {
         lowThink: true,
         task: "code",
         temperature: 0.6,
-        maxTokens: Math.min(60_000, Math.max(16_000, Math.round(request.kb * 450))),
+        maxTokens: Math.min(MAX_OUTPUT_TOKENS, Math.max(16_000, Math.round(request.kb * 450))),
       });
       // if the file is cut by the token limit, it is continued (up to 8 rounds) inside this same request
       const stream = withAutoContinue(base, { system: FILE_SYSTEM + MAX_STUDIO_ADDON, messages, rounds: 12 });

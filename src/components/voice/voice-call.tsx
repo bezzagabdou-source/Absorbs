@@ -47,7 +47,7 @@ const PHASE_LABEL: Record<Phase, string> = {
 };
 
 const ERR_TEXT: Record<string, string> = {
-  QUOTA: "سالى رصيدك لليوم.",
+  QUOTA: "خلصت طاقتك المجانية، تتجدد بعد ساعتين.",
   PRO_ONLY: "المكالمة الصوتية لمشتركي Pro.",
   RATE: "براحة شوية، عاود بعد ثواني.",
   NO_KEY: "الذكاء الاصطناعي غير مفعّل على السيرفر.",

@@ -2,7 +2,8 @@ import { after } from "next/server";
 import { json, safeDetail } from "@/lib/http";
 import { rateLimit } from "@/lib/rate-limit";
 import { verifyRequest } from "@/lib/server-auth";
-import { takeCredit, refundCredit, FREE_DAILY } from "@/lib/usage";
+import { takeCredit, refundCredit, chargeStreamTime, FREE_DAILY } from "@/lib/usage";
+import { MAX_OUTPUT_TOKENS, MAX_SEGMENT_TOKENS, PRO_OUTPUT_TOKENS, FREE_OUTPUT_TOKENS, REQUEST_GUARD_MS, REQUEST_DEADLINE_MS } from "@/lib/limits";
 import {
   streamGemini,
   ensembleStream,
@@ -15,7 +16,7 @@ import {
   type ChatTurn,
 } from "@/lib/gemini";
 import { classifyTask } from "@/lib/task-router";
-import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
+import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
 import { VOICE_SYSTEM, personaById } from "@/lib/voice-call";
 import {
   CHAT_SYSTEM,
@@ -34,6 +35,15 @@ import { getProfile } from "@/lib/usage";
 
 /* ---- Nexus AI v8.4: free OpenRouter ids + hidden no-filler prompt (inline, no extra file) ---- */
 const FREE_MODEL_IDS: ReadonlySet<string> = new Set(["openrouter/free", "qwen/qwen3.8-27b:free", "cohere/north-mini-code:free", "poolside/laguna-s-2.1:free", "poolside/laguna-xs-2.1:free", "nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-super-120b-a12b:free", "nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "thinkingmachines/inkling:free", "thinkingmachines/inkling-small:free", "apodex/apodex-1.1-mini:free", "google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free", "dots-studio/dots-3-note-preview:free", "liquid/lfm-2.5-2.6b:free", "inclusionai/ling-3.0-flash-sante:free", "stealth/space-bunny-alpha"]);
+/** free accounts: lighter models only (Pro unlocks all) */
+const FREE_PLAN_IDS: ReadonlySet<string> = new Set([
+  "openrouter/free",
+  "qwen/qwen3.8-27b:free",
+  "poolside/laguna-xs-2.1:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "liquid/lfm-2.5-2.6b:free",
+]);
 function isFreeModel(v: unknown): v is string {
   return typeof v === "string" && FREE_MODEL_IDS.has(v);
 }
@@ -58,6 +68,7 @@ async function streamFreeModel(o: {
   model: string;
   system: string;
   messages: ChatTurn[];
+  maxTokens: number;
   onModel: (m: string) => void;
   onDone: (full: string) => void | Promise<void>;
 }): Promise<ReadableStream<string>> {
@@ -68,7 +79,7 @@ async function streamFreeModel(o: {
       model,
       stream: true,
       temperature: 0.4,
-      max_tokens: 12000,
+      max_tokens: o.maxTokens,
       messages: [
         { role: "system", content: o.system },
         ...o.messages.map((m) => ({ role: m.role === "model" ? "assistant" : "user", content: m.text })),
@@ -151,7 +162,7 @@ async function streamFreeModel(o: {
 }
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800; // Vercel Pro (Fluid Compute) max. On Hobby set 300.
 
 const MAX_MSGS = 24;
 const MAX_LEN = 6000;
@@ -359,7 +370,8 @@ export async function POST(req: Request) {
       system,
       messages: [lastTurn],
       seed,
-      rounds: 6,
+      rounds: 30,
+      deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
       keepAlive: true,
       onDone: async (full) => {
         const tail = full.slice(seed.length);
@@ -493,7 +505,7 @@ export async function POST(req: Request) {
     release = r;
   });
   if (isPro) {
-    const guard = setTimeout(() => release(), 290_000);
+    const guard = setTimeout(() => release(), REQUEST_GUARD_MS);
     void finished.then(() => clearTimeout(guard));
     try {
       after(() => finished);
@@ -502,7 +514,9 @@ export async function POST(req: Request) {
     }
   }
 
+  const startedAt = Date.now();
   const saveAnswer = async (full: string) => {
+    if (!isPro && credit.tracked) void chargeStreamTime(user.uid, Date.now() - startedAt);
     try {
       const text = full.trim();
       const id = await persistP;
@@ -523,7 +537,7 @@ export async function POST(req: Request) {
 
   // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
   const max = isPro && (body.max === true || isBuildRequest(lastUser));
-  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") : "";
+  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") + MARATHON_ADDON : "";
   const v8 = isPro && (body.v8 === true || max);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
@@ -535,7 +549,9 @@ export async function POST(req: Request) {
     const pickedModel: unknown = body.freeModel;
     const freeModel: string | undefined =
       !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0 && isFreeModel(pickedModel) && (process.env.OPENROUTER_API_KEY ?? "").trim()
-        ? pickedModel
+        ? isPro || FREE_PLAN_IDS.has(pickedModel)
+          ? pickedModel
+          : "openrouter/free"
         : undefined;
     // opened first; if every free model is busy, the classic engines (Gemini...) answer instead of an error
     const freeStream = freeModel
@@ -543,6 +559,7 @@ export async function POST(req: Request) {
           model: freeModel,
           system: NEXUS_SYSTEM,
           messages: capped,
+          maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
           onModel: (m) => {
             usedModel = m;
           },
@@ -594,14 +611,14 @@ export async function POST(req: Request) {
             primaryFirst: false,
             mode: "quality",
             epic: true,
-            maxTokens: 64000,
+            maxTokens: MAX_OUTPUT_TOKENS,
             temperature: 0.7,
             attachments: parsed.files,
             onModel: (m) => {
               usedModel = m;
             },
           });
-          return withAutoContinue(base, { system, messages: capped, rounds: 30, keepAlive: true, onDone: saveAnswer });
+          return withAutoContinue(base, { system, messages: capped, rounds: 40, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer });
         })()
       : build
       ? ensembleStream({
@@ -614,7 +631,7 @@ export async function POST(req: Request) {
           kind: "build",
           task: "code",
           epic: true,
-          maxTokens: 64000,
+          maxTokens: MAX_OUTPUT_TOKENS,
           messages: capped,
           attachments: parsed.files,
           temperature: 0.7,
@@ -630,7 +647,7 @@ export async function POST(req: Request) {
             system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + persona + memBlock,
             kind: "hard",
             task,
-            maxTokens: max ? 64000 : 32000,
+            maxTokens: max ? MAX_OUTPUT_TOKENS : 32000,
             messages: capped,
             attachments: parsed.files,
             temperature: 0.6,
@@ -645,6 +662,7 @@ export async function POST(req: Request) {
           const system = isPro
             ? (v8 ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
               QUALITY_CONTRACT +
+              MARATHON_ADDON +
               persona +
               memBlock
             : CHAT_SYSTEM;
@@ -656,7 +674,7 @@ export async function POST(req: Request) {
             // Pro: the strongest engine (Claude by default) leads; free stays on Gemini's free tier
             primaryFirst: isPro,
             mode: isPro && body.deep === true ? "quality" : "speed",
-            maxTokens: isPro ? (v8 ? 24000 : body.v6 === true ? 32000 : 20000) : undefined,
+            maxTokens: isPro ? (v8 ? PRO_OUTPUT_TOKENS : body.v6 === true ? 32000 : 20000) : FREE_OUTPUT_TOKENS,
             lowThink: v8 && body.deep !== true,
             attachments: parsed.files,
             onModel: (m) => {
@@ -666,7 +684,7 @@ export async function POST(req: Request) {
             onDone: isPro ? undefined : saveAnswer,
           });
           return isPro
-            ? withAutoContinue(base, { system, messages: capped, rounds: 14, keepAlive: true, onDone: saveAnswer })
+            ? withAutoContinue(base, { system, messages: capped, rounds: 24, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer })
             : base;
         })();
     const fixedConvId = await persistP;

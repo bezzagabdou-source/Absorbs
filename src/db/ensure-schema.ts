@@ -70,6 +70,9 @@ alter table barq.users add column if not exists email_verified boolean not null 
 alter table barq.users add column if not exists login_count integer not null default 0;
 alter table barq.users add column if not exists pref_tier text not null default 'v6';
 alter table barq.users add column if not exists last_login_at timestamptz;
+alter table barq.users add column if not exists meter_used_ms bigint not null default 0;
+alter table barq.users add column if not exists meter_reset_at timestamptz;
+alter table barq.users add column if not exists meter_last_at timestamptz;
 
 create table if not exists barq.ai_memories (
   id uuid primary key default gen_random_uuid(),

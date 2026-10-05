@@ -1,7 +1,8 @@
 import { json, safeDetail } from "@/lib/http";
 import { rateLimit } from "@/lib/rate-limit";
 import { verifyRequest } from "@/lib/server-auth";
-import { takeCredit, refundCredit, getProfile, FREE_DAILY } from "@/lib/usage";
+import { takeCredit, refundCredit, getProfile, chargeStreamTime, FREE_DAILY } from "@/lib/usage";
+import { MAX_OUTPUT_TOKENS, PRO_OUTPUT_TOKENS, FREE_OUTPUT_TOKENS } from "@/lib/limits";
 import { streamGemini, ensembleStream, continueStream, streamToResponse, GeminiError } from "@/lib/gemini";
 import { buildToolPrompt } from "@/lib/prompts";
 import { getTool } from "@/lib/tools";
@@ -9,7 +10,7 @@ import { db } from "@/db";
 import { toolRuns } from "@/db/schema";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800; // Vercel Pro max. On Hobby set 300.
 
 const MAX_FIELD = 5000;
 const MAX_FIELD_PRO = 20000; // code snippets are longer than prose
@@ -106,7 +107,9 @@ export async function POST(req: Request) {
 
   let usedModel = "";
   try {
+    const startedAt = Date.now();
     const saveRun = async (full: string) => {
+      if (!isPro && credit.tracked) void chargeStreamTime(user.uid, Date.now() - startedAt);
       const text = full.trim();
       if (!text) return;
       await db
@@ -144,7 +147,7 @@ export async function POST(req: Request) {
             temperature: tool.pro ? 0.5 : 0.8,
             tier: isPro ? "pro" : "free",
             mode: isPro && QUALITY_TOOLS.has(tool.id) ? "quality" : "speed",
-            maxTokens: (tool.id === "game-builder" || tool.kind === "game") ? 64000 : tool.pro ? 24000 : undefined,
+            maxTokens: (tool.id === "game-builder" || tool.kind === "game") ? MAX_OUTPUT_TOKENS : tool.pro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
             onModel: (m) => {
               usedModel = m;
             },
