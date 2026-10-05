@@ -236,6 +236,16 @@ function analyseCode(body: string): CodeInfo | null {
   return chars >= 1200 ? { text: text.trim(), chars, lines } : null;
 }
 
+/** Lines / size of everything written so far (used before a fenced block is big enough to count as "code"). */
+function lineStats(body: string): CodeInfo | null {
+  if (body.length < 200) return null;
+  let lines = 0;
+  for (let k = 0; k < body.length; k++) if (body.charCodeAt(k) === 10) lines++;
+  return { text: "", chars: body.length, lines };
+}
+
+const BUILD_RE = /(موقع|صفحة|لعبة|تطبيق|متجر|منصة|ويب|لاندينج|داشبورد|لوحة تحكم|website|web ?site|landing|game|app\b|application|dashboard|portfolio|store|site web|jeu|application|page web|build|create|اصنع|ابني|بني|سوي|اعمل|اعملي|انشئ|أنشئ|صمم|صمّم|كود)/i;
+
 const BUILD_STEPS = [
   "يفكّر في الفكرة والبنية",
   "يخطّط للأنظمة والمراحل",
@@ -339,6 +349,7 @@ const MessageRow = memo(function MessageRow({
   copiedLabel,
   pro,
   isLast,
+  buildIntent,
   onPreview,
   onRegenerate,
   onSuggest,
@@ -351,6 +362,8 @@ const MessageRow = memo(function MessageRow({
   copiedLabel: string;
   pro: boolean;
   isLast: boolean;
+  /** the user asked to build something (site / game / app): show only "thinking", never the long text */
+  buildIntent: boolean;
   onPreview: (html: string) => void;
   onRegenerate: () => void;
   onSuggest: (text: string) => void;
@@ -423,9 +436,12 @@ const MessageRow = memo(function MessageRow({
               <ThinkingOrb label={thinking} />
               <MessageSkeleton lines={3} avatar={false} className="mt-3 max-w-md opacity-80" />
             </div>
+          ) : pro && m.pending && (buildIntent || body.includes("```")) ? (
+            // while building: ONLY the thinking card (no long message, no raw code)
+            <BuildThinking info={codeInfo ?? lineStats(body)} />
           ) : codeInfo && !showCode ? (
             <>
-              {codeInfo.text && (
+              {codeInfo.text && codeInfo.text.length <= 220 && (
                 <Markdown pro={pro} plainCode>
                   {codeInfo.text}
                 </Markdown>
@@ -933,6 +949,15 @@ export function ChatPage() {
 
       res0Ok.current = false;
       let waiting = false;
+      // keep the screen awake while building: a locked phone suspends the connection (the glitch you saw)
+      type WL = { release: () => Promise<void> };
+      let wake: WL | null = null;
+      try {
+        const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<WL> } };
+        nav.wakeLock?.request("screen").then((l) => (wake = l)).catch(() => undefined);
+      } catch {
+        /* not supported */
+      }
       try {
         const res = await authFetch("/api/ai/chat", {
           method: "POST",
@@ -1005,18 +1030,29 @@ export function ChatPage() {
         const reader = res.body?.getReader();
         if (!reader) throw new Error("no stream");
         const decoder = new TextDecoder();
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          schedule();
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            acc += decoder.decode(value, { stream: true });
+            schedule();
+          }
+        } catch (re) {
+          // connection dropped in the middle (screen lock, weak network, server time limit):
+          // a Pro build is finished by the continuation loop below instead of stopping
+          if ((re as Error).name === "AbortError" || !isPro || acc.length === 0) throw re;
         }
         acc += decoder.decode();
 
-        // NEVER STOP IN THE MIDDLE OF CODE: if the answer still ends inside a code
-        // block (limit / network), ask the server to finish it — up to 4 times.
+        // NEVER STOP IN THE MIDDLE OF CODE: while the answer still ends inside a code
+        // block (limit / network / screen lock), ask the server to finish it — up to 12 rounds,
+        // surviving dropped connections; stops only when two rounds in a row bring nothing new.
         if (isPro) {
-          for (let r = 0; r < 4 && mine() && codeLooksCut(acc); r++) {
+          let idle = 0;
+          for (let r = 0; r < 12 && mine() && codeLooksCut(acc); r++) {
+            if (r > 0) await new Promise((res) => setTimeout(res, idle ? 1500 : 500));
+            if (!mine()) break;
+            const before = acc.length;
             try {
               const cres = await authFetch("/api/ai/chat", {
                 method: "POST",
@@ -1030,20 +1066,29 @@ export function ChatPage() {
                 }),
                 signal: controller.signal,
               });
-              if (!cres.ok || !cres.body) break;
-              const cr = cres.body.getReader();
-              const before = acc.length;
-              for (;;) {
-                const { done, value } = await cr.read();
-                if (done) break;
-                acc += decoder.decode(value, { stream: true });
-                schedule();
+              if (cres.ok && cres.body) {
+                const cr = cres.body.getReader();
+                try {
+                  for (;;) {
+                    const { done, value } = await cr.read();
+                    if (done) break;
+                    acc += decoder.decode(value, { stream: true });
+                    schedule();
+                  }
+                } catch (ce) {
+                  if ((ce as Error).name === "AbortError") throw ce;
+                }
+                acc += decoder.decode();
+              } else if (cres.status === 403 || cres.status === 401) {
+                break;
               }
-              acc += decoder.decode();
-              if (acc.length === before) break; // nothing new: stop retrying
-            } catch {
-              break;
+            } catch (ce) {
+              if ((ce as Error).name === "AbortError") throw ce;
             }
+            if (acc.length === before) {
+              idle++;
+              if (idle >= 2) break;
+            } else idle = 0;
           }
         }
 
@@ -1098,6 +1143,11 @@ export function ChatPage() {
           setError("generic");
         }
       } finally {
+        try {
+          void (wake as WL | null)?.release();
+        } catch {
+          /* ignore */
+        }
         if (mine()) {
           abortRef.current = null;
           if (!waiting) setStreaming(false);
@@ -1464,6 +1514,7 @@ export function ChatPage() {
                     key={m.id}
                     m={m}
                     isLast={i === msgs.length - 1}
+                    buildIntent={i > 0 && msgs[i - 1].role === "user" && BUILD_RE.test(msgs[i - 1].content)}
                     onPreview={setPreview}
                     onRegenerate={onRegen}
                     onSuggest={onSuggest}

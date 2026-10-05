@@ -100,8 +100,15 @@ export function plainForSpeech(md: string): string {
 
 let speakToken = 0;
 
+let activeAudio: HTMLAudioElement | null = null;
+
 export function stopSpeaking(): void {
   speakToken++;
+  try {
+    activeAudio?.pause();
+  } catch {
+    /* ignore */
+  }
   try {
     window.speechSynthesis?.cancel();
   } catch {
@@ -251,7 +258,20 @@ export function createRecognizer(o: RecognizerOptions): Recognizer | null {
 
 /* ---------- streaming speech queue (voice calls) ----------
  * Sentences are queued while the answer is still being written, so the voice starts
- * after the FIRST sentence instead of after the whole reply. */
+ * after the FIRST sentence instead of after the whole reply.
+ * Cloud voice (ElevenLabs / Gemini TTS through /api/voice/tts): the next sentences are
+ * downloaded while the current one is playing, so there is no gap between them.
+ * If the cloud voice is not available it falls back to the browser voice by itself. */
+
+type CloudFetcher = (text: string, signal: AbortSignal) => Promise<Blob | null>;
+let cloudFetcher: CloudFetcher | null = null;
+let cloudFails = 0;
+
+/** The call screen registers how to reach /api/voice/tts (with the login token). */
+export function setCloudVoice(fetcher: CloudFetcher | null): void {
+  cloudFetcher = fetcher;
+  cloudFails = 0;
+}
 
 export type SpeechQueue = {
   /** queue text to read (markdown is stripped) */
@@ -262,72 +282,193 @@ export type SpeechQueue = {
   cancel: () => void;
 };
 
+/** Sentence-sized pieces: the first one short (fast start), the rest a bit longer (smoother voice). */
+function splitForVoice(clean: string, first: boolean): string[] {
+  const raw = clean.match(/[^.!؟?؛;\n]+[.!؟?؛;\n]?/g) ?? [clean];
+  const out: string[] = [];
+  let cur = "";
+  const limit = (n: number) => (n === 0 && first ? 60 : 200);
+  for (const piece of raw) {
+    const t = piece.trim();
+    if (!t) continue;
+    if (cur && (cur + " " + t).length > limit(out.length)) {
+      out.push(cur);
+      cur = t;
+    } else {
+      cur = cur ? cur + " " + t : t;
+    }
+    if (cur.length >= limit(out.length) && /[.!؟?؛;]$/.test(cur)) {
+      out.push(cur);
+      cur = "";
+    }
+  }
+  if (cur) out.push(cur);
+  return out.flatMap((x) => (x.length > 320 ? (x.match(/[^،,]{1,260}[،,]?/g) ?? [x]).map((y) => y.trim()).filter(Boolean) : [x]));
+}
+
+type Job = { text: string; lang: string; blob: Promise<Blob | null> };
+
 export function createSpeechQueue(o: {
   lang?: string;
   onStart?: () => void;
   onIdle?: () => void;
 }): SpeechQueue {
-  let pending = 0;
   let inputDone = false;
   let started = false;
   let dead = false;
   let idleFired = false;
+  let running = false;
+  let firstBatch = true;
+  const jobs: Job[] = [];
+  const ctrl = new AbortController();
   const token = ++speakToken;
   try {
     window.speechSynthesis?.cancel();
+    activeAudio?.pause();
   } catch {
     /* unsupported */
   }
 
+  const alive = () => !dead && token === speakToken;
+
   const maybeIdle = () => {
-    if (dead || idleFired || !inputDone || pending > 0) return;
+    if (!alive() || idleFired || !inputDone || running || jobs.length > 0) return;
     idleFired = true;
     o.onIdle?.();
   };
 
+  const markStart = () => {
+    if (!alive() || started) return;
+    started = true;
+    o.onStart?.();
+  };
+
+  /** browser voice for one piece (fallback) */
+  const browserSpeak = (job: Job): Promise<void> =>
+    new Promise((resolve) => {
+      if (!isSynthesisSupported() || !alive()) return resolve();
+      const prefs = loadVoicePrefs();
+      const voice = pickVoice(job.lang, prefs.voiceURI);
+      const u = new SpeechSynthesisUtterance(job.text);
+      u.lang = voice?.lang ?? job.lang;
+      if (voice) u.voice = voice;
+      u.rate = prefs.rate;
+      u.pitch = prefs.pitch;
+      u.onstart = markStart;
+      const end = () => resolve();
+      u.onend = end;
+      u.onerror = end;
+      window.speechSynthesis.speak(u);
+    });
+
+  const getAudio = (): HTMLAudioElement => {
+    // ONE element for the whole call: once the user tapped, phones keep allowing playback on it
+    if (!activeAudio) {
+      activeAudio = new Audio();
+      activeAudio.preload = "auto";
+    }
+    return activeAudio;
+  };
+
+  const playBlob = (blob: Blob): Promise<boolean> =>
+    new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const a = getAudio();
+      const prefs = loadVoicePrefs();
+      let settled = false;
+      const done = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        a.onended = null;
+        a.onerror = null;
+        a.onplaying = null;
+        URL.revokeObjectURL(url);
+        resolve(ok);
+      };
+      a.onplaying = markStart;
+      a.onended = () => done(true);
+      a.onerror = () => done(false);
+      a.src = url;
+      a.playbackRate = Math.min(1.3, Math.max(0.9, prefs.rate || 1));
+      a.play().catch(() => done(false));
+      // safety: never hang the call if the browser swallows "ended"
+      const guard = setInterval(() => {
+        if (!alive()) {
+          clearInterval(guard);
+          try {
+            a.pause();
+          } catch {
+            /* ignore */
+          }
+          done(true);
+        } else if (settled) {
+          clearInterval(guard);
+        }
+      }, 400);
+    });
+
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      while (alive() && jobs.length > 0) {
+        const job = jobs.shift() as Job;
+        // keep the next two sentences downloading while this one plays (they were requested in enqueue)
+        const blob = await job.blob;
+        if (!alive()) break;
+        if (blob) {
+          const ok = await playBlob(blob);
+          if (!alive()) break;
+          if (ok) continue;
+        }
+        await browserSpeak(job);
+      }
+    } finally {
+      running = false;
+      maybeIdle();
+    }
+  };
+
+  const request = (text: string): Promise<Blob | null> => {
+    if (!cloudFetcher || cloudFails >= 3) return Promise.resolve(null);
+    return cloudFetcher(text, ctrl.signal)
+      .then((b) => {
+        if (b) cloudFails = 0;
+        else cloudFails++;
+        return b;
+      })
+      .catch(() => {
+        cloudFails++;
+        return null;
+      });
+  };
+
   return {
     enqueue(text) {
-      if (dead || !isSynthesisSupported()) return;
+      if (!alive()) return;
       const clean = plainForSpeech(text);
       if (!clean) return;
-      const prefs = loadVoicePrefs();
-      const parts = (clean.match(/[^.!؟?،;\n]{1,110}[.!؟?،;:\n]?/g) ?? [clean]).map((x) => x.trim()).filter(Boolean);
+      const parts = splitForVoice(clean, firstBatch);
+      firstBatch = false;
       for (const part of parts) {
         const lang = o.lang ?? detectLang(part);
-        const voice = pickVoice(lang, prefs.voiceURI);
-        const u = new SpeechSynthesisUtterance(part);
-        u.lang = voice?.lang ?? lang;
-        if (voice) u.voice = voice;
-        u.rate = prefs.rate;
-        u.pitch = prefs.pitch;
-        pending++;
-        u.onstart = () => {
-          if (dead || token !== speakToken) return;
-          if (!started) {
-            started = true;
-            o.onStart?.();
-          }
-        };
-        const end = () => {
-          if (token !== speakToken) return;
-          pending = Math.max(0, pending - 1);
-          maybeIdle();
-        };
-        u.onend = end;
-        u.onerror = end;
-        window.speechSynthesis.speak(u);
+        jobs.push({ text: part, lang, blob: request(part) });
       }
+      void run();
     },
     finish() {
       inputDone = true;
+      void run();
       maybeIdle();
     },
     cancel() {
       dead = true;
-      pending = 0;
+      jobs.length = 0;
+      ctrl.abort();
       if (token === speakToken) {
         try {
           window.speechSynthesis?.cancel();
+          activeAudio?.pause();
         } catch {
           /* unsupported */
         }

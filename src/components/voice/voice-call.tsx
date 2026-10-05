@@ -10,13 +10,23 @@ import {
   createRecognizer,
   createSpeechQueue,
   isRecognitionSupported,
-  isSynthesisSupported,
   plainForSpeech,
+  setCloudVoice,
   type Recognizer,
   type SpeechQueue,
 } from "@/lib/voice";
 import { HANGUP_RE, VOICE_PERSONAS, personaById } from "@/lib/voice-call";
 import { cn } from "@/lib/utils";
+
+/** Gemini voice per persona */
+const PERSONA_VOICE: Record<string, string> = {
+  friend: "Zephyr",
+  coach: "Puck",
+  teacher: "Kore",
+  storyteller: "Charon",
+  interpreter: "Aoede",
+  interviewer: "Orus",
+};
 
 type Phase = "idle" | "listening" | "thinking" | "speaking" | "paused" | "error";
 type Turn = { role: "user" | "assistant"; content: string };
@@ -232,6 +242,26 @@ export function VoiceCall({
   const [lang, setLang] = useState<string>("ar-DZ");
   const [sttOk, setSttOk] = useState(true);
   const [ttsOk, setTtsOk] = useState(true);
+
+  // clear cloud voice (ElevenLabs / Gemini TTS) — falls back to the browser voice by itself
+  useEffect(() => {
+    setCloudVoice(async (text, signal) => {
+      try {
+        const voice = PERSONA_VOICE[personaRef.current] ?? "Zephyr";
+        const res = await authFetch("/api/voice/tts", {
+          method: "POST",
+          body: JSON.stringify({ text, voice, lang: langRef.current.slice(0, 2) }),
+          signal,
+        });
+        if (!res.ok) return null;
+        const b = await res.blob();
+        return b.size > 500 ? b : null;
+      } catch {
+        return null;
+      }
+    });
+    return () => setCloudVoice(null);
+  }, [authFetch]);
 
   const phaseRef = useRef<Phase>("idle");
   const activeRef = useRef(false);
@@ -507,7 +537,7 @@ export function VoiceCall({
     mutedRef.current = false;
     setTyping(false);
     setSttOk(isRecognitionSupported());
-    setTtsOk(isSynthesisSupported());
+    setTtsOk(true);
 
     let p = "friend";
     let l = locale === "fr" ? "fr-FR" : locale === "en" ? "en-US" : "ar-DZ";
@@ -531,12 +561,8 @@ export function VoiceCall({
       onIdle: () => setTimeout(() => activeRef.current && phaseRef.current === "speaking" && listen(), 300),
     });
     queueRef.current = q;
-    if (isSynthesisSupported()) {
-      q.enqueue(personaById(p).greeting);
-      q.finish();
-    } else {
-      q.finish();
-    }
+    q.enqueue(personaById(p).greeting);
+    q.finish();
 
     const timer = window.setInterval(() => setSeconds((s) => s + 1), 1000);
 
@@ -658,14 +684,15 @@ export function VoiceCall({
             {!ttsOk && <p className="max-w-xs text-center text-xs text-amber-300">متصفحك ما يدعمش القراءة الصوتية — الرد يظهر مكتوب.</p>}
 
             {/* captions */}
-            <div ref={capRef} className="scroll-y max-h-[24vh] w-full max-w-xl space-y-1.5 rounded-2xl bg-white/[0.04] px-4 py-3 text-center">
+            <div ref={capRef} className="scroll-y max-h-[30vh] w-full max-w-xl space-y-2 rounded-2xl bg-white/[0.04] px-4 py-3 text-center">
               {shownUser && <p className="text-[13px] leading-relaxed text-slate-400">{shownUser}</p>}
-              {reply && <p className="text-[15px] font-bold leading-relaxed text-white">{reply}</p>}
+              {reply && <p className="text-[17px] font-bold leading-relaxed text-white">{reply}</p>}
               {!shownUser && !reply && <p className="text-[13px] text-slate-500">كلامك وردّ برق يظهرو هنا مباشرة</p>}
             </div>
           </div>
 
-          {/* persona + language */}
+          {/* persona + language: only while paused / before talking, so the call screen stays clean */}
+          {(phase === "paused" || phase === "idle" || phase === "error") && (
           <div className="space-y-2 px-3">
             <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="radiogroup" aria-label="شخصية برق">
               {VOICE_PERSONAS.map((p) => (
@@ -704,6 +731,7 @@ export function VoiceCall({
               ))}
             </div>
           </div>
+          )}
 
           {/* typed fallback */}
           {typing && (
