@@ -6,7 +6,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-[100dvh]">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-5 sm:px-6">
-        <Link href="/" aria-label="برق">
+        <Link href="/" aria-label="Nexus AI v8.4">
           <Logo />
         </Link>
         <nav className="flex items-center gap-2">
@@ -21,7 +21,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto max-w-5xl px-4 pb-20 sm:px-6">{children}</main>
       <footer className="border-t border-white/10 py-8 text-center text-sm text-slate-500">
         <Link href="/" className="hover:text-slate-300">
-          برق
+          Nexus AI v8.4
         </Link>{" "}
         · صُنع في الجزائر 🇩🇿
       </footer>

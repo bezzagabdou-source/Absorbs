@@ -7,7 +7,7 @@ import { streamGemini, GeminiError } from "@/lib/gemini";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const PATCH_SYSTEM = `You are the precision-patch engine of Barq Pro. The user clicked ONE element in a live web page and asked for a change to it. Return ONLY one JSON object, no prose and no code fence:
+const PATCH_SYSTEM = `You are the precision-patch engine of Nexus AI v8.4 Pro. The user clicked ONE element in a live web page and asked for a change to it. Return ONLY one JSON object, no prose and no code fence:
 {"html": string, "css": string}
 - "html": the COMPLETE replacement outerHTML of that same element (same tag, same id, same data-component, same class names unless the change needs new ones, same event attributes and child ids so the page's existing JavaScript keeps working). Change only what the user asked.
 - "css": optional extra CSS rules needed by the change (new classes you added, hover/focus states, @keyframes). Use the project's CSS variables / palette from PROJECT RULES when they exist. Empty string if inline styles are enough.

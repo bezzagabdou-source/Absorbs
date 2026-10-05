@@ -25,11 +25,16 @@ import {
   Coins,
   Wand2,
   Gamepad2,
+  Sparkles,
+  Search,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
 import { Logo } from "@/components/logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { CommandPalette } from "@/components/command-palette";
+import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -71,6 +76,23 @@ export function useCredits() {
 /* ------------------------------------------------------------------ */
 
 /** "v8 PRO" pill shown next to the logo for Pro accounts */
+/** "V8 PRO GOLD" pill — a real link to the plan / upgrade page. */
+export function ProGoldLink({ className }: { className?: string }) {
+  return (
+    <Link
+      href="/app/upgrade"
+      aria-label="V8 PRO GOLD"
+      className={cn(
+        "flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-400 transition-all hover:bg-amber-500/20 cursor-pointer",
+        className
+      )}
+    >
+      <Sparkles className="h-4 w-4 animate-pulse text-amber-400" />
+      <span>V8 PRO GOLD</span>
+    </Link>
+  );
+}
+
 export function ProBadge({ className }: { className?: string }) {
   return (
     <span
@@ -173,10 +195,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         {/* ---------------- desktop sidebar ---------------- */}
         <aside className="fixed inset-y-0 start-0 z-40 hidden w-72 flex-col border-e border-white/6 bg-ink-950/90 p-5 lg:flex">
-          <Link href="/" className="mb-7 flex items-center gap-2.5 px-1">
-            <Logo size={38} />
-            {profile?.plan === "pro" && <ProBadge />}
-          </Link>
+          <div className="mb-7 flex items-center justify-between gap-2 px-1">
+            <Link href="/" className="flex items-center gap-2.5">
+              <Logo size={38} />
+            </Link>
+            {profile?.plan === "pro" && <ProGoldLink />}
+          </div>
 
           <Link
             href="/app"
@@ -261,12 +285,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-black text-white">
-                  {profile?.user.displayName ?? user.displayName ?? "Barq"}
+                  {profile?.user.displayName ?? user.displayName ?? "Nexus AI v8.4"}
                 </p>
                 <p className="truncate text-[11px] text-slate-500" dir="ltr">
                   {user.email}
                 </p>
               </div>
+              <ThemeToggle />
               <LanguageSwitcher compact />
               <button
                 type="button"
@@ -302,20 +327,32 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
             <Link href="/" className="flex items-center gap-2">
               <Logo size={30} />
-              {profile?.plan === "pro" && <ProBadge />}
             </Link>
+            {profile?.plan === "pro" && <ProGoldLink className="!px-2 !py-1 text-[10px]" />}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="flex items-center gap-1.5 rounded-full border border-gold-400/30 bg-gold-400/10 px-3 py-1.5 text-[11px] font-black text-gold-200">
               <Coins className="h-3.5 w-3.5 text-gold-400" />
               {profile?.plan === "pro" ? "∞" : `${profile?.creditsLeft ?? "…"}/${profile?.dailyLimit ?? ""}`}
             </span>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("barq:palette"))}
+              aria-label="بحث سريع"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-brand-500/10 hover:text-white active:scale-90"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+            <ThemeToggle />
             <LanguageSwitcher compact />
           </div>
         </header>
 
         {/* ---------------- content ---------------- */}
-        <main className="scroll-y min-h-0 min-w-0 flex-1">{children}</main>
+        <main className="scroll-y min-h-0 min-w-0 flex-1">
+          <VerifyEmailBanner />
+          {children}
+        </main>
 
         {/* ---------------- mobile bottom nav ---------------- */}
         <nav className="app-bottom-nav z-40 shrink-0 border-t border-brand-400/20 bg-ink-950/95 pb-[env(safe-area-inset-bottom)] lg:hidden">
@@ -345,6 +382,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </nav>
       </div>
+      <CommandPalette />
     </CreditsContext.Provider>
   );
 }

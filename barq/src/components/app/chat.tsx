@@ -17,6 +17,7 @@ import {
   ArrowUp,
   BookOpen,
   Check,
+  Code2,
   Brain,
   Headphones,
   Volume2,
@@ -43,6 +44,8 @@ import {
   Info,
   Zap,
   Sparkles,
+  Rocket,
+  ImagePlus,
   type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -56,8 +59,10 @@ import { VoiceRecorder, VoiceSettings } from "@/components/chat/voice-recorder";
 import { DropOverlay, useFileDrop } from "@/components/chat/drop-overlay";
 import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
+import { DEFAULT_FREE_MODEL, FREE_MODEL_GROUPS, isFreeModel } from "@/lib/free-models";
 import { cn } from "@/lib/utils";
 import { FullPreview } from "@/components/game-preview";
+import { VoiceCall } from "@/components/voice/voice-call";
 import {
   codeLooksCut,
   createZip,
@@ -151,7 +156,7 @@ async function copyText(text: string): Promise<boolean> {
 /* v8 helpers: follow-up chips, read-aloud                             */
 /* ------------------------------------------------------------------ */
 
-type TierId = "v4" | "v5" | "v6" | "v8";
+type TierId = "v4" | "v5" | "v6" | "v8" | "max";
 const PERSONAS: { id: string; label: string; emoji: string }[] = [
   { id: "genius", label: "ذكي", emoji: "🧠" },
   { id: "coder", label: "مبرمج", emoji: "💻" },
@@ -200,6 +205,143 @@ function ThinkingOrb({ label }: { label: string }) {
   );
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Hidden code: show "thinking" while building, then a result card     */
+/* ------------------------------------------------------------------ */
+
+type CodeInfo = { text: string; chars: number; lines: number };
+/** Strips big fenced code blocks (also a half-written last one) and reports how much code there is. */
+function analyseCode(body: string): CodeInfo | null {
+  const first = body.indexOf("```");
+  if (first < 0) return null;
+  let chars = 0;
+  let lines = 0;
+  let text = "";
+  let i = 0;
+  while (i < body.length) {
+    const open = body.indexOf("```", i);
+    if (open < 0) {
+      text += body.slice(i);
+      break;
+    }
+    text += body.slice(i, open);
+    const nl = body.indexOf("\n", open);
+    if (nl < 0) break;
+    const close = body.indexOf("```", nl + 1);
+    const end = close < 0 ? body.length : close;
+    const code = body.slice(nl + 1, end);
+    chars += code.length;
+    for (let k = 0; k < code.length; k++) if (code.charCodeAt(k) === 10) lines++;
+    i = close < 0 ? body.length : close + 3;
+  }
+  return chars >= 1200 ? { text: text.trim(), chars, lines } : null;
+}
+
+/** Lines / size of everything written so far (used before a fenced block is big enough to count as "code"). */
+function lineStats(body: string): CodeInfo | null {
+  if (body.length < 200) return null;
+  let lines = 0;
+  for (let k = 0; k < body.length; k++) if (body.charCodeAt(k) === 10) lines++;
+  return { text: "", chars: body.length, lines };
+}
+
+const BUILD_RE = /(موقع|صفحة|لعبة|تطبيق|متجر|منصة|ويب|لاندينج|داشبورد|لوحة تحكم|website|web ?site|landing|game|app\b|application|dashboard|portfolio|store|site web|jeu|application|page web|build|create|اصنع|ابني|بني|سوي|اعمل|اعملي|انشئ|أنشئ|صمم|صمّم|كود)/i;
+
+const BUILD_STEPS = [
+  "يفكّر في الفكرة والبنية",
+  "يخطّط للأنظمة والمراحل",
+  "يصمّم الواجهة (UI/UX)",
+  "يكتب المحرّك والفيزياء",
+  "يضيف الأعداء والمستويات",
+  "يلمّع الحركات والأصوات",
+  "يفحص الأخطاء سطراً بسطر",
+  "يجهّز المعاينة",
+];
+
+function BuildThinking({ info }: { info: CodeInfo | null }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((v) => Math.min(BUILD_STEPS.length - 1, v + 1)), 5200);
+    return () => clearInterval(id);
+  }, []);
+  const lines = info?.lines ?? 0;
+  const pct = Math.min(96, Math.round((lines / 5000) * 100));
+  return (
+    <div className="mt-2 rounded-2xl border border-orange-300/40 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
+      <div className="flex items-center gap-3">
+        <span className="relative grid h-9 w-9 shrink-0 place-items-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-orange-400/30" />
+          <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-orange-500 border-e-amber-300" style={{ animationDuration: "1.1s" }} />
+          <Sparkles className="h-4 w-4 text-orange-600" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-black text-slate-100">Nexus AI v8.4 يفكّر ويبني…</p>
+          <p className="truncate text-[12.5px] font-semibold text-slate-400">{BUILD_STEPS[i]}…</p>
+        </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-orange-400/20">
+        <div className="h-full rounded-full bg-gradient-to-l from-amber-400 to-orange-500 transition-[width] duration-700" style={{ width: `${Math.max(6, pct)}%` }} />
+      </div>
+      {info && (
+        <p className="mt-2 text-[11.5px] font-bold text-slate-400" dir="ltr">
+          {info.lines.toLocaleString("en-US")} lines · {(info.chars / 1024).toFixed(0)} KB
+        </p>
+      )}
+    </div>
+  );
+}
+
+function BuildDone({
+  info,
+  onPreview,
+  onDownload,
+  showCode,
+  toggleCode,
+  canPreview,
+  files,
+}: {
+  info: CodeInfo;
+  onPreview: () => void;
+  onDownload: () => void;
+  showCode: boolean;
+  toggleCode: () => void;
+  canPreview: boolean;
+  files: number;
+}) {
+  return (
+    <div className="mt-2 rounded-2xl border border-orange-300/45 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white">
+          <Check className="h-5 w-5" strokeWidth={3} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14.5px] font-black text-slate-100">تم البناء بنجاح</p>
+          <p className="text-[12px] font-bold text-slate-400" dir="ltr">
+            {info.lines.toLocaleString("en-US")} lines · {(info.chars / 1024).toFixed(0)} KB{files > 1 ? ` · ${files} files` : ""}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {canPreview && (
+          <button type="button" onClick={onPreview} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-4 text-[13px] font-black text-white shadow-[0_8px_22px_-10px_rgba(234,88,12,0.9)] transition active:scale-95">
+            <Maximize2 className="h-4 w-4" />
+            افتح اللعبة / المعاينة
+          </button>
+        )}
+        <button type="button" onClick={onDownload} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-orange-300/60 bg-white/10 px-3.5 text-[13px] font-black text-slate-100 transition active:scale-95">
+          <Download className="h-4 w-4" />
+          تحميل
+        </button>
+        <button type="button" onClick={toggleCode} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-orange-300/40 px-3.5 text-[13px] font-bold text-slate-300 transition active:scale-95">
+          <Code2 className="h-4 w-4" />
+          {showCode ? "إخفاء الكود" : "عرض الكود"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const MessageRow = memo(function MessageRow({
   m,
   name,
@@ -209,6 +351,7 @@ const MessageRow = memo(function MessageRow({
   copiedLabel,
   pro,
   isLast,
+  buildIntent,
   onPreview,
   onRegenerate,
   onSuggest,
@@ -221,12 +364,15 @@ const MessageRow = memo(function MessageRow({
   copiedLabel: string;
   pro: boolean;
   isLast: boolean;
+  /** the user asked to build something (site / game / app): show only "thinking", never the long text */
+  buildIntent: boolean;
   onPreview: (html: string) => void;
   onRegenerate: () => void;
   onSuggest: (text: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [showCode, setShowCode] = useState(false);
   const isUser = m.role === "user";
   const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
   const done = !isUser && !m.pending && !!body;
@@ -237,6 +383,8 @@ const MessageRow = memo(function MessageRow({
   );
   const showZip =
     zipFiles.length > 1 && zipFiles.some((f) => typeof f.data === "string" && f.data.length > 400);
+  // big code is hidden on screen: "thinking" while it streams, a result card when it is done
+  const codeInfo = useMemo(() => (!isUser && pro ? analyseCode(body) : null), [isUser, pro, body]);
 
   const act =
     "inline-flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[12px] font-bold text-slate-400 transition active:scale-95 hover:bg-white/[0.07] hover:text-slate-100";
@@ -250,7 +398,7 @@ const MessageRow = memo(function MessageRow({
         className="flex w-full justify-end gap-2.5"
       >
         <div className="max-w-[86%] min-w-0 sm:max-w-[78%]">
-          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-white shadow-[0_10px_30px_-14px_rgba(0, 180, 255,0.9)] ring-1 ring-white/20">
+          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-white shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
             <p className="whitespace-pre-wrap break-words">{m.content}</p>
             {m.files && m.files.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -290,14 +438,50 @@ const MessageRow = memo(function MessageRow({
               <ThinkingOrb label={thinking} />
               <MessageSkeleton lines={3} avatar={false} className="mt-3 max-w-md opacity-80" />
             </div>
+          ) : pro && m.pending && (buildIntent || body.includes("```")) ? (
+            // while building: ONLY the thinking card (no long message, no raw code)
+            <BuildThinking info={codeInfo ?? lineStats(body)} />
+          ) : codeInfo && !showCode ? (
+            <>
+              {codeInfo.text && codeInfo.text.length <= 220 && (
+                <Markdown pro={pro} plainCode>
+                  {codeInfo.text}
+                </Markdown>
+              )}
+              {m.pending ? (
+                <BuildThinking info={codeInfo} />
+              ) : (
+                <BuildDone
+                  info={codeInfo}
+                  canPreview={!!html && html.length > 800}
+                  files={showZip ? zipFiles.length : 1}
+                  onPreview={() => html && onPreview(html)}
+                  onDownload={() =>
+                    showZip
+                      ? downloadBlob(createZip(zipFiles), "barq-project.zip")
+                      : downloadBlob(new Blob([html ?? body], { type: html ? "text/html" : "text/plain" }), html ? "barq-build.html" : "barq-build.txt")
+                  }
+                  showCode={showCode}
+                  toggleCode={() => setShowCode(true)}
+                />
+              )}
+            </>
           ) : (
-            <Markdown pro={pro} plainCode={!!m.pending}>
-              {body}
-            </Markdown>
+            <>
+              <Markdown pro={pro} plainCode={!!m.pending}>
+                {body}
+              </Markdown>
+              {codeInfo && !m.pending && (
+                <button type="button" onClick={() => setShowCode(false)} className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl border border-orange-300/40 px-3 text-[12.5px] font-bold text-slate-300 transition active:scale-95">
+                  <Code2 className="h-4 w-4" />
+                  إخفاء الكود
+                </button>
+              )}
+            </>
           )}
         </div>
 
-        {showZip && (
+        {showZip && !(codeInfo && !showCode) && (
           <button
             type="button"
             onClick={() => downloadBlob(createZip(zipFiles), "barq-project.zip")}
@@ -409,10 +593,20 @@ export function ChatPage() {
   const [showJump, setShowJump] = useState(false);
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [deep, setDeep] = useState(false);
+  const [freeModel, setFreeModel] = useState<string>(DEFAULT_FREE_MODEL);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("nexus_model");
+      if (isFreeModel(saved)) setFreeModel(saved);
+    } catch {
+      /* private mode */
+    }
+  }, []);
   const router = useRouter();
   const [tier, setTier] = useState<TierId>("v8");
   const [persona, setPersona] = useState("genius");
   const [talk, setTalk] = useState(false);
+  const [call, setCall] = useState(false);
   const talkRef = useRef(false);
   const transcriptRef = useRef("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -423,11 +617,46 @@ export function ChatPage() {
       if (localStorage.getItem("barq_v8_default") !== "1") {
         localStorage.setItem("barq_v8_default", "1");
         localStorage.setItem("barq_tier", "v8");
-      } else if (v === "v4" || v === "v5" || v === "v6" || v === "v8") setTier(v);
+      } else if (v === "v4" || v === "v5" || v === "v6" || v === "v8" || v === "max") setTier(v);
       const pr = localStorage.getItem("barq_persona");
       if (pr && PERSONAS.some((x) => x.id === pr)) setPersona(pr);
     } catch {}
   }, []);
+  // MAX starters (command palette / Ctrl+K): fill the box and switch to the MAX engine
+  useEffect(() => {
+    const take = () => {
+      if (!profile) return; // wait for the plan to load so the MAX switch is not lost
+      try {
+        const raw = sessionStorage.getItem("barq_prefill");
+        if (!raw) return;
+        sessionStorage.removeItem("barq_prefill");
+        const d = JSON.parse(raw) as { text?: string; tier?: string };
+        if (typeof d.text === "string" && d.text) {
+          setInput(d.text);
+          if (d.tier === "max" && isPro) {
+            setTier("max");
+            try { localStorage.setItem("barq_tier", "max"); } catch {}
+          }
+          setTimeout(() => taRef.current?.focus(), 60);
+        }
+      } catch {}
+    };
+    take();
+    window.addEventListener("barq:prefill", take);
+    return () => window.removeEventListener("barq:prefill", take);
+  }, [isPro, profile]);
+  // "voice call" can also be started from the command palette (Ctrl+K)
+  useEffect(() => {
+    const open = () => {
+      if (!isPro) {
+        setProHint(true);
+        return;
+      }
+      setCall(true);
+    };
+    window.addEventListener("barq:voice-call", open);
+    return () => window.removeEventListener("barq:voice-call", open);
+  }, [isPro]);
   // a Pro account never runs on the free engine: 4 → 5
   useEffect(() => {
     if (isPro && tier === "v4") setTier("v5");
@@ -731,6 +960,15 @@ export function ChatPage() {
 
       res0Ok.current = false;
       let waiting = false;
+      // keep the screen awake while building: a locked phone suspends the connection (the glitch you saw)
+      type WL = { release: () => Promise<void> };
+      let wake: WL | null = null;
+      try {
+        const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<WL> } };
+        nav.wakeLock?.request("screen").then((l) => (wake = l)).catch(() => undefined);
+      } catch {
+        /* not supported */
+      }
       try {
         const res = await authFetch("/api/ai/chat", {
           method: "POST",
@@ -747,9 +985,11 @@ export function ChatPage() {
                     .map((f) => ({ name: f.name, text: f.text })),
                 }
               : {}),
+            // free accounts: the chosen free OpenRouter model; Pro keeps its premium engines unless a specific model is picked
+            ...(!isPro || freeModel !== DEFAULT_FREE_MODEL ? { freeModel } : {}),
             ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
             ...(isPro && tier === "v6" ? { v6: true } : {}),
-            ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
+            ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
           }),
           signal: controller.signal,
         });
@@ -803,18 +1043,29 @@ export function ChatPage() {
         const reader = res.body?.getReader();
         if (!reader) throw new Error("no stream");
         const decoder = new TextDecoder();
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          schedule();
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            acc += decoder.decode(value, { stream: true });
+            schedule();
+          }
+        } catch (re) {
+          // connection dropped in the middle (screen lock, weak network, server time limit):
+          // a Pro build is finished by the continuation loop below instead of stopping
+          if ((re as Error).name === "AbortError" || !isPro || acc.length === 0) throw re;
         }
         acc += decoder.decode();
 
-        // NEVER STOP IN THE MIDDLE OF CODE: if the answer still ends inside a code
-        // block (limit / network), ask the server to finish it — up to 4 times.
-        if (isPro) {
-          for (let r = 0; r < 4 && mine() && codeLooksCut(acc); r++) {
+        // NEVER STOP IN THE MIDDLE OF CODE: while the answer still ends inside a code
+        // block (limit / network / screen lock), ask the server to finish it — up to 12 rounds,
+        // surviving dropped connections; stops only when two rounds in a row bring nothing new.
+        if (isPro && freeModel === DEFAULT_FREE_MODEL) {
+          let idle = 0;
+          for (let r = 0; r < 12 && mine() && codeLooksCut(acc); r++) {
+            if (r > 0) await new Promise((res) => setTimeout(res, idle ? 1500 : 500));
+            if (!mine()) break;
+            const before = acc.length;
             try {
               const cres = await authFetch("/api/ai/chat", {
                 method: "POST",
@@ -823,23 +1074,34 @@ export function ChatPage() {
                   messages: [...history, { role: "user", content }],
                   continueFrom: acc,
                   v6: tier === "v6",
+                  ...(tier === "v8" || tier === "max" ? { v8: true } : {}),
+                  ...(tier === "max" ? { max: true } : {}),
                 }),
                 signal: controller.signal,
               });
-              if (!cres.ok || !cres.body) break;
-              const cr = cres.body.getReader();
-              const before = acc.length;
-              for (;;) {
-                const { done, value } = await cr.read();
-                if (done) break;
-                acc += decoder.decode(value, { stream: true });
-                schedule();
+              if (cres.ok && cres.body) {
+                const cr = cres.body.getReader();
+                try {
+                  for (;;) {
+                    const { done, value } = await cr.read();
+                    if (done) break;
+                    acc += decoder.decode(value, { stream: true });
+                    schedule();
+                  }
+                } catch (ce) {
+                  if ((ce as Error).name === "AbortError") throw ce;
+                }
+                acc += decoder.decode();
+              } else if (cres.status === 403 || cres.status === 401) {
+                break;
               }
-              acc += decoder.decode();
-              if (acc.length === before) break; // nothing new: stop retrying
-            } catch {
-              break;
+            } catch (ce) {
+              if ((ce as Error).name === "AbortError") throw ce;
             }
+            if (acc.length === before) {
+              idle++;
+              if (idle >= 2) break;
+            } else idle = 0;
           }
         }
 
@@ -894,6 +1156,11 @@ export function ChatPage() {
           setError("generic");
         }
       } finally {
+        try {
+          void (wake as WL | null)?.release();
+        } catch {
+          /* ignore */
+        }
         if (mine()) {
           abortRef.current = null;
           if (!waiting) setStreaming(false);
@@ -1015,23 +1282,6 @@ export function ChatPage() {
     }
   }, [isPro, locale, input]);
   startListeningRef.current = beginListening;
-
-  const toggleTalk = () => {
-    if (!isPro) {
-      setProHint(true);
-      return;
-    }
-    if (talk) {
-      talkRef.current = false;
-      setTalk(false);
-      stopSpeaking();
-      recRef.current?.stop();
-      return;
-    }
-    talkRef.current = true;
-    setTalk(true);
-    beginListening();
-  };
 
   // stop the microphone when leaving the page
   useEffect(
@@ -1195,7 +1445,7 @@ export function ChatPage() {
                 {isPro && (
                   <Link
                     href="/app/settings/memory"
-                    aria-label="ذاكرة برق"
+                    aria-label="ذاكرة Nexus AI v8.4"
                     className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-amber-200"
                   >
                     <Brain className="h-4 w-4" />
@@ -1277,6 +1527,7 @@ export function ChatPage() {
                     key={m.id}
                     m={m}
                     isLast={i === msgs.length - 1}
+                    buildIntent={i > 0 && msgs[i - 1].role === "user" && BUILD_RE.test(msgs[i - 1].content)}
                     onPreview={setPreview}
                     onRegenerate={onRegen}
                     onSuggest={onSuggest}
@@ -1421,8 +1672,86 @@ export function ChatPage() {
                 </div>
               )}
 
-              {isPro && tier === "v8" && (
-                <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="وضع برق">
+              {/* Nexus: free OpenRouter models */}
+              <div className="flex w-full items-center gap-2 px-3 pt-2.5">
+                <Zap className="h-4 w-4 shrink-0 text-aqua-300" aria-hidden />
+                <select
+                  id="modelSelect"
+                  value={freeModel}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!isFreeModel(v)) return;
+                    setFreeModel(v);
+                    try {
+                      localStorage.setItem("nexus_model", v);
+                    } catch {
+                      /* private mode */
+                    }
+                  }}
+                  aria-label="AI model"
+                  className="h-10 min-w-0 flex-1 rounded-full border border-white/15 bg-ink-950 px-3 text-[13px] font-bold text-slate-100 outline-none focus:border-aqua-300"
+                >
+                  {FREE_MODEL_GROUPS.map((g) => (
+                    <optgroup key={g.group} label={g.group}>
+                      {g.models.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
+              {/* model switch: its own full-width row so no button is ever clipped (MAX included) */}
+              <div
+                role="radiogroup"
+                aria-label="النموذج"
+                className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
+              >
+                {(isPro
+                  ? ([["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
+                  : ([["v4", "Nexus 4"], ["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
+                ).map(([id, label]) => {
+                  const on = (isPro ? tier : "v4") === id;
+                  const locked = !isPro && id !== "v4";
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => pickTier(id)}
+                      className={cn(
+                        "inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
+                        id === "max"
+                          ? on
+                            ? "max-pill border-transparent shadow-[0_8px_22px_-6px_rgba(255,100,0,0.95)]"
+                            : "border-orange-500 bg-orange-500/15 text-orange-600 ring-1 ring-orange-400/50"
+                          : on
+                            ? id === "v8"
+                              ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
+                              : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
+                            : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
+                      )}
+                    >
+                      {locked ? (
+                        <Lock className="h-3.5 w-3.5" />
+                      ) : id === "max" ? (
+                        <Rocket className="h-4 w-4" />
+                      ) : id === "v8" ? (
+                        <Crown className="h-4 w-4" />
+                      ) : id === "v6" ? (
+                        <Sparkles className="h-4 w-4" />
+                      ) : null}
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {isPro && (tier === "v8" || tier === "max") && (
+                <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="وضع Nexus AI v8.4">
                   {PERSONAS.map((p) => (
                     <button
                       key={p.id}
@@ -1492,43 +1821,44 @@ export function ChatPage() {
                 >
                   <Paperclip className="h-5 w-5" />
                 </button>
-                {voiceOk && !streaming && !talk && (
-                  <VoiceRecorder
-                    lang={locale === "ar" ? "ar-DZ" : locale === "fr" ? "fr-FR" : "en-US"}
-                    getBase={() => input}
-                    onText={(txt) => {
-                      setInput(txt);
-                      const el = taRef.current;
-                      if (el) {
-                        el.style.height = "auto";
-                        el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
-                      }
-                    }}
-                    onBeforeStart={() => {
-                      if (isPro) return true;
-                      setProHint(true);
-                      return false;
-                    }}
-                  />
-                )}
-                {voiceOk && (
-                  <button
-                    type="button"
-                    onClick={toggleTalk}
-                    aria-pressed={talk}
-                    aria-label="محادثة صوتية"
-                    title="محادثة صوتية مباشرة: تكلّم فيرد بصوته"
-                    className={cn(
-                      "grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-90",
-                      talk
-                        ? "animate-pulse bg-aqua-400/25 text-aqua-200 ring-1 ring-aqua-300/50"
-                        : "text-slate-400 hover:bg-white/8 hover:text-aqua-300"
-                    )}
-                  >
-                    <Headphones className="h-5 w-5" />
-                  </button>
-                )}
-                {isPro && (tier === "v5" || tier === "v8") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prompt = input.trim();
+                    if (!prompt || streaming) return;
+                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 600))}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1e9)}`;
+                    setMsgs((m) => [
+                      ...m,
+                      { id: nextId(), role: "user", content: `🎨 ${prompt}` },
+                      { id: nextId(), role: "assistant", content: `![${prompt.replace(/[\[\]]/g, "")}](${url})` },
+                    ]);
+                    setInput("");
+                    const el = taRef.current;
+                    if (el) el.style.height = "auto";
+                  }}
+                  disabled={!input.trim() || streaming}
+                  aria-label="Generate image"
+                  title="Generate image (Pollinations AI): type a description, then tap"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-white/8 hover:text-brand-300 active:scale-90 disabled:opacity-40"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => (isPro ? setCall(true) : setProHint(true))}
+                  aria-pressed={call}
+                  aria-label="مكالمة صوتية"
+                  title="مكالمة صوتية مباشرة: تكلّم مع Nexus AI v8.4 ويرد عليك بصوته"
+                  className={cn(
+                    "grid h-10 w-10 shrink-0 place-items-center rounded-full transition active:scale-90",
+                    call
+                      ? "animate-pulse bg-aqua-400/25 text-aqua-200 ring-1 ring-aqua-300/50"
+                      : "text-slate-400 hover:bg-white/8 hover:text-aqua-300"
+                  )}
+                >
+                  <Headphones className="h-5 w-5" />
+                </button>
+                {isPro && (tier === "v5" || tier === "v8" || tier === "max") && (
                   <button
                     type="button"
                     onClick={() => setDeep((v) => !v)}
@@ -1545,49 +1875,6 @@ export function ChatPage() {
                     <Brain className="h-5 w-5" />
                   </button>
                 )}
-
-                {/* model switch: برق 5 / برق 6 live inside the message box */}
-                <div
-                  role="radiogroup"
-                  aria-label="النموذج"
-                  className="ms-1 flex min-w-0 items-center rounded-full border border-white/10 bg-black/30 p-0.5"
-                >
-                  {(isPro
-                    ? ([["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"]] as const)
-                    : ([["v4", "برق 4"], ["v5", "برق 5"], ["v6", "برق 6"], ["v8", "برق 8"]] as const)
-                  ).map(([id, label]) => {
-                    const on = (isPro ? tier : "v4") === id;
-                    const locked = !isPro && id !== "v4";
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        onClick={() => pickTier(id)}
-                        className={cn(
-                          "inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[12px] font-black transition active:scale-95",
-                          on
-                            ? id === "v8"
-                              ? "v8-pill shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
-                              : id === "v6"
-                                ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
-                                : "bg-ink-700 text-slate-200"
-                            : id === "v8"
-                              ? "text-gold-300 hover:text-gold-200"
-                              : "text-slate-400 hover:text-slate-100"
-                        )}
-                      >
-                        {(id === "v6" || id === "v8") && !locked ? (
-                          id === "v8" ? <Crown className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />
-                        ) : locked ? (
-                          <Lock className="h-3 w-3" />
-                        ) : null}
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
 
                 <span className="flex-1" />
 
@@ -1610,12 +1897,27 @@ export function ChatPage() {
                     className={cn(
                       "grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-150 active:scale-90",
                       canSend
-                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-white shadow-[0_8px_24px_-8px_rgba(0, 180, 255,0.9)] hover:brightness-110"
+                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-white shadow-[0_8px_24px_-8px_rgba(0,180,255,0.9)] hover:brightness-110"
                         : "bg-white/[0.07] text-slate-500"
                     )}
                   >
                     <ArrowUp className="h-5 w-5" strokeWidth={2.6} />
                   </button>
+                )}
+                {voiceOk && !streaming && !talk && (
+                  <VoiceRecorder
+                    lang={locale === "ar" ? "ar-DZ" : locale === "fr" ? "fr-FR" : "en-US"}
+                    getBase={() => input}
+                    onText={(txt) => {
+                      setInput(txt);
+                      const el = taRef.current;
+                      if (el) {
+                        el.style.height = "auto";
+                        el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
+                      }
+                    }}
+                    onBeforeStart={() => true}
+                  />
                 )}
               </div>
             </div>
@@ -1657,6 +1959,19 @@ export function ChatPage() {
       </div>
 
       {preview && <FullPreview html={preview} onClose={() => setPreview(null)} />}
+
+      <VoiceCall
+        open={call}
+        locale={locale}
+        onClose={(id) => {
+          setCall(false);
+          if (id) {
+            void loadConvs();
+            // the server saves the last spoken answer a moment after the stream ends
+            setTimeout(() => void openConv(id), 900);
+          }
+        }}
+      />
     </div>
   );
 }

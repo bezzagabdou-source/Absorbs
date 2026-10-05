@@ -59,22 +59,22 @@ export default function MemoryPage() {
   };
 
   const wipe = async () => {
-    if (!confirm("سيتم مسح كل ما يتذكره برق عنك. متأكد؟")) return;
+    if (!confirm("سيتم مسح كل ما يتذكره Nexus AI v8.4 عنك. متأكد؟")) return;
     setItems([]);
     await authFetch("/api/memory?all=1", { method: "DELETE" }).catch(() => undefined);
   };
 
   return (
-    <SettingsFrame title="ذاكرة برق">
+    <SettingsFrame title="ذاكرة Nexus AI v8.4">
       <p className="text-sm leading-relaxed text-slate-400">
-        اكتب هنا ما تريد أن يتذكره برق في <b className="text-slate-200">كل محادثة</b> (اسمك، مشروعك، لغتك البرمجية، أسلوبك المفضل…).
+        اكتب هنا ما تريد أن يتذكره Nexus AI v8.4 في <b className="text-slate-200">كل محادثة</b> (اسمك، مشروعك، لغتك البرمجية، أسلوبك المفضل…).
         يمكنك أيضًا قول «تذكّر أن …» داخل المحادثة وسيحفظه تلقائيًا.
       </p>
 
       {!isPro && (
         <div className="glass flex items-center gap-3 rounded-2xl border-amber-300/25 p-4">
           <Crown className="h-6 w-6 shrink-0 text-amber-300" />
-          <p className="flex-1 text-sm font-bold text-amber-100">الذاكرة طويلة المدى ميزة في برق Pro.</p>
+          <p className="flex-1 text-sm font-bold text-amber-100">الذاكرة طويلة المدى ميزة في Nexus AI v8.4 Pro.</p>
           <Link href="/app/upgrade" className="btn-primary px-4 py-2 text-xs">
             ترقية
           </Link>

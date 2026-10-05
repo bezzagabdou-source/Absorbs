@@ -14,6 +14,7 @@ import {
   HardDrive,
   ShieldCheck,
   Brain,
+  Palette,
 } from "lucide-react";
 import { Row } from "@/components/settings-ui";
 import { motion } from "framer-motion";
@@ -21,6 +22,7 @@ import { useAuth } from "@/lib/auth-context";
 import { LOCALE_NAMES, useI18n } from "@/lib/i18n";
 import { useCredits, UserAvatar } from "@/components/app/app-shell";
 import { InstallButton } from "@/components/pwa";
+import { ThemeCard } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
@@ -74,7 +76,7 @@ export default function SettingsPage() {
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-lg font-black text-white">
-                {profile?.user.displayName ?? user?.displayName ?? "Barq"}
+                {profile?.user.displayName ?? user?.displayName ?? "Nexus AI v8.4"}
               </p>
               <p
                 className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-400"
@@ -91,10 +93,25 @@ export default function SettingsPage() {
           </div>
         </motion.section>
 
+        {/* appearance */}
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="glass rounded-3xl p-6"
+        >
+          <h2 className="mb-5 flex items-center gap-2 text-sm font-black text-slate-300">
+            <Palette className="h-4.5 w-4.5 text-brand-300" />
+            المظهر
+          </h2>
+          <ThemeCard />
+        </motion.section>
+
         {/* sections — each opens its own page */}
         <section className="space-y-3">
           <Row icon={Globe} title={t.common.language} desc={LOCALE_NAMES[locale]} href="/app/settings/language" />
-          <Row icon={Brain} title="ذاكرة برق" desc="ما يتذكره برق عنك في كل محادثة" href="/app/settings/memory" />
+          <Row icon={Brain} title="ذاكرة Nexus AI v8.4" desc="ما يتذكره Nexus AI v8.4 عنك في كل محادثة" href="/app/settings/memory" />
+          <Row icon={ShieldCheck} title="مركز الأمان" desc="تفعيل البريد، كلمة المرور، سجل الدخول" href="/app/settings/security" />
           <Row icon={ShieldCheck} title="الخصوصية" desc="حذف المحادثات والسياسات" href="/app/settings/privacy" />
           <Row icon={Bell} title="الإشعارات" desc="تذكيرات وعروض" href="/app/settings/notifications" />
           <Row icon={HardDrive} title="التخزين" desc="مسح الذاكرة المؤقتة" href="/app/settings/storage" />

@@ -24,6 +24,7 @@ import {
   safePath,
   type MegaFileRequest,
 } from "@/lib/mega";
+import { MAX_STUDIO_ADDON } from "@/lib/max-engine";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -79,7 +80,7 @@ export async function POST(req: Request): Promise<Response> {
       let extra = "";
       for (let attempt = 0; attempt < 3; attempt++) {
         const stream = await streamGemini({
-          system: PLAN_SYSTEM,
+          system: PLAN_SYSTEM + MAX_STUDIO_ADDON,
           messages: [{ role: "user", text: planUserPrompt(prompt) + extra }],
           tier: "pro",
           primaryFirst: true,
@@ -153,7 +154,7 @@ export async function POST(req: Request): Promise<Response> {
     const messages: ChatTurn[] = [{ role: "user", text: fileUserPrompt(request) }];
     try {
       const base = await streamGemini({
-        system: FILE_SYSTEM,
+        system: FILE_SYSTEM + MAX_STUDIO_ADDON,
         messages,
         tier: "pro",
         primaryFirst: true,
@@ -164,7 +165,7 @@ export async function POST(req: Request): Promise<Response> {
         maxTokens: Math.min(60_000, Math.max(16_000, Math.round(request.kb * 450))),
       });
       // if the file is cut by the token limit, it is continued (up to 8 rounds) inside this same request
-      const stream = withAutoContinue(base, { system: FILE_SYSTEM, messages, rounds: 12 });
+      const stream = withAutoContinue(base, { system: FILE_SYSTEM + MAX_STUDIO_ADDON, messages, rounds: 12 });
       return streamToResponse(stream, { "x-mega-max": String(MEGA_MAX_FILE) });
     } catch (e) {
       console.error("[mega] file failed:", e);

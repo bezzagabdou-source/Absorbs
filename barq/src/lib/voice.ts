@@ -45,8 +45,8 @@ export type VoicePrefs = {
   pitch: number;
 };
 
-export const DEFAULT_VOICE_PREFS: VoicePrefs = { voiceURI: "", rate: 1.04, pitch: 1 };
-const KEY = "barq:voice-prefs:v1";
+export const DEFAULT_VOICE_PREFS: VoicePrefs = { voiceURI: "", rate: 1.0, pitch: 1 };
+const KEY = "barq:voice-prefs:v2";
 const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n));
 
 export function loadVoicePrefs(): VoicePrefs {
@@ -89,6 +89,7 @@ export function plainForSpeech(md: string): string {
     .replace(/\$\$[\s\S]*?\$\$/g, " ")
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/<[^>]+>/g, " ")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, " ")
     .replace(/[#*_>|~=-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -99,8 +100,15 @@ export function plainForSpeech(md: string): string {
 
 let speakToken = 0;
 
+let activeAudio: HTMLAudioElement | null = null;
+
 export function stopSpeaking(): void {
   speakToken++;
+  try {
+    activeAudio?.pause();
+  } catch {
+    /* ignore */
+  }
   try {
     window.speechSynthesis?.cancel();
   } catch {
@@ -124,7 +132,25 @@ export function getVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
-function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | undefined {
+/** Score a voice: natural / neural / network voices sound far more human than the default robot voice. */
+function voiceScore(v: SpeechSynthesisVoice, lang: string): number {
+  const base = lang.slice(0, 2).toLowerCase();
+  const vl = v.lang.toLowerCase().replace("_", "-");
+  if (!vl.startsWith(base)) return -1;
+  let n = 0;
+  if (vl === lang.toLowerCase()) n += 4;
+  if (base === "ar" && /ar-(dz|ma|tn|eg|sa)/.test(vl)) n += 2;
+  const name = v.name.toLowerCase();
+  if (/natural|neural|online|premium|enhanced|wavenet|studio/.test(name)) n += 12;
+  if (/google/.test(name)) n += 8;
+  if (/microsoft/.test(name)) n += 5;
+  if (/hamed|naayf|salma|shakir|zariyah|maged|laila|hoda|samia|amina|ismael|fatima|denise|henri|eloise|jenny|aria|guy/.test(name)) n += 4;
+  if (!v.localService) n += 3;
+  if (/espeak|compact|mbrola/.test(name)) n -= 8;
+  return n;
+}
+
+export function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | undefined {
   const voices = window.speechSynthesis.getVoices();
   const base = lang.slice(0, 2).toLowerCase();
   if (uri) {
@@ -132,7 +158,17 @@ function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | undefined 
     // only use the chosen voice when it can actually speak this language
     if (chosen && chosen.lang.toLowerCase().startsWith(base)) return chosen;
   }
-  return undefined;
+  // automatic: the most natural-sounding installed voice for this language
+  let best: SpeechSynthesisVoice | undefined;
+  let bestScore = -1;
+  for (const v of voices) {
+    const sc = voiceScore(v, lang);
+    if (sc > bestScore) {
+      best = v;
+      bestScore = sc;
+    }
+  }
+  return best;
 }
 
 export type SpeakOptions = Partial<VoicePrefs> & { lang?: string };
@@ -148,7 +184,7 @@ export function speak(text: string, onEnd?: () => void, opts: SpeakOptions = {})
   const lang = opts.lang ?? detectLang(clean);
   const voice = pickVoice(lang, prefs.voiceURI);
   // short chunks: long utterances get cut off by Chrome
-  const parts = (clean.match(/[^.!؟?،;\n]{1,170}[.!؟?،;\n]?/g) ?? [clean])
+  const parts = (clean.match(/[^.!؟?،;\n]{1,110}[.!؟?،;:\n]?/g) ?? [clean])
     .map((x) => x.trim())
     .filter(Boolean);
   parts.forEach((part, i) => {
@@ -215,6 +251,227 @@ export function createRecognizer(o: RecognizerOptions): Recognizer | null {
         r.stop();
       } catch {
         /* already stopped */
+      }
+    },
+  };
+}
+
+/* ---------- streaming speech queue (voice calls) ----------
+ * Sentences are queued while the answer is still being written, so the voice starts
+ * after the FIRST sentence instead of after the whole reply.
+ * Cloud voice (ElevenLabs / Gemini TTS through /api/voice/tts): the next sentences are
+ * downloaded while the current one is playing, so there is no gap between them.
+ * If the cloud voice is not available it falls back to the browser voice by itself. */
+
+type CloudFetcher = (text: string, signal: AbortSignal) => Promise<Blob | null>;
+let cloudFetcher: CloudFetcher | null = null;
+let cloudFails = 0;
+
+/** The call screen registers how to reach /api/voice/tts (with the login token). */
+export function setCloudVoice(fetcher: CloudFetcher | null): void {
+  cloudFetcher = fetcher;
+  cloudFails = 0;
+}
+
+export type SpeechQueue = {
+  /** queue text to read (markdown is stripped) */
+  enqueue: (text: string) => void;
+  /** no more text is coming: onIdle fires once everything queued has been spoken */
+  finish: () => void;
+  /** stop talking immediately and forget everything queued */
+  cancel: () => void;
+};
+
+/** Sentence-sized pieces: the first one short (fast start), the rest a bit longer (smoother voice). */
+function splitForVoice(clean: string, first: boolean): string[] {
+  const raw = clean.match(/[^.!؟?؛;\n]+[.!؟?؛;\n]?/g) ?? [clean];
+  const out: string[] = [];
+  let cur = "";
+  const limit = (n: number) => (n === 0 && first ? 60 : 200);
+  for (const piece of raw) {
+    const t = piece.trim();
+    if (!t) continue;
+    if (cur && (cur + " " + t).length > limit(out.length)) {
+      out.push(cur);
+      cur = t;
+    } else {
+      cur = cur ? cur + " " + t : t;
+    }
+    if (cur.length >= limit(out.length) && /[.!؟?؛;]$/.test(cur)) {
+      out.push(cur);
+      cur = "";
+    }
+  }
+  if (cur) out.push(cur);
+  return out.flatMap((x) => (x.length > 320 ? (x.match(/[^،,]{1,260}[،,]?/g) ?? [x]).map((y) => y.trim()).filter(Boolean) : [x]));
+}
+
+type Job = { text: string; lang: string; blob: Promise<Blob | null> };
+
+export function createSpeechQueue(o: {
+  lang?: string;
+  onStart?: () => void;
+  onIdle?: () => void;
+}): SpeechQueue {
+  let inputDone = false;
+  let started = false;
+  let dead = false;
+  let idleFired = false;
+  let running = false;
+  let firstBatch = true;
+  const jobs: Job[] = [];
+  const ctrl = new AbortController();
+  const token = ++speakToken;
+  try {
+    window.speechSynthesis?.cancel();
+    activeAudio?.pause();
+  } catch {
+    /* unsupported */
+  }
+
+  const alive = () => !dead && token === speakToken;
+
+  const maybeIdle = () => {
+    if (!alive() || idleFired || !inputDone || running || jobs.length > 0) return;
+    idleFired = true;
+    o.onIdle?.();
+  };
+
+  const markStart = () => {
+    if (!alive() || started) return;
+    started = true;
+    o.onStart?.();
+  };
+
+  /** browser voice for one piece (fallback) */
+  const browserSpeak = (job: Job): Promise<void> =>
+    new Promise((resolve) => {
+      if (!isSynthesisSupported() || !alive()) return resolve();
+      const prefs = loadVoicePrefs();
+      const voice = pickVoice(job.lang, prefs.voiceURI);
+      const u = new SpeechSynthesisUtterance(job.text);
+      u.lang = voice?.lang ?? job.lang;
+      if (voice) u.voice = voice;
+      u.rate = prefs.rate;
+      u.pitch = prefs.pitch;
+      u.onstart = markStart;
+      const end = () => resolve();
+      u.onend = end;
+      u.onerror = end;
+      window.speechSynthesis.speak(u);
+    });
+
+  const getAudio = (): HTMLAudioElement => {
+    // ONE element for the whole call: once the user tapped, phones keep allowing playback on it
+    if (!activeAudio) {
+      activeAudio = new Audio();
+      activeAudio.preload = "auto";
+    }
+    return activeAudio;
+  };
+
+  const playBlob = (blob: Blob): Promise<boolean> =>
+    new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const a = getAudio();
+      const prefs = loadVoicePrefs();
+      let settled = false;
+      const done = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        a.onended = null;
+        a.onerror = null;
+        a.onplaying = null;
+        URL.revokeObjectURL(url);
+        resolve(ok);
+      };
+      a.onplaying = markStart;
+      a.onended = () => done(true);
+      a.onerror = () => done(false);
+      a.src = url;
+      a.playbackRate = Math.min(1.3, Math.max(0.9, prefs.rate || 1));
+      a.play().catch(() => done(false));
+      // safety: never hang the call if the browser swallows "ended"
+      const guard = setInterval(() => {
+        if (!alive()) {
+          clearInterval(guard);
+          try {
+            a.pause();
+          } catch {
+            /* ignore */
+          }
+          done(true);
+        } else if (settled) {
+          clearInterval(guard);
+        }
+      }, 400);
+    });
+
+  const run = async () => {
+    if (running) return;
+    running = true;
+    try {
+      while (alive() && jobs.length > 0) {
+        const job = jobs.shift() as Job;
+        // keep the next two sentences downloading while this one plays (they were requested in enqueue)
+        const blob = await job.blob;
+        if (!alive()) break;
+        if (blob) {
+          const ok = await playBlob(blob);
+          if (!alive()) break;
+          if (ok) continue;
+        }
+        await browserSpeak(job);
+      }
+    } finally {
+      running = false;
+      maybeIdle();
+    }
+  };
+
+  const request = (text: string): Promise<Blob | null> => {
+    if (!cloudFetcher || cloudFails >= 3) return Promise.resolve(null);
+    return cloudFetcher(text, ctrl.signal)
+      .then((b) => {
+        if (b) cloudFails = 0;
+        else cloudFails++;
+        return b;
+      })
+      .catch(() => {
+        cloudFails++;
+        return null;
+      });
+  };
+
+  return {
+    enqueue(text) {
+      if (!alive()) return;
+      const clean = plainForSpeech(text);
+      if (!clean) return;
+      const parts = splitForVoice(clean, firstBatch);
+      firstBatch = false;
+      for (const part of parts) {
+        const lang = o.lang ?? detectLang(part);
+        jobs.push({ text: part, lang, blob: request(part) });
+      }
+      void run();
+    },
+    finish() {
+      inputDone = true;
+      void run();
+      maybeIdle();
+    },
+    cancel() {
+      dead = true;
+      jobs.length = 0;
+      ctrl.abort();
+      if (token === speakToken) {
+        try {
+          window.speechSynthesis?.cancel();
+          activeAudio?.pause();
+        } catch {
+          /* unsupported */
+        }
       }
     },
   };

@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tool = getTool(id);
   if (!tool) return {};
   const title = `${tool.name.ar} — أداة مجانية بالدارجة والعربية`;
-  const description = `${tool.desc.ar}. أداة مجانية بالدارجة والعربية والفرنسية من برق — جرّبها الآن بدون بطاقة.`;
+  const description = `${tool.desc.ar}. أداة مجانية بالدارجة والعربية والفرنسية من Nexus AI v8.4 — جرّبها الآن بدون بطاقة.`;
   return {
     title,
     description,
@@ -46,7 +46,7 @@ export default async function ToolPublicPage({ params }: Props) {
     "@graph": [
       {
         "@type": "SoftwareApplication",
-        name: `${tool.name.ar} — برق`,
+        name: `${tool.name.ar} — Nexus AI v8.4`,
         description: tool.desc.ar,
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web, Android, iOS",

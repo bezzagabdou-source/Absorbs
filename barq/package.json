@@ -1,5 +1,5 @@
 {
-  "name": "barq-ai",
+  "name": "nexus-ai",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -42,7 +42,7 @@
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
   },
-  "version": "8.0.0-pro-tank",
+  "version": "8.4.0",
   "engines": {
     "node": ">=20"
   }

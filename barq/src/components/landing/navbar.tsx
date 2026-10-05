@@ -43,7 +43,7 @@ export function Navbar() {
         <nav
           className="flex items-center justify-between py-3"
         >
-          <Link href="/" aria-label="برق">
+          <Link href="/" aria-label="Nexus AI v8.4">
             <Logo />
           </Link>
 

@@ -238,7 +238,7 @@ export function Footer() {
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-white/5 py-7 sm:flex-row">
           <p className="text-xs text-slate-500">
-            © {year} برق. {t.footer.rights}
+            © {year} Nexus AI v8.4. {t.footer.rights}
           </p>
           <p className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
             {t.footer.madeIn}

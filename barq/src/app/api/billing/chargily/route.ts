@@ -49,7 +49,7 @@ export async function POST(req: Request) {
         currency: "dzd",
         success_url: `${origin}/app/upgrade?status=success`,
         failure_url: `${origin}/app/upgrade?status=failed`,
-        description: `Barq Pro — ${period}`,
+        description: `Nexus AI v8.4 Pro — ${period}`,
         metadata: [orderId],
         locale: "ar",
       }),

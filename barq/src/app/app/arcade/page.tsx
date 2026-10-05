@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCredits } from "@/components/app/app-shell";
 
 /**
- * Barq Storm — the built-in arcade game.
+ * Nexus Storm — the built-in arcade game.
  * It lives in /public/arcade/barq-storm.html and is mounted in a plain iframe
  * (same origin, so best scores persist in localStorage). Pro unlocks every
  * level and boss; free accounts play the first three levels.
@@ -27,7 +27,7 @@ export default function ArcadePage() {
             <Gamepad2 className="h-5 w-5" />
           </span>
           <span className="truncate">
-            <span className="gold-text">عاصفة برق</span>
+            <span className="gold-text">عاصفة Nexus</span>
           </span>
         </h1>
         <div className="flex shrink-0 items-center gap-2">
@@ -58,12 +58,12 @@ export default function ArcadePage() {
 
       <div
         ref={boxRef}
-        className="relative mx-auto min-h-0 w-full max-w-[520px] flex-1 overflow-hidden rounded-3xl border border-brand-400/35 bg-ink-950 shadow-[0_30px_80px_-40px_rgba(47, 123, 255,0.9)]"
+        className="relative mx-auto min-h-0 w-full max-w-[520px] flex-1 overflow-hidden rounded-3xl border border-brand-400/35 bg-ink-950 shadow-[0_30px_80px_-40px_rgba(47,123,255,0.9)]"
       >
         {ready ? (
           <iframe
             key={`${run}-${isPro ? "pro" : "free"}`}
-            title="عاصفة برق"
+            title="عاصفة Nexus"
             src={`/arcade/barq-storm.html?pro=${isPro ? 1 : 0}`}
             allow="fullscreen; autoplay"
             className="absolute inset-0 h-full w-full border-0 bg-ink-950"

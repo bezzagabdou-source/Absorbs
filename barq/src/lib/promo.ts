@@ -1,5 +1,5 @@
 /**
- * The ONLY codes that can activate "برق v8 Pro".
+ * The ONLY codes that can activate "Nexus AI v8.4 Pro".
  * Every code works exactly ONCE (by one account), then it is permanently dead.
  */
 export const PRO_CODES: readonly string[] = [

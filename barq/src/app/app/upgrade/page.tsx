@@ -131,7 +131,7 @@ function UpgradeInner() {
     { label: L("أدوات الكود", "Outils de code", "Code tools"), free: null, pro: L("مراجعة · إصلاح · أمان", "Revue · correction · sécurité", "Review · fix · security") },
     { label: L("صانع الألعاب", "Créateur de jeux", "Game builder"), free: null, pro: L("ألعاب كاملة + معاينة", "Jeux complets + aperçu", "Full games + preview") },
     { label: L("رفع الصور والملفات", "Images et fichiers", "Image & file upload"), free: null, pro: "PDF · PNG · Code" },
-    { label: L("الأركيد: عاصفة برق", "Arcade : Barq Storm", "Arcade: Barq Storm"), free: L("3 مراحل", "3 niveaux", "3 levels"), pro: L("كل المراحل والزعماء", "Tous niveaux et boss", "All levels & bosses") },
+    { label: L("الأركيد: عاصفة Nexus", "Arcade : Nexus Storm", "Arcade: Nexus Storm"), free: L("3 مراحل", "3 niveaux", "3 levels"), pro: L("كل المراحل والزعماء", "Tous niveaux et boss", "All levels & bosses") },
   ];
 
   return (
@@ -213,7 +213,7 @@ function UpgradeInner() {
           className="btn-gold mb-8 w-full py-3.5"
         >
           <Sparkles className="h-5 w-5" />
-          {L("استعرض ميزات برق 8 Pro وجرّبها", "Découvrir et essayer Barq 8 Pro", "Explore and try Barq 8 Pro")}
+          {L("استعرض ميزات Nexus AI v8.4 Pro وجرّبها", "Découvrir et essayer Nexus AI v8.4 Pro", "Explore and try Nexus AI v8.4 Pro")}
         </button>
       )}
 

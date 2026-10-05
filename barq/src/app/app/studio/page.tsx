@@ -97,7 +97,7 @@ export default function StudioPage() {
           <Gamepad2 className="h-7 w-7" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="gold-text block text-lg font-black">الأركيد: عاصفة برق</span>
+          <span className="gold-text block text-lg font-black">الأركيد: عاصفة Nexus</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-slate-300">
             لعبة كاملة بمراحل وزعماء وقوى خاصة. العبها الآن وحطّم رقمك القياسي.
           </span>

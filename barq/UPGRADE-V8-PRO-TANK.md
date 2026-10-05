@@ -1,4 +1,4 @@
-# Barq v8 PRO — Tank (final release)
+# Nexus AI v8.4 PRO — Tank (final release)
 
 ## What changed
 1. **Best AI is primary** — `src/lib/task-router.ts`: Claude leads every task (code, writing, reasoning, vision, creative);

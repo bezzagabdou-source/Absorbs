@@ -4,7 +4,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================================
-   Barq v8 — Electric Gold
+   Nexus AI v8.4 — Electric Gold
    Deep midnight-blue surfaces, saturated electric blue + cyan + hot orange energy, and a
    luxurious gold reserved for everything Pro. Colour is back, on purpose.
    ========================================================================== */
@@ -292,7 +292,7 @@ select.input-base option {
 }
 .btn-ghost:hover {
   background: rgba(47, 123, 255, 0.18);
-  border-color: rgba(196, 181, 253, 0.6);
+  border-color: rgba(159, 208, 255, 0.6);
 }
 
 .shimmer-line {
@@ -553,7 +553,7 @@ dialog, [role="dialog"] { color-scheme: dark; }
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-/* ---------- Barq 8 Pro — legendary activation ---------- */
+/* ---------- Nexus AI v8.4 Pro — legendary activation ---------- */
 .v8-aurora { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55; will-change: transform; }
 .v8-aurora-a { width: 60vmax; height: 60vmax; top: -22vmax; inset-inline-start: -16vmax; background: radial-gradient(circle, rgba(251,191,36,0.55), transparent 65%); animation: aur-a 16s ease-in-out infinite alternate; }
 .v8-aurora-b { width: 55vmax; height: 55vmax; bottom: -20vmax; inset-inline-end: -14vmax; background: radial-gradient(circle, rgba(34,211,238,0.5), transparent 65%); animation: aur-b 19s ease-in-out infinite alternate; }
@@ -657,3 +657,196 @@ dialog, [role="dialog"] { color-scheme: dark; }
 
 /* light-mode helpers for the new glass components */
 :root:not(.dark) .md-body p { color: #1e293b; }
+
+/* ==========================================================================
+   MAX pill (model switch) — works in both themes
+   ========================================================================== */
+.max-pill {
+  background: linear-gradient(110deg, #ff3d00, #ff9100 45%, #ffd54a);
+  background-size: 200% 100%;
+  color: #2b0a00;
+  animation: goldFlow 4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .max-pill { animation: none !important; } }
+
+/* ==========================================================================
+   Orange Claude — light peach theme  (html[data-theme="orange-claude"])
+   Strategy: the whole app is built from Tailwind palette variables, so flipping
+   the variables below re-colours every screen at once; a few hard-coded
+   surfaces are overridden explicitly afterwards.
+   ========================================================================== */
+[data-theme="orange-claude"] {
+  color-scheme: light;
+  --background: 30 20% 98%;
+  --foreground: 20 14% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14% 10%;
+  --primary: 24 95% 53%;
+  --primary-foreground: 60 9.1% 97.8%;
+  --muted: 30 15% 94%;
+  --muted-foreground: 25 5.3% 45%;
+  --accent: 24 100% 96%;
+  --accent-foreground: 24 95% 45%;
+  --border: 30 13% 91%;
+  --input: 30 13% 91%;
+  --ring: 24 95% 53%;
+
+  /* "white" becomes the text colour, so text-white / bg-white/5 keep working */
+  --color-white: #1f1611;
+  --color-ink-950: #fffaf5;
+  --color-ink-900: #fff4ea;
+  --color-ink-800: #ffeadb;
+  --color-ink-700: #ffdfc8;
+
+  --color-slate-50: #1c1410;
+  --color-slate-100: #231a14;
+  --color-slate-200: #33261d;
+  --color-slate-300: #4a382b;
+  --color-slate-400: #6b5646;
+  --color-slate-500: #86705f;
+  --color-slate-600: #b3a090;
+  --color-slate-700: #d9c9ba;
+  --color-slate-800: #ecdfd2;
+  --color-slate-900: #f6ede4;
+  --color-slate-950: #fbf5ee;
+
+  --color-brand-300: #c2410c;
+  --color-brand-400: #ea580c;
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea580c;
+  --color-brand-700: #c2410c;
+
+  --color-aqua-300: #b45309;
+  --color-aqua-400: #fbbf24;
+  --color-aqua-500: #f59e0b;
+
+  background-color: #fffaf5;
+}
+
+[data-theme="orange-claude"] body {
+  color: #2a1c13;
+  background: linear-gradient(-45deg, #fffaf5, #fff5ec, #ffeede, #ffffff);
+  background-size: 400% 400%;
+  animation: gradientShift 12s ease infinite;
+}
+
+/* the class from the original snippet, kept for anyone who sets it by hand */
+.bg-orange-animated {
+  background: linear-gradient(-45deg, #fffaf5, #fff5ec, #ffeede, #ffffff);
+  background-size: 400% 400%;
+  animation: gradientShift 12s ease infinite;
+}
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* background: soft dotted grid + warm glows + drifting peach orbs */
+[data-theme="orange-claude"] body::before {
+  background-image: radial-gradient(rgba(249, 115, 22, 0.16) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.35) 55%, transparent 90%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.35) 55%, transparent 90%);
+}
+[data-theme="orange-claude"] body::after {
+  background:
+    radial-gradient(50% 36% at 10% -6%, rgba(251, 146, 60, 0.28), transparent 70%),
+    radial-gradient(45% 32% at 100% 6%, rgba(253, 186, 116, 0.3), transparent 70%),
+    radial-gradient(50% 36% at 90% 112%, rgba(251, 191, 36, 0.22), transparent 70%);
+}
+[data-theme="orange-claude"] .aurora i:nth-child(1) { background: radial-gradient(circle, #fdba74 0%, transparent 66%); opacity: 0.4; }
+[data-theme="orange-claude"] .aurora i:nth-child(2) { background: radial-gradient(circle, #fecaca 0%, transparent 66%); opacity: 0.35; }
+[data-theme="orange-claude"] .aurora i:nth-child(3) { background: radial-gradient(circle, #fde68a 0%, transparent 66%); opacity: 0.4; }
+[data-theme="orange-claude"] body:has([data-app-shell]) .aurora i { opacity: 0.28; }
+
+[data-theme="orange-claude"] ::selection { background: rgba(249, 115, 22, 0.3); color: #1f1611; }
+[data-theme="orange-claude"] * { scrollbar-color: rgba(234, 88, 12, 0.35) transparent; }
+[data-theme="orange-claude"] ::-webkit-scrollbar-thumb { background: rgba(234, 88, 12, 0.3); }
+[data-theme="orange-claude"] dialog,
+[data-theme="orange-claude"] [role="dialog"] { color-scheme: light; }
+[data-theme="orange-claude"] :focus-visible { outline-color: #ea580c; }
+
+/* surfaces */
+[data-theme="orange-claude"] .glass,
+[data-theme="orange-claude"] .glass-deep {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 243, 230, 0.88) 70%);
+  border-color: rgba(249, 115, 22, 0.2);
+  box-shadow: 0 18px 40px -26px rgba(194, 65, 12, 0.35);
+}
+[data-theme="orange-claude"] .text-gradient {
+  background-image: linear-gradient(100deg, #7c2d12 0%, #ea580c 55%, #f59e0b 100%);
+}
+[data-theme="orange-claude"] .ring-brand { box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.5), 0 0 28px -10px rgba(249, 115, 22, 0.5); }
+[data-theme="orange-claude"] .input-base {
+  background: #ffffff;
+  border-color: rgba(249, 115, 22, 0.28);
+  color: #2a1c13;
+}
+[data-theme="orange-claude"] .input-base::placeholder { color: #a8957f; }
+[data-theme="orange-claude"] .input-base:focus { background: #fff; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.22); border-color: #ea580c; }
+[data-theme="orange-claude"] select.input-base option { background: #fff; color: #2a1c13; }
+[data-theme="orange-claude"] .btn-primary {
+  background: linear-gradient(120deg, #ea580c 0%, #f97316 55%, #fb923c 100%);
+  box-shadow: 0 10px 26px -10px rgba(234, 88, 12, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+[data-theme="orange-claude"] .btn-ghost {
+  border-color: rgba(249, 115, 22, 0.4);
+  background: rgba(249, 115, 22, 0.07);
+  color: #2a1c13;
+}
+[data-theme="orange-claude"] .btn-ghost:hover { background: rgba(249, 115, 22, 0.16); border-color: rgba(234, 88, 12, 0.6); }
+[data-theme="orange-claude"] .shimmer-line {
+  background-image: linear-gradient(90deg, rgba(249, 115, 22, 0.06) 25%, rgba(249, 115, 22, 0.18) 50%, rgba(249, 115, 22, 0.06) 75%);
+}
+[data-theme="orange-claude"] .pro-card { background: linear-gradient(160deg, rgba(255, 237, 213, 0.9), #fff 60%); border-color: rgba(249, 115, 22, 0.28); }
+[data-theme="orange-claude"] .gold-card {
+  background: linear-gradient(160deg, rgba(251, 191, 36, 0.28), #fffdf8 60%), #fffdf8;
+  border-color: rgba(245, 158, 11, 0.5);
+}
+[data-theme="orange-claude"] .gold-border {
+  background: linear-gradient(#fff, #fff) padding-box, linear-gradient(120deg, #fde68a, #f59e0b 35%, #ea580c 70%, #fde68a) border-box;
+}
+[data-theme="orange-claude"] .v8-card { background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(255, 237, 213, 0.6)); border-color: rgba(249, 115, 22, 0.2); }
+[data-theme="orange-claude"] .tree-row:hover { background: rgba(249, 115, 22, 0.12); }
+[data-theme="orange-claude"] .tree-row[data-active="true"] { background: rgba(249, 115, 22, 0.24); color: #1f1611; }
+
+/* text colours that were tuned for a dark background */
+[data-theme="orange-claude"] .text-gold-100,
+[data-theme="orange-claude"] .text-gold-200 { color: #9a3412; }
+[data-theme="orange-claude"] .text-gold-300,
+[data-theme="orange-claude"] .text-gold-400 { color: #b45309; }
+[data-theme="orange-claude"] .text-amber-200,
+[data-theme="orange-claude"] .text-amber-300 { color: #92400e; }
+[data-theme="orange-claude"] .text-rose-200,
+[data-theme="orange-claude"] .text-rose-300 { color: #be123c; }
+[data-theme="orange-claude"] .text-emerald-200,
+[data-theme="orange-claude"] .text-emerald-300 { color: #047857; }
+[data-theme="orange-claude"] .text-sky-200,
+[data-theme="orange-claude"] .text-sky-300,
+[data-theme="orange-claude"] .text-cyan-200,
+[data-theme="orange-claude"] .text-cyan-300 { color: #0369a1; }
+
+/* markdown */
+[data-theme="orange-claude"] .md-body h1,
+[data-theme="orange-claude"] .md-body h2,
+[data-theme="orange-claude"] .md-body h4 { color: #1f1611; }
+[data-theme="orange-claude"] .md-body h2 { border-bottom-color: rgba(249, 115, 22, 0.3); }
+[data-theme="orange-claude"] .md-body h3 { color: #c2410c; }
+[data-theme="orange-claude"] .md-body p,
+[data-theme="orange-claude"] .md-body ul,
+[data-theme="orange-claude"] .md-body ol { color: #33261d; }
+[data-theme="orange-claude"] .md-body strong { color: #9a3412; }
+[data-theme="orange-claude"] .md-body a { color: #c2410c; text-decoration-color: rgba(194, 65, 12, 0.45); }
+[data-theme="orange-claude"] .md-body blockquote { background: rgba(249, 115, 22, 0.09); color: #4a382b; border-inline-start-color: #ea580c; }
+[data-theme="orange-claude"] .md-body code { background: rgba(249, 115, 22, 0.12); border-color: rgba(249, 115, 22, 0.25); color: #9a3412; }
+[data-theme="orange-claude"] .md-body pre { background: #1c1410; border-color: rgba(249, 115, 22, 0.3); }
+[data-theme="orange-claude"] .md-body pre code { color: #f1e6da; background: transparent; }
+[data-theme="orange-claude"] .md-body th,
+[data-theme="orange-claude"] .md-body td { border-color: rgba(249, 115, 22, 0.22); }
+[data-theme="orange-claude"] .md-body th { background: rgba(249, 115, 22, 0.14); }
+[data-theme="orange-claude"] .md-body tbody tr:nth-child(even) { background: rgba(249, 115, 22, 0.05); }
+[data-theme="orange-claude"] .md-body .md-table { border-color: rgba(249, 115, 22, 0.22); }
