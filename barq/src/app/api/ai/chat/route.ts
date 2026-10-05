@@ -183,6 +183,8 @@ export async function POST(req: Request) {
     attachments?: unknown;
     textFiles?: unknown;
     deep?: boolean;
+    /** Nexus: free OpenRouter model id chosen in the dropdown */
+    freeModel?: unknown;
     v6?: boolean;
     /** Nexus AI v8.4 Pro: genius brain + AI team on every hard task */
     v8?: boolean;
@@ -412,8 +414,9 @@ export async function POST(req: Request) {
     const task = classifyTask(lastUser, parsed.files.length > 0);
     const voice = isPro && body.voice === true;
     // Nexus: a free OpenRouter model (default: openrouter/free) answers when a key exists; otherwise the classic engines run
-    const freeModel =
-      !voice && isFreeModel(body.freeModel) && (process.env.OPENROUTER_API_KEY ?? "").trim() ? body.freeModel : undefined;
+    const pickedModel: unknown = body.freeModel;
+    const freeModel: string | undefined =
+      !voice && isFreeModel(pickedModel) && (process.env.OPENROUTER_API_KEY ?? "").trim() ? pickedModel : undefined;
     const build = !freeModel && !voice && isPro && isBuildRequest(lastUser);
     // v8: EVERY hard request (code edit, debugging, architecture, long docs…) gets the AI team
     // MAX: every non-build message also gets the full team treatment
