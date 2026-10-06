@@ -1,9 +1,11 @@
+import { DZ_SCHOOL_ADDON, DZ_STUDYPACK_ADDON } from "@/lib/dz-school";
+
 /**
  * Chat modes behind the "+" tools menu. Shared by the client (labels, placeholders) and the server (system addons).
  * Honest by design: video and music are built as real, playable HTML/WebAudio programs, not fake clips.
  */
 
-export type ChatModeId = "video" | "music" | "canvas" | "research" | "guided";
+export type ChatModeId = "dzstudy" | "video" | "music" | "canvas" | "research" | "guided" | "think" | "storybook" | "gems" | "analysis" | "mindmap" | "styles";
 
 export interface ChatMode {
   id: ChatModeId;
@@ -17,6 +19,14 @@ export interface ChatMode {
 }
 
 export const CHAT_MODES: readonly ChatMode[] = [
+  {
+    id: "dzstudy",
+    label: "مدرّس الجزائر الذكي",
+    sub: "صوّر التمرين أو الفرض: حل نموذجي بالتنقيط + اختبار تفاعلي",
+    placeholder: "ارفع صورة التمرين أو الفرض (أو اكتبه) وحدّد المستوى…",
+    hard: true,
+    addon: DZ_SCHOOL_ADDON + DZ_STUDYPACK_ADDON,
+  },
   {
     id: "video",
     label: "الفيديوهات",
@@ -71,6 +81,72 @@ Work like a research analyst. Silently split the topic into 5-8 sub-questions, c
 
 GUIDED LEARNING MODE
 Teach step by step. First, in one line, state the learner's apparent level and the goal. Then give ONE small lesson at a time: a plain explanation, one concrete example, then ONE question or mini-exercise, and wait for the answer before moving on. Correct mistakes kindly and explain why. After every few steps recap in two lines. Adapt speed and difficulty to the answers. If the Algerian curriculum is mentioned, follow it. Never dump the whole topic at once.`,
+  },
+  {
+    id: "think",
+    label: "تفكير عميق",
+    sub: "استدلال طويل خطوة بخطوة قبل الجواب (مثل Deep Think)",
+    placeholder: "اكتب المسألة الصعبة: منطق، رياضيات، قرار، خطة…",
+    hard: true,
+    addon: `
+
+DEEP THINK MODE (extended reasoning)
+Solve the problem the way a world-class expert would. Silently: restate the real goal, list the constraints, generate 3 different approaches, attack each one for flaws, pick the strongest, verify it with a worked check (numbers, edge cases, counter-examples), and only then answer. Output: the final answer FIRST in 1-3 lines, then a compact "why it works" (key steps), then "what could go wrong" and a confidence level (high / medium / low) with the reason. Never pad, never guess silently: if information is missing, state the assumption you used.`,
+  },
+  {
+    id: "storybook",
+    label: "كتاب قصص",
+    sub: "قصة مصوّرة تفاعلية برسوم وسرد صوتي",
+    placeholder: "صف القصة: الشخصيات، العمر، العبرة…",
+    hard: true,
+    addon: `
+
+STORYBOOK MODE
+Create an illustrated, interactive storybook as ONE self-contained HTML file in a single \`\`\`html block: 8-12 pages, each page with a rich SVG / CSS illustration drawn in code (layered scenery, characters from shapes, gradients, subtle CSS animation), the story text in the user's language (RTL for Arabic) in a large readable type, page-turn transitions, next / previous buttons plus swipe, a "read aloud" button using speechSynthesis (guarded by feature detection), a progress dots bar and a closing page with the moral. Warm, colourful, child-friendly design, responsive from 360px, no external assets. One short sentence before the code, nothing after.`,
+  },
+  {
+    id: "gems",
+    label: "خبراء (Gems)",
+    sub: "فريق خبراء متخصصين يجيب كلٌّ في مجاله",
+    placeholder: "اختر المجال واسأل: قانون، تسويق، برمجة، صحة عامة…",
+    hard: false,
+    addon: `
+
+EXPERT GEMS MODE
+Act as a panel of specialists. Pick the 2-3 experts that fit the question best (for example: senior engineer, marketer, lawyer-style analyst, teacher, designer, financial planner), name each with a short title in bold, and give each expert's answer in 2-5 tight lines from their own point of view. Finish with "الخلاصة / Verdict": one clear recommendation that reconciles them, plus the single next action. Be concrete, practical and honest about limits (medical, legal and financial answers are general information, not a professional opinion).`,
+  },
+  {
+    id: "analysis",
+    label: "تحليل بيانات",
+    sub: "لوحة تفاعلية من بياناتك: رسوم وجداول وفلاتر",
+    placeholder: "الصق بياناتك (CSV أو جدول) واطلب التحليل…",
+    hard: true,
+    addon: `
+
+DATA ANALYSIS MODE
+Turn the user's pasted data (or the data described) into ONE self-contained HTML dashboard in a single \`\`\`html block: parse the data in JavaScript, show KPI cards, 3-5 charts drawn with SVG or Canvas in code (bars, lines, pie / donut, scatter), a sortable and searchable table, filters, a "key insights" panel with 5 plain-language findings computed from the numbers, and a CSV export button. Never invent numbers that are not in the data; if the data is missing, build a clearly labelled demo dataset. Responsive from 360px, no external libraries.`,
+  },
+  {
+    id: "mindmap",
+    label: "خريطة ذهنية",
+    sub: "خريطة تفاعلية قابلة للتوسيع لأي موضوع",
+    placeholder: "الموضوع الذي تريد تحويله إلى خريطة ذهنية…",
+    hard: true,
+    addon: `
+
+MIND MAP MODE
+Build ONE self-contained HTML file in a single \`\`\`html block with an interactive mind map of the topic: a central node, 5-8 main branches in distinct colours, 2-4 sub-branches each (with short notes), smooth curved SVG links, tap to expand / collapse, drag to pan, pinch / wheel to zoom, a search box that highlights nodes, a "export as image (PNG via canvas)" button and a fit-to-screen button. Labels in the user's language (RTL for Arabic). Responsive from 360px, no external libraries.`,
+  },
+  {
+    id: "styles",
+    label: "أسلوب الكتابة",
+    sub: "اكتب بأسلوبك أو بنبرة تختارها (مثل Styles)",
+    placeholder: "الصق نصًا بأسلوبك أو صف النبرة ثم اطلب ما تريد…",
+    hard: false,
+    addon: `
+
+WRITING STYLES MODE
+First infer the voice from any sample the user pasted, or from the tone they name (formal, friendly, persuasive, poetic, concise, Darija, journalistic…): sentence length, vocabulary, rhythm, humour, openings and closings. Then write the requested text in exactly that voice, in the user's language. Output the text first; after it add one line "الأسلوب المُستخدم" naming the traits you copied, and offer two quick variants (shorter / warmer) only as one-line suggestions.`,
   },
 ];
 

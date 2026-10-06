@@ -73,6 +73,8 @@ alter table barq.users add column if not exists last_login_at timestamptz;
 alter table barq.users add column if not exists meter_used_ms bigint not null default 0;
 alter table barq.users add column if not exists meter_reset_at timestamptz;
 alter table barq.users add column if not exists meter_last_at timestamptz;
+alter table barq.users add column if not exists trial_ends_at timestamptz;
+update barq.users set trial_ends_at = now() + interval '7 days' where trial_ends_at is null;
 
 create table if not exists barq.ai_memories (
   id uuid primary key default gen_random_uuid(),

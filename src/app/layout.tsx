@@ -18,7 +18,7 @@ const plex = IBM_Plex_Sans_Arabic({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   alternates: { canonical: "/" },
-  applicationName: "Nexus AI v8.4",
+  applicationName: "Nexus AI",
   title: {
     default: "Nexus AI v8.4 — مساعدك اليومي للكتابة والترجمة والدراسة",
     template: "%s | Nexus AI v8.4",
@@ -29,15 +29,15 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
-      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/nexus-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/nexus-icon-512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+    apple: [{ url: "/icons/nexus-apple-touch-icon.png", sizes: "180x180" }],
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Nexus AI v8.4",
+    title: "Nexus AI",
   },
   openGraph: {
     title: "Nexus AI v8.4",

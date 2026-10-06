@@ -1,6 +1,6 @@
 import { findGeminiKey } from "@/lib/gemini";
 import { findHuggingFaceKey } from "@/lib/huggingface";
-import type { ImageAspect, ImageStyle, ImageTier } from "@/lib/image-types";
+import type { ImageAspect, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
 
 /**
  * Photorealistic image engine.
@@ -41,13 +41,19 @@ const STYLE_TEXT: Record<ImageStyle, string> = {
     "Architectural photograph, tilt-shift lens, straight verticals, golden-hour light, realistic materials, accurate perspective and scale, high dynamic range.",
   art:
     "High-end digital painting with confident brushwork, harmonious palette, strong focal point and polished lighting.",
+  epic:
+    "Epic legendary concept art, monumental scale, dramatic god-rays and volumetric atmosphere, heroic composition, intricate detail, rich saturated colour grading, museum-grade masterpiece, matte-painting depth.",
+  render3d:
+    "Premium 3D render, physically based materials, global illumination, soft studio lighting with rim light, subsurface scattering, crisp edges, ultra-clean composition, Octane / Blender Cycles quality.",
+  anime:
+    "High-end anime key visual, clean confident line art, expressive eyes, cel shading with soft gradients, vivid harmonious palette, cinematic lighting, detailed painted background.",
 };
 
 const TIER_TEXT: Record<ImageTier, string> = {
   v5: "",
   v6: "Sharp focus on the subject, rich micro-detail, clean background separation.",
   v8: "Professional lighting setup, balanced composition (rule of thirds), micro-contrast, careful colour grading, clean professional retouch.",
-  max: "Ultra-detailed 8K-class resolution, physically accurate light, reflections and shadows, editorial retouching, award-winning photography, flawless anatomy and perspective.",
+  max: "Legendary ultra-detailed 8K-class resolution, physically accurate light, reflections and shadows, razor-sharp focus on the subject, rich micro-texture, perfect anatomy and perspective, cinematic colour grading, editorial retouching, award-winning masterpiece.",
 };
 
 const NEGATIVE =
@@ -111,14 +117,24 @@ function withTimeout(ms: number, outer?: AbortSignal): { signal: AbortSignal; do
   };
 }
 
-async function viaGemini(model: string, key: string, prompt: string, timeoutMs: number): Promise<RawImage> {
+const REF_INSTRUCTION =
+  "REFERENCE IMAGE ATTACHED: use it as the visual source. Keep the same main subject, identity, face, pose, proportions, colours and overall composition unless the request below explicitly asks to change them, and apply the requested style, lighting and quality on top. Do not copy any watermark or text. Request: ";
+
+async function viaGemini(model: string, key: string, prompt: string, timeoutMs: number, ref?: ImageReference): Promise<RawImage> {
   const t = withTimeout(timeoutMs);
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [
+          {
+            role: "user",
+            parts: ref
+              ? [{ inlineData: { mimeType: ref.mime, data: ref.data } }, { text: REF_INSTRUCTION + prompt }]
+              : [{ text: prompt }],
+          },
+        ],
         generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
       }),
       signal: t.signal,
@@ -196,6 +212,8 @@ export async function generateImage(opts: {
   tier: ImageTier;
   aspect: ImageAspect;
   style: ImageStyle;
+  /** optional reference picture: only the Gemini image models can follow it */
+  reference?: ImageReference;
 }): Promise<GeneratedImage> {
   const started = Date.now();
   const full = buildImagePrompt(opts.prompt, opts.style, opts.tier, opts.aspect);
@@ -215,13 +233,15 @@ export async function generateImage(opts: {
     for (const model of geminiModels(opts.tier)) {
       if (Date.now() > deadline - 8_000) break;
       try {
-        return await finish(await viaGemini(model, gem.value, full, perTry), model);
+        return await finish(await viaGemini(model, gem.value, full, perTry, opts.reference), model);
       } catch (e) {
         if (e instanceof ImageError && e.code === "BLOCKED") throw e;
         lastError = e instanceof Error ? e.message : String(e);
       }
     }
   }
+  // engines below cannot read a reference picture: with one attached, fail honestly instead of ignoring it
+  if (opts.reference) throw new ImageError(gem ? "FAILED" : "NO_PROVIDER", lastError);
   if (hf && Date.now() < deadline - 8_000) {
     try {
       return await finish(await viaHuggingFace(hf.value, full, opts.aspect, perTry), "flux-schnell");

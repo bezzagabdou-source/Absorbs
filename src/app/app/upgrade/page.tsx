@@ -193,7 +193,7 @@ function UpgradeInner() {
               {isPro ? t.app.proPlanTag : t.app.freePlanTag}
               {isPro && profile?.planExpiresAt && (
                 <span className="ms-2 text-xs font-bold text-gold-300/80">
-                  {t.app.activeUntil} {fmtDate(profile.planExpiresAt)}
+                  {profile.trial ? "🎁 تجربة 7 أيام مجانية — تنتهي في" : t.app.activeUntil} {fmtDate(profile.planExpiresAt)}
                 </span>
               )}
             </p>

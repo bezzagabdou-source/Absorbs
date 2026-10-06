@@ -184,8 +184,10 @@ const envModel = (name: string, fallback: string): string => cleanEnv(process.en
 const uniq = <T,>(list: T[]): T[] => Array.from(new Set(list));
 
 /** Explicit OpenRouter picks, for `generateWithTarget`. Each can be overridden via env. */
-export function openRouterModels(): { grok: string; claude: string; deepseek: string; deepseekR1: string } {
+export function openRouterModels(): { grok: string; claude: string; deepseek: string; deepseekR1: string; fast: string } {
   return {
+    /** DeepSeek served by OpenRouter: the speed engine for everyday answers and code */
+    fast: envModel("OPENROUTER_FAST_MODEL", "deepseek/deepseek-chat-v3.1"),
     grok: envModel("OPENROUTER_GROK_MODEL", "x-ai/grok-2-1212"),
     claude: envModel("OPENROUTER_CLAUDE_MODEL", "anthropic/claude-sonnet-4.5"),
     deepseek: envModel("OPENROUTER_DEEPSEEK_MODEL", "deepseek/deepseek-chat-v3.1"),
@@ -213,6 +215,7 @@ export function buildPlan(task: AITask): Target[] {
   switch (task) {
     case "code":
       return [
+        { provider: "openrouter", model: or.fast },
         ...cb(),
         { provider: "gemini", model: gemPro },
         { provider: "openrouter", model: or.deepseek },
@@ -221,6 +224,7 @@ export function buildPlan(task: AITask): Target[] {
     case "fast":
       return [
         { provider: "groq", model: groq },
+        { provider: "openrouter", model: or.fast },
         ...cb(),
         { provider: "gemini", model: gemFlash },
       ];

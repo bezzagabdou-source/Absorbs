@@ -672,14 +672,35 @@ export function ChatPage() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [imgOpen, setImgOpen] = useState(false);
   const [freeModel, setFreeModel] = useState<string>(DEFAULT_FREE_MODEL);
+  /** MAX / Pro: every OpenRouter model (loaded once from /api/ai/models) */
+  const [orModels, setOrModels] = useState<{ id: string; name: string; ctx: number; free: boolean }[]>([]);
+  const orIds = useMemo(() => new Set(orModels.map((m) => m.id)), [orModels]);
   useEffect(() => {
     try {
       const saved = localStorage.getItem("nexus_model");
       if (isFreeModel(saved)) setFreeModel(saved);
+      else if (typeof saved === "string" && /^[\w.\-]+\/[\w.\-:]+$/.test(saved)) setFreeModel(saved);
     } catch {
       /* private mode */
     }
   }, []);
+  useEffect(() => {
+    if (!isPro || orModels.length > 0) return;
+    let dead = false;
+    (async () => {
+      try {
+        const res = await authFetch("/api/ai/models");
+        if (!res.ok) return;
+        const data = (await res.json()) as { models?: { id: string; name: string; ctx: number; free: boolean }[] };
+        if (!dead && Array.isArray(data.models)) setOrModels(data.models);
+      } catch {
+        /* the built-in catalog still works */
+      }
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [isPro, orModels.length, authFetch]);
   const router = useRouter();
   const [tier, setTier] = useState<TierId>("v8");
   const [persona, setPersona] = useState("genius");
@@ -1929,7 +1950,7 @@ export function ChatPage() {
                   value={freeModel}
                   onChange={(e) => {
                     const v = e.target.value;
-                    if (!isFreeModel(v)) return;
+                    if (!isFreeModel(v) && !(isPro && orIds.has(v))) return;
                     setFreeModel(v);
                     try {
                       localStorage.setItem("nexus_model", v);
@@ -1951,6 +1972,18 @@ export function ChatPage() {
                       ))}
                     </optgroup>
                   ))}
+                  {isPro && orModels.length > 0 && (
+                    <optgroup label={`🌐 OpenRouter — كل النماذج (${orModels.length})`}>
+                      {orModels
+                        .filter((m) => !ALL_IDS.has(m.id))
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.free ? "🆓 " : ""}
+                            {m.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
                 </select>
                 <button
                   type="button"

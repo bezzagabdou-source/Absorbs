@@ -75,8 +75,8 @@ export default function HelpPage() {
 
         <p className="px-2 text-sm leading-loose text-slate-400">
           لم تجد حلًا؟ راسلنا على{" "}
-          <a href="mailto:contact@barq-ai.com" className="text-brand-300 underline underline-offset-4">
-            contact@barq-ai.com
+          <a href="mailto:abdiubz0@gmail.com" className="text-brand-300 underline underline-offset-4">
+            abdiubz0@gmail.com
           </a>{" "}
           وأرفق وصفًا للمشكلة.
         </p>

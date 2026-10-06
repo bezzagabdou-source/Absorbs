@@ -60,6 +60,9 @@ export type Profile = {
   meterPercent?: number;
   meterResetAt?: string | null;
   planExpiresAt: string | null;
+  /** 7-day free trial: plan is "pro" while this is true */
+  trial?: boolean;
+  trialEndsAt?: string | null;
   user: {
     id: string;
     email: string;
@@ -279,7 +282,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       : "bg-white/10 text-slate-300"
                   )}
                 >
-                  {profile?.plan === "pro" ? t.app.proBadge : t.app.freePlanTag}
+                  {profile?.trial ? "تجربة 7 أيام" : profile?.plan === "pro" ? t.app.proBadge : t.app.freePlanTag}
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-white/8">

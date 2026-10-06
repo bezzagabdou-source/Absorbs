@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { Download, ImagePlus, Loader2, RefreshCw, X, Zap } from "lucide-react";
+import { Download, ImagePlus, Loader2, RefreshCw, Trash2, X, Zap } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 import {
@@ -12,8 +12,10 @@ import {
   IMAGE_TIER_COUNT,
   IMAGE_TIER_HINT,
   IMAGE_TIER_LABEL,
+  IMAGE_REF_MAX_BYTES,
   type ImageApiOk,
   type ImageAspect,
+  type ImageReference,
   type ImageStyle,
   type ImageTier,
 } from "@/lib/image-types";
@@ -30,7 +32,40 @@ const ERROR_TEXT: Record<string, string> = {
   RATE: "طلبات كثيرة خلال دقيقة. انتظر قليلًا ثم أعد المحاولة.",
   FAILED: "تعذّر توليد الصورة الآن. أعد المحاولة بعد لحظات.",
   UNAUTHENTICATED: "انتهت الجلسة. سجّل الدخول من جديد.",
+  BAD_REFERENCE: "تعذّر استخدام الصورة المرجعية. جرّب صورة JPG أو PNG أخرى.",
 };
+
+/** Downscales the picked image to max 1280 px JPEG so the request stays small and fast. */
+async function prepareReference(file: File): Promise<ImageReference | null> {
+  if (!file.type.startsWith("image/")) return null;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("decode"));
+      el.src = url;
+    });
+    const scale = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, w, h);
+    for (const q of [0.88, 0.75, 0.6]) {
+      const data = canvas.toDataURL("image/jpeg", q).split(",")[1] ?? "";
+      if (data.length > 0 && data.length <= IMAGE_REF_MAX_BYTES) return { mime: "image/jpeg", data };
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 interface ImageStudioProps {
   open: boolean;
@@ -45,6 +80,9 @@ export function ImageStudio({ open, onClose, tier, initialPrompt }: ImageStudioP
   const [style, setStyle] = useState<ImageStyle>("photo");
   const [aspect, setAspect] = useState<ImageAspect>("1:1");
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [ref, setRef] = useState<ImageReference | null>(null);
+  const [refErr, setRefErr] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const runRef = useRef(0);
   const busy = slots.some((s) => s.status === "loading");
 
@@ -78,7 +116,7 @@ export function ImageStudio({ open, onClose, tier, initialPrompt }: ImageStudioP
         try {
           const res = await authFetch("/api/ai/image", {
             method: "POST",
-            body: JSON.stringify({ prompt: text, tier, aspect, style }),
+            body: JSON.stringify({ prompt: text, tier, aspect, style, ...(ref ? { reference: ref } : {}) }),
           });
           if (!res.ok) {
             let code = "FAILED";
@@ -105,7 +143,7 @@ export function ImageStudio({ open, onClose, tier, initialPrompt }: ImageStudioP
         }
       })
     );
-  }, [prompt, busy, tier, aspect, style, authFetch]);
+  }, [prompt, busy, tier, aspect, style, ref, authFetch]);
 
   if (!open) return null;
 
@@ -148,6 +186,44 @@ export function ImageStudio({ open, onClose, tier, initialPrompt }: ImageStudioP
               placeholder="مثال: عجوز جزائري يحتسي الشاي على شرفة في القصبة وقت الغروب"
               className="input-base w-full resize-none"
             />
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-sm font-bold text-slate-200">صورة مرجعية (اختياري) — ولّد حسب صورتك</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={async (e: ChangeEvent<HTMLInputElement>) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                const r = await prepareReference(f);
+                setRefErr(r === null);
+                if (r) setRef(r);
+              }}
+            />
+            {ref ? (
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-ink-800 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`data:${ref.mime};base64,${ref.data}`} alt="الصورة المرجعية" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+                <p className="min-w-0 flex-1 text-xs leading-5 text-slate-300">سيُحافظ النموذج على الشخص/الشكل/التكوين ويطبّق عليه الوصف والنمط.</p>
+                <button type="button" onClick={() => setRef(null)} aria-label="إزالة الصورة المرجعية" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-slate-300 hover:bg-white/10">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 bg-ink-800 px-3 text-sm font-bold text-slate-300 transition hover:border-brand-500/60"
+              >
+                <ImagePlus className="h-4 w-4 text-brand-400" aria-hidden />
+                ارفع صورة لتكون المرجع
+              </button>
+            )}
+            {refErr && <p className="mt-1.5 text-xs text-amber-300">{ERROR_TEXT.BAD_REFERENCE}</p>}
           </div>
 
           <div>

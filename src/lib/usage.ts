@@ -25,10 +25,22 @@ export function algeriaToday(): string {
   }).format(new Date());
 }
 
-export function isProActive(u: DbUser): boolean {
+/** Free trial: every new account (and every existing one, once) gets all models and features for 7 days. */
+export const TRIAL_DAYS = 7;
+
+export function trialActive(u: DbUser): boolean {
+  return !!u.trialEndsAt && u.trialEndsAt.getTime() > Date.now();
+}
+
+export function paidProActive(u: DbUser): boolean {
   if (u.plan !== "pro") return false;
   if (!u.planExpiresAt) return true; // lifetime / manually granted
   return u.planExpiresAt.getTime() > Date.now();
+}
+
+/** Pro access = paid / redeemed Pro OR the 7-day trial. Every gate in the app goes through this. */
+export function isProActive(u: DbUser): boolean {
+  return paidProActive(u) || trialActive(u);
 }
 
 export async function ensureUser(
@@ -58,6 +70,7 @@ export async function ensureUser(
       displayName: opts.displayName ?? v.name ?? null,
       photoUrl: opts.photoUrl ?? v.picture ?? null,
       locale: opts.locale ?? "ar",
+      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
     })
     .onConflictDoNothing()
     .returning();
@@ -200,6 +213,7 @@ export async function getProfile(uid: string) {
   const row = (await db.select().from(users).where(eq(users.id, uid)).limit(1))[0];
   if (!row) return null;
   const pro = isProActive(row);
+  const trial = trialActive(row) && !paidProActive(row);
   const st = meterState(row);
   // free: creditsLeft is the PERCENTAGE left (dailyLimit = 100), so every existing bar keeps working
   return {
@@ -210,7 +224,9 @@ export async function getProfile(uid: string) {
     dailyLimit: pro ? PRO_DAILY : 100,
     meterPercent: pro ? 100 : st.percent,
     meterResetAt: pro ? null : st.resetAt,
-    planExpiresAt: row.planExpiresAt,
+    planExpiresAt: trial ? row.trialEndsAt : row.planExpiresAt,
+    trial,
+    trialEndsAt: trial ? row.trialEndsAt : null,
   };
 }
 

@@ -3,7 +3,7 @@
 import { useState, type ChangeEvent } from "react";
 import { Check, Copy, Send } from "lucide-react";
 
-const SUPPORT_EMAIL = "contact@barq-ai.com";
+const SUPPORT_EMAIL = "abdiubz0@gmail.com";
 
 const KINDS = [
   { id: "bug", label: "خلل في التطبيق" },

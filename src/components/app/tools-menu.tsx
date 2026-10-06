@@ -2,11 +2,18 @@
 
 import { useEffect } from "react";
 import {
+  Award,
   Brain,
   GraduationCap,
   Globe,
   ImagePlus,
+  Lightbulb,
   Lock,
+  PenLine,
+  BookOpen,
+  Users,
+  LayoutTemplate,
+  FlaskConical,
   PanelRight,
   Paperclip,
   Play,
@@ -28,12 +35,19 @@ interface ToolEntry {
 }
 
 const ENTRIES: readonly ToolEntry[] = [
+  { id: "dzstudy", title: "مدرّس الجزائر الذكي", sub: "صوّر التمرين: حل نموذجي + اختبار تفاعلي", icon: Award },
   { id: "image", title: "إنشاء صور", sub: "صور واقعية جدًا بأقوى نماذج الصور", icon: ImagePlus },
   { id: "video", title: "الفيديوهات", sub: "مشاهد متحركة بالكود مع صوت وتحكم", icon: Play },
   { id: "music", title: "موسيقى", sub: "مقطوعات مولّدة تُشغَّل وتُحمَّل", icon: Volume2 },
   { id: "canvas", title: "Canvas", sub: "الترميز أو الكتابة أو إنشاء الشرائح", icon: PanelRight },
   { id: "research", title: "Deep Research", sub: "تقارير مفصّلة بمحاور وأدلة", icon: Globe },
   { id: "guided", title: "التعلّم الموجّه", sub: "شرح خطوة بخطوة مع تمارين", icon: GraduationCap },
+  { id: "think", title: "تفكير عميق", sub: "استدلال طويل ثم جواب مُتحقَّق منه", icon: Lightbulb },
+  { id: "storybook", title: "كتاب قصص", sub: "قصة مصوّرة تفاعلية بسرد صوتي", icon: BookOpen },
+  { id: "gems", title: "خبراء (Gems)", sub: "فريق متخصصين يجيب كلٌّ في مجاله", icon: Users },
+  { id: "analysis", title: "تحليل بيانات", sub: "لوحة تفاعلية من بياناتك", icon: FlaskConical },
+  { id: "mindmap", title: "خريطة ذهنية", sub: "خريطة تفاعلية قابلة للتوسيع", icon: LayoutTemplate },
+  { id: "styles", title: "أسلوب الكتابة", sub: "اكتب بأسلوبك أو بنبرة تختارها", icon: PenLine },
   { id: "upload", title: "خيارات تحميل إضافية", sub: "صور وملفات PDF وكود", icon: Paperclip },
   { id: "personal", title: "الذكاء المخصّص", sub: "الذاكرة والسياق الخاصان بك", icon: Brain },
 ];

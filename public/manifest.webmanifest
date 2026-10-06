@@ -1,6 +1,6 @@
 {
-  "name": "Nexus AI v8.4 — مساعدك اليومي",
-  "short_name": "Nexus AI v8.4",
+  "name": "Nexus AI — الذكاء الاصطناعي الجزائري",
+  "short_name": "Nexus AI",
   "description": "مساعدك اليومي بالعربية والدارجة والفرنسية — محادثة، أدوات محتوى، ترجمة، ودراسة.",
   "id": "/",
   "start_url": "/app",
@@ -9,24 +9,24 @@
   "orientation": "portrait",
   "dir": "auto",
   "lang": "ar",
-  "background_color": "#181816",
-  "theme_color": "#181816",
+  "background_color": "#0b0620",
+  "theme_color": "#0b0620",
   "categories": ["productivity", "education", "business"],
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/icons/nexus-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/icons/nexus-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/maskable-512.png",
+      "src": "/icons/nexus-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -36,12 +36,12 @@
     {
       "name": "محادثة جديدة",
       "url": "/app",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/nexus-icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "الأدوات",
       "url": "/app/tools",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/nexus-icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

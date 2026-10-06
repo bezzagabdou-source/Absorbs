@@ -18,6 +18,7 @@ import {
 import { classifyTask } from "@/lib/task-router";
 import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
 import { chatModeById } from "@/lib/chat-modes";
+import { DZ_IDENTITY, DZ_SCHOOL_ADDON, looksLikeSchoolwork } from "@/lib/dz-school";
 import { VOICE_SYSTEM, personaById } from "@/lib/voice-call";
 import {
   CHAT_SYSTEM,
@@ -47,6 +48,11 @@ const FREE_PLAN_IDS: ReadonlySet<string> = new Set([
 ]);
 function isFreeModel(v: unknown): v is string {
   return typeof v === "string" && FREE_MODEL_IDS.has(v);
+}
+/** MAX / Pro: ANY OpenRouter model id (vendor/name[:variant]) is accepted; the picker lists them all. */
+const OR_MODEL_ID = /^[\w.\-]+\/[\w.\-:]+$/;
+function isAnyOpenRouterModel(v: unknown): v is string {
+  return typeof v === "string" && v.length <= 120 && OR_MODEL_ID.test(v);
 }
 const LEGEND_ADDON = `
 
@@ -444,7 +450,10 @@ export async function POST(req: Request) {
 
   const lastUser = capped[capped.length - 1].text;
   const chatMode = isPro ? chatModeById(body.mode) : undefined;
-  const memBlock = (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") + (chatMode?.addon ?? "");
+  // Algerian school brain: homework / exams / lessons or any attached image or file (the dz study mode already carries it)
+  const schoolBlock =
+    chatMode?.id !== "dzstudy" && (looksLikeSchoolwork(lastUser) || parsed.files.length > 0) ? DZ_SCHOOL_ADDON : "";
+  const memBlock = (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") + (chatMode?.addon ?? "") + schoolBlock;
   if (isPro && credit.tracked) void rememberFrom(user.uid, lastUser);
   const fileNames = [...parsed.names, ...textFiles.map((f) => f.name)];
   const savedUser =
@@ -552,7 +561,7 @@ export async function POST(req: Request) {
     // Nexus: a free OpenRouter model (default: openrouter/free) answers when a key exists; otherwise the classic engines run
     const pickedModel: unknown = body.freeModel;
     const freeModel: string | undefined =
-      !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0 && isFreeModel(pickedModel) && (process.env.OPENROUTER_API_KEY ?? "").trim()
+      !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0 && (isFreeModel(pickedModel) || (isPro && isAnyOpenRouterModel(pickedModel))) && (process.env.OPENROUTER_API_KEY ?? "").trim()
         ? isPro || FREE_PLAN_IDS.has(pickedModel)
           ? pickedModel
           : "openrouter/free"
@@ -561,7 +570,7 @@ export async function POST(req: Request) {
     const freeStream = freeModel
       ? await streamFreeModel({
           model: freeModel,
-          system: NEXUS_SYSTEM,
+          system: NEXUS_SYSTEM + DZ_IDENTITY + schoolBlock,
           messages: capped,
           maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
           onModel: (m) => {
@@ -669,7 +678,7 @@ export async function POST(req: Request) {
               MARATHON_ADDON +
               persona +
               memBlock
-            : CHAT_SYSTEM;
+            : CHAT_SYSTEM + schoolBlock;
           const base = await streamGemini({
             system,
             messages: capped,

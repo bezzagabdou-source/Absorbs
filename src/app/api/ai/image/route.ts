@@ -5,10 +5,13 @@ import { getProfile } from "@/lib/usage";
 import { generateImage, ImageError } from "@/lib/image-gen";
 import {
   IMAGE_PROMPT_MAX,
+  IMAGE_REF_MAX_BYTES,
+  IMAGE_REF_MIMES,
   isImageAspect,
   isImageStyle,
   isImageTier,
   type ImageAspect,
+  type ImageReference,
   type ImageStyle,
   type ImageTier,
 } from "@/lib/image-types";
@@ -22,7 +25,7 @@ export async function POST(req: Request): Promise<Response> {
   const user = await verifyRequest(req);
   if (!user) return json(401, { code: "UNAUTHENTICATED" });
 
-  let body: { prompt?: unknown; tier?: unknown; aspect?: unknown; style?: unknown };
+  let body: { prompt?: unknown; tier?: unknown; aspect?: unknown; style?: unknown; reference?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -35,6 +38,16 @@ export async function POST(req: Request): Promise<Response> {
   const aspect: ImageAspect = isImageAspect(body.aspect) ? body.aspect : "1:1";
   const style: ImageStyle = isImageStyle(body.style) ? body.style : "photo";
 
+  let reference: ImageReference | undefined;
+  if (body.reference && typeof body.reference === "object") {
+    const r = body.reference as { mime?: unknown; data?: unknown };
+    const okMime = typeof r.mime === "string" && (IMAGE_REF_MIMES as readonly string[]).includes(r.mime);
+    if (!okMime || typeof r.data !== "string" || r.data.length < 100 || r.data.length > IMAGE_REF_MAX_BYTES || !/^[A-Za-z0-9+/=]+$/.test(r.data)) {
+      return json(400, { code: "BAD_REFERENCE" });
+    }
+    reference = { mime: r.mime as string, data: r.data };
+  }
+
   const prof = await getProfile(user.uid).catch(() => null);
   if (prof?.plan !== "pro") return json(403, { code: "PRO_ONLY" });
 
@@ -42,7 +55,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!rl.ok) return json(429, { code: "RATE" }, { "Retry-After": String(rl.retryAfter) });
 
   try {
-    const image = await generateImage({ prompt, tier, aspect, style });
+    const image = await generateImage({ prompt, tier, aspect, style, reference });
     return json(200, { image });
   } catch (e) {
     if (e instanceof ImageError) {

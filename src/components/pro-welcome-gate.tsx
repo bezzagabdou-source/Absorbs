@@ -53,7 +53,7 @@ export function ProWelcomeGate() {
 
   // first time this Pro account is seen on this device
   useEffect(() => {
-    if (shown.current || !uid || profile?.plan !== "pro") return;
+    if (shown.current || !uid || profile?.plan !== "pro" || profile?.trial) return;
     shown.current = true;
     try {
       if (localStorage.getItem(key) === "1") return;

@@ -2,7 +2,7 @@
 
 export type ImageTier = "v5" | "v6" | "v8" | "max";
 export type ImageAspect = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
-export type ImageStyle = "photo" | "portrait" | "cinematic" | "product" | "food" | "architecture" | "art";
+export type ImageStyle = "photo" | "portrait" | "cinematic" | "product" | "food" | "architecture" | "art" | "epic" | "render3d" | "anime";
 
 /** How many variants each model level creates in parallel: the higher the level, the more to choose from. */
 export const IMAGE_TIER_COUNT: Record<ImageTier, number> = { v5: 1, v6: 1, v8: 2, max: 3 };
@@ -29,6 +29,9 @@ export const IMAGE_STYLES: { id: ImageStyle; label: string }[] = [
   { id: "food", label: "طعام" },
   { id: "architecture", label: "عمارة" },
   { id: "art", label: "فنية" },
+  { id: "epic", label: "أسطورية" },
+  { id: "render3d", label: "3D" },
+  { id: "anime", label: "أنمي" },
 ];
 
 export const IMAGE_ASPECTS: { id: ImageAspect; label: string }[] = [
@@ -40,6 +43,15 @@ export const IMAGE_ASPECTS: { id: ImageAspect; label: string }[] = [
 ];
 
 export const IMAGE_PROMPT_MAX = 1200;
+
+/** Reference image ("generate according to my picture"): downscaled in the browser, validated on the server. */
+export const IMAGE_REF_MAX_BYTES = 2_600_000; // base64 payload ceiling (keeps the request far below Vercel's 4.5 MB)
+export const IMAGE_REF_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
+export interface ImageReference {
+  mime: string;
+  /** base64, no data: prefix */
+  data: string;
+}
 
 export interface ImageApiOk {
   image: { mime: string; data: string; model: string; ms: number };

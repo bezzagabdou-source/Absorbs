@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
     const PRO_IDS =
       "code-review|bug-fixer|code-explainer|code-converter|security-audit|test-writer|game-builder|wallpaper-designer|ui-designer|landing-builder|logo-designer";
     return [
+      // standalone legal site (public/privacy.html): privacy, terms, data deletion, everything in one page
+      { source: "/privacy", destination: "/privacy.html", permanent: true },
+      { source: "/terms", destination: "/privacy.html#terms", permanent: true },
       { source: `/tools/:id(${PRO_IDS})`, destination: "/app/tools/:id", permanent: false },
       { source: `/tool/:id`, destination: "/app/tools/:id", permanent: false },
       { source: `/app/tool/:id`, destination: "/app/tools/:id", permanent: false },

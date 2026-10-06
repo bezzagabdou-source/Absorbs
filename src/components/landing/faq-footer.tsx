@@ -137,7 +137,7 @@ export function Footer() {
                 { icon: AtSign, href: "https://instagram.com", label: "Instagram" },
                 { icon: Send, href: "https://t.me", label: "Telegram" },
                 { icon: Play, href: "https://tiktok.com", label: "TikTok" },
-                { icon: Mail, href: "mailto:contact@barq-ai.com", label: "Email" },
+                { icon: Mail, href: "mailto:abdiubz0@gmail.com", label: "Email" },
               ].map((s) => (
                 <a
                   key={s.label}
@@ -194,7 +194,7 @@ export function Footer() {
               </li>
               <li>
                 <a
-                  href="mailto:contact@barq-ai.com"
+                  href="mailto:abdiubz0@gmail.com"
                   className="text-sm text-slate-400 transition hover:text-brand-300"
                 >
                   {t.footer.contact}

@@ -32,6 +32,8 @@ export const users = barq.table("users", {
   loginCount: integer("login_count").notNull().default(0),
   prefTier: text("pref_tier").notNull().default("v6"), // v4 | v5 | v6
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  /** 7-day free trial: every model and feature is unlocked until this moment */
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
