@@ -6,12 +6,16 @@
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "dir": "auto",
   "lang": "ar",
   "background_color": "#0b0620",
   "theme_color": "#0b0620",
-  "categories": ["productivity", "education", "business"],
+  "categories": [
+    "productivity",
+    "education",
+    "business"
+  ],
   "icons": [
     {
       "src": "/icons/nexus-icon-192.png",
@@ -36,12 +40,27 @@
     {
       "name": "محادثة جديدة",
       "url": "/app",
-      "icons": [{ "src": "/icons/nexus-icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icons/nexus-icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "الأدوات",
       "url": "/app/tools",
-      "icons": [{ "src": "/icons/nexus-icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icons/nexus-icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
+  ],
+  "prefer_related_applications": false,
+  "display_override": [
+    "standalone",
+    "minimal-ui"
   ]
 }

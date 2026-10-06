@@ -105,6 +105,15 @@ create table if not exists barq.login_events (
 );
 create index if not exists login_user_idx on barq.login_events (user_id, created_at);
 
+create table if not exists barq.push_subs (
+  endpoint text primary key,
+  p256dh text,
+  auth text,
+  user_id text,
+  created_at timestamptz not null default now(),
+  last_sent_at timestamptz
+);
+
 create table if not exists barq.promo_codes (
   code text primary key,
   plan text not null default 'pro',

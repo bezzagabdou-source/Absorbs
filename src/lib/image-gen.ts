@@ -66,8 +66,58 @@ export function buildImagePrompt(
   tier: ImageTier,
   aspect: ImageAspect
 ): string {
-  const parts = [idea.trim(), STYLE_TEXT[style], TIER_TEXT[tier], `Aspect ratio ${aspect}.`, NEGATIVE];
+  const subject = idea.trim();
+  // the user's subject comes first and is repeated as a hard requirement, so the style text can never replace it
+  const parts = [
+    `MAIN SUBJECT (draw exactly this, nothing else, no random substitutes): ${subject}.`,
+    STYLE_TEXT[style],
+    TIER_TEXT[tier],
+    `Aspect ratio ${aspect}.`,
+    NEGATIVE,
+    `Every object, person, colour, place and text mentioned in the main subject must be clearly visible.`,
+  ];
   return parts.filter((p) => p.length > 0).join(" ");
+}
+
+/** FLUX engines do not understand Arabic / Darija: translate the idea faithfully to English first (fast, cached, falls back to the original). */
+const translateCache = new Map<string, string>();
+async function toEnglishIdea(idea: string, gemKey?: string): Promise<string> {
+  const text = idea.trim();
+  if (!/[^\u0000-\u024F\s\d.,!?'"()\-:;]/.test(text)) return text; // already Latin script
+  const hit = translateCache.get(text);
+  if (hit) return hit;
+  if (!gemKey) return text;
+  const t = withTimeout(7_000);
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": gemKey },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: "You turn an image request written in Arabic, Algerian Darija or French into ONE precise English image description. Keep every object, person, colour, number, place, clothing and action EXACTLY as requested; add nothing, remove nothing. Output only the English description, no quotes, no explanation.",
+            },
+          ],
+        },
+        contents: [{ role: "user", parts: [{ text }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 300 },
+      }),
+      signal: t.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) return text;
+    const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const out = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+    if (out.length < 3) return text;
+    if (translateCache.size > 200) translateCache.clear();
+    translateCache.set(text, out);
+    return out;
+  } catch {
+    return text;
+  } finally {
+    t.done();
+  }
 }
 
 const GEMINI_FAST = ["gemini-3.1-flash-lite-image", "gemini-2.5-flash-image", "gemini-3.1-flash-image"];
@@ -218,6 +268,13 @@ export async function generateImage(opts: {
   const started = Date.now();
   const full = buildImagePrompt(opts.prompt, opts.style, opts.tier, opts.aspect);
   const gem = findGeminiKey();
+  let fluxPrompt: string | undefined;
+  const getFluxPrompt = async (): Promise<string> => {
+    if (fluxPrompt) return fluxPrompt;
+    const en = await toEnglishIdea(opts.prompt, gem?.value);
+    fluxPrompt = buildImagePrompt(en, opts.style, opts.tier, opts.aspect);
+    return fluxPrompt;
+  };
   const hf = findHuggingFaceKey();
   const fast = opts.tier === "v5" || opts.tier === "v6";
   const perTry = fast ? 28_000 : 50_000;
@@ -244,14 +301,14 @@ export async function generateImage(opts: {
   if (opts.reference) throw new ImageError(gem ? "FAILED" : "NO_PROVIDER", lastError);
   if (hf && Date.now() < deadline - 8_000) {
     try {
-      return await finish(await viaHuggingFace(hf.value, full, opts.aspect, perTry), "flux-schnell");
+      return await finish(await viaHuggingFace(hf.value, await getFluxPrompt(), opts.aspect, perTry), "flux-schnell");
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
     }
   }
   if (Date.now() < deadline - 8_000) {
     try {
-      return await finish(await viaPollinations(full, opts.aspect, Math.min(perTry, deadline - Date.now())), "flux-pollinations");
+      return await finish(await viaPollinations(await getFluxPrompt(), opts.aspect, Math.min(perTry, deadline - Date.now())), "flux-pollinations");
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
     }

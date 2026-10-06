@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell, Coins, Crown } from "lucide-react";
 import { Row, SettingsFrame, Switch } from "@/components/settings-ui";
+import { enableHourlyNotifications, disableHourlyNotifications } from "@/components/pwa";
 
 function useFlag(key: string, def: boolean) {
   const [v, setV] = useState(def);
@@ -30,7 +31,20 @@ export default function NotificationsPage() {
 
   const ask = async () => {
     if (typeof Notification === "undefined") return;
-    setPerm(await Notification.requestPermission());
+    await enableHourlyNotifications();
+    setPerm(Notification.permission);
+  };
+  const [hourly, setHourlyState] = useState(false);
+  useEffect(() => {
+    try { setHourlyState(localStorage.getItem("nexus_push") === "1"); } catch {}
+  }, []);
+  const toggleHourly = async (on: boolean) => {
+    setHourlyState(on);
+    if (on) {
+      const ok = await enableHourlyNotifications();
+      if (!ok) setHourlyState(false);
+      if (typeof Notification !== "undefined") setPerm(Notification.permission);
+    } else await disableHourlyNotifications();
   };
 
   const label =
@@ -48,6 +62,7 @@ export default function NotificationsPage() {
           ) : undefined
         }
       />
+      <Row icon={Bell} title="تذكير كل ساعة" desc="إشعار كل ساعة يدعوك لاستخدام Nexus بسرعة" action={<Switch on={hourly && perm === "granted"} onChange={toggleHourly} label="تذكير كل ساعة" />} />
       <Row icon={Coins} title="تذكير النقاط اليومية" desc="ننبّهك عند تجدد نقاطك المجانية" action={<Switch on={credits} onChange={setCredits} label="تذكير النقاط" />} />
       <Row icon={Crown} title="عروض Pro" desc="خصومات وميزات جديدة في v6" action={<Switch on={offers} onChange={setOffers} label="عروض Pro" />} />
     </SettingsFrame>

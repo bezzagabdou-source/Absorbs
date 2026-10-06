@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app/app-shell";
 import { ProWelcomeGate } from "@/components/pro-welcome-gate";
 import { TrialWelcome } from "@/components/trial-welcome";
 import { BackgroundJobs } from "@/components/background-jobs";
+import { PushPrompt } from "@/components/pwa";
 
 export const metadata: Metadata = {
   title: "التطبيق",
@@ -17,6 +18,7 @@ export default function AppLayout({
       <ProWelcomeGate />
       <TrialWelcome />
       <BackgroundJobs />
+      <PushPrompt />
       {children}
     </AppShell>
   );
