@@ -6,6 +6,9 @@
  * Create the token at https://huggingface.co/settings/tokens (permission: "Make calls to Inference Providers").
  */
 
+import type { ChatTurn } from "@/lib/gemini";
+import { ProviderStreamError, streamOpenAICompat } from "@/lib/openai-stream";
+
 export const HF_URL = "https://router.huggingface.co/v1/chat/completions";
 
 const KEY_NAMES = [
@@ -49,4 +52,33 @@ export function findHuggingFaceKey(): { name: string; value: string } | undefine
 export function huggingFaceModels(): string[] {
   const custom = clean(process.env.HUGGINGFACE_MODEL) || clean(process.env.HF_MODEL);
   return Array.from(new Set([...(custom ? [custom] : []), ...HF_DEFAULT_MODELS]));
+}
+
+/* ---- streaming chat (free-tier "open models" option) ---- */
+
+export async function streamHuggingFace(o: {
+  model?: string;
+  system: string;
+  messages: ChatTurn[];
+  maxTokens: number;
+  temperature?: number;
+  signal?: AbortSignal;
+  onModel?: (model: string) => void;
+  onDone?: (full: string) => void | Promise<void>;
+}): Promise<ReadableStream<string>> {
+  const found = findHuggingFaceKey();
+  if (!found) throw new ProviderStreamError("NO_KEY", "huggingface", "HF_TOKEN is not configured.");
+  return streamOpenAICompat({
+    provider: "huggingface",
+    url: HF_URL,
+    key: found.value,
+    models: huggingFaceModels(),
+    system: o.system,
+    messages: o.messages,
+    maxTokens: o.maxTokens,
+    temperature: o.temperature,
+    signal: o.signal,
+    onModel: (m) => o.onModel?.(`hf:${m}`),
+    onDone: o.onDone,
+  });
 }

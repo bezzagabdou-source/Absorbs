@@ -53,6 +53,9 @@ import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
 import { useCredits, UserAvatar, meterLabel } from "@/components/app/app-shell";
 import { SESSION_MAX_MS } from "@/lib/limits";
+import { ModelSelector } from "@/components/app/model-selector";
+import { UpgradeModal } from "@/components/app/upgrade-modal";
+import { DEFAULT_SELECTION, isProProvider, loadSelection, saveSelection, type ModelOption, type ModelSelection } from "@/lib/model-access";
 import { Markdown } from "@/components/markdown";
 import { MessageSkeleton } from "@/components/ui/skeleton";
 import { ExportMenu } from "@/components/chat/export-menu";
@@ -87,77 +90,6 @@ import {
 /** v8: "generate me an image" requests (the image engine is not available yet). */
 const IMAGE_INTENT =
   /(ولّ?د|اصنع|أنشئ|انشئ|صمّ?م|ارسم|اعمل|سوّ?ي|توليد|generate|create|make|draw|génère|genere|crée|cree|dessine)\s+(لي\s+|لنا\s+|me\s+|moi\s+)?(an?\s+|une?\s+|des\s+)?(صور[ةه]?|صور|image|images|picture|pictures|photo|photos)(?![\w\u0600-\u06FF])/i;
-
-/* ---- Nexus AI v8.4: free OpenRouter catalog (inline, no extra file) ---- */
-const DEFAULT_FREE_MODEL = "openrouter/free";
-
-interface FreeModel {
-  id: string;
-  label: string;
-}
-interface FreeModelGroup {
-  group: string;
-  models: FreeModel[];
-}
-
-const FREE_MODEL_GROUPS: readonly FreeModelGroup[] = [
-  {
-    group: "🚀 Fast Default & Routing",
-    models: [
-      { id: "openrouter/free", label: "Auto-Router (fastest available) — Default" },
-      { id: "qwen/qwen3.8-27b:free", label: "Qwen 3.8 27B (ultra-fast)" },
-    ],
-  },
-  {
-    group: "💻 Code & Game Development",
-    models: [
-      { id: "cohere/north-mini-code:free", label: "Cohere North Mini Code" },
-      { id: "poolside/laguna-s-2.1:free", label: "Poolside Laguna S 2.1" },
-      { id: "poolside/laguna-xs-2.1:free", label: "Poolside Laguna XS 2.1" },
-    ],
-  },
-  {
-    group: "🧠 Deep Reasoning & 1M Context",
-    models: [
-      { id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra 550B (1M ctx)" },
-      { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super 120B" },
-      { id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron 3.5 Lightning" },
-      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", label: "Nemotron 3 Nano Omni 30B Reasoning" },
-      { id: "thinkingmachines/inkling:free", label: "Thinking Machines Inkling" },
-      { id: "thinkingmachines/inkling-small:free", label: "Thinking Machines Inkling Small" },
-      { id: "apodex/apodex-1.1-mini:free", label: "Apodex 1.1 Mini" },
-    ],
-  },
-  {
-    group: "🌐 General & Multimodal",
-    models: [
-      { id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B IT" },
-      { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B A4B IT" },
-      { id: "dots-studio/dots-3-note-preview:free", label: "dots 3 Note Preview" },
-      { id: "liquid/lfm-2.5-2.6b:free", label: "Liquid LFM 2.5 2.6B" },
-      { id: "inclusionai/ling-3.0-flash-sante:free", label: "Ling 3.0 Flash Santé" },
-      { id: "stealth/space-bunny-alpha", label: "Space Bunny Alpha (stealth)" },
-    ],
-  },
-];
-
-/** free accounts may only use these lighter models; the rest is Pro */
-const FREE_ALLOWED: ReadonlySet<string> = new Set([
-  "openrouter/free",
-  "qwen/qwen3.8-27b:free",
-  "poolside/laguna-xs-2.1:free",
-  "nvidia/nemotron-3.5-lightning:free",
-  "google/gemma-4-26b-a4b-it:free",
-  "liquid/lfm-2.5-2.6b:free",
-]);
-
-const ALL_IDS: ReadonlySet<string> = new Set(FREE_MODEL_GROUPS.flatMap((g) => g.models.map((m) => m.id)));
-
-/** Runtime guard for model ids coming from a request body (only catalog ids are accepted). */
-function isFreeModel(v: unknown): v is string {
-  return typeof v === "string" && ALL_IDS.has(v);
-}
-
 
 type Msg = {
   id: number;
@@ -671,19 +603,24 @@ export function ChatPage() {
   const [mode, setMode] = useState<ChatModeId | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [imgOpen, setImgOpen] = useState(false);
-  const [freeModel, setFreeModel] = useState<string>(DEFAULT_FREE_MODEL);
+  const [selection, setSelection] = useState<ModelSelection>(DEFAULT_SELECTION);
+  const [lockedModel, setLockedModel] = useState<ModelOption | null>(null);
   /** MAX / Pro: every OpenRouter model (loaded once from /api/ai/models) */
   const [orModels, setOrModels] = useState<{ id: string; name: string; ctx: number; free: boolean }[]>([]);
-  const orIds = useMemo(() => new Set(orModels.map((m) => m.id)), [orModels]);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("nexus_model");
-      if (isFreeModel(saved)) setFreeModel(saved);
-      else if (typeof saved === "string" && /^[\w.\-]+\/[\w.\-:]+$/.test(saved)) setFreeModel(saved);
-    } catch {
-      /* private mode */
-    }
+    setSelection(loadSelection());
   }, []);
+  // a free account (or an expired Pro) never keeps a Pro-only provider selected
+  useEffect(() => {
+    if (!isPro && isProProvider(selection.provider)) {
+      setSelection(DEFAULT_SELECTION);
+      saveSelection(DEFAULT_SELECTION);
+    }
+  }, [isPro, selection.provider]);
+  const changeSelection = (s: ModelSelection) => {
+    setSelection(s);
+    saveSelection(s);
+  };
   useEffect(() => {
     if (!isPro || orModels.length > 0) return;
     let dead = false;
@@ -1097,8 +1034,9 @@ export function ChatPage() {
                     .map((f) => ({ name: f.name, text: f.text })),
                 }
               : {}),
-            // free accounts: the chosen free OpenRouter model; Pro keeps its premium engines unless a specific model is picked
-            ...(!isPro || freeModel !== DEFAULT_FREE_MODEL ? { freeModel } : {}),
+            // model selector: gemini (default) | huggingface | grok | openrouter (grok / openrouter are Pro, enforced by the server)
+            provider: selection.provider,
+            model: selection.model ?? "auto",
             ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
             ...(isPro && tier === "v6" ? { v6: true } : {}),
             ...(isPro && mode ? { mode } : {}),
@@ -1118,6 +1056,20 @@ export function ChatPage() {
             detail = j.detail ?? "";
           } catch {
             /* ignore */
+          }
+          if (code === "PRO_MODEL_REQUIRED") {
+            // free account asked for a Pro model: show the upgrade modal and go back to Gemini
+            setMsgs((m) => m.filter((x) => !x.pending));
+            setStreaming(false);
+            abortRef.current = null;
+            setLockedModel(
+              (selection.provider === "grok" || selection.provider === "openrouter") && selection.model
+                ? { provider: selection.provider, id: selection.model, label: selection.model }
+                : { provider: "openrouter", id: "auto", label: "This model" }
+            );
+            setSelection(DEFAULT_SELECTION);
+            saveSelection(DEFAULT_SELECTION);
+            return;
           }
           const hard = code === "QUOTA" || code === "PRO_ONLY" || code === "NO_KEY" || code === "UNAUTHENTICATED";
           if (!hard && autoRetryRef.current < 2) {
@@ -1174,7 +1126,7 @@ export function ChatPage() {
         // NEVER STOP IN THE MIDDLE OF CODE: while the answer still ends inside a code
         // block (limit / network / screen lock), ask the server to finish it — up to 12 rounds,
         // surviving dropped connections; stops only when two rounds in a row bring nothing new.
-        if (isPro && freeModel === DEFAULT_FREE_MODEL) {
+        if (isPro && selection.provider === "gemini") {
           let idle = 0;
           // one hour of chained ~13-minute requests without stopping (time-based, not a fixed 12 rounds)
           const chainStart = Date.now();
@@ -1298,7 +1250,7 @@ export function ChatPage() {
         }
       }
     },
-    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, pro.defaultAsk]
+    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, selection, pro.defaultAsk]
   );
 
   sendRef.current = send;
@@ -1945,46 +1897,13 @@ export function ChatPage() {
                     onBeforeStart={() => true}
                   />
                 )}
-                <select
-                  id="modelSelect"
-                  value={freeModel}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!isFreeModel(v) && !(isPro && orIds.has(v))) return;
-                    setFreeModel(v);
-                    try {
-                      localStorage.setItem("nexus_model", v);
-                    } catch {
-                      /* private mode */
-                    }
-                  }}
-                  aria-label="AI model"
-                  title="AI model"
-                  dir="ltr"
-                  className="h-8 w-[104px] shrink-0 truncate rounded-full border border-white/12 bg-transparent px-2 text-[11px] font-bold text-slate-300 outline-none focus:border-aqua-300"
-                >
-                  {FREE_MODEL_GROUPS.map((g) => (
-                    <optgroup key={g.group} label={g.group}>
-                      {g.models.map((m) => (
-                        <option key={m.id} value={m.id} disabled={!isPro && !FREE_ALLOWED.has(m.id)}>
-                          {!isPro && !FREE_ALLOWED.has(m.id) ? `🔒 ${m.label}` : m.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                  {isPro && orModels.length > 0 && (
-                    <optgroup label={`🌐 OpenRouter — كل النماذج (${orModels.length})`}>
-                      {orModels
-                        .filter((m) => !ALL_IDS.has(m.id))
-                        .map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.free ? "🆓 " : ""}
-                            {m.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                  )}
-                </select>
+                <ModelSelector
+                  value={selection}
+                  isPro={isPro}
+                  orModels={orModels}
+                  onChange={changeSelection}
+                  onLocked={(o) => setLockedModel(o)}
+                />
                 <button
                   type="button"
                   onClick={() => (isPro ? fileRef.current?.click() : setProHint(true))}
@@ -2144,6 +2063,8 @@ export function ChatPage() {
         tier={tier === "v5" || tier === "v6" || tier === "v8" || tier === "max" ? tier : "v5"}
         initialPrompt={input.trim().slice(0, 600)}
       />
+
+      <UpgradeModal open={lockedModel !== null} modelLabel={lockedModel?.label ?? ""} locale={locale} onClose={() => setLockedModel(null)} />
 
       <VoiceCall
         open={call}

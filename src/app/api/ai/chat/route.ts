@@ -16,6 +16,8 @@ import {
   type ChatTurn,
 } from "@/lib/gemini";
 import { classifyTask } from "@/lib/task-router";
+import { checkModelAccess, parseSelection } from "@/lib/model-access";
+import { streamSelectedModel } from "@/lib/model-router";
 import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
 import { chatModeById } from "@/lib/chat-modes";
 import { DZ_IDENTITY, DZ_SCHOOL_ADDON, looksLikeSchoolwork } from "@/lib/dz-school";
@@ -37,15 +39,6 @@ import { getProfile } from "@/lib/usage";
 
 /* ---- Nexus AI v8.4: free OpenRouter ids + hidden no-filler prompt (inline, no extra file) ---- */
 const FREE_MODEL_IDS: ReadonlySet<string> = new Set(["openrouter/free", "qwen/qwen3.8-27b:free", "cohere/north-mini-code:free", "poolside/laguna-s-2.1:free", "poolside/laguna-xs-2.1:free", "nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-super-120b-a12b:free", "nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "thinkingmachines/inkling:free", "thinkingmachines/inkling-small:free", "apodex/apodex-1.1-mini:free", "google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free", "dots-studio/dots-3-note-preview:free", "liquid/lfm-2.5-2.6b:free", "inclusionai/ling-3.0-flash-sante:free", "stealth/space-bunny-alpha"]);
-/** free accounts: lighter models only (Pro unlocks all) */
-const FREE_PLAN_IDS: ReadonlySet<string> = new Set([
-  "openrouter/free",
-  "qwen/qwen3.8-27b:free",
-  "poolside/laguna-xs-2.1:free",
-  "nvidia/nemotron-3.5-lightning:free",
-  "google/gemma-4-26b-a4b-it:free",
-  "liquid/lfm-2.5-2.6b:free",
-]);
 function isFreeModel(v: unknown): v is string {
   return typeof v === "string" && FREE_MODEL_IDS.has(v);
 }
@@ -320,8 +313,12 @@ export async function POST(req: Request) {
     attachments?: unknown;
     textFiles?: unknown;
     deep?: boolean;
-    /** Nexus: free OpenRouter model id chosen in the dropdown */
+    /** Nexus: legacy OpenRouter model id (older clients). Ignored for free accounts. */
     freeModel?: unknown;
+    /** Model selector: gemini | huggingface | grok | openrouter (grok / openrouter = Pro only) */
+    provider?: unknown;
+    /** Model selector: provider-specific model id ("auto" = provider default) */
+    model?: unknown;
     v6?: boolean;
     /** Nexus AI v8.4 Pro: genius brain + AI team on every hard task */
     v8?: boolean;
@@ -434,6 +431,24 @@ export async function POST(req: Request) {
   ) {
     if (credit.tracked) await refundCredit(user.uid);
     return json(403, { code: "PRO_ONLY" });
+  }
+  // model gate: Grok + OpenRouter are Pro-only (the server is the real gate, the UI badge is cosmetic)
+  const selection = parseSelection(body.provider, body.model);
+  if (selection === "BAD") {
+    if (credit.tracked) await refundCredit(user.uid);
+    return json(400, { code: "BAD_PROVIDER" });
+  }
+  if (selection) {
+    const access = checkModelAccess(credit.plan, selection.provider);
+    if (!access.ok) {
+      if (credit.tracked) await refundCredit(user.uid);
+      return json(access.status, {
+        code: access.code,
+        message: access.message,
+        provider: access.provider,
+        upgradeUrl: "/app/upgrade",
+      });
+    }
   }
   // free accounts keep the original 15 requests / minute
   if (!isPro && !rateLimit(`aif:${user.uid}`, 15, 60_000).ok) {
@@ -561,15 +576,34 @@ export async function POST(req: Request) {
     const task = classifyTask(lastUser, parsed.files.length > 0);
     const voice = isPro && body.voice === true;
     // Nexus: a free OpenRouter model (default: openrouter/free) answers when a key exists; otherwise the classic engines run
+    // legacy `freeModel` (cached older clients) is honoured for Pro only; free accounts stay on Gemini
     const pickedModel: unknown = body.freeModel;
     const freeModel: string | undefined =
-      !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0 && (isFreeModel(pickedModel) || (isPro && isAnyOpenRouterModel(pickedModel))) && (process.env.OPENROUTER_API_KEY ?? "").trim()
-        ? isPro || FREE_PLAN_IDS.has(pickedModel)
-          ? pickedModel
-          : "openrouter/free"
+      isPro && !selection && !voice && !isBuildRequest(lastUser) && parsed.files.length === 0 && (isFreeModel(pickedModel) || isAnyOpenRouterModel(pickedModel)) && (process.env.OPENROUTER_API_KEY ?? "").trim()
+        ? pickedModel
         : undefined;
+    // explicit choice from the model selector: Grok / OpenRouter (Pro, gated above) or Hugging Face (free + Pro).
+    // Builds and attachments keep the built-in engines. If the chosen provider fails, Gemini answers instead.
+    let fellBackFrom: string | undefined;
+    const externalStream =
+      selection && selection.provider !== "gemini" && !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0
+        ? await streamSelectedModel({
+            selection,
+            system: NEXUS_SYSTEM + DZ_IDENTITY + (chatMode?.addon ?? "") + schoolBlock + memBlock,
+            messages: capped,
+            maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
+            onModel: (m) => {
+              usedModel = m;
+            },
+            onDone: saveAnswer,
+          }).catch((e) => {
+            console.error(`[chat] ${selection.provider} failed, falling back to Gemini:`, e instanceof Error ? e.message : String(e));
+            fellBackFrom = selection.provider;
+            return null;
+          })
+        : null;
     // opened first; if every free model is busy, the classic engines (Gemini...) answer instead of an error
-    const freeStream = freeModel
+    const freeStream = !externalStream && freeModel
       ? await streamFreeModel({
           model: freeModel,
           system: NEXUS_SYSTEM + DZ_IDENTITY + (chatMode?.addon ?? "") + schoolBlock,
@@ -581,15 +615,17 @@ export async function POST(req: Request) {
           onDone: saveAnswer,
         }).catch(() => null)
       : null;
-    const build = !freeStream && !voice && isPro && isBuildRequest(lastUser);
+    const build = !externalStream && !freeStream && !voice && isPro && isBuildRequest(lastUser);
     // v8: EVERY hard request (code edit, debugging, architecture, long docs…) gets the AI team
     // MAX: every non-build message also gets the full team treatment
-    const hard = !freeStream && !voice && v8 && !build && (max || chatMode?.hard === true || isHardRequest(lastUser, hasFiles));
+    const hard = !externalStream && !freeStream && !voice && v8 && !build && (max || chatMode?.hard === true || isHardRequest(lastUser, hasFiles));
     const onFail = async () => {
       if (credit.tracked) await refundCredit(user.uid);
       release();
     };
-    const stream = freeStream
+    const stream = externalStream
+      ? externalStream
+      : freeStream
       ? freeStream
       : voice
       ? await streamGemini({
@@ -708,6 +744,8 @@ export async function POST(req: Request) {
       "x-conversation-id": fixedConvId ?? "",
       "x-credits-remaining": String(credit.remaining),
       "x-plan": credit.plan,
+      ...(selection ? { "x-provider": externalStream ? selection.provider : "gemini" } : {}),
+      ...(fellBackFrom ? { "x-fallback-from": fellBackFrom } : {}),
       ...(isPro ? { "x-model": usedModel, "x-engine": (build || hard) && !(max && build) ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
     });
   } catch (e) {
