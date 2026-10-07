@@ -1,0 +1,14 @@
+rules_version = '2';
+// MERGE into your existing rules — do not replace them if this Firebase project is shared with other apps.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/images/{id} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['path', 'url', 'mime', 'prompt', 'bytes', 'createdAt'])
+        && request.resource.data.path.matches('users/' + uid + '/images/.*')
+        && request.resource.data.bytes <= 5242880;
+      allow update: if false;
+    }
+  }
+}

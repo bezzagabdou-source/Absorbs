@@ -131,6 +131,9 @@ export const bytesOf = (files: Record<string, string>): number =>
 
 class Fatal extends Error {}
 
+/** no bytes for this long = the stream is dead */
+const STALL_MS = 120_000;
+
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
     const t = setTimeout(resolve, ms);
@@ -248,9 +251,23 @@ async function generateFile(
       const dec = new TextDecoder();
       let acc = "";
       for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += dec.decode(value, { stream: true });
+        // stall guard: a stream that sends nothing for STALL_MS is cancelled and the attempt is retried (no more silent freezes)
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const stalled = new Promise<"stall">((resolve) => {
+          timer = setTimeout(() => resolve("stall"), STALL_MS);
+        });
+        const r = await Promise.race([reader.read(), stalled]);
+        clearTimeout(timer);
+        if (r === "stall") {
+          try {
+            await reader.cancel();
+          } catch {
+            /* already closed */
+          }
+          throw new Error("stalled");
+        }
+        if (r.done) break;
+        acc += dec.decode(r.value, { stream: true });
         onLive({ path: f.path, chars: acc.length, attempt }, f);
       }
       acc += dec.decode();

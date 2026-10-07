@@ -8,7 +8,8 @@
 export type ProviderId = "gemini" | "huggingface" | "grok" | "openrouter";
 export type PlanId = "free" | "pro";
 
-export const PROVIDERS: readonly ProviderId[] = ["gemini", "huggingface", "grok", "openrouter"];
+/** display order: Grok first, then OpenRouter, then Gemini, then open models */
+export const PROVIDERS: readonly ProviderId[] = ["grok", "openrouter", "gemini", "huggingface"];
 
 /** providers that need a Pro plan */
 export const PRO_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(["grok", "openrouter"]);
@@ -22,22 +23,23 @@ export interface ModelOption {
 }
 
 export const MODEL_CATALOG: readonly ModelOption[] = [
-  { provider: "gemini", id: "auto", label: "Gemini", hint: "Google Gemini" },
-  { provider: "huggingface", id: "auto", label: "Open models", hint: "Hugging Face" },
-  { provider: "grok", id: "grok-2-1212", label: "Grok 2", hint: "xAI" },
-  { provider: "grok", id: "grok-3", label: "Grok 3", hint: "xAI" },
   { provider: "grok", id: "grok-4", label: "Grok 4", hint: "xAI" },
-  { provider: "openrouter", id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet", hint: "via OpenRouter" },
+  { provider: "grok", id: "grok-3", label: "Grok 3", hint: "xAI" },
+  { provider: "grok", id: "grok-2-1212", label: "Grok 2", hint: "xAI" },
+  { provider: "openrouter", id: "openrouter/auto", label: "OpenRouter Auto — يوزّع المهام", hint: "يختار أنسب نموذج لكل سؤال" },
   { provider: "openrouter", id: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5", hint: "via OpenRouter" },
   { provider: "openrouter", id: "openai/gpt-4o", label: "GPT-4o", hint: "via OpenRouter" },
   { provider: "openrouter", id: "deepseek/deepseek-chat-v3.1", label: "DeepSeek V3.1", hint: "via OpenRouter" },
+  { provider: "openrouter", id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet", hint: "via OpenRouter" },
+  { provider: "gemini", id: "auto", label: "Gemini", hint: "Google Gemini" },
+  { provider: "huggingface", id: "auto", label: "Open models", hint: "Hugging Face" },
 ];
 
 export const PROVIDER_LABEL: Record<ProviderId, string> = {
-  gemini: "Gemini",
-  huggingface: "Open models (Hugging Face)",
   grok: "Grok (xAI)",
   openrouter: "OpenRouter — Pro models",
+  gemini: "Gemini",
+  huggingface: "Open models (Hugging Face)",
 };
 
 export interface ModelSelection {

@@ -26,6 +26,29 @@ import {
   type MegaFileRequest,
 } from "@/lib/mega";
 import { MAX_STUDIO_ADDON } from "@/lib/max-engine";
+import { streamSelectedModel } from "@/lib/model-router";
+
+/**
+ * Backup engines for the builder: if Gemini cannot start a stream (quota, outage, overload),
+ * Grok and then OpenRouter write the same plan / file instead, so one provider never freezes a build.
+ */
+async function streamBackup(system: string, messages: ChatTurn[], maxTokens: number): Promise<ReadableStream<string> | null> {
+  for (const provider of ["grok", "openrouter"] as const) {
+    try {
+      return await streamSelectedModel({
+        selection: { provider },
+        system,
+        messages,
+        maxTokens: Math.min(maxTokens, 16_000),
+        onModel: () => {},
+        onDone: () => {},
+      });
+    } catch (e) {
+      console.error(`[mega] backup ${provider} failed:`, e instanceof Error ? e.message : String(e));
+    }
+  }
+  return null;
+}
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // Hobby max. Vercel Pro: you may raise to 800 (then also raise REQUEST_* in lib/limits.ts)
@@ -80,17 +103,25 @@ export async function POST(req: Request): Promise<Response> {
       let best: MegaPlan | null = null;
       let extra = "";
       for (let attempt = 0; attempt < 3; attempt++) {
-        const stream = await streamGemini({
-          system: PLAN_SYSTEM + MAX_STUDIO_ADDON,
-          messages: [{ role: "user", text: planUserPrompt(prompt) + extra }],
-          tier: "pro",
-          primaryFirst: true,
-          mode: "speed",
-          lowThink: true,
-          task: "code",
-          temperature: 0.5,
-          maxTokens: PRO_OUTPUT_TOKENS,
-        });
+        const planMessages: ChatTurn[] = [{ role: "user", text: planUserPrompt(prompt) + extra }];
+        let stream: ReadableStream<string>;
+        try {
+          stream = await streamGemini({
+            system: PLAN_SYSTEM + MAX_STUDIO_ADDON,
+            messages: planMessages,
+            tier: "pro",
+            primaryFirst: true,
+            mode: "speed",
+            lowThink: true,
+            task: "code",
+            temperature: 0.5,
+            maxTokens: PRO_OUTPUT_TOKENS,
+          });
+        } catch (e) {
+          const backup = await streamBackup(PLAN_SYSTEM + MAX_STUDIO_ADDON, planMessages, PRO_OUTPUT_TOKENS);
+          if (!backup) throw e;
+          stream = backup;
+        }
         const plan = parsePlan(await readAll(stream));
         if (!plan) continue;
         if (!best || planTotalKb(plan) > planTotalKb(best)) best = plan;
@@ -154,18 +185,26 @@ export async function POST(req: Request): Promise<Response> {
     };
     const messages: ChatTurn[] = [{ role: "user", text: fileUserPrompt(request) }];
     try {
-      const base = await streamGemini({
-        system: FILE_SYSTEM + MAX_STUDIO_ADDON,
-        messages,
-        tier: "pro",
-        primaryFirst: true,
-        mode: "speed",
-        lowThink: true,
-        task: "code",
-        temperature: 0.6,
-        maxTokens: Math.min(MAX_OUTPUT_TOKENS, Math.max(16_000, Math.round(request.kb * 450))),
-      });
-      // if the file is cut by the token limit, it is continued (up to 8 rounds) inside this same request
+      const fileTokens = Math.min(MAX_OUTPUT_TOKENS, Math.max(16_000, Math.round(request.kb * 450)));
+      let base: ReadableStream<string> | null = null;
+      try {
+        base = await streamGemini({
+          system: FILE_SYSTEM + MAX_STUDIO_ADDON,
+          messages,
+          tier: "pro",
+          primaryFirst: true,
+          mode: "speed",
+          lowThink: true,
+          task: "code",
+          temperature: 0.6,
+          maxTokens: fileTokens,
+        });
+      } catch (e) {
+        const backup = await streamBackup(FILE_SYSTEM + MAX_STUDIO_ADDON, messages, fileTokens);
+        if (!backup) throw e;
+        return streamToResponse(backup, { "x-mega-max": String(MEGA_MAX_FILE), "x-engine": "backup" });
+      }
+      // if the file is cut by the token limit, it is continued (up to 12 rounds) inside this same request
       const stream = withAutoContinue(base, { system: FILE_SYSTEM + MAX_STUDIO_ADDON, messages, rounds: 12 });
       return streamToResponse(stream, { "x-mega-max": String(MEGA_MAX_FILE) });
     } catch (e) {

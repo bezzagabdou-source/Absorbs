@@ -3,6 +3,12 @@
 import { useEffect } from "react";
 import {
   Award,
+  Briefcase,
+  CalendarCheck,
+  Layers,
+  Scale,
+  ShieldCheck,
+  Rocket,
   Brain,
   GraduationCap,
   Globe,
@@ -48,6 +54,12 @@ const ENTRIES: readonly ToolEntry[] = [
   { id: "analysis", title: "تحليل بيانات", sub: "لوحة تفاعلية من بياناتك", icon: FlaskConical },
   { id: "mindmap", title: "خريطة ذهنية", sub: "خريطة تفاعلية قابلة للتوسيع", icon: LayoutTemplate },
   { id: "styles", title: "أسلوب الكتابة", sub: "اكتب بأسلوبك أو بنبرة تختارها", icon: PenLine },
+  { id: "flashcards", title: "بطاقات المراجعة", sub: "بطاقات + اختبار سريع من درسك", icon: Layers },
+  { id: "planner", title: "مخطّط الدراسة والأهداف", sub: "جدول أسبوعي مع مؤقّت تركيز", icon: CalendarCheck },
+  { id: "interview", title: "مدرّب المقابلات", sub: "محاكاة مقابلة عمل مع تقييم", icon: Briefcase },
+  { id: "bizplan", title: "خطة مشروع", sub: "دراسة جدوى بأرقام بالدينار", icon: Rocket },
+  { id: "debate", title: "المحاور الناقد", sub: "يختبر فكرتك بحجج الطرفين", icon: Scale },
+  { id: "factcheck", title: "تدقيق المعلومات", sub: "فحص الادعاءات ودرجة الثقة", icon: ShieldCheck },
   { id: "upload", title: "خيارات تحميل إضافية", sub: "صور وملفات PDF وكود", icon: Paperclip },
   { id: "personal", title: "الذكاء المخصّص", sub: "الذاكرة والسياق الخاصان بك", icon: Brain },
 ];

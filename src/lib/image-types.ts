@@ -53,6 +53,18 @@ export interface ImageReference {
   data: string;
 }
 
+/** Image edit ("remove this", "redesign this"): the picture is the reference, the prompt is the instruction. */
+export type ImageEditAction = "remove" | "redesign" | "change";
+export const IMAGE_EDIT_ACTIONS: readonly ImageEditAction[] = ["remove", "redesign", "change"];
+export interface ImageEditPoint {
+  /** 0..100, percent from the left / top of the picture */
+  x: number;
+  y: number;
+}
+export function isImageEditAction(v: unknown): v is ImageEditAction {
+  return v === "remove" || v === "redesign" || v === "change";
+}
+
 export interface ImageApiOk {
   image: { mime: string; data: string; model: string; ms: number };
 }

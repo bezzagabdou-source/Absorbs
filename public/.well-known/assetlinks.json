@@ -4,7 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.nexusai.dz",
-      "sha256_cert_fingerprints": ["PUT:YOUR:SHA256:FINGERPRINT:HERE"]
+      "sha256_cert_fingerprints": ["PUT:YOUR:SHA256:FROM:PWABUILDER:signing-key-info.txt"]
     }
   }
 ]

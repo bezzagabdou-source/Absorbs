@@ -1,6 +1,7 @@
 import { findGeminiKey } from "@/lib/gemini";
 import { findHuggingFaceKey } from "@/lib/huggingface";
-import type { ImageAspect, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
+import { findEnvKey } from "@/lib/openai-stream";
+import type { ImageAspect, ImageEditAction, ImageEditPoint, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
 
 /**
  * Photorealistic image engine.
@@ -257,6 +258,63 @@ async function compact(raw: RawImage): Promise<RawImage> {
   return raw;
 }
 
+/** Builds the instruction for an edit: change ONLY what was asked, keep everything else pixel-faithful. */
+export function buildEditPrompt(instruction: string, action: ImageEditAction, point?: ImageEditPoint): string {
+  const where = point
+    ? ` The target is the element located at about ${Math.round(point.x)}% from the left edge and ${Math.round(point.y)}% from the top edge of the picture (the element under that exact spot, including its whole outline).`
+    : "";
+  const what = instruction.trim();
+  const head =
+    action === "remove"
+      ? `EDIT THE ATTACHED IMAGE: completely remove the requested element and fill the space with a natural, seamless continuation of the surrounding background (matching texture, light, shadows and perspective). Leave no trace, no blur patch, no ghost outline.${where} Element to remove: ${what || "the element at the marked spot"}.`
+      : action === "redesign"
+        ? `EDIT THE ATTACHED IMAGE: redesign ONLY the requested element, in the same position, scale, perspective and lighting as the original.${where} New design requested: ${what || "a better, more polished design"}.`
+        : `EDIT THE ATTACHED IMAGE: apply exactly this change and nothing else.${where} Change requested: ${what}.`;
+  return `${head} Keep every other part of the picture identical: same people, faces, pose, composition, colours, framing and image quality. Do not add watermark, frame or text unless asked.`;
+}
+
+/** OpenRouter image models (chat/completions with image output) — extra engine, also used when Gemini is down. */
+const OPENROUTER_IMAGE_MODELS = ["google/gemini-2.5-flash-image", "google/gemini-3.1-flash-image-preview"];
+
+async function viaOpenRouterImage(
+  model: string,
+  key: string,
+  prompt: string,
+  timeoutMs: number,
+  ref?: ImageReference
+): Promise<RawImage> {
+  const t = withTimeout(timeoutMs);
+  try {
+    const content = ref
+      ? [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: `data:${ref.mime};base64,${ref.data}` } },
+        ]
+      : prompt;
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "X-Title": "Nexus AI",
+      },
+      body: JSON.stringify({ model, modalities: ["image", "text"], messages: [{ role: "user", content }] }),
+      signal: t.signal,
+      cache: "no-store",
+    });
+    if (!res.ok) throw new ImageError("FAILED", `openrouter ${model}: HTTP ${res.status}`);
+    const j = (await res.json()) as {
+      choices?: { message?: { images?: { image_url?: { url?: string } }[] } }[];
+    };
+    const url = j.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? "";
+    const m = /^data:(image\/[\w+.-]+);base64,([A-Za-z0-9+/=]+)$/.exec(url);
+    if (!m) throw new ImageError("FAILED", `openrouter ${model}: no image in response`);
+    return { mime: m[1], bytes: Buffer.from(m[2], "base64") };
+  } finally {
+    t.done();
+  }
+}
+
 export async function generateImage(opts: {
   prompt: string;
   tier: ImageTier;
@@ -264,9 +322,18 @@ export async function generateImage(opts: {
   style: ImageStyle;
   /** optional reference picture: only the Gemini image models can follow it */
   reference?: ImageReference;
+  /** edit mode: `reference` is the picture to edit and `prompt` is the instruction */
+  edit?: { action: ImageEditAction; point?: ImageEditPoint };
 }): Promise<GeneratedImage> {
   const started = Date.now();
-  const full = buildImagePrompt(opts.prompt, opts.style, opts.tier, opts.aspect);
+  let full = buildImagePrompt(opts.prompt, opts.style, opts.tier, opts.aspect);
+  if (opts.edit && opts.reference) {
+    // Gemini reads Arabic natively; the English twin removes any ambiguity for the other engines
+    const gemForEdit = findGeminiKey();
+    const en = await toEnglishIdea(opts.prompt, gemForEdit?.value);
+    const instr = en !== opts.prompt.trim() ? `${opts.prompt.trim()} (${en})` : opts.prompt.trim();
+    full = buildEditPrompt(instr, opts.edit.action, opts.edit.point);
+  }
   const gem = findGeminiKey();
   let fluxPrompt: string | undefined;
   const getFluxPrompt = async (): Promise<string> => {
@@ -291,6 +358,18 @@ export async function generateImage(opts: {
       if (Date.now() > deadline - 8_000) break;
       try {
         return await finish(await viaGemini(model, gem.value, full, perTry, opts.reference), model);
+      } catch (e) {
+        if (e instanceof ImageError && e.code === "BLOCKED") throw e;
+        lastError = e instanceof Error ? e.message : String(e);
+      }
+    }
+  }
+  const orKey = findEnvKey(["OPENROUTER_API_KEY"]);
+  if (orKey) {
+    for (const model of OPENROUTER_IMAGE_MODELS) {
+      if (Date.now() > deadline - 8_000) break;
+      try {
+        return await finish(await viaOpenRouterImage(model, orKey, full, perTry, opts.reference), `openrouter:${model}`);
       } catch (e) {
         if (e instanceof ImageError && e.code === "BLOCKED") throw e;
         lastError = e instanceof Error ? e.message : String(e);

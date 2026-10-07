@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -57,7 +58,6 @@ import { ModelSelector } from "@/components/app/model-selector";
 import { UpgradeModal } from "@/components/app/upgrade-modal";
 import { DEFAULT_SELECTION, isProProvider, loadSelection, saveSelection, type ModelOption, type ModelSelection } from "@/lib/model-access";
 import { Markdown } from "@/components/markdown";
-import { MessageSkeleton } from "@/components/ui/skeleton";
 import { ExportMenu } from "@/components/chat/export-menu";
 import { VoiceRecorder, VoiceSettings } from "@/components/chat/voice-recorder";
 import { DropOverlay, useFileDrop } from "@/components/chat/drop-overlay";
@@ -121,6 +121,9 @@ function getSpeech(): SpeechCtor | undefined {
   };
   return W.SpeechRecognition ?? W.webkitSpeechRecognition;
 }
+
+/** the conversation on screen survives leaving to the studio / other pages and closing the app */
+const ACTIVE_CONV_KEY = "nexus_active_conv";
 
 let msgCounter = 0;
 const nextId = () => ++msgCounter;
@@ -193,23 +196,99 @@ function splitNext(text: string): { body: string; next: string[] } {
 /* One message — memoised so only the streaming bubble re-renders      */
 /* ------------------------------------------------------------------ */
 
-function ThinkingOrb({ label }: { label: string }) {
-  const steps = ["يحلل سؤالك", "يجمع الأفكار", "يكتب الإجابة"];
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setI((v) => (v + 1) % steps.length), 1600);
-    return () => clearInterval(id);
-  }, [steps.length]);
+/** Instant, tiny "typing" indicator: no long message, no skeleton — the answer streams in right after it. */
+function TypingDots({ label }: { label: string }) {
   return (
-    <span className="flex items-center gap-3 py-1.5 text-sm text-slate-300">
-      <span className="relative grid h-7 w-7 place-items-center">
-        <span className="absolute inset-0 animate-ping rounded-full bg-brand-400/30" />
-        <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-amber-300 border-e-brand-300" style={{ animationDuration: "1.1s" }} />
-        <Sparkles className="h-3.5 w-3.5 text-brand-300" />
-      </span>
-      <span className="font-semibold">{label} <span className="text-slate-500">· {steps[i]}…</span></span>
+    <span className="flex items-center gap-1.5 py-2" role="status" aria-label={label}>
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-2 w-2 animate-bounce rounded-full bg-gradient-to-br from-brand-400 to-aqua-400"
+          style={{ animationDelay: `${i * 120}ms`, animationDuration: "0.8s" }}
+        />
+      ))}
     </span>
   );
+}
+
+/** Long-press (touch) / right-click (desktop) on a message → floating "copy" button. */
+function useLongPressCopy(text: string) {
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+
+  const clear = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event): void => {
+      if (e.target instanceof Node && box.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const auto = setTimeout(() => setOpen(false), 5000);
+    window.addEventListener("pointerdown", close, true);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      clearTimeout(auto);
+      window.removeEventListener("pointerdown", close, true);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open]);
+
+  useEffect(() => clear, [clear]);
+
+  const handlers = {
+    onPointerDown: (e: ReactPointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      start.current = { x: e.clientX, y: e.clientY };
+      clear();
+      timer.current = setTimeout(() => {
+        setDone(false);
+        setOpen(true);
+        try {
+          navigator.vibrate?.(12);
+        } catch {
+          /* no haptics */
+        }
+      }, 450);
+    },
+    onPointerMove: (e: ReactPointerEvent) => {
+      const s = start.current;
+      if (s && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) clear();
+    },
+    onPointerUp: clear,
+    onPointerCancel: clear,
+    onPointerLeave: clear,
+    onContextMenu: () => {
+      setDone(false);
+      setOpen(true);
+    },
+  };
+
+  const pill = open ? (
+    <div ref={box} className="absolute -top-12 start-1 z-30 flex items-center gap-1 rounded-2xl border border-white/15 bg-ink-800/95 p-1 shadow-xl backdrop-blur">
+      <button
+        type="button"
+        onClick={async () => {
+          if (await copyText(text)) {
+            setDone(true);
+            setTimeout(() => setOpen(false), 700);
+          }
+        }}
+        className="inline-flex min-h-10 items-center gap-1.5 rounded-xl px-3.5 text-[13px] font-black text-white transition active:scale-95 hover:bg-white/10"
+      >
+        {done ? <Check className="h-4 w-4 text-emerald-300" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+        {done ? "تم النسخ" : "نسخ"}
+      </button>
+    </div>
+  ) : null;
+
+  return { handlers, pill };
 }
 
 
@@ -381,6 +460,7 @@ const MessageRow = memo(function MessageRow({
   const [speaking, setSpeaking] = useState(false);
   const [showCode, setShowCode] = useState(false);
   const isUser = m.role === "user";
+  const press = useLongPressCopy(m.content);
   const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
   const done = !isUser && !m.pending && !!body;
   const html = useMemo(() => (done && pro ? extractHtml(body) : null), [done, pro, body]);
@@ -404,7 +484,8 @@ const MessageRow = memo(function MessageRow({
         transition={{ duration: 0.2 }}
         className="flex w-full justify-end gap-2.5"
       >
-        <div className="max-w-[86%] min-w-0 sm:max-w-[78%]">
+        <div className="relative max-w-[86%] min-w-0 sm:max-w-[78%]" {...press.handlers}>
+          {press.pill}
           <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-white shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
             <p className="whitespace-pre-wrap break-words">{m.content}</p>
             {m.files && m.files.length > 0 && (
@@ -438,12 +519,12 @@ const MessageRow = memo(function MessageRow({
         ب
       </span>
 
-      <div className="min-w-0 flex-1">
-        <div className="text-[16px] leading-[1.85] text-slate-100">
+      <div className="relative min-w-0 flex-1">
+        {press.pill}
+        <div className="text-[16px] leading-[1.85] text-slate-100" {...press.handlers}>
           {m.pending && !m.content ? (
             <div>
-              <ThinkingOrb label={thinking} />
-              <MessageSkeleton lines={3} avatar={false} className="mt-3 max-w-md opacity-80" />
+              <TypingDots label={thinking} />
             </div>
           ) : pro && m.pending && (buildIntent || body.includes("```")) ? (
             // while building: ONLY the thinking card (no long message, no raw code)
@@ -603,6 +684,8 @@ export function ChatPage() {
   const [mode, setMode] = useState<ChatModeId | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [imgOpen, setImgOpen] = useState(false);
+  const [imgPrompt, setImgPrompt] = useState("");
+  const [imgAuto, setImgAuto] = useState(0);
   const [selection, setSelection] = useState<ModelSelection>(DEFAULT_SELECTION);
   const [lockedModel, setLockedModel] = useState<ModelOption | null>(null);
   /** MAX / Pro: every OpenRouter model (loaded once from /api/ai/models) */
@@ -785,6 +868,7 @@ export function ChatPage() {
     abortRef.current = null;
     setMsgs([]);
     setConvId(null);
+    try { localStorage.removeItem(ACTIVE_CONV_KEY); } catch {}
     setError(null);
     setStreaming(false);
     setDrawer(false);
@@ -852,6 +936,9 @@ export function ChatPage() {
       setDrawer(false);
       try {
         const res = await authFetch(`/api/conversations/${id}`);
+        if (res.status === 404) {
+          try { localStorage.removeItem(ACTIVE_CONV_KEY); } catch {}
+        }
         if (!res.ok || seq !== openSeq.current) return;
         const data = (await res.json()) as {
           messages: { role: string; content: string; createdAt?: string }[];
@@ -887,6 +974,21 @@ export function ChatPage() {
   useEffect(() => {
     if (wantedConv && user) void openConv(wantedConv);
   }, [wantedConv, user, openConv]);
+
+  // remember the open conversation; restore it when the chat page mounts again (studio → back, app closed → reopened)
+  useEffect(() => {
+    if (!convId) return;
+    try { localStorage.setItem(ACTIVE_CONV_KEY, convId); } catch {}
+  }, [convId]);
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !user || wantedConv || searchParams.get("q")) return;
+    restoredRef.current = true;
+    try {
+      const id = localStorage.getItem(ACTIVE_CONV_KEY);
+      if (id && /^[\w-]{6,80}$/.test(id)) void openConv(id);
+    } catch {}
+  }, [user, wantedConv, searchParams, openConv]);
 
   // open a ready-made prompt via /app?q=... (used by the "try it" buttons of the v8 tour)
   const wantedQ = searchParams.get("q");
@@ -935,21 +1037,20 @@ export function ChatPage() {
       const sendFiles = retry ? lastFilesRef.current : baseOverride ? [] : files;
       const content = text.trim() || (sendFiles.length > 0 ? pro.defaultAsk : "");
       if (!content || streaming) return;
-      // v8: image generation is not available yet — answer instantly, spend no credit
+      // "generate me an image": open the Image Studio and start at once (Pro), or explain politely (Free)
       if (!retry && !baseOverride && IMAGE_INTENT.test(content)) {
         setInput("");
         setNotice(null);
         setError(null);
-        setMsgs([
-          ...msgs,
-          { id: nextId(), role: "user", content },
-          {
-            id: nextId(),
-            role: "assistant",
-            content:
-              "🖼️ **توليد الصور غير متوفر حاليًا.**\n\nنشتغل عليه، وأول ما يتفعّل نعلمك. في الأثناء أقدر نصنعلك شعارًا أو خلفية متحرّكة أو واجهة أو موقعًا أو لعبة كاملة تعاينها مباشرة.",
-          },
-        ]);
+        const note = isPro
+          ? "🖼️ **فتحتلك استوديو الصور وبدأ التوليد.** تقدر تعدّل أي صورة بعد ما تجهز: انقر على أي عنصر لحذفه أو إعادة تصميمه."
+          : "🖼️ **توليد الصور ضمن اشتراك Pro.** رقِّ حسابك وتولّد صور واقعية بالعربية، وتعدّلها بنقرة.";
+        setMsgs([...msgs, { id: nextId(), role: "user", content }, { id: nextId(), role: "assistant", content: note }]);
+        if (isPro) {
+          setImgPrompt(content.slice(0, 600));
+          setImgAuto((n) => n + 1);
+          setImgOpen(true);
+        }
         return;
       }
       lastTextRef.current = text.trim();
@@ -2059,9 +2160,13 @@ export function ChatPage() {
       />
       <ImageStudio
         open={imgOpen}
-        onClose={() => setImgOpen(false)}
+        onClose={() => {
+          setImgOpen(false);
+          setImgPrompt("");
+        }}
         tier={tier === "v5" || tier === "v6" || tier === "v8" || tier === "max" ? tier : "v5"}
-        initialPrompt={input.trim().slice(0, 600)}
+        initialPrompt={imgPrompt || input.trim().slice(0, 600)}
+        autoStart={imgAuto}
       />
 
       <UpgradeModal open={lockedModel !== null} modelLabel={lockedModel?.label ?? ""} locale={locale} onClose={() => setLockedModel(null)} />

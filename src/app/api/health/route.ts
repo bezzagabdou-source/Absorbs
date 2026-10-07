@@ -23,11 +23,24 @@ export async function GET() {
       database = { ok: false, error: safeDetail(e) };
     }
   }
+  // which AI engines have a key (names only, never values)
+  const has = (...names: string[]) => names.some((n) => (process.env[n] ?? "").trim().length > 0);
+  const engines = {
+    gemini: Boolean(key),
+    grok: has("GROK_API_KEY", "XAI_API_KEY"),
+    openrouter: has("OPENROUTER_API_KEY"),
+    huggingface: has("HF_TOKEN", "HUGGINGFACE_API_KEY"),
+    claude: has("ANTHROPIC_API_KEY"),
+    deepseek: has("DEEPSEEK_API_KEY"),
+    groq: has("GROQ_API_KEY"),
+  };
   const ok = database.ok && Boolean(key);
   return Response.json(
     {
       ok,
       database,
+      engines,
+      enginesOn: Object.values(engines).filter(Boolean).length,
       gemini: key ? { ok: true, variable: key.name } : { ok: false, error: "No GEMINI_API_KEY variable found" },
     },
     { status: ok ? 200 : 500 }

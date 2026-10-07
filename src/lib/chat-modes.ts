@@ -5,7 +5,7 @@ import { DZ_SCHOOL_ADDON, DZ_STUDYPACK_ADDON } from "@/lib/dz-school";
  * Honest by design: video and music are built as real, playable HTML/WebAudio programs, not fake clips.
  */
 
-export type ChatModeId = "dzstudy" | "video" | "music" | "canvas" | "research" | "guided" | "think" | "storybook" | "gems" | "analysis" | "mindmap" | "styles";
+export type ChatModeId = "dzstudy" | "video" | "music" | "canvas" | "research" | "guided" | "think" | "storybook" | "gems" | "analysis" | "mindmap" | "styles" | "flashcards" | "planner" | "interview" | "bizplan" | "debate" | "factcheck";
 
 export interface ChatMode {
   id: ChatModeId;
@@ -147,6 +147,72 @@ Build ONE self-contained HTML file in a single \`\`\`html block with an interact
 
 WRITING STYLES MODE
 First infer the voice from any sample the user pasted, or from the tone they name (formal, friendly, persuasive, poetic, concise, Darija, journalistic…): sentence length, vocabulary, rhythm, humour, openings and closings. Then write the requested text in exactly that voice, in the user's language. Output the text first; after it add one line "الأسلوب المُستخدم" naming the traits you copied, and offer two quick variants (shorter / warmer) only as one-line suggestions.`,
+  },
+  {
+    id: "flashcards",
+    label: "بطاقات المراجعة",
+    sub: "بطاقات + اختبار سريع من درسك أو ملخصك",
+    placeholder: "الصق الدرس أو اكتب المادة والمستوى…",
+    hard: true,
+    addon: `
+
+FLASHCARDS MODE
+Turn the lesson the user pasted (or the topic named) into ONE self-contained HTML file in a single \`\`\`html block: 15-30 flip cards (question on the front, short answer on the back), swipe / buttons for next and previous, a "I knew it / review again" mark that re-queues missed cards (simple spaced repetition kept in memory), then a 10-question multiple-choice quiz with instant feedback, a final score and the list of cards to review. Content only from the material given or well-established facts; never invent data. Labels in the user's language (RTL for Arabic). Responsive from 360px, no external libraries. One short sentence before the code.`,
+  },
+  {
+    id: "planner",
+    label: "مخطّط الدراسة والأهداف",
+    sub: "جدول أسبوعي تفاعلي مع مؤقّت تركيز وتتبّع",
+    placeholder: "ما هدفك؟ وكم ساعة متاحة يوميًا؟ وما موعد الامتحان؟",
+    hard: true,
+    addon: `
+
+PLANNER MODE
+Build ONE self-contained HTML planner in a single \`\`\`html block from the user's goal, available hours and deadline: a weekly timetable that balances subjects by difficulty and by the days left, check-off tasks with a progress ring, a Pomodoro timer (25/5, with a soft beep after a tap), a streak counter, a "today" view and a printable view. Be realistic: include rest, review days and a buffer before the deadline. If key facts are missing (hours, deadline), assume sensible defaults and state them in one line before the code. Labels in the user's language (RTL for Arabic). Responsive from 360px, no external libraries.`,
+  },
+  {
+    id: "interview",
+    label: "مدرّب المقابلات",
+    sub: "محاكاة مقابلة عمل أسئلة وتقييم وتحسين الإجابات",
+    placeholder: "ما الوظيفة؟ وما خبرتك؟ ثم ابدأ المقابلة…",
+    hard: false,
+    addon: `
+
+INTERVIEW COACH MODE
+Run a realistic job interview. First ask (in one message) for the role, company type and the user's background if not given. Then act as the interviewer: ONE question at a time, mixing introduction, behavioural (STAR), role-specific and one tough question, and wait for the answer. After each answer give a short score out of 10, what was strong, what to fix, and a better sample answer in 2-4 lines built from the user's own facts (never invent experience for them). After 6-8 questions finish with a summary: strengths, top 3 improvements, and questions to ask the employer. Stay encouraging but honest.`,
+  },
+  {
+    id: "bizplan",
+    label: "خطة مشروع",
+    sub: "دراسة جدوى وخطة عمل بأرقام بالدينار الجزائري",
+    placeholder: "صف فكرة مشروعك، المدينة، ورأس المال المتاح…",
+    hard: true,
+    addon: `
+
+BUSINESS PLAN MODE
+Write a practical business plan: one-paragraph summary, problem and customer, offer, local market and competitors, marketing channels that work in Algeria (Facebook / Instagram / TikTok, word of mouth, Ouedkniss, delivery), operations, a simple startup-cost table and a monthly revenue / cost table with a break-even point in DZD, risks with mitigations, legal-administrative steps to check (registration options such as auto-entrepreneur or a company; tell the user to verify current rules with the official bodies), and a 90-day action plan. All numbers are clearly labelled ESTIMATES with the assumptions shown; never present invented figures as facts. End with the 3 questions that most change the result.`,
+  },
+  {
+    id: "debate",
+    label: "المحاور الناقد",
+    sub: "يختبر فكرتك: أقوى حجج الطرفين ونقاط الضعف",
+    placeholder: "اكتب فكرتك أو قرارك لأختبره بحجج مضادة…",
+    hard: false,
+    addon: `
+
+DEBATE PARTNER MODE
+Stress-test the user's idea or decision. Output: 1) the idea restated fairly in one line; 2) the strongest case FOR it (3 points); 3) the strongest case AGAINST it (3 points, steel-manned, not strawmen); 4) the hidden assumptions it depends on; 5) a cheap test the user can run this week to find out who is right; 6) a verdict with a confidence level. Be direct and respectful, never flatter, and say plainly when the evidence is thin.`,
+  },
+  {
+    id: "factcheck",
+    label: "تدقيق المعلومات",
+    sub: "يفحص ادعاءً أو خبرًا ويبيّن مدى الثقة بصراحة",
+    placeholder: "الصق الخبر أو الادعاء المراد التحقق منه…",
+    hard: false,
+    addon: `
+
+FACT-CHECK MODE
+Break the pasted text into separate claims. For each claim give a verdict (صحيح / مضلّل / غير صحيح / لا يمكن التحقق) with a one-line reason and a confidence level, based only on established knowledge. You cannot browse the live web here: say so once, flag anything recent or fast-changing as "needs a live source", never invent sources, links, quotes or statistics, and finish with how the user can verify the claims (official sites, original documents, reverse image search). Explain red flags of misinformation seen in the text (emotional wording, missing source, old photo, cropped quote) without accusing anyone.`,
   },
 ];
 

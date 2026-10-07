@@ -7,6 +7,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "preflight": "node scripts/preflight.mjs",
     "db:push": "drizzle-kit push",
     "vercel-build": "next build"
   },
@@ -42,7 +43,7 @@
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
   },
-  "version": "9.3.0",
+  "version": "9.9.0",
   "engines": {
     "node": ">=20"
   }

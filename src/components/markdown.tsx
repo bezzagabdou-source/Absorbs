@@ -8,6 +8,7 @@ import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import "katex/dist/katex.min.css";
 import { CodeBlock } from "@/components/code-block";
+import { PromptDraft } from "@/components/prompt-draft";
 
 function textOf(node: ReactNode): string {
   if (typeof node === "string") return node;
@@ -42,6 +43,7 @@ export function Markdown({
         const props = el.props as { className?: string; children?: ReactNode };
         const lang = /language-([\w+-]+)/.exec(props.className ?? "")?.[1] ?? "";
         const code = textOf(props.children).replace(/\n$/, "");
+        if (lang === "prompt") return <PromptDraft text={code} />;
         return (
           <CodeBlock lang={lang} code={code} pro={pro}>
             {props.children}
