@@ -68,12 +68,16 @@ export function buildImagePrompt(
   aspect: ImageAspect
 ): string {
   const subject = idea.trim();
+  const arabicText = /[\u0600-\u06FF]/.test(subject)
+    ? "If the request asks for written text inside the picture, render that Arabic text EXACTLY as written: right-to-left, correctly connected letters, no missing or swapped letters, large and legible."
+    : "";
   // the user's subject comes first and is repeated as a hard requirement, so the style text can never replace it
   const parts = [
     `MAIN SUBJECT (draw exactly this, nothing else, no random substitutes): ${subject}.`,
     STYLE_TEXT[style],
     TIER_TEXT[tier],
     `Aspect ratio ${aspect}.`,
+    arabicText,
     NEGATIVE,
     `Every object, person, colour, place and text mentioned in the main subject must be clearly visible.`,
   ];

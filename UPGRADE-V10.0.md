@@ -26,3 +26,15 @@ npm install && npm run typecheck && npm run dev
 ```
 Test: add `REPLICATE_API_TOKEN` or use Veo → /app/studio/video (enhance → create → play → download);
 /app/workspace (PDF + zip + a link → ask → check citations); Ctrl+K → "وكيل المبرمج".
+
+## v10.0 (part 2) — open to free, inline images, new look
+- **Free accounts now get**: files/PDF/image upload, tool modes (Canvas, Deep Research, agents…), voice call + mic, image generation (fast engine, 10/min),
+  all tools, Video Studio (1 render / 3 min), File Workspace. **Still Pro**: chat models v8 and MAX (and Grok/OpenRouter, memory, team engines).
+  Free keeps the free-tier model strength; the Pro tier is used only when a picture/PDF is attached (only it can read files).
+- **Images are drawn inside the chat** ("ولّد لي صورة ..."): `src/lib/inline-image.ts` + `img` renderer in `markdown.tsx` (blob URLs, download button).
+  Arabic requests are translated for FLUX engines and Arabic text inside pictures gets an exact-spelling directive (`buildImagePrompt`).
+- **Removed** the long "فريق الذكاء…" message (and the ✅ progress lines) in `gemini.ts`; team drafting wait 55s → 30s.
+- **Three typing dots → a spinning aurora ring + sweep bar** (`think-orb`, `think-bar`).
+- **Call button**: animated waveform pill (`call-button.tsx`), ring pulse while in a call.
+- **New skin "midnight aurora"** (dark theme only): ink base, drifting indigo/terracotta/teal aurora, dot grid; light theme untouched.
+- Cost note: free image/video/workspace calls use your API keys. Tune the limits in `api/ai/image|video|workspace/route.ts`.

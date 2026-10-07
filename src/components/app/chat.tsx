@@ -86,6 +86,8 @@ import {
   extractHtml,
   type PendingFile,
 } from "@/lib/attachments";
+import { CallButton } from "@/components/chat/call-button";
+import { generateInlineImage, INLINE_IMAGE_ERRORS } from "@/lib/inline-image";
 
 /** v8: "generate me an image" requests (the image engine is not available yet). */
 const IMAGE_INTENT =
@@ -199,14 +201,9 @@ function splitNext(text: string): { body: string; next: string[] } {
 /** Instant, tiny "typing" indicator: no long message, no skeleton — the answer streams in right after it. */
 function TypingDots({ label }: { label: string }) {
   return (
-    <span className="flex items-center gap-1.5 py-2" role="status" aria-label={label}>
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="h-2 w-2 animate-bounce rounded-full bg-gradient-to-br from-brand-400 to-aqua-400"
-          style={{ animationDelay: `${i * 120}ms`, animationDuration: "0.8s" }}
-        />
-      ))}
+    <span className="flex items-center gap-3 py-2" role="status" aria-label={label}>
+      <span className="think-orb" aria-hidden />
+      <span className="think-bar" aria-hidden />
     </span>
   );
 }
@@ -784,15 +781,11 @@ export function ChatPage() {
   // "voice call" can also be started from the command palette (Ctrl+K)
   useEffect(() => {
     const open = () => {
-      if (!isPro) {
-        setProHint(true);
-        return;
-      }
       setCall(true);
     };
     window.addEventListener("barq:voice-call", open);
     return () => window.removeEventListener("barq:voice-call", open);
-  }, [isPro]);
+  }, []);
   // a Pro account never runs on the free engine: 4 → 5
   useEffect(() => {
     if (isPro && tier === "v4") setTier("v5");
@@ -1054,20 +1047,30 @@ export function ChatPage() {
       const sendFiles = retry ? lastFilesRef.current : baseOverride ? [] : files;
       const content = text.trim() || (sendFiles.length > 0 ? pro.defaultAsk : "");
       if (!content || streaming) return;
-      // "generate me an image": open the Image Studio and start at once (Pro), or explain politely (Free)
+      // "generate me an image": the picture is drawn right here in the chat (free + Pro)
       if (!retry && !baseOverride && IMAGE_INTENT.test(content)) {
         setInput("");
         setNotice(null);
         setError(null);
-        const note = isPro
-          ? "🖼️ **فتحتلك استوديو الصور وبدأ التوليد.** تقدر تعدّل أي صورة بعد ما تجهز: انقر على أي عنصر لحذفه أو إعادة تصميمه."
-          : "🖼️ **توليد الصور ضمن اشتراك Pro.** رقِّ حسابك وتولّد صور واقعية بالعربية، وتعدّلها بنقرة.";
-        setMsgs([...msgs, { id: nextId(), role: "user", content }, { id: nextId(), role: "assistant", content: note }]);
-        if (isPro) {
-          setImgPrompt(content.slice(0, 600));
-          setImgAuto((n) => n + 1);
-          setImgOpen(true);
-        }
+        const aid = nextId();
+        setMsgs((m) => [...m, { id: nextId(), role: "user", content }, { id: aid, role: "assistant", content: "", pending: true }]);
+        stickRef.current = true;
+        void generateInlineImage(authFetch, content).then((r) => {
+          const alt = content.slice(0, 80).replace(/[\[\]()]/g, " ");
+          setMsgs((m) =>
+            m.map((x) =>
+              x.id === aid
+                ? {
+                    ...x,
+                    pending: false,
+                    content: r.ok
+                      ? `![${alt}](${r.url})\n\n*رُسمت في ${(r.ms / 1000).toFixed(1)} ثانية. لتعديل عنصر فيها أو تغيير الأسلوب افتح «إنشاء صور» من زر +.*`
+                      : `⚠️ ${INLINE_IMAGE_ERRORS[r.code] ?? INLINE_IMAGE_ERRORS.FAILED}`,
+                  }
+                : x
+            )
+          );
+        });
         return;
       }
       lastTextRef.current = text.trim();
@@ -1142,7 +1145,7 @@ export function ChatPage() {
           body: JSON.stringify({
             conversationId: convId,
             messages: [...history, { role: "user", content }],
-            ...(isPro && sendFiles.length > 0
+            ...(sendFiles.length > 0
               ? {
                   attachments: sendFiles
                     .filter((f) => f.data)
@@ -1157,7 +1160,7 @@ export function ChatPage() {
             model: selection.model ?? "auto",
             ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
             ...(isPro && tier === "v6" ? { v6: true } : {}),
-            ...(isPro && mode ? { mode } : {}),
+            ...(mode ? { mode } : {}),
             ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
           }),
           signal: controller.signal,
@@ -1260,7 +1263,7 @@ export function ChatPage() {
                   messages: [...history, { role: "user", content }],
                   continueFrom: acc,
                   v6: tier === "v6",
-                  ...(isPro && mode ? { mode } : {}),
+                  ...(mode ? { mode } : {}),
                   ...(tier === "v8" || tier === "max" ? { v8: true } : {}),
                   ...(tier === "max" ? { max: true } : {}),
                 }),
@@ -1395,10 +1398,6 @@ export function ChatPage() {
 
   const addFiles = useCallback(
     async (list: FileList | File[]) => {
-      if (!isPro) {
-        setProHint(true);
-        return;
-      }
       setNotice(null);
       let cur = files;
       for (const f of Array.from(list)) {
@@ -1419,7 +1418,7 @@ export function ChatPage() {
         setFiles(cur);
       }
     },
-    [isPro, files, pro]
+    [files, pro]
   );
 
   const fileDrop = useFileDrop((list) => void addFiles(list));
@@ -1434,10 +1433,6 @@ export function ChatPage() {
   };
 
   const beginListening = useCallback(() => {
-    if (!isPro) {
-      setProHint(true);
-      return;
-    }
     const Ctor = getSpeech();
     if (!Ctor) return;
     stopSpeaking();
@@ -1587,7 +1582,7 @@ export function ChatPage() {
   return (
     <div
       className="relative flex h-full"
-      {...(isPro ? fileDrop.bind : {})}
+      {...fileDrop.bind}
     >
       <DropOverlay show={fileDrop.dragging} />
       {/* desktop conversations */}
@@ -2024,7 +2019,7 @@ export function ChatPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => (isPro ? fileRef.current?.click() : setProHint(true))}
+                  onClick={() => fileRef.current?.click()}
                   aria-label={pro.attach}
                   title={pro.attach}
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-white/8 hover:text-brand-300 active:scale-90"
@@ -2043,21 +2038,7 @@ export function ChatPage() {
                 >
                   <Plus className="h-4 w-4" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => (isPro ? setCall(true) : setProHint(true))}
-                  aria-pressed={call}
-                  aria-label="مكالمة صوتية"
-                  title="مكالمة صوتية مباشرة: تكلّم مع Nexus AI v8.4 ويرد عليك بصوته"
-                  className={cn(
-                    "grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-90",
-                    call
-                      ? "animate-pulse bg-aqua-400/25 text-aqua-200 ring-1 ring-aqua-300/50"
-                      : "text-slate-400 hover:bg-white/8 hover:text-aqua-300"
-                  )}
-                >
-                  <Headphones className="h-4 w-4" />
-                </button>
+                <CallButton active={call} onClick={() => setCall(true)} />
                 {isPro && (tier === "v5" || tier === "v8" || tier === "max") && (
                   <button
                     type="button"
@@ -2148,17 +2129,12 @@ export function ChatPage() {
       <ToolsMenu
         open={toolsOpen}
         onClose={() => setToolsOpen(false)}
-        isPro={isPro}
+        isPro
         activeMode={mode}
         onSelect={(id: ToolMenuId) => {
           setToolsOpen(false);
           if (id === "upload") {
-            if (isPro) fileRef.current?.click();
-            else setProHint(true);
-            return;
-          }
-          if (!isPro) {
-            router.push("/app/upgrade");
+            fileRef.current?.click();
             return;
           }
           if (id === "personal") {

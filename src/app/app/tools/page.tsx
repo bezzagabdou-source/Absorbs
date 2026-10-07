@@ -44,16 +44,7 @@ export default function ToolsPage() {
               key={tool.id}
               tool={tool}
               index={i}
-              suffix={
-                isPro ? (
-                  t.toolsSec.open
-                ) : (
-                  <>
-                    <Lock className="h-3.5 w-3.5 text-amber-300" />
-                    {pro.locked}
-                  </>
-                )
-              }
+              suffix={t.toolsSec.open}
             />
           ))}
           <div

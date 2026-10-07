@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clapperboard, Crown, Download, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { Clapperboard, Download, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useCredits } from "@/components/app/app-shell";
 import { trackEvent } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
@@ -36,8 +34,6 @@ const ASPECTS: { id: Aspect; label: string }[] = [
 
 export function VideoStudio() {
   const { authFetch } = useAuth();
-  const { profile } = useCredits();
-  const isPro = profile?.plan === "pro";
 
   const [prompt, setPrompt] = useState("");
   const [aspect, setAspect] = useState<Aspect>("16:9");
@@ -173,13 +169,6 @@ export function VideoStudio() {
         </p>
       </header>
 
-      {!isPro && (
-        <Link href="/app/upgrade" className="gold-border mb-5 flex items-center gap-3 rounded-2xl p-4 text-sm font-black text-white">
-          <Crown className="h-5 w-5 text-gold-300" />
-          توليد الفيديو لمشتركي Pro. فعّل Pro للبدء.
-        </Link>
-      )}
-
       <div className="neo-panel grid gap-5 rounded-3xl p-4 sm:p-6 lg:grid-cols-[1.2fr_1fr]">
         <div className="flex min-w-0 flex-col gap-3">
           <label htmlFor="vprompt" className="text-sm font-black text-slate-200">وصف المشهد</label>
@@ -271,7 +260,7 @@ export function VideoStudio() {
           <button
             type="button"
             onClick={() => void generate()}
-            disabled={!isPro || running || prompt.trim().length < 5}
+            disabled={running || prompt.trim().length < 5}
             className="btn-primary mt-auto inline-flex items-center justify-center gap-2 px-5 py-3 text-sm"
           >
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}

@@ -30,7 +30,7 @@ type Slot =
   | { id: number; status: "error"; code: string };
 
 const ERROR_TEXT: Record<string, string> = {
-  PRO_ONLY: "توليد الصور متاح لمشتركي Pro.",
+  PRO_ONLY: "هذه الميزة غير متاحة الآن لحسابك.",
   BLOCKED: "رفض النموذج الوصف لأسباب السلامة. غيّر الصياغة وجرّب مجددًا.",
   NO_PROVIDER: "لم تُضبط مفاتيح توليد الصور على الخادم بعد (GEMINI_API_KEY).",
   RATE: "طلبات كثيرة خلال دقيقة. انتظر قليلًا ثم أعد المحاولة.",

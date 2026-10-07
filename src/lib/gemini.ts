@@ -1291,24 +1291,13 @@ export function ensembleStream(
         const lastText = opts.messages[opts.messages.length - 1]?.text ?? "";
         const studio =
           opts.kind === "build" && atts.length === 0 && members.length > 0 && (opts.site === true || isSiteRequest(lastText));
-        if (!studio) put(
-          opts.kind === "hard"
-            ? `> 🧠 Nexus AI v8.4 فعّل **فريق الذكاء الاصطناعي**، وكل واحد بتخصصه: ${names.join(" + ")} — يحلّون المهمة معًا ثم يدمجون أقوى إجابة…\n\n`
-            : `> ⚡ فريق Nexus AI v8.4 يشتغل، وكل محرّك بتخصصه: **${names.join(" + ")}** — كل واحد يبني نسخته ثم يندمجون في نتيجة واحدة أقوى…\n\n`
-        );
-
-        const MS = Number(process.env.BARQ_DRAFT_MS) > 5000 ? Number(process.env.BARQ_DRAFT_MS) : opts.epic ? 40_000 : 55_000;
+        const MS = Number(process.env.BARQ_DRAFT_MS) > 5000 ? Number(process.env.BARQ_DRAFT_MS) : opts.epic ? 40_000 : 30_000;
         const stop = new AbortController();
         let drafts: Draft[] = [];
         const studioParts: { role: RoleId; who: string; text: string }[] = [];
         if (studio) {
           // Studio mode: each engine plays ONE role and writes a short brief (not a full draft)
           const plan = assignRoles(members);
-          put(
-            `> 🎬 Nexus AI v8.4 يشتغل كاستوديو، كل واحد بدوره: ${plan
-              .map((p) => `${p.role.emoji} ${p.role.labelAr} (**${ENGINE_LABEL[p.engine] ?? p.engine}**)`)
-              .join(" + ")} — ثم يبني المصمّم الأول الموقع النهائي…\n\n`
-          );
           const BMS = 35_000;
           const run = (p: { role: { id: RoleId; brief: string }; engine: string }, ms: number, sig: AbortSignal) => {
             const prov = team.find((x) => x.name === p.engine);
@@ -1363,7 +1352,6 @@ export function ensembleStream(
         let system = opts.system;
         if (studio && studioParts.length > 0) {
           const doneRoles = studioParts.map((x) => ({ director: "🎨", writer: "✍️", architect: "🧱" }[x.role]));
-          put(`> ✅ الخطة جاهزة ${doneRoles.join(" ")} — جاري بناء الموقع النهائي…\n\n`);
           const lastTurn = opts.messages[opts.messages.length - 1];
           messages = [
             ...opts.messages.slice(0, -1),
@@ -1372,7 +1360,6 @@ export function ensembleStream(
           system = opts.system + STUDIO_LEAD_RULES + (opts.epic ? EPIC_RULES : "");
         } else if (drafts.length > 0) {
           const who = drafts.map((d) => ENGINE_LABEL[d.who.split(":")[0]] ?? d.who);
-          put(`> ✅ شاركوا: **${who.join(" · ")}** — جاري الدمج النهائي…\n\n`);
           const pack = drafts
             .map((d, i) => `### DRAFT ${i + 1}\n\n${d.text.slice(0, 26_000)}`)
             .join("\n\n---\n\n");

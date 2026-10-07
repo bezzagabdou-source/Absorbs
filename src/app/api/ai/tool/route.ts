@@ -81,10 +81,6 @@ export async function POST(req: Request) {
   const isPro = credit.plan === "pro";
 
   // Pro-only tools (code analysis, game builder): the server is the real gate
-  if (tool.pro && !isPro) {
-    if (credit.tracked) await refundCredit(user.uid);
-    return json(403, { code: "PRO_ONLY" });
-  }
   // free accounts keep the original 15 requests / minute
   if (!isPro && !rateLimit(`aif:${user.uid}`, 15, 60_000).ok) {
     if (credit.tracked) await refundCredit(user.uid);

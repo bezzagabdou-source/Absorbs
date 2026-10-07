@@ -425,13 +425,7 @@ export async function POST(req: Request) {
   const isPro = credit.plan === "pro";
 
   // attachments and deep mode are Pro features — the server is the real gate
-  if (
-    !isPro &&
-    (parsed.files.length > 0 || textFiles.length > 0 || body.deep === true || body.voice === true)
-  ) {
-    if (credit.tracked) await refundCredit(user.uid);
-    return json(403, { code: "PRO_ONLY" });
-  }
+  // v10: files, deep mode, voice and tool modes are open to free accounts too (only v8 / MAX / team engines stay Pro)
   // model gate: Grok + OpenRouter are Pro-only (the server is the real gate, the UI badge is cosmetic)
   const selection = parseSelection(body.provider, body.model);
   if (selection === "BAD") {
@@ -466,7 +460,7 @@ export async function POST(req: Request) {
   }
 
   const lastUser = capped[capped.length - 1].text;
-  const chatMode = isPro ? chatModeById(body.mode) : undefined;
+  const chatMode = chatModeById(body.mode);
   // Algerian school brain: homework / exams / lessons or any attached image or file (the dz study mode already carries it)
   const schoolBlock =
     chatMode?.id !== "dzstudy" && (looksLikeSchoolwork(lastUser) || parsed.files.length > 0) ? DZ_SCHOOL_ADDON : "";
@@ -574,7 +568,7 @@ export async function POST(req: Request) {
   try {
     // Pro + "build me a game / site / app": the whole AI team works together
     const task = classifyTask(lastUser, parsed.files.length > 0);
-    const voice = isPro && body.voice === true;
+    const voice = body.voice === true;
     // Nexus: a free OpenRouter model (default: openrouter/free) answers when a key exists; otherwise the classic engines run
     // legacy `freeModel` (cached older clients) is honoured for Pro only; free accounts stay on Gemini
     const pickedModel: unknown = body.freeModel;
@@ -716,11 +710,12 @@ export async function POST(req: Request) {
               MARATHON_ADDON +
               persona +
               memBlock
-            : CHAT_SYSTEM + schoolBlock;
+            : CHAT_SYSTEM + schoolBlock + (chatMode?.addon ?? "");
           const base = await streamGemini({
             system,
             messages: capped,
-            tier: isPro ? "pro" : "free",
+            // free accounts use the free tier, except when a picture / PDF is attached (only the pro tier can read files)
+            tier: isPro || parsed.files.length > 0 ? "pro" : "free",
             task,
             // Pro: the strongest engine (Claude by default) leads; free stays on Gemini's free tier
             primaryFirst: isPro,

@@ -36,8 +36,8 @@ export async function POST(req: Request): Promise<Response> {
   if (question.length < 2) return json(400, { code: "MISSING_FIELD" });
 
   const prof = await getProfile(user.uid).catch(() => null);
-  if (prof?.plan !== "pro") return json(403, { code: "PRO_ONLY" });
-  const rl = rateLimit(`ws:${user.uid}`, 12, 60_000);
+  const pro = prof?.plan === "pro";
+  const rl = rateLimit(`ws:${user.uid}`, pro ? 12 : 5, 60_000);
   if (!rl.ok) return json(429, { code: "RATE" }, { "Retry-After": String(rl.retryAfter) });
 
   // text documents (already extracted in the browser: code, zips, text, csv…)
@@ -103,11 +103,11 @@ export async function POST(req: Request): Promise<Response> {
     const stream = await streamGemini({
       system: WORKSPACE_SYSTEM,
       messages: [...history, { role: "user", text: prompt }],
-      tier: "pro",
-      mode: "quality",
+      tier: pro || attachments.length > 0 ? "pro" : "free",
+      mode: pro ? "quality" : "speed",
       maxTokens: 8192,
       attachments,
-      primaryFirst: true,
+      primaryFirst: pro,
     });
     return streamToResponse(stream, { "X-Ws-Mode": mode, "X-Ws-Docs": String(docs.length) });
   } catch (e) {

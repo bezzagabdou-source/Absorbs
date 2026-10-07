@@ -38,9 +38,9 @@ export async function POST(req: Request): Promise<Response> {
   const choice = isVideoChoice(body.provider) ? body.provider : "auto";
 
   const prof = await getProfile(user.uid).catch(() => null);
-  if (prof?.plan !== "pro") return json(403, { code: "PRO_ONLY" });
-
-  const rl = rateLimit(`vid:${user.uid}`, 4, 60_000);
+  // v10: open to free accounts, with a much tighter limit (video renders cost real money)
+  const pro = prof?.plan === "pro";
+  const rl = pro ? rateLimit(`vid:${user.uid}`, 4, 60_000) : rateLimit(`vidf:${user.uid}`, 1, 180_000);
   if (!rl.ok) return json(429, { code: "RATE" }, { "Retry-After": String(rl.retryAfter) });
 
   try {

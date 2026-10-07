@@ -59,7 +59,7 @@ export function ToolRunner({ tool }: { tool: ToolDef }) {
   const accent = ACCENTS[tool.accent];
   const Icon = tool.icon;
   const isPro = profile?.plan === "pro";
-  const locked = !!tool.pro && !!profile && !isPro;
+  const locked = false; // v10: every tool is open to free accounts
   const gameHtml =
     tool.kind === "game" && !streaming && result ? extractHtml(result) : null;
   // a finished build opens by itself in a full-screen live preview

@@ -9,6 +9,7 @@ import rehypeHighlight from "rehype-highlight";
 import "katex/dist/katex.min.css";
 import { CodeBlock } from "@/components/code-block";
 import { PromptDraft } from "@/components/prompt-draft";
+import { defaultUrlTransform } from "react-markdown";
 
 function textOf(node: ReactNode): string {
   if (typeof node === "string") return node;
@@ -52,6 +53,17 @@ export function Markdown({
       }
       return <pre>{c}</pre>;
     },
+    img({ src, alt }) {
+      const url = typeof src === "string" ? src : "";
+      if (!url) return null;
+      return (
+        <span className="chat-img">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={alt ?? ""} loading="lazy" />
+          <a href={url} download="nexus-image.png" className="chat-img-dl">تنزيل</a>
+        </span>
+      );
+    },
     table({ children: c }) {
       return (
         <div className="md-table">
@@ -73,6 +85,7 @@ export function Markdown({
               ]
         }
         components={components}
+        urlTransform={(u) => (u.startsWith("blob:") ? u : defaultUrlTransform(u))}
       >
         {children}
       </ReactMarkdown>

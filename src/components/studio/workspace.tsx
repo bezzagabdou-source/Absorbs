@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Crown, FileText, Globe, Image as ImageIcon, Loader2, Plus, Send, Square, Upload, X } from "lucide-react";
+import { FileText, Globe, Image as ImageIcon, Loader2, Plus, Send, Square, Upload, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useCredits } from "@/components/app/app-shell";
 import { Markdown } from "@/components/markdown";
 import { MAX_FILES, MAX_PAYLOAD, payloadSize, prepareFile, type PendingFile } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
@@ -26,8 +24,6 @@ const SUGGESTIONS = ["لخّص المواد في نقاط مرتبة", "ما أ�
 
 export function Workspace() {
   const { authFetch } = useAuth();
-  const { profile } = useCredits();
-  const isPro = profile?.plan === "pro";
 
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [urls, setUrls] = useState<string[]>([]);
@@ -186,13 +182,6 @@ export function Workspace() {
           </p>
         </header>
 
-        {!isPro && (
-          <Link href="/app/upgrade" className="gold-border flex items-center gap-3 rounded-2xl p-3.5 text-sm font-black text-white">
-            <Crown className="h-5 w-5 text-gold-300" />
-            متاحة لمشتركي Pro
-          </Link>
-        )}
-
         <label
           onDragOver={(e) => {
             e.preventDefault();
@@ -335,7 +324,7 @@ export function Workspace() {
               <Square className="h-4 w-4" />
             </button>
           ) : (
-            <button type="submit" disabled={!isPro || !hasMaterial || question.trim().length < 2} aria-label="إرسال" className="btn-primary grid h-11 w-11 shrink-0 place-items-center">
+            <button type="submit" disabled={!hasMaterial || question.trim().length < 2} aria-label="إرسال" className="btn-primary grid h-11 w-11 shrink-0 place-items-center">
               <Send className="h-4 w-4 rtl:-scale-x-100" />
             </button>
           )}

@@ -923,3 +923,119 @@ dialog, [role="dialog"] { color-scheme: dark; }
 [data-theme="orange-claude"] .neo-chip { background: #fff3e6; color: #7a4a35; border-color: rgba(196, 98, 63, 0.2); box-shadow: 3px 3px 8px -4px rgba(164, 77, 48, 0.3), -3px -3px 8px -4px #fff; }
 [data-theme="orange-claude"] .neo-chip:hover:not(:disabled) { color: #3a2418; }
 [data-theme="orange-claude"] .neo-chip-on { color: #3a2418; background: linear-gradient(145deg, #ffd9c2, #ffc3a3); }
+
+/* =====================================================================
+   v10 skin — "midnight aurora": deep ink base, slow living aurora, fine dot grid + grain.
+   Dark theme only (the light peach theme keeps its own background).
+   ===================================================================== */
+
+html:not([data-theme="orange-claude"]) body {
+  background-color: #07080d;
+}
+html:not([data-theme="orange-claude"]) body::before {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  background-position: center top;
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.35) 55%, transparent 90%);
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.35) 55%, transparent 90%);
+}
+html:not([data-theme="orange-claude"]) body::after {
+  background:
+    radial-gradient(60% 42% at 12% -10%, rgba(99, 102, 241, 0.26), transparent 70%),
+    radial-gradient(50% 38% at 105% 10%, rgba(217, 119, 87, 0.22), transparent 70%),
+    radial-gradient(55% 40% at 70% 115%, rgba(45, 212, 191, 0.14), transparent 70%),
+    radial-gradient(40% 30% at 0% 90%, rgba(251, 191, 36, 0.08), transparent 70%);
+  background-size: 140% 140%;
+  animation: skinDrift 38s ease-in-out infinite alternate;
+}
+@keyframes skinDrift {
+  from { background-position: 0% 0%, 100% 0%, 60% 100%, 0% 100%; }
+  to { background-position: 18% 10%, 82% 14%, 40% 88%, 14% 84%; }
+}
+
+/* glass surfaces get a cooler, deeper body so the aurora shows through */
+html:not([data-theme="orange-claude"]) .glass {
+  background: linear-gradient(160deg, rgba(120, 124, 255, 0.09), rgba(14, 15, 22, 0.72) 62%);
+  border-color: rgba(255, 255, 255, 0.09);
+}
+html:not([data-theme="orange-claude"]) .glass-deep {
+  background: linear-gradient(160deg, rgba(120, 124, 255, 0.14), rgba(16, 17, 26, 0.88) 62%);
+  border-color: rgba(255, 255, 255, 0.11);
+}
+html:not([data-theme="orange-claude"]) .neo-panel {
+  background: linear-gradient(145deg, rgba(30, 32, 46, 0.92), rgba(15, 16, 24, 0.94));
+}
+html:not([data-theme="orange-claude"]) .neo-input { background: #0b0c13; }
+html:not([data-theme="orange-claude"]) .neo-chip { background: #151722; }
+
+/* ---------- voice-call button: waveform pill ---------- */
+.call-btn {
+  color: #f3f3ee;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.55), rgba(217, 119, 87, 0.7));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14) inset, 0 6px 18px -6px rgba(217, 119, 87, 0.8);
+}
+.call-btn:hover { filter: brightness(1.15); }
+.call-bar { transform-origin: center; transform-box: fill-box; animation: callWave 1.6s ease-in-out infinite; transform: scaleY(0.4); }
+.call-btn-live { animation: callRing 1.8s ease-out infinite; }
+.call-btn-live .call-bar { animation-duration: 0.7s; }
+@keyframes callWave { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+@keyframes callRing {
+  0% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.14) inset; }
+  100% { box-shadow: 0 0 0 12px rgba(217, 119, 87, 0), 0 0 0 1px rgba(255, 255, 255, 0.14) inset; }
+}
+
+/* ---------- thinking indicator (replaces the three bouncing dots) ---------- */
+.think-orb {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: conic-gradient(from 0deg, #6366f1, #2dd4bf, #fbbf24, #d97757, #6366f1);
+  animation: thinkSpin 1.4s linear infinite;
+  -webkit-mask: radial-gradient(farthest-side, transparent 55%, #000 58%);
+  mask: radial-gradient(farthest-side, transparent 55%, #000 58%);
+  filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.7));
+}
+.think-bar {
+  width: 84px;
+  height: 6px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, rgba(165, 180, 252, 0.55) 50%, rgba(255, 255, 255, 0.05) 100%);
+  background-size: 200% 100%;
+  animation: thinkSweep 1.2s ease-in-out infinite;
+}
+@keyframes thinkSpin { to { transform: rotate(360deg); } }
+@keyframes thinkSweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* ---------- pictures drawn inside the chat ---------- */
+.chat-img {
+  position: relative;
+  display: block;
+  max-width: min(100%, 460px);
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.9), 0 0 40px -12px rgba(99, 102, 241, 0.5);
+  animation: imgReveal 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.chat-img img { display: block; width: 100%; height: auto; }
+.chat-img-dl {
+  position: absolute;
+  inset-inline-end: 10px;
+  bottom: 10px;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(7, 8, 13, 0.7);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+@keyframes imgReveal { from { opacity: 0; filter: blur(18px); transform: scale(0.96); } to { opacity: 1; filter: blur(0); transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-theme="orange-claude"]) body::after, .think-orb, .think-bar, .call-bar, .call-btn-live, .chat-img { animation: none; }
+  .call-bar { transform: scaleY(0.8); }
+}

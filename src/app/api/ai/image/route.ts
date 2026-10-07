@@ -54,7 +54,7 @@ export async function POST(req: Request): Promise<Response> {
   } else if (prompt.length < 3) {
     return json(400, { code: "MISSING_FIELD" });
   }
-  const tier: ImageTier = isImageTier(body.tier) ? body.tier : "v5";
+  const requestedTier: ImageTier = isImageTier(body.tier) ? body.tier : "v5";
   const aspect: ImageAspect = isImageAspect(body.aspect) ? body.aspect : "1:1";
   const style: ImageStyle = isImageStyle(body.style) ? body.style : "photo";
 
@@ -70,9 +70,11 @@ export async function POST(req: Request): Promise<Response> {
   if (edit && !reference) return json(400, { code: "BAD_REFERENCE" });
 
   const prof = await getProfile(user.uid).catch(() => null);
-  if (prof?.plan !== "pro") return json(403, { code: "PRO_ONLY" });
+  const pro = prof?.plan === "pro";
+  // v10: image generation is open to free accounts on the fast engine (v5); the stronger tiers stay Pro
+  const tier: ImageTier = pro ? requestedTier : "v5";
 
-  const rl = rateLimit(`img:${user.uid}`, 24, 60_000);
+  const rl = rateLimit(`img:${user.uid}`, pro ? 24 : 10, 60_000);
   if (!rl.ok) return json(429, { code: "RATE" }, { "Retry-After": String(rl.retryAfter) });
 
   try {
