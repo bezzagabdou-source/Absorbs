@@ -1,5 +1,5 @@
 /* Nexus AI v8.4 — service worker (offline shell + fast repeat visits) */
-const CACHE = "nexus-v9-9-studio";
+const CACHE = "nexus-v10-0-studio";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest"];
 const MAX_ENTRIES = 80;

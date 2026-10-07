@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search, MessagesSquare, LayoutGrid, Wand2, Gamepad2, History, Crown, Settings, Sun, Headphones, CornerDownLeft,
+  Search, MessagesSquare, LayoutGrid, Wand2, Gamepad2, History, Crown, Settings, Sun, Headphones, CornerDownLeft, Clapperboard, FileText, Code2, Palette,
   type LucideIcon,
 } from "lucide-react";
 import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
@@ -55,6 +55,15 @@ export function CommandPalette() {
       router.push("/app");
       setTimeout(() => window.dispatchEvent(new Event("barq:prefill")), 350);
     };
+    const agent = (id: string) => () => {
+      try {
+        sessionStorage.setItem("nexus_open_mode", id);
+      } catch {
+        /* private mode */
+      }
+      router.push("/app");
+      setTimeout(() => window.dispatchEvent(new Event("nexus:open-mode")), 350);
+    };
     return [
       {
         id: "voice",
@@ -66,6 +75,12 @@ export function CommandPalette() {
           setTimeout(() => window.dispatchEvent(new Event("barq:voice-call")), 450);
         },
       },
+      { id: "video", label: "استوديو الفيديو", hint: "أنشئ مقطعًا حقيقيًا", icon: Clapperboard, run: go("/app/studio/video") },
+      { id: "workspace", label: "مساحة الملفات", hint: "PDF وكود وروابط", icon: FileText, run: go("/app/workspace") },
+      { id: "agent-coder", label: "وكيل المبرمج", hint: "كود كامل", icon: Code2, run: agent("agent_coder") },
+      { id: "agent-design", label: "وكيل المصمّم", hint: "واجهة جاهزة", icon: Palette, run: agent("agent_design") },
+      { id: "agent-copy", label: "وكيل الكاتب الإعلاني", hint: "نصوص تبيع", icon: Wand2, run: agent("agent_copy") },
+      { id: "agent-data", label: "وكيل محلّل البيانات", hint: "تحليل ورسوم", icon: LayoutGrid, run: agent("agent_data") },
       { id: "chat", label: "المحادثة", icon: MessagesSquare, run: go("/app") },
       { id: "tools", label: "الأدوات", icon: LayoutGrid, run: go("/app/tools") },
       { id: "studio", label: "الاستوديو", icon: Wand2, run: go("/app/studio") },

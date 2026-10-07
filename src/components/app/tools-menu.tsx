@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import {
   Award,
+  Code2,
+  Palette,
   Briefcase,
   CalendarCheck,
   Layers,
@@ -60,6 +62,10 @@ const ENTRIES: readonly ToolEntry[] = [
   { id: "bizplan", title: "خطة مشروع", sub: "دراسة جدوى بأرقام بالدينار", icon: Rocket },
   { id: "debate", title: "المحاور الناقد", sub: "يختبر فكرتك بحجج الطرفين", icon: Scale },
   { id: "factcheck", title: "تدقيق المعلومات", sub: "فحص الادعاءات ودرجة الثقة", icon: ShieldCheck },
+  { id: "agent_coder", title: "وكيل المبرمج", sub: "كود كامل + مراجعة + اختبارات", icon: Code2 },
+  { id: "agent_copy", title: "وكيل الكاتب الإعلاني", sub: "عناوين وإعلانات ومنشورات تبيع", icon: PenLine },
+  { id: "agent_design", title: "وكيل المصمّم", sub: "نظام تصميم + واجهة جاهزة للمعاينة", icon: Palette },
+  { id: "agent_data", title: "وكيل محلّل البيانات", sub: "تحليل ورسوم واستنتاج صريح", icon: FlaskConical },
   { id: "upload", title: "خيارات تحميل إضافية", sub: "صور وملفات PDF وكود", icon: Paperclip },
   { id: "personal", title: "الذكاء المخصّص", sub: "الذاكرة والسياق الخاصان بك", icon: Brain },
 ];

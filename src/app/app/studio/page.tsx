@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ChevronLeft, Code2, ImageOff, Crown, Gamepad2, LayoutTemplate, Palette, PenTool, Smartphone, Trash2, Wand2 } from "lucide-react";
+import { ChevronLeft, Clapperboard, Code2, FileText, ImageOff, Crown, Gamepad2, LayoutTemplate, Palette, PenTool, Smartphone, Trash2, Wand2 } from "lucide-react";
 import { useCredits } from "@/components/app/app-shell";
 import { GamePreview } from "@/components/game-preview";
 import { useAuth } from "@/lib/auth-context";
@@ -104,6 +104,29 @@ export default function StudioPage() {
         </span>
         <ChevronLeft className="h-5 w-5 shrink-0 text-gold-300 transition group-hover:-translate-x-1" />
       </Link>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+        <Link href="/app/studio/video" className="neo-panel group flex items-center gap-4 rounded-3xl p-5 transition active:scale-[0.99]">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/40 to-gold-300/25 text-gold-300">
+            <Clapperboard className="h-6 w-6" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-black text-white">استوديو الفيديو</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">مقاطع حقيقية بنموذج فيديو مع تحسين الوصف</span>
+          </span>
+          <ChevronLeft className="h-5 w-5 shrink-0 text-gold-300 transition group-hover:-translate-x-1" />
+        </Link>
+        <Link href="/app/workspace" className="neo-panel group flex items-center gap-4 rounded-3xl p-5 transition active:scale-[0.99]">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/40 to-gold-300/25 text-gold-300">
+            <FileText className="h-6 w-6" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-black text-white">مساحة الملفات</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">اسأل عن PDF وكود وصور وروابط معًا</span>
+          </span>
+          <ChevronLeft className="h-5 w-5 shrink-0 text-gold-300 transition group-hover:-translate-x-1" />
+        </Link>
+      </div>
 
       <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {CREATE.map(({ id, label, Icon }) => (

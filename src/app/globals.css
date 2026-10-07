@@ -862,3 +862,64 @@ dialog, [role="dialog"] { color-scheme: dark; }
 [data-theme="orange-claude"] .md-body th { background: rgba(249, 115, 22, 0.14); }
 [data-theme="orange-claude"] .md-body tbody tr:nth-child(even) { background: rgba(249, 115, 22, 0.05); }
 [data-theme="orange-claude"] .md-body .md-table { border-color: rgba(249, 115, 22, 0.22); }
+
+/* ---------- v10: dark neumorphic panels + neon accents (used by Video Studio / Workspace) ---------- */
+
+.neo-panel {
+  background: linear-gradient(145deg, #25241f, #1c1b18);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 10px 10px 28px -12px rgba(0, 0, 0, 0.75), -6px -6px 18px -10px rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+.neo-input {
+  background: #181816;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 4px 4px 12px rgba(0, 0, 0, 0.55), inset -3px -3px 10px rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.neo-input:focus {
+  border-color: rgba(217, 119, 87, 0.6);
+  box-shadow: inset 4px 4px 12px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(217, 119, 87, 0.18), 0 0 22px -4px rgba(217, 119, 87, 0.45);
+}
+.neo-chip {
+  background: #22211f;
+  color: #b0ad9e;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 4px 4px 10px -4px rgba(0, 0, 0, 0.7), -3px -3px 8px -4px rgba(255, 255, 255, 0.05);
+  transition: transform 0.15s, color 0.2s, box-shadow 0.2s;
+}
+.neo-chip:hover:not(:disabled) { color: #f3f3ee; }
+.neo-chip:active:not(:disabled) { transform: scale(0.97); }
+.neo-chip-on {
+  color: #fff;
+  background: linear-gradient(145deg, rgba(217, 119, 87, 0.38), rgba(196, 98, 63, 0.22));
+  border-color: rgba(217, 119, 87, 0.55);
+  box-shadow: inset 2px 2px 8px rgba(0, 0, 0, 0.35), 0 0 20px -6px rgba(217, 119, 87, 0.7);
+}
+.neon-ring {
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1), 0 0 26px -4px rgba(251, 191, 36, 0.55);
+  animation: neonPulse 2.4s ease-in-out infinite;
+}
+@keyframes neonPulse {
+  50% { box-shadow: 0 0 0 5px rgba(251, 191, 36, 0.05), 0 0 34px -2px rgba(251, 191, 36, 0.75); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .neon-ring { animation: none; }
+  .neo-chip, .neo-input { transition: none; }
+}
+
+[data-theme="orange-claude"] .neo-panel {
+  background: linear-gradient(145deg, #fffaf5, #fdeedd);
+  border-color: rgba(196, 98, 63, 0.18);
+  box-shadow: 10px 10px 26px -14px rgba(164, 77, 48, 0.35), -8px -8px 18px -10px rgba(255, 255, 255, 0.9);
+}
+[data-theme="orange-claude"] .neo-input {
+  background: #fff6ec;
+  color: #3a2418;
+  border-color: rgba(196, 98, 63, 0.2);
+  box-shadow: inset 3px 3px 9px rgba(164, 77, 48, 0.14), inset -3px -3px 9px rgba(255, 255, 255, 0.9);
+}
+[data-theme="orange-claude"] .neo-chip { background: #fff3e6; color: #7a4a35; border-color: rgba(196, 98, 63, 0.2); box-shadow: 3px 3px 8px -4px rgba(164, 77, 48, 0.3), -3px -3px 8px -4px #fff; }
+[data-theme="orange-claude"] .neo-chip:hover:not(:disabled) { color: #3a2418; }
+[data-theme="orange-claude"] .neo-chip-on { color: #3a2418; background: linear-gradient(145deg, #ffd9c2, #ffc3a3); }

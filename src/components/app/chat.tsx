@@ -764,6 +764,23 @@ export function ChatPage() {
     window.addEventListener("barq:prefill", take);
     return () => window.removeEventListener("barq:prefill", take);
   }, [isPro, profile]);
+  // persona agents can be opened from the command palette (Ctrl+K): switches the chat to that mode
+  useEffect(() => {
+    const take = () => {
+      try {
+        const id = sessionStorage.getItem("nexus_open_mode");
+        if (!id) return;
+        sessionStorage.removeItem("nexus_open_mode");
+        if (chatModeById(id)) {
+          setMode(id as ChatModeId);
+          setTimeout(() => taRef.current?.focus(), 60);
+        }
+      } catch {}
+    };
+    take();
+    window.addEventListener("nexus:open-mode", take);
+    return () => window.removeEventListener("nexus:open-mode", take);
+  }, []);
   // "voice call" can also be started from the command palette (Ctrl+K)
   useEffect(() => {
     const open = () => {
