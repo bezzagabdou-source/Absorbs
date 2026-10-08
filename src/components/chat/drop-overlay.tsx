@@ -36,7 +36,7 @@ export function useFileDrop(onFiles: (files: File[]) => void) {
       e.preventDefault();
       depth.current = 0;
       setDragging(false);
-      const list: File[] = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+      const list = Array.from(e.dataTransfer?.files ?? []);
       if (list.length) onFiles(list);
     },
     [onFiles]

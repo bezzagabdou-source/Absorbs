@@ -19,6 +19,15 @@ import { classifyTask } from "@/lib/task-router";
 import { checkModelAccess, parseSelection } from "@/lib/model-access";
 import { streamSelectedModel } from "@/lib/model-router";
 import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
+/* ---- Nexus AI v11 LEGEND ---- */
+import { withWatchdog, withInstantOpen, cleanOutput, TURBO } from "@/lib/turbo";
+import { withTitan, TITAN, TITAN_CONTINUE_PROMPT, TITAN_SIZE_CONTRACT, type TitanReport } from "@/lib/titan";
+import { wantsCanvas, detectCanvas, canvasContract } from "@/lib/design-canvas";
+import { hasArabic, ARABIC_VISION_SYSTEM } from "@/lib/arabic-vision";
+import { V11_CHAT_ADDON } from "@/lib/nexus-v11";
+/* ---- Nexus AI v13 LIVE WEB ---- */
+import { needsWeb, planQueries, multiSearch, readPages, sourcesBlock } from "@/lib/websearch";
+import { TITAN_MAX_BYTES, TITAN_TARGET_BYTES } from "@/lib/limits";
 import { chatModeById } from "@/lib/chat-modes";
 import { DZ_IDENTITY, DZ_SCHOOL_ADDON, looksLikeSchoolwork } from "@/lib/dz-school";
 import { VOICE_SYSTEM, personaById } from "@/lib/voice-call";
@@ -316,6 +325,8 @@ export async function POST(req: Request) {
     /** Nexus: legacy OpenRouter model id (older clients). Ignored for free accounts. */
     freeModel?: unknown;
     /** Model selector: gemini | huggingface | grok | openrouter (grok / openrouter = Pro only) */
+    /** v13: force a live web lookup for this message */
+    web?: boolean;
     provider?: unknown;
     /** Model selector: provider-specific model id ("auto" = provider default) */
     model?: unknown;
@@ -372,7 +383,7 @@ export async function POST(req: Request) {
     const system =
       (body.v8 === true || body.max === true ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
       QUALITY_CONTRACT.split("\n6.")[0] +
-      "";
+      (body.max === true ? MAX_ENGINE_CONFIG.systemPromptAddon : "");
     const lastTurn = turns[turns.length - 1];
     const stream = withAutoContinue(emptyStream(), {
       system,
@@ -542,7 +553,7 @@ export async function POST(req: Request) {
   const saveAnswer = async (full: string) => {
     if (!isPro && credit.tracked) void chargeStreamTime(user.uid, Date.now() - startedAt);
     try {
-      const text = full.trim();
+      const text = cleanOutput(full).trim();
       const id = await persistP;
       if (!text || !id) return;
       await db
@@ -560,11 +571,40 @@ export async function POST(req: Request) {
   };
 
   // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
-  const max = isPro && isBuildRequest(lastUser); // Nexus 8 Pro: only real build requests use the builder contract (old `max` flags are ignored)
-  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + MARATHON_ADDON : "";
+  const max = isPro && (body.max === true || isBuildRequest(lastUser));
+  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") + MARATHON_ADDON : "";
   const v8 = isPro && (body.v8 === true || max || chatMode?.hard === true);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
+  /* ---- v11: live design canvas + Arabic document reading ---- */
+  const canvasKind = detectCanvas(lastUser);
+  const canvasOn = isPro && !body.voice && wantsCanvas(lastUser);
+  const canvasBlock = canvasOn ? canvasContract(canvasKind) : "";
+  const arabicVisionBlock = parsed.files.length > 0 && hasArabic(lastUser) ? ARABIC_VISION_SYSTEM : "";
+  const v11Block = canvasBlock + arabicVisionBlock;
+
+  /* ---- v13 LIVE WEB: go online when the question is clearly time-sensitive, or when
+     the client asks for it explicitly. Never blocks the answer: a failed search just
+     means the model answers from its own knowledge, exactly like before. ---- */
+  const webAsked = body.web === true;
+  const webAuto = webAsked || (!body.voice && parsed.files.length === 0 && needsWeb(lastUser));
+  let webBlock = "";
+  let webCount = 0;
+  if (webAuto) {
+    try {
+      const hits = await multiSearch(planQueries(lastUser), 5);
+      if (hits.length) {
+        const top = hits.slice(0, 6);
+        await readPages(top, 3, 6000);
+        webBlock = sourcesBlock(top);
+        webCount = top.length;
+      }
+    } catch (e) {
+      console.warn("[web] search skipped:", e instanceof Error ? e.message : String(e));
+    }
+  }
+  const v13Block = v11Block + webBlock;
+  let titanReport: TitanReport | null = null;
   try {
     // Pro + "build me a game / site / app": the whole AI team works together
     const task = classifyTask(lastUser, parsed.files.length > 0);
@@ -579,18 +619,64 @@ export async function POST(req: Request) {
     // explicit choice from the model selector: Grok / OpenRouter (Pro, gated above) or Hugging Face (free + Pro).
     // Builds and attachments keep the built-in engines. If the chosen provider fails, Gemini answers instead.
     let fellBackFrom: string | undefined;
+    // v14: the chosen external model now gets the SAME v13 context (canvas, Arabic
+    // vision, live web) and the SAME TITAN continuation + watchdog as Gemini, so
+    // "Claude can't finish a big file" and "Grok stops at 40 KB" are both gone.
+    const externalBig = isBuildRequest(lastUser);
+    const openExternal = (seed?: string) =>
+      streamSelectedModel({
+        selection: selection!,
+        system:
+          NEXUS_SYSTEM +
+          DZ_IDENTITY +
+          (chatMode?.addon ?? "") +
+          schoolBlock +
+          memBlock +
+          v13Block +
+          (externalBig ? TITAN_SIZE_CONTRACT : "") +
+          (seed ? TITAN_CONTINUE_PROMPT : ""),
+        messages: seed
+          ? [
+              { role: "user" as const, text: lastUser.slice(0, 24_000) },
+              { role: "model" as const, text: seed.slice(-TITAN.TAIL_CONTEXT) },
+              { role: "user" as const, text: TITAN_CONTINUE_PROMPT },
+            ]
+          : capped,
+        maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
+        onModel: (m) => {
+          usedModel = m;
+        },
+        onDone: () => {},
+      });
+
     const externalStream =
       selection && selection.provider !== "gemini" && !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0
-        ? await streamSelectedModel({
-            selection,
-            system: NEXUS_SYSTEM + DZ_IDENTITY + (chatMode?.addon ?? "") + schoolBlock + memBlock,
-            messages: capped,
-            maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
-            onModel: (m) => {
-              usedModel = m;
-            },
-            onDone: saveAnswer,
-          }).catch((e) => {
+        ? await openExternal()
+            .then((base) =>
+              withInstantOpen(
+                withWatchdog(
+                  withTitan(base, {
+                    big: externalBig,
+                    targetBytes: TITAN_TARGET_BYTES,
+                    maxBytes: TITAN_MAX_BYTES,
+                    rounds: externalBig ? TITAN.MAX_ROUNDS : 6,
+                    keepAlive: true,
+                    deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
+                    continueWith: (acc) => openExternal(acc),
+                    onDone: async (full) => {
+                      await saveAnswer(full);
+                    },
+                  }),
+                  {
+                    keepAlive: true,
+                    stallMs: TURBO.STALL_FAILOVER_MS,
+                    midStallMs: TURBO.MID_STALL_FAILOVER_MS,
+                    rescue: async () => openExternal().catch(() => null),
+                  }
+                )
+              )
+            )
+            .catch((e) => {
             console.error(`[chat] ${selection.provider} failed, falling back to Gemini:`, e instanceof Error ? e.message : String(e));
             fellBackFrom = selection.provider;
             return null;
@@ -646,24 +732,57 @@ export async function POST(req: Request) {
             BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) +
             QUALITY_CONTRACT.split("\n6.")[0] +
             maxAddon +
+            v13Block +
             persona +
             memBlock;
-          const base = await streamGemini({
-            system,
-            messages: capped,
-            tier: "pro",
-            task: "code",
-            primaryFirst: false,
-            mode: "quality",
-            epic: true,
-            maxTokens: MAX_OUTPUT_TOKENS,
-            temperature: 0.35, // MAX precision: low randomness = fewer slips in code
-            attachments: parsed.files,
-            onModel: (m) => {
-              usedModel = m;
+          const openSegment = (seed?: string) =>
+            streamGemini({
+              system: seed ? system + TITAN_CONTINUE_PROMPT : system,
+              messages: seed
+                ? [
+                    { role: "user" as const, text: lastUser.slice(0, 24_000) },
+                    { role: "model" as const, text: seed.slice(-TITAN.TAIL_CONTEXT) },
+                    { role: "user" as const, text: TITAN_CONTINUE_PROMPT },
+                  ]
+                : capped,
+              tier: "pro",
+              task: "code",
+              primaryFirst: false,
+              mode: "quality",
+              epic: true,
+              maxTokens: seed ? MAX_SEGMENT_TOKENS : MAX_OUTPUT_TOKENS,
+              temperature: 0.7,
+              attachments: seed ? [] : parsed.files,
+              onModel: (m) => {
+                usedModel = m;
+              },
+            });
+          const base = await openSegment();
+          // v11 TITAN: keep chaining segments until the build is complete (up to 5 MB),
+          // with overlap de-duplication and an automatic integrity repair at the end.
+          const titan = withTitan(base, {
+            big: true,
+            targetBytes: TITAN_TARGET_BYTES,
+            maxBytes: TITAN_MAX_BYTES,
+            rounds: TITAN.MAX_ROUNDS,
+            keepAlive: true,
+            deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
+            continueWith: (acc) => openSegment(acc),
+            onDone: async (full, report) => {
+              titanReport = report;
+              if (report.glitches.length) console.warn("[titan] glitches:", report.glitches.join(" | "));
+              await saveAnswer(full);
             },
           });
-          return withAutoContinue(base, { system, messages: capped, rounds: 8, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer });
+          // v11 TURBO: a build may never die silently — heartbeats + rescue engine.
+          return withInstantOpen(
+            withWatchdog(titan, {
+              keepAlive: true,
+              stallMs: TURBO.STALL_FAILOVER_MS,
+              midStallMs: TURBO.MID_STALL_FAILOVER_MS,
+              rescue: async () => openSegment().catch(() => null),
+            })
+          );
         })()
       : build
       ? ensembleStream({
@@ -671,6 +790,7 @@ export async function POST(req: Request) {
             (v8 ? BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) : BUILD_SYSTEM_PRO) +
             QUALITY_CONTRACT.split("\n6.")[0] +
             maxAddon +
+            v13Block +
             persona +
             memBlock,
           kind: "build",
@@ -679,7 +799,7 @@ export async function POST(req: Request) {
           maxTokens: MAX_OUTPUT_TOKENS,
           messages: capped,
           attachments: parsed.files,
-          temperature: max ? 0.35 : 0.7,
+          temperature: 0.7,
           keepAlive: true,
           onModel: (m) => {
             usedModel = m;
@@ -689,13 +809,13 @@ export async function POST(req: Request) {
         })
       : hard
         ? ensembleStream({
-            system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + persona + memBlock,
+            system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + v13Block + persona + memBlock,
             kind: "hard",
             task,
             maxTokens: max ? MAX_OUTPUT_TOKENS : 32000,
             messages: capped,
             attachments: parsed.files,
-            temperature: max ? 0.3 : 0.6,
+            temperature: 0.6,
             keepAlive: true,
             onModel: (m) => {
               usedModel = m;
@@ -708,6 +828,8 @@ export async function POST(req: Request) {
             ? (v8 ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
               QUALITY_CONTRACT +
               MARATHON_ADDON +
+              V11_CHAT_ADDON +
+              v13Block +
               persona +
               memBlock
             : CHAT_SYSTEM + schoolBlock + (chatMode?.addon ?? "");
@@ -729,9 +851,33 @@ export async function POST(req: Request) {
             // Pro answers go through the never-stop guard, which saves the final text itself
             onDone: isPro ? undefined : saveAnswer,
           });
-          return isPro
+          // v11: the never-stop guard, then the watchdog so a stalled engine is replaced
+          // instead of leaving the user in front of an empty bubble.
+          const guarded = isPro
             ? withAutoContinue(base, { system, messages: capped, rounds: 24, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer })
             : base;
+          return withInstantOpen(
+            withWatchdog(guarded, {
+              keepAlive: isPro,
+              stallMs: TURBO.STALL_FAILOVER_MS,
+              midStallMs: TURBO.MID_STALL_FAILOVER_MS,
+              onDone: isPro ? undefined : saveAnswer,
+              rescue: async () =>
+                streamGemini({
+                  system,
+                  messages: capped,
+                  tier: "pro",
+                  task,
+                  primaryFirst: false,
+                  mode: "speed",
+                  lowThink: true,
+                  maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
+                  onModel: (m) => {
+                    usedModel = m + " (rescue)";
+                  },
+                }).catch(() => null),
+            })
+          );
         })();
     const fixedConvId = await persistP;
 
@@ -739,9 +885,13 @@ export async function POST(req: Request) {
       "x-conversation-id": fixedConvId ?? "",
       "x-credits-remaining": String(credit.remaining),
       "x-plan": credit.plan,
+      ...(webCount ? { "x-web": String(webCount) } : {}),
       ...(selection ? { "x-provider": externalStream ? selection.provider : "gemini" } : {}),
       ...(fellBackFrom ? { "x-fallback-from": fellBackFrom } : {}),
       ...(isPro ? { "x-model": usedModel, "x-engine": (build || hard) && !(max && build) ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
+      "x-nexus": "v11-legend",
+      ...(canvasOn ? { "x-canvas": canvasKind } : {}),
+      ...(max && build ? { "x-titan": "on" } : {}),
     });
   } catch (e) {
     release();

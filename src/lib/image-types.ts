@@ -11,7 +11,7 @@ export const IMAGE_TIER_LABEL: Record<ImageTier, string> = {
   v5: "Nexus 5 · سريع",
   v6: "Nexus 6 · عالي الدقة",
   v8: "Nexus 8 · احترافي",
-  max: "8 Pro · أسطوري",
+  max: "MAX · أسطوري",
 };
 
 export const IMAGE_TIER_HINT: Record<ImageTier, string> = {

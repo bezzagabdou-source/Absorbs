@@ -20,12 +20,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   applicationName: "Nexus AI",
   title: {
-    default: "Nexus AI — مساعدك اليومي للكتابة والترجمة والدراسة",
-    template: "%s | Nexus AI",
+    default: "Nexus AI v8.4 — مساعدك اليومي للكتابة والترجمة والدراسة",
+    template: "%s | Nexus AI v8.4",
   },
   description:
     "مساعدك اليومي بالعربية والدارجة والفرنسية — محادثة، أدوات محتوى للتجار، ترجمة، سيرة ذاتية ومساعد دراسة. مجاني كل يوم.",
-  keywords: ["الجزائر", "دارجة", "مساعد", "ترجمة", "Algeria", "Nexus AI"],
+  keywords: ["الجزائر", "دارجة", "مساعد", "ترجمة", "Algeria", "Nexus AI v8.4", "Nexus AI v8.4"],
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -40,13 +40,13 @@ export const metadata: Metadata = {
     title: "Nexus AI",
   },
   openGraph: {
-    title: "Nexus AI",
+    title: "Nexus AI v8.4",
     description:
       "مساعدك اليومي بالعربية والدارجة والفرنسية — مجاني كل يوم.",
-    siteName: "Nexus AI",
+    siteName: "Nexus AI v8.4",
     type: "website",
     locale: "ar_DZ",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Nexus AI" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Nexus AI v8.4" }],
   },
   twitter: { card: "summary_large_image", images: ["/og.png"] },
 };
@@ -56,6 +56,9 @@ export const viewport: Viewport = {
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
+  minimumScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
 };

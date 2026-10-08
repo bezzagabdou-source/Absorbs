@@ -2,6 +2,8 @@ import { findGeminiKey } from "@/lib/gemini";
 import { findHuggingFaceKey } from "@/lib/huggingface";
 import { findEnvKey } from "@/lib/openai-stream";
 import type { ImageAspect, ImageEditAction, ImageEditPoint, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
+import { planArabicImage, ARABIC_NEGATIVE } from "@/lib/arabic-vision";
+import { ensureEnglishPrompt, translateArabicPrompt, hasArabicChars } from "@/lib/arabic-image-lexicon";
 
 /**
  * Photorealistic image engine.
@@ -68,18 +70,26 @@ export function buildImagePrompt(
   aspect: ImageAspect
 ): string {
   const subject = idea.trim();
-  const arabicText = /[\u0600-\u06FF]/.test(subject)
-    ? "If the request asks for written text inside the picture, render that Arabic text EXACTLY as written: right-to-left, correctly connected letters, no missing or swapped letters, large and legible."
+  // v11 ARABIC VISION: understand the Darija / Arabic intent, and protect any words that must
+  // literally appear inside the picture so the engine cannot mangle or translate them.
+  const plan = planArabicImage(subject);
+  const arabicText = plan.needsArabicTypography
+    ? `TEXT IN THE IMAGE — render these strings EXACTLY and verbatim: ${plan.renderText
+        .map((t) => `"${t}"`)
+        .join(", ")}. Right-to-left Arabic script with correctly joined letters, correct spelling, large, perfectly legible, well kerned, no invented glyphs, no Latin transliteration.`
+    : plan.arabic
+    ? "Do not draw any written text, caption or lettering unless the subject explicitly asks for it."
     : "";
   // the user's subject comes first and is repeated as a hard requirement, so the style text can never replace it
   const parts = [
-    `MAIN SUBJECT (draw exactly this, nothing else, no random substitutes): ${subject}.`,
+    `MAIN SUBJECT (draw exactly this, nothing else, no random substitutes): ${plan.prompt}.`,
     STYLE_TEXT[style],
     TIER_TEXT[tier],
     `Aspect ratio ${aspect}.`,
     arabicText,
     NEGATIVE,
-    `Every object, person, colour, place and text mentioned in the main subject must be clearly visible. Respect the gender, age and number of people exactly as stated.`,
+    plan.needsArabicTypography ? ARABIC_NEGATIVE : "",
+    `Every object, person, colour, place and text mentioned in the main subject must be clearly visible.`,
   ];
   return parts.filter((p) => p.length > 0).join(" ");
 }
@@ -101,7 +111,7 @@ async function toEnglishIdea(idea: string, gemKey?: string): Promise<string> {
         systemInstruction: {
           parts: [
             {
-              text: "You turn an image request written in Arabic, Algerian Darija or French into ONE precise English image description. Drop the request wording itself (e.g. 'make me a picture of') and describe ONLY what the picture must show. Keep every object, person, gender (رجل = man, امرأة = woman, ولد = boy, بنت = girl), age, colour, number, place, clothing and action EXACTLY as requested (e.g. a man who flies = a man flying in the sky, whole body visible); add nothing, remove nothing. Output only the English description, no quotes, no explanation.",
+              text: "You turn an image request written in Arabic, Algerian Darija or French into ONE precise English image description. Keep every object, person, colour, number, place, clothing and action EXACTLY as requested; add nothing, remove nothing. Output only the English description, no quotes, no explanation.",
             },
           ],
         },
@@ -331,12 +341,6 @@ export async function generateImage(opts: {
 }): Promise<GeneratedImage> {
   const started = Date.now();
   let full = buildImagePrompt(opts.prompt, opts.style, opts.tier, opts.aspect);
-  if (!opts.edit) {
-    // Arabic / Darija requests are translated to a precise English description first, so the picture matches what was asked
-    const gemEn = findGeminiKey();
-    const en = await toEnglishIdea(opts.prompt, gemEn?.value);
-    if (en !== opts.prompt.trim()) full = buildImagePrompt(en, opts.style, opts.tier, opts.aspect);
-  }
   if (opts.edit && opts.reference) {
     // Gemini reads Arabic natively; the English twin removes any ambiguity for the other engines
     const gemForEdit = findGeminiKey();
@@ -348,7 +352,17 @@ export async function generateImage(opts: {
   let fluxPrompt: string | undefined;
   const getFluxPrompt = async (): Promise<string> => {
     if (fluxPrompt) return fluxPrompt;
-    const en = await toEnglishIdea(opts.prompt, gem?.value);
+    // v14: toEnglishIdea() needs a Gemini key. Without one it used to return the
+    // Arabic string unchanged and Flux/Pollinations rendered a random picture.
+    // ensureEnglishPrompt() falls back to a deterministic offline translator so an
+    // Arabic request ALWAYS reaches the engine in English.
+    let llm = "";
+    try {
+      llm = await toEnglishIdea(opts.prompt, gem?.value);
+    } catch {
+      llm = "";
+    }
+    const en = ensureEnglishPrompt(opts.prompt, llm);
     fluxPrompt = buildImagePrompt(en, opts.style, opts.tier, opts.aspect);
     return fluxPrompt;
   };

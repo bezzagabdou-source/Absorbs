@@ -26,6 +26,9 @@ import {
   Wand2,
   Gamepad2,
   Sparkles,
+  Gavel,
+  Telescope,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
@@ -189,6 +192,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav: { href: string; label: string; icon: typeof Crown; exact: boolean; desktopOnly?: boolean }[] = [
     { href: "/app", label: t.app.chat, icon: MessagesSquare, exact: true },
+    { href: "/app/council", label: "المجلس", icon: Gavel, exact: true },
+    { href: "/app/research", label: "البحث", icon: Telescope, exact: true },
     { href: "/app/tools", label: t.app.tools, icon: LayoutGrid, exact: false },
     { href: "/app/studio", label: "الاستوديو", icon: Wand2, exact: true },
     { href: "/app/arcade", label: "الأركيد", icon: Gamepad2, exact: true, desktopOnly: true },
@@ -354,33 +359,27 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        {/* ---------------- mobile bottom nav ---------------- */}
-        <nav className="app-bottom-nav z-40 shrink-0 border-t border-brand-400/20 bg-ink-950/95 pb-[env(safe-area-inset-bottom)] lg:hidden">
-          <div className="grid grid-cols-6">
-            {mobileNav.map((item) => {
-              const active = isActive(item.href, item.exact);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "relative flex min-w-0 flex-col items-center gap-0.5 px-0.5 pb-1 pt-1.5 transition-colors",
-                    active ? "text-white" : "text-slate-500"
-                  )}
-                >
-                  {active && (
-                    <span className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-gradient-to-r from-gold-300 to-gold-500 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
-                  )}
-                  <item.icon
-                    className={cn("h-5 w-5", active && "text-gold-400")}
-                    strokeWidth={active ? 2.2 : 1.8}
-                  />
-                  <span className="max-w-full truncate text-[9.5px] font-medium leading-tight">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
+        {/* ---------------- v12: ONE bottom button ---------------- */}
+        <div className="v12-dock lg:hidden">
+          <Link
+            href={pathname === "/app/hub" ? "/app" : "/app/hub"}
+            aria-label="المركز"
+            className="v12-dock-btn"
+          >
+            {pathname === "/app/hub" ? (
+              <>
+                <MessagesSquare className="h-[18px] w-[18px] text-[var(--v12-accent-2)]" />
+                رجوع للمحادثة
+              </>
+            ) : (
+              <>
+                <span className="v12-dock-dot" />
+                <LayoutDashboard className="h-[18px] w-[18px]" />
+                المركز
+              </>
+            )}
+          </Link>
+        </div>
       </div>
       <CommandPalette />
     </CreditsContext.Provider>

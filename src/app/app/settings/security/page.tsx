@@ -1,109 +1,294 @@
 "use client";
 
+/**
+ * Nexus AI v14 — Security.
+ * Real in-app password change + email verification, in the grouped-card layout.
+ */
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Loader2, LogOut, MailCheck, MonitorSmartphone, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  BadgeCheck,
+  Check,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  Mail,
+  MonitorSmartphone,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { Row, SettingsFrame } from "@/components/settings-ui";
+import { cn } from "@/lib/utils";
 
-type Data = {
-  email: string;
-  emailVerified: boolean;
+interface Login {
+  kind: string;
   provider: string;
-  logins: { kind: string; provider: string; device: string; at: string }[];
-};
+  createdAt: string;
+  userAgent?: string;
+}
+
+/** 0..4 */
+function strength(p: string): number {
+  let n = 0;
+  if (p.length >= 8) n++;
+  if (p.length >= 12) n++;
+  if (/[a-z]/.test(p) && /[A-Z]/.test(p)) n++;
+  if (/\d/.test(p)) n++;
+  if (/[^\w\s]/.test(p)) n++;
+  return Math.min(4, n);
+}
+const BARS = ["ضعيفة جدًا", "ضعيفة", "مقبولة", "قوية", "قوية جدًا"];
+const TONES = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#10b981"];
 
 export default function SecurityPage() {
-  const { authFetch, user, sendVerification, sendReset, signOut, refreshVerified } = useAuth();
-  const [data, setData] = useState<Data | null>(null);
-  const [err, setErr] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { user, sendVerification, refreshVerified, sendReset, changePassword, authFetch } = useAuth();
 
-  const load = useCallback(async () => {
-    try {
-      const r = await authFetch("/api/user/security");
-      if (!r.ok) throw new Error(String(r.status));
-      setData((await r.json()) as Data);
-      setErr(false);
-    } catch {
-      setErr(true);
-    }
-  }, [authFetch]);
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  // derived, not an effect: avoids the cascading-render lint error
+  const [justVerified, setJustVerified] = useState(false);
+  const verified = Boolean(user?.emailVerified) || justVerified;
+  const [logins, setLogins] = useState<Login[]>([]);
+
+  const emailUser = user?.providerData?.[0]?.providerId === "password";
 
   useEffect(() => {
-    if (user) void load();
-  }, [user, load]);
+    let dead = false;
+    void authFetch("/api/user/security")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { logins?: Login[] } | null) => {
+        if (!dead && j?.logins) setLogins(j.logins.slice(0, 5));
+      })
+      .catch(() => undefined);
+    return () => {
+      dead = true;
+    };
+  }, [authFetch]);
 
-  const run = async (fn: () => Promise<unknown>, ok: string) => {
-    setBusy(true);
-    setMsg("");
+  const run = useCallback(async (id: string, fn: () => Promise<void>, ok: string) => {
+    setBusy(id);
+    setMsg(null);
     try {
       await fn();
-      setMsg(ok);
+      setMsg({ kind: "ok", text: ok });
     } catch (e) {
-      const code = (e as { code?: string }).code ?? "";
-      setMsg(code === "auth/too-many-requests" ? "طلبات كثيرة، انتظر قليلاً." : "تعذّر تنفيذ العملية.");
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : "وقع خطأ." });
+    } finally {
+      setBusy("");
     }
-    setBusy(false);
-  };
+  }, []);
 
-  const when = (iso: string) => {
-    try {
-      return new Intl.DateTimeFormat("ar-DZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
-    } catch {
-      return iso;
-    }
-  };
+  const s = strength(next);
+  const canSubmit = cur.length > 0 && next.length >= 8 && next === again && !busy;
 
-  const password = data?.provider !== "google";
   return (
-    <SettingsFrame title="مركز الأمان">
-      <Row
-        icon={MailCheck}
-        title={data?.emailVerified ? "البريد مفعّل ✓" : "البريد غير مفعّل"}
-        desc={data?.email || user?.email || ""}
-        action={
-          !data?.emailVerified && password ? (
+    <div className="v12-page v12-grain mx-auto w-full max-w-2xl px-4 pb-12 pt-5 sm:px-6">
+      <div className="v12-sky" />
+
+      <header className="v12-in mb-6">
+        <h1 className="v12-display text-[clamp(26px,5vw,38px)]">الأمان</h1>
+        <p className="mt-1.5 text-[14px] text-[var(--v12-dim)]">
+          بريدك، كلمة السر، وآخر الدخولات على حسابك.
+        </p>
+      </header>
+
+      {msg && (
+        <div
+          className={cn(
+            "v12-card v12-in mb-4 flex items-start gap-2.5 px-4 py-3 text-[13.5px]",
+            msg.kind === "ok"
+              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+              : "border-red-400/35 bg-red-500/10 text-red-200"
+          )}
+        >
+          {msg.kind === "ok" ? (
+            <Check className="mt-0.5 h-4 w-4 flex-none" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+          )}
+          {msg.text}
+        </div>
+      )}
+
+      {/* ---- email ---- */}
+      <h2 className="v12-group-title">البريد الإلكتروني</h2>
+      <div className="v12-group v12-in mb-6">
+        <div className="v12-row">
+          <Mail className="v12-row-ico" />
+          <span className="v12-row-label">
+            {user?.email ?? "—"}
+            <span className="v12-row-sub">
+              {verified ? "مفعّل ومؤكَّد" : "ماشي مفعّل — الرمز ما وصلش؟ عاود الإرسال"}
+            </span>
+          </span>
+          {verified ? (
+            <BadgeCheck className="h-5 w-5 flex-none text-emerald-400" />
+          ) : (
+            <span className="v12-chip flex-none !text-[10px]">بانتظار</span>
+          )}
+        </div>
+
+        {!verified && (
+          <>
             <button
               type="button"
-              disabled={busy}
-              onClick={() => run(() => sendVerification(), "أرسلنا رسالة التفعيل إلى بريدك ✉️")}
-              className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+              disabled={busy === "send"}
+              onClick={() =>
+                void run("send", () => sendVerification(), "أرسلنا رابط التفعيل لبريدك ✉️ شوف صندوق الوارد و«السبام».")
+              }
+              className="v12-row w-full"
             >
-              إرسال التفعيل
+              <ShieldCheck className="v12-row-ico" />
+              <span className="v12-row-label">
+                أرسل رابط التفعيل
+                <span className="v12-row-sub">يوصل فـ ثوانٍ — تأكّد من مجلّد السبام</span>
+              </span>
+              {busy === "send" && <Loader2 className="h-4 w-4 flex-none animate-spin" />}
             </button>
-          ) : undefined
-        }
-      />
-      {!data?.emailVerified && password && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => run(async () => { await refreshVerified(); await load(); }, "تم تحديث الحالة")}
-          className="w-full rounded-2xl border border-orange-400/40 p-3 text-sm font-black text-slate-100 disabled:opacity-50"
+            <button
+              type="button"
+              disabled={busy === "chk"}
+              onClick={() =>
+                void run(
+                  "chk",
+                  async () => {
+                    const ok = await refreshVerified();
+                    setJustVerified(ok);
+                    if (!ok) throw new Error("مازال ماشي مفعّل. حلّ الرابط فالبريد وعاود.");
+                  },
+                  "تفعّل الحساب ✅"
+                )
+              }
+              className="v12-row w-full"
+            >
+              <Check className="v12-row-ico" />
+              <span className="v12-row-label">
+                فعّلت؟ تحقّق دابا
+                <span className="v12-row-sub">نعاودو نقراو الحالة من الخادم</span>
+              </span>
+              {busy === "chk" && <Loader2 className="h-4 w-4 flex-none animate-spin" />}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* ---- password ---- */}
+      <h2 className="v12-group-title">كلمة السر</h2>
+      {emailUser ? (
+        <form
+          className="v12-card v12-in mb-6 space-y-3 p-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!canSubmit) return;
+            void run(
+              "pw",
+              async () => {
+                await changePassword(cur, next);
+                setCur("");
+                setNext("");
+                setAgain("");
+              },
+              "تبدّلت كلمة السر ✅"
+            );
+          }}
         >
-          فعّلته — حدّث الحالة
-        </button>
-      )}
-      {password && (
-        <button type="button" disabled={busy || !user?.email} onClick={() => run(() => sendReset(user?.email ?? ""), "أرسلنا رابط تغيير كلمة المرور إلى بريدك ✉️")} className="w-full text-start disabled:opacity-50">
-          <Row icon={KeyRound} title="تغيير كلمة المرور" desc="نرسل رابطاً آمناً إلى بريدك عبر Firebase" />
-        </button>
-      )}
-      <Row icon={ShieldCheck} title="حمايتك" desc="كلمات المرور لا تُخزَّن عندنا أبداً — Firebase يحفظ بصمة مشفّرة فقط، وقاعدة البيانات تحفظ بريدك وحالة تفعيله." />
+          {[
+            { v: cur, set: setCur, ph: "كلمة السر الحالية", auto: "current-password" },
+            { v: next, set: setNext, ph: "الجديدة (8 حروف على الأقل)", auto: "new-password" },
+            { v: again, set: setAgain, ph: "أعد الجديدة", auto: "new-password" },
+          ].map((f, i) => (
+            <div key={i} className="relative">
+              <input
+                type={show ? "text" : "password"}
+                value={f.v}
+                autoComplete={f.auto}
+                onChange={(e) => f.set(e.target.value)}
+                placeholder={f.ph}
+                className="w-full rounded-xl border border-[var(--v12-line)] bg-[var(--v12-card-2)] px-3.5 py-3 pe-10 text-[14.5px] text-[var(--v12-text)] outline-none transition placeholder:text-[var(--v12-faint)] focus:border-[var(--v12-accent)]"
+              />
+              {i === 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShow((x) => !x)}
+                  className="absolute inset-y-0 end-3 grid place-items-center text-[var(--v12-faint)]"
+                  aria-label="إظهار"
+                >
+                  {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              )}
+            </div>
+          ))}
 
-      <h2 className="pt-2 text-sm font-black text-slate-300">آخر عمليات الدخول</h2>
-      {!data && !err && <Loader2 className="mx-auto h-5 w-5 animate-spin text-slate-400" />}
-      {err && <p className="text-center text-sm font-bold text-rose-500">تعذّر تحميل السجل.</p>}
-      {data?.logins.length === 0 && <p className="text-center text-sm text-slate-400">لا يوجد سجل بعد.</p>}
-      {data?.logins.map((l, i) => (
-        <Row key={i} icon={MonitorSmartphone} title={`${l.kind === "signup" ? "إنشاء حساب" : "تسجيل دخول"} · ${l.provider === "google" ? "Google" : "بريد"}`} desc={`${l.device} · ${when(l.at)}`} />
-      ))}
+          {next.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex gap-1">
+                {[0, 1, 2, 3].map((i) => (
+                  <span
+                    key={i}
+                    className="h-1 flex-1 rounded-full transition-colors"
+                    style={{ background: i < s ? TONES[s] : "rgba(255,255,255,.1)" }}
+                  />
+                ))}
+              </div>
+              <p className="text-[11.5px]" style={{ color: TONES[s] }}>
+                {BARS[s]}
+                {again.length > 0 && next !== again && (
+                  <span className="text-red-300"> · الجديدتان ما متطابقتينش</span>
+                )}
+              </p>
+            </div>
+          )}
 
-      <button type="button" onClick={() => signOut()} className="w-full text-start">
-        <Row danger icon={LogOut} title="تسجيل الخروج" />
-      </button>
-      {msg && <p className="text-center text-sm font-bold text-brand-300">{msg}</p>}
-    </SettingsFrame>
+          <button type="submit" disabled={!canSubmit} className="v12-btn v12-btn-primary w-full !py-3 disabled:opacity-40">
+            {busy === "pw" ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            بدّل كلمة السر
+          </button>
+
+          <button
+            type="button"
+            disabled={busy === "rst" || !user?.email}
+            onClick={() => void run("rst", () => sendReset(user?.email ?? ""), "أرسلنا رابط إعادة التعيين ✉️")}
+            className="w-full text-center text-[12.5px] text-[var(--v12-faint)] underline-offset-4 hover:text-[var(--v12-text)] hover:underline"
+          >
+            نسيت الحالية؟ ابعث ليا رابط
+          </button>
+        </form>
+      ) : (
+        <div className="v12-group v12-in mb-6">
+          <div className="v12-row">
+            <KeyRound className="v12-row-ico" />
+            <span className="v12-row-label">
+              دخلت بحساب Google
+              <span className="v12-row-sub">كلمة السر تتسيّر من طرف Google</span>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ---- sessions ---- */}
+      {logins.length > 0 && (
+        <>
+          <h2 className="v12-group-title">آخر الدخولات</h2>
+          <div className="v12-group v12-in">
+            {logins.map((l, i) => (
+              <div key={i} className="v12-row">
+                <MonitorSmartphone className="v12-row-ico" />
+                <span className="v12-row-label">
+                  {l.provider === "google" ? "Google" : "البريد"} · {l.kind === "signup" ? "تسجيل" : "دخول"}
+                  <span className="v12-row-sub">
+                    {new Date(l.createdAt).toLocaleString("ar-DZ")}
+                    {l.userAgent ? ` · ${l.userAgent.slice(0, 40)}` : ""}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

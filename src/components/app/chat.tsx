@@ -45,6 +45,7 @@ import {
   Info,
   Zap,
   Sparkles,
+  Rocket,
   Plus,
   type LucideIcon,
 } from "lucide-react";
@@ -86,19 +87,17 @@ import {
   type PendingFile,
 } from "@/lib/attachments";
 import { CallButton } from "@/components/chat/call-button";
-import { generateInlineImage } from "@/lib/inline-image";
-import { detectImageRequest } from "@/lib/image-intent";
-import { checkHtml, repairPrompt, REPAIR_MARK } from "@/lib/code-check";
-import { ImageGenCard, type ImageGenState } from "@/components/chat/image-gen-card";
-import type { ImageAspect, ImageStyle } from "@/lib/image-types";
+import { generateInlineImage, INLINE_IMAGE_ERRORS } from "@/lib/inline-image";
+
+/** v8: "generate me an image" requests (the image engine is not available yet). */
+const IMAGE_INTENT =
+  /(ولّ?د|اصنع|أنشئ|انشئ|صمّ?م|ارسم|اعمل|سوّ?ي|توليد|generate|create|make|draw|génère|genere|crée|cree|dessine)\s+(لي\s+|لنا\s+|me\s+|moi\s+)?(an?\s+|une?\s+|des\s+)?(صور[ةه]?|صور|image|images|picture|pictures|photo|photos)(?![\w\u0600-\u06FF])/i;
 
 type Msg = {
   id: number;
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
-  /** in-chat image request (Gemini-style card: shimmer while drawing, then the picture) */
-  imageGen?: ImageGenState;
   /** names of files attached to a user message (display only) */
   files?: string[];
 };
@@ -169,7 +168,7 @@ async function copyText(text: string): Promise<boolean> {
 /* v8 helpers: follow-up chips, read-aloud                             */
 /* ------------------------------------------------------------------ */
 
-type TierId = "v4" | "v8"; // v4 = free engine, v8 = Nexus 8 Pro (the single flagship)
+type TierId = "v4" | "v5" | "v6" | "v8" | "max";
 const PERSONAS: { id: string; label: string; emoji: string }[] = [
   { id: "genius", label: "ذكي", emoji: "🧠" },
   { id: "coder", label: "مبرمج", emoji: "💻" },
@@ -439,8 +438,6 @@ const MessageRow = memo(function MessageRow({
   onPreview,
   onRegenerate,
   onSuggest,
-  onImageRetry,
-  onImageEdit,
 }: {
   m: Msg;
   name: string | null;
@@ -455,8 +452,6 @@ const MessageRow = memo(function MessageRow({
   onPreview: (html: string) => void;
   onRegenerate: () => void;
   onSuggest: (text: string) => void;
-  onImageRetry: (id: number) => void;
-  onImageEdit: (prompt: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -464,7 +459,7 @@ const MessageRow = memo(function MessageRow({
   const isUser = m.role === "user";
   const press = useLongPressCopy(m.content);
   const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
-  const done = !isUser && !m.pending && !!body && !m.imageGen;
+  const done = !isUser && !m.pending && !!body;
   const html = useMemo(() => (done && pro ? extractHtml(body) : null), [done, pro, body]);
   const zipFiles = useMemo(
     () => (done && pro && body.includes("```") ? filesFromReply(body) : []),
@@ -524,9 +519,7 @@ const MessageRow = memo(function MessageRow({
       <div className="relative min-w-0 flex-1">
         {press.pill}
         <div className="text-[16px] leading-[1.85] text-slate-100" {...press.handlers}>
-          {m.imageGen ? (
-            <ImageGenCard gen={m.imageGen} onRetry={() => onImageRetry(m.id)} onEdit={() => onImageEdit(m.imageGen?.prompt ?? "")} />
-          ) : m.pending && !m.content ? (
+          {m.pending && !m.content ? (
             <div>
               <TypingDots label={thinking} />
             </div>
@@ -737,9 +730,10 @@ export function ChatPage() {
     try {
       const v = localStorage.getItem("barq_tier");
       // everyone lands on the new flagship once; afterwards their choice is respected
-      // one flagship only: every older choice (5 / 6 / 8 / MAX) lands on Nexus 8 Pro
-      if (v !== "v8") localStorage.setItem("barq_tier", "v8");
-      setTier("v8");
+      if (localStorage.getItem("barq_v8_default") !== "1") {
+        localStorage.setItem("barq_v8_default", "1");
+        localStorage.setItem("barq_tier", "v8");
+      } else if (v === "v4" || v === "v5" || v === "v6" || v === "v8" || v === "max") setTier(v);
       const pr = localStorage.getItem("barq_persona");
       if (pr && PERSONAS.some((x) => x.id === pr)) setPersona(pr);
     } catch {}
@@ -756,8 +750,8 @@ export function ChatPage() {
         if (typeof d.text === "string" && d.text) {
           setInput(d.text);
           if (d.tier === "max" && isPro) {
-            setTier("v8");
-            try { localStorage.setItem("barq_tier", "v8"); } catch {}
+            setTier("max");
+            try { localStorage.setItem("barq_tier", "max"); } catch {}
           }
           setTimeout(() => taRef.current?.focus(), 60);
         }
@@ -794,7 +788,7 @@ export function ChatPage() {
   }, []);
   // a Pro account never runs on the free engine: 4 → 5
   useEffect(() => {
-    if (isPro && tier === "v4") setTier("v8");
+    if (isPro && tier === "v4") setTier("v5");
   }, [isPro, tier]);
   const pickTier = (v: TierId) => {
     if (v !== "v4" && !isPro) {
@@ -882,11 +876,7 @@ export function ChatPage() {
     openSeq.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
-    // release the blob URLs of generated pictures when the chat is cleared
-    setMsgs((prev) => {
-      for (const x of prev) if (x.imageGen?.url) URL.revokeObjectURL(x.imageGen.url);
-      return [];
-    });
+    setMsgs([]);
     setConvId(null);
     try { localStorage.removeItem(ACTIVE_CONV_KEY); } catch {}
     setError(null);
@@ -1052,70 +1042,35 @@ export function ChatPage() {
 
 
 
-  /* ---------- in-chat image generation (card: shimmer -> picture) ---------- */
-
-  const runImageGen = useCallback(
-    async (aid: number, prompt: string, aspect: ImageAspect, style: ImageStyle) => {
-      const startedAt = Date.now();
-      setMsgs((m) =>
-        m.map((x) =>
-          x.id === aid && x.imageGen ? { ...x, imageGen: { ...x.imageGen, status: "loading", startedAt, url: undefined, code: undefined } } : x
-        )
-      );
-      const r = await generateInlineImage(authFetch, prompt, { aspect, style });
-      setMsgs((m) =>
-        m.map((x) => {
-          if (x.id !== aid || !x.imageGen) return x;
-          if (r.ok) return { ...x, imageGen: { ...x.imageGen, status: "done", url: r.url, ms: r.ms, code: undefined } };
-          return { ...x, imageGen: { ...x.imageGen, status: "error", url: undefined, code: r.code } };
-        })
-      );
-    },
-    [authFetch]
-  );
-
-  const retryImage = useCallback(
-    (id: number) => {
-      const g = msgs.find((x) => x.id === id)?.imageGen;
-      if (!g || g.status === "loading") return;
-      if (g.url) URL.revokeObjectURL(g.url); // free the previous picture's memory
-      stickRef.current = true;
-      void runImageGen(id, g.prompt, g.aspect, g.style);
-    },
-    [msgs, runImageGen]
-  );
-
-  const editImage = useCallback((prompt: string) => {
-    setImgPrompt(prompt.slice(0, 600));
-    setImgOpen(true);
-  }, []);
-
   const send = useCallback(
     async (text: string, retry = false, baseOverride?: Msg[]) => {
       const sendFiles = retry ? lastFilesRef.current : baseOverride ? [] : files;
       const content = text.trim() || (sendFiles.length > 0 ? pro.defaultAsk : "");
       if (!content || streaming) return;
       // "generate me an image": the picture is drawn right here in the chat (free + Pro)
-      const imgReq = !retry && !baseOverride && sendFiles.length === 0 ? detectImageRequest(content) : null;
-      if (imgReq) {
+      if (!retry && !baseOverride && IMAGE_INTENT.test(content)) {
         setInput("");
         setNotice(null);
         setError(null);
-        if (taRef.current) taRef.current.style.height = "auto";
         const aid = nextId();
-        // content doubles as short context for the text model on later turns
-        setMsgs((m) => [
-          ...m,
-          { id: nextId(), role: "user", content },
-          {
-            id: aid,
-            role: "assistant",
-            content: `[تم توليد صورة: ${content.slice(0, 120)}]`,
-            imageGen: { prompt: content, aspect: imgReq.aspect, style: imgReq.style, status: "loading", startedAt: Date.now() },
-          },
-        ]);
+        setMsgs((m) => [...m, { id: nextId(), role: "user", content }, { id: aid, role: "assistant", content: "", pending: true }]);
         stickRef.current = true;
-        void runImageGen(aid, content, imgReq.aspect, imgReq.style);
+        void generateInlineImage(authFetch, content).then((r) => {
+          const alt = content.slice(0, 80).replace(/[\[\]()]/g, " ");
+          setMsgs((m) =>
+            m.map((x) =>
+              x.id === aid
+                ? {
+                    ...x,
+                    pending: false,
+                    content: r.ok
+                      ? `![${alt}](${r.url})\n\n*رُسمت في ${(r.ms / 1000).toFixed(1)} ثانية. لتعديل عنصر فيها أو تغيير الأسلوب افتح «إنشاء صور» من زر +.*`
+                      : `⚠️ ${INLINE_IMAGE_ERRORS[r.code] ?? INLINE_IMAGE_ERRORS.FAILED}`,
+                  }
+                : x
+            )
+          );
+        });
         return;
       }
       lastTextRef.current = text.trim();
@@ -1203,9 +1158,10 @@ export function ChatPage() {
             // model selector: gemini (default) | huggingface | grok | openrouter (grok / openrouter are Pro, enforced by the server)
             provider: selection.provider,
             model: selection.model ?? "auto",
-            ...(isPro && deep ? { deep: true } : {}),
+            ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
+            ...(isPro && tier === "v6" ? { v6: true } : {}),
             ...(mode ? { mode } : {}),
-            ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
+            ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
           }),
           signal: controller.signal,
         });
@@ -1306,8 +1262,10 @@ export function ChatPage() {
                   conversationId: newConvId || convId,
                   messages: [...history, { role: "user", content }],
                   continueFrom: acc,
-                                    ...(mode ? { mode } : {}),
-                  ...(tier === "v8" ? { v8: true } : {}),
+                  v6: tier === "v6",
+                  ...(mode ? { mode } : {}),
+                  ...(tier === "v8" || tier === "max" ? { v8: true } : {}),
+                  ...(tier === "max" ? { max: true } : {}),
                 }),
                 signal: controller.signal,
               });
@@ -1413,7 +1371,7 @@ export function ChatPage() {
         }
       }
     },
-    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, selection, pro.defaultAsk, runImageGen]
+    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, selection, pro.defaultAsk]
   );
 
   sendRef.current = send;
@@ -1434,39 +1392,6 @@ export function ChatPage() {
   const regenRef = useRef(regenerate);
   regenRef.current = regenerate;
   const onRegen = useCallback(() => regenRef.current(), []);
-
-  /* ---------- MAX auto-verify: check the finished file, send surgical repairs back (max 2 rounds) ---------- */
-  const wasStreamingRef = useRef(false);
-  const repairsRef = useRef(0);
-  useEffect(() => {
-    if (streaming) {
-      wasStreamingRef.current = true;
-      return;
-    }
-    // only answers produced live in this session (never old conversations that were just opened)
-    if (!wasStreamingRef.current) return;
-    wasStreamingRef.current = false;
-    if (tier !== "v8" || !isPro) return;
-    const last = msgs[msgs.length - 1];
-    if (!last || last.role !== "assistant" || last.pending || last.imageGen) return;
-    const html = extractHtml(last.content);
-    if (!html || html.length < 1500) return;
-    const lastUser = [...msgs].reverse().find((x) => x.role === "user");
-    if (lastUser && !lastUser.content.startsWith(REPAIR_MARK)) repairsRef.current = 0; // a fresh request resets the counter
-    const issues = checkHtml(html);
-    if (issues.length === 0) {
-      setNotice(repairsRef.current > 0 ? "✓ فحص ماكس: تم الإصلاح والملف سليم" : "✓ فحص ماكس: لم أجد أخطاء");
-      return;
-    }
-    if (repairsRef.current >= 2) {
-      setNotice(`⚠️ بقيت ملاحظات في الكود (${issues.length}). اكتب «أصلح الأخطاء» ليعيد ماكس المحاولة.`);
-      return;
-    }
-    repairsRef.current += 1;
-    setNotice(`🔧 ماكس وجد ${issues.length} ملاحظة ويصلحها تلقائيًا…`);
-    // not cancelled on re-render: the one-shot flag above is already consumed
-    setTimeout(() => void sendRef.current(repairPrompt(issues)), 500);
-  }, [streaming, msgs, tier, isPro]);
   const onSuggest = useCallback((q: string) => void sendRef.current(q), []);
 
   /* ---------- Pro: attachments, voice, export ---------- */
@@ -1802,8 +1727,6 @@ export function ChatPage() {
                     onPreview={setPreview}
                     onRegenerate={onRegen}
                     onSuggest={onSuggest}
-                    onImageRetry={retryImage}
-                    onImageEdit={editImage}
                     name={user?.displayName ?? null}
                     photo={user?.photoURL ?? null}
                     thinking={t.app.thinking}
@@ -1952,8 +1875,8 @@ export function ChatPage() {
                 className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
               >
                 {(isPro
-                  ? ([["v8", "Nexus 8 Pro"]] as const)
-                  : ([["v4", "Nexus 4"], ["v8", "Nexus 8 Pro"]] as const)
+                  ? ([["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
+                  : ([["v4", "Nexus 4"], ["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
                 ).map(([id, label]) => {
                   const on = (isPro ? tier : "v4") === id;
                   const locked = !isPro && id !== "v4";
@@ -1966,17 +1889,25 @@ export function ChatPage() {
                       onClick={() => pickTier(id)}
                       className={cn(
                         "inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
-                        on
-                          ? id === "v8"
-                            ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
-                            : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
-                          : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
+                        id === "max"
+                          ? on
+                            ? "max-pill border-transparent shadow-[0_8px_22px_-6px_rgba(255,100,0,0.95)]"
+                            : "border-orange-500 bg-orange-500/15 text-orange-600 ring-1 ring-orange-400/50"
+                          : on
+                            ? id === "v8"
+                              ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
+                              : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
+                            : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
                       )}
                     >
                       {locked ? (
                         <Lock className="h-3.5 w-3.5" />
+                      ) : id === "max" ? (
+                        <Rocket className="h-4 w-4" />
                       ) : id === "v8" ? (
                         <Crown className="h-4 w-4" />
+                      ) : id === "v6" ? (
+                        <Sparkles className="h-4 w-4" />
                       ) : null}
                       {label}
                     </button>
@@ -1986,12 +1917,12 @@ export function ChatPage() {
 
               <details className="group px-3 pt-1.5">
                 <summary className="cursor-pointer list-none text-[12px] font-bold text-slate-400 hover:text-brand-300">
-                  ماذا يقدّم Nexus 8 Pro؟
+                  ما الفرق بين Nexus 5 و6 و8 وMAX؟
                 </summary>
                 <TierCompare className="mt-2 max-h-[46dvh] overflow-y-auto pb-2" />
               </details>
 
-              {isPro && tier === "v8" && (
+              {isPro && (tier === "v8" || tier === "max") && (
                 <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="Nexus">
                   {PERSONAS.map((p) => (
                     <button
@@ -2063,7 +1994,7 @@ export function ChatPage() {
               />
 
               {/* tools row: attach · voice · deep · model switch ........ send */}
-              <div className="flex items-center gap-0.5 px-2 pb-1.5 pt-0.5">
+              <div className="flex min-w-0 flex-nowrap items-center gap-0.5 overflow-hidden px-2 pb-1.5 pt-0.5">
                 {voiceOk && !streaming && !talk && (
                   <VoiceRecorder
                     lang={locale === "ar" ? "ar-DZ" : locale === "fr" ? "fr-FR" : "en-US"}
@@ -2108,7 +2039,7 @@ export function ChatPage() {
                   <Plus className="h-4 w-4" />
                 </button>
                 <CallButton active={call} onClick={() => setCall(true)} />
-                {isPro && tier === "v8" && (
+                {isPro && (tier === "v5" || tier === "v8" || tier === "max") && (
                   <button
                     type="button"
                     onClick={() => setDeep((v) => !v)}
@@ -2126,7 +2057,7 @@ export function ChatPage() {
                   </button>
                 )}
 
-                <span className="flex-1" />
+                <span className="min-w-0 flex-1" />
 
                 {streaming ? (
                   <button
@@ -2226,7 +2157,7 @@ export function ChatPage() {
           setImgOpen(false);
           setImgPrompt("");
         }}
-        tier={tier === "v8" ? "v8" : "v5"}
+        tier={tier === "v5" || tier === "v6" || tier === "v8" || tier === "max" ? tier : "v5"}
         initialPrompt={imgPrompt || input.trim().slice(0, 600)}
         autoStart={imgAuto}
       />
