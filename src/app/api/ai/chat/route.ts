@@ -657,7 +657,7 @@ export async function POST(req: Request) {
             mode: "quality",
             epic: true,
             maxTokens: MAX_OUTPUT_TOKENS,
-            temperature: 0.7,
+            temperature: 0.35, // MAX precision: low randomness = fewer slips in code
             attachments: parsed.files,
             onModel: (m) => {
               usedModel = m;
@@ -679,7 +679,7 @@ export async function POST(req: Request) {
           maxTokens: MAX_OUTPUT_TOKENS,
           messages: capped,
           attachments: parsed.files,
-          temperature: 0.7,
+          temperature: max ? 0.35 : 0.7,
           keepAlive: true,
           onModel: (m) => {
             usedModel = m;
@@ -695,7 +695,7 @@ export async function POST(req: Request) {
             maxTokens: max ? MAX_OUTPUT_TOKENS : 32000,
             messages: capped,
             attachments: parsed.files,
-            temperature: 0.6,
+            temperature: max ? 0.3 : 0.6,
             keepAlive: true,
             onModel: (m) => {
               usedModel = m;

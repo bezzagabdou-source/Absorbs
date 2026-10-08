@@ -39,7 +39,7 @@ export function ExportMenu({
       <AnimatePresence>
         {open && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div aria-hidden="true" className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
             <GlassCard
               static
               initial={{ opacity: 0, y: -6, scale: 0.97 }}

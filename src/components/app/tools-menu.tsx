@@ -92,7 +92,7 @@ export function ToolsMenu({ open, onClose, isPro, activeMode, onSelect }: ToolsM
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/60" onClick={onClose}>
+    <div role="presentation" className="fixed inset-0 z-[85] flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

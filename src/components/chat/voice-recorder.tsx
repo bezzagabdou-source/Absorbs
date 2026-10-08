@@ -204,7 +204,7 @@ export function VoiceSettings({ className }: { className?: string }) {
       <AnimatePresence>
         {open && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div aria-hidden="true" className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
             <GlassCard
               initial={{ opacity: 0, y: -6, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

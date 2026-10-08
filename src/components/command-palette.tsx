@@ -6,7 +6,7 @@ import {
   Search, MessagesSquare, LayoutGrid, Wand2, Gamepad2, History, Crown, Settings, Sun, Headphones, CornerDownLeft, Clapperboard, FileText, Code2, Palette,
   type LucideIcon,
 } from "lucide-react";
-import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
+import { MAX_STARTERS } from "@/lib/max-starters";
 import { applyTheme, readTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +94,7 @@ export function CommandPalette() {
         icon: Sun,
         run: () => applyTheme(readTheme() === "orange-claude" ? "dark" : "orange-claude"),
       },
-      ...MAX_ENGINE_CONFIG.starters.map((s) => ({
+      ...MAX_STARTERS.map((s) => ({
         id: `max-${s.label}`,
         label: `MAX · ${s.label}`,
         hint: "ابدأ بناء ضخم",

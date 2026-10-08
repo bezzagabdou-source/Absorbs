@@ -1039,3 +1039,46 @@ html:not([data-theme="orange-claude"]) .neo-chip { background: #151722; }
   html:not([data-theme="orange-claude"]) body::after, .think-orb, .think-bar, .call-bar, .call-btn-live, .chat-img { animation: none; }
   .call-bar { transform: scaleY(0.8); }
 }
+
+/* a11y: honour reduced-motion everywhere (aurora, v8 backgrounds, transitions) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- in-chat image generation card (Gemini-style) ---------- */
+.imggen-box {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1f1d1a;
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.9);
+  padding: 0;
+}
+.imggen-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.09) 45%, rgba(251, 191, 36, 0.12) 55%, transparent 80%);
+  background-size: 220% 100%;
+  animation: imggenSweep 1.8s linear infinite;
+}
+.imggen-orb {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 46%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.55), rgba(217, 119, 87, 0.35) 45%, transparent 70%);
+  filter: blur(18px);
+  animation: imggenPulse 2.4s ease-in-out infinite;
+}
+@keyframes imggenSweep { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes imggenPulse { 0%, 100% { scale: 0.85; opacity: 0.6; } 50% { scale: 1.15; opacity: 1; } }

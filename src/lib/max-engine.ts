@@ -1,3 +1,5 @@
+import { MAX_STARTERS } from "@/lib/max-starters";
+
 /**
  * MAX — Game & Web Titan Engine.
  * One config used by the chat route (tier "max") and by the Studio mega builder.
@@ -56,27 +58,32 @@ F. LANGUAGE. Reply in the user's language and dialect (Arabic / Darija / French 
 G. NEVER STOP HALFWAY. If the output limit cuts the answer, the continuation restarts at the exact next character with no recap. A long, finished, working answer always beats a short, tidy one.
 H. HONESTY. Do not claim abilities you do not have (no live web, no real video camera). Say plainly what the tool did and offer the closest real alternative.`;
 
+/**
+ * MAX PRECISION PROTOCOL — create / design / edit with zero tolerance for broken output.
+ * Prompt-level discipline (the model weights are not trained here): a fixed pre-flight checklist,
+ * surgical edit rules and a list of the mistakes that most often break single-file apps.
+ */
+export const MAX_PRECISION_ADDON = `
+
+MAX PRECISION PROTOCOL — CREATE / DESIGN / EDIT (zero-error, maximum speed)
+P1. FIRST BYTE FAST. The very first characters are the deliverable (the \`\`\`html fence or the answer). No plan, no preface, no apology, no summary after it.
+P2. PRE-FLIGHT (silent, before the first line): list the ids, classes, functions, state keys and assets you will use, and fix their exact names. Write nothing that is not in that list. Define every function and constant BEFORE its first use; run initialisation only after DOMContentLoaded.
+P3. ERROR MAGNETS (never do these): ES-module import/export in a single file; document.getElementById on an id that is not in the markup; duplicate ids; a listener on a possibly-null element without a guard; unclosed tag / brace / template literal / string; forgotten closing </script> or </html>; a variable declared twice with let/const; await outside async; unquoted object keys with dashes; alert/prompt/confirm; localStorage / audio / fullscreen / vibration without try-catch; AudioContext before the first user tap; canvas size not set before drawing; NaN from dividing by dt=0 (clamp dt to 0.05).
+P4. EDIT = SURGICAL. When the file already exists in the conversation: (a) keep EVERY existing id, class, function name, CSS token and data key unchanged, (b) change only what was asked and what the change strictly requires, (c) never rewrite, rename, reformat or "improve" untouched code, (d) return the COMPLETE updated file (never a diff, never "rest unchanged"), (e) if the request is ambiguous pick the most likely meaning and do it, do not ask.
+P5. DESIGN = TOKENS. Create the design tokens first (:root colours, radii, spacing, shadows, type scale) and use ONLY them; every component gets default, hover, active, focus-visible, disabled and loading states; touch targets >= 44px; layout works from 360px; dir/lang set for Arabic.
+P6. POST-FLIGHT (silent, before the closing tag): re-read the file top to bottom once as the browser would: every id used in JS exists, every function called is defined, every brace and tag is closed, the first screen renders, the main loop starts, restart works. Fix what you find BEFORE you finish.
+P7. ACCURACY OVER CLEVERNESS. Prefer plain, proven APIs over exotic ones; no invented library names or methods; Three.js r128 / Canvas 2D / Web Audio / DOM only; if a feature cannot be built reliably, build the closest reliable version and keep going.`;
+
 export const MAX_ENGINE_CONFIG = {
   id: "max-game-ultra",
   name: "MAX - Game & Web Titan Engine",
   nameAr: "ماكس — محرك الألعاب والمواقع العملاق",
   description: "أقوى نموذج متخصص في بناء الألعاب 3D/2D والمواقع الضخمة بأقصى حجم تسمح به المنصة",
-  systemPromptAddon: MAX_STRICT_ADDON + MAX_MIND_ADDON,
-  starters: [
-    { emoji: "🏎️", label: "سباق ثلاثي الأبعاد", text: "ابنِ لعبة سباق سيارات ثلاثية الأبعاد بـ Three.js مع مضمار متعدد الدوائر وذكاء اصطناعي للخصوم وعدّاد سرعة وموسيقى مُولَّدة بـ WebAudio" },
-    { emoji: "⚔️", label: "RPG بعالم مفتوح", text: "ابنِ لعبة RPG ثنائية الأبعاد بعالم مفتوح وقتال ومخزون ومهام جانبية ونظام ترقية وحفظ تلقائي" },
-    { emoji: "🏰", label: "دفاع أبراج", text: "ابنِ لعبة دفاع أبراج كاملة بـ 10 مراحل وأنواع أعداء وزعماء وشجرة ترقيات وإنجازات" },
-    { emoji: "🛒", label: "متجر متكامل", text: "ابنِ موقع متجر إلكتروني متكامل بسلة وفلاتر وصفحات منتجات ولوحة تحكم وثيم فاتح/داكن" },
-    { emoji: "📊", label: "لوحة تحليلات", text: "ابنِ لوحة تحكم تحليلات ضخمة برسوم بيانية SVG وجداول قابلة للفرز وفلاتر وتصدير CSV" },
-    { emoji: "🧟", label: "نجاة وزومبي 3D", text: "ابنِ لعبة نجاة ثلاثية الأبعاد بعالم مفتوح وموجات زومبي وبناء قواعد وأسلحة وترقيات ودورة ليل ونهار وجودة واجهة عصرية" },
-    { emoji: "🏙️", label: "بناء مدينة", text: "ابنِ لعبة بناء وإدارة مدينة بمبانٍ وموارد واقتصاد وسكان وكوارث وشجرة أبحاث وواجهة UI/UX عصرية" },
-    { emoji: "🚀", label: "فضاء وإطلاق نار", text: "ابنِ لعبة فضاء إطلاق نار مع زعماء وأسلحة وترقيات ومراحل ومتجر وموسيقى مولّدة وواجهة عصرية ملوّنة" },
-    { emoji: "📚", label: "منصة تعليمية", text: "ابنِ منصة تعليمية متكاملة بدروس واختبارات وتتبّع تقدّم وشارات ولوحة طالب وتصميم UI/UX عصري" },
-    { emoji: "🎬", label: "منصة فيديو", text: "ابنِ موقع منصة فيديو بقوائم تشغيل وبحث ومفضلة وصفحات قنوات وتصميم احترافي" },
-  ],
+  systemPromptAddon: MAX_STRICT_ADDON + MAX_MIND_ADDON + MAX_PRECISION_ADDON,
+  starters: MAX_STARTERS,
 } as const;
 
-export type MaxStarter = (typeof MAX_ENGINE_CONFIG.starters)[number];
+export type { MaxStarter } from "@/lib/max-starters";
 
 
 /**

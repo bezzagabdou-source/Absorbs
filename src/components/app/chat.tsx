@@ -87,17 +87,19 @@ import {
   type PendingFile,
 } from "@/lib/attachments";
 import { CallButton } from "@/components/chat/call-button";
-import { generateInlineImage, INLINE_IMAGE_ERRORS } from "@/lib/inline-image";
-
-/** v8: "generate me an image" requests (the image engine is not available yet). */
-const IMAGE_INTENT =
-  /(ولّ?د|اصنع|أنشئ|انشئ|صمّ?م|ارسم|اعمل|سوّ?ي|توليد|generate|create|make|draw|génère|genere|crée|cree|dessine)\s+(لي\s+|لنا\s+|me\s+|moi\s+)?(an?\s+|une?\s+|des\s+)?(صور[ةه]?|صور|image|images|picture|pictures|photo|photos)(?![\w\u0600-\u06FF])/i;
+import { generateInlineImage } from "@/lib/inline-image";
+import { detectImageRequest } from "@/lib/image-intent";
+import { checkHtml, repairPrompt, REPAIR_MARK } from "@/lib/code-check";
+import { ImageGenCard, type ImageGenState } from "@/components/chat/image-gen-card";
+import type { ImageAspect, ImageStyle } from "@/lib/image-types";
 
 type Msg = {
   id: number;
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
+  /** in-chat image request (Gemini-style card: shimmer while drawing, then the picture) */
+  imageGen?: ImageGenState;
   /** names of files attached to a user message (display only) */
   files?: string[];
 };
@@ -438,6 +440,8 @@ const MessageRow = memo(function MessageRow({
   onPreview,
   onRegenerate,
   onSuggest,
+  onImageRetry,
+  onImageEdit,
 }: {
   m: Msg;
   name: string | null;
@@ -452,6 +456,8 @@ const MessageRow = memo(function MessageRow({
   onPreview: (html: string) => void;
   onRegenerate: () => void;
   onSuggest: (text: string) => void;
+  onImageRetry: (id: number) => void;
+  onImageEdit: (prompt: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -459,7 +465,7 @@ const MessageRow = memo(function MessageRow({
   const isUser = m.role === "user";
   const press = useLongPressCopy(m.content);
   const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
-  const done = !isUser && !m.pending && !!body;
+  const done = !isUser && !m.pending && !!body && !m.imageGen;
   const html = useMemo(() => (done && pro ? extractHtml(body) : null), [done, pro, body]);
   const zipFiles = useMemo(
     () => (done && pro && body.includes("```") ? filesFromReply(body) : []),
@@ -519,7 +525,9 @@ const MessageRow = memo(function MessageRow({
       <div className="relative min-w-0 flex-1">
         {press.pill}
         <div className="text-[16px] leading-[1.85] text-slate-100" {...press.handlers}>
-          {m.pending && !m.content ? (
+          {m.imageGen ? (
+            <ImageGenCard gen={m.imageGen} onRetry={() => onImageRetry(m.id)} onEdit={() => onImageEdit(m.imageGen?.prompt ?? "")} />
+          ) : m.pending && !m.content ? (
             <div>
               <TypingDots label={thinking} />
             </div>
@@ -876,7 +884,11 @@ export function ChatPage() {
     openSeq.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
-    setMsgs([]);
+    // release the blob URLs of generated pictures when the chat is cleared
+    setMsgs((prev) => {
+      for (const x of prev) if (x.imageGen?.url) URL.revokeObjectURL(x.imageGen.url);
+      return [];
+    });
     setConvId(null);
     try { localStorage.removeItem(ACTIVE_CONV_KEY); } catch {}
     setError(null);
@@ -1042,35 +1054,70 @@ export function ChatPage() {
 
 
 
+  /* ---------- in-chat image generation (card: shimmer -> picture) ---------- */
+
+  const runImageGen = useCallback(
+    async (aid: number, prompt: string, aspect: ImageAspect, style: ImageStyle) => {
+      const startedAt = Date.now();
+      setMsgs((m) =>
+        m.map((x) =>
+          x.id === aid && x.imageGen ? { ...x, imageGen: { ...x.imageGen, status: "loading", startedAt, url: undefined, code: undefined } } : x
+        )
+      );
+      const r = await generateInlineImage(authFetch, prompt, { aspect, style });
+      setMsgs((m) =>
+        m.map((x) => {
+          if (x.id !== aid || !x.imageGen) return x;
+          if (r.ok) return { ...x, imageGen: { ...x.imageGen, status: "done", url: r.url, ms: r.ms, code: undefined } };
+          return { ...x, imageGen: { ...x.imageGen, status: "error", url: undefined, code: r.code } };
+        })
+      );
+    },
+    [authFetch]
+  );
+
+  const retryImage = useCallback(
+    (id: number) => {
+      const g = msgs.find((x) => x.id === id)?.imageGen;
+      if (!g || g.status === "loading") return;
+      if (g.url) URL.revokeObjectURL(g.url); // free the previous picture's memory
+      stickRef.current = true;
+      void runImageGen(id, g.prompt, g.aspect, g.style);
+    },
+    [msgs, runImageGen]
+  );
+
+  const editImage = useCallback((prompt: string) => {
+    setImgPrompt(prompt.slice(0, 600));
+    setImgOpen(true);
+  }, []);
+
   const send = useCallback(
     async (text: string, retry = false, baseOverride?: Msg[]) => {
       const sendFiles = retry ? lastFilesRef.current : baseOverride ? [] : files;
       const content = text.trim() || (sendFiles.length > 0 ? pro.defaultAsk : "");
       if (!content || streaming) return;
       // "generate me an image": the picture is drawn right here in the chat (free + Pro)
-      if (!retry && !baseOverride && IMAGE_INTENT.test(content)) {
+      const imgReq = !retry && !baseOverride && sendFiles.length === 0 ? detectImageRequest(content) : null;
+      if (imgReq) {
         setInput("");
         setNotice(null);
         setError(null);
+        if (taRef.current) taRef.current.style.height = "auto";
         const aid = nextId();
-        setMsgs((m) => [...m, { id: nextId(), role: "user", content }, { id: aid, role: "assistant", content: "", pending: true }]);
+        // content doubles as short context for the text model on later turns
+        setMsgs((m) => [
+          ...m,
+          { id: nextId(), role: "user", content },
+          {
+            id: aid,
+            role: "assistant",
+            content: `[تم توليد صورة: ${content.slice(0, 120)}]`,
+            imageGen: { prompt: content, aspect: imgReq.aspect, style: imgReq.style, status: "loading", startedAt: Date.now() },
+          },
+        ]);
         stickRef.current = true;
-        void generateInlineImage(authFetch, content).then((r) => {
-          const alt = content.slice(0, 80).replace(/[\[\]()]/g, " ");
-          setMsgs((m) =>
-            m.map((x) =>
-              x.id === aid
-                ? {
-                    ...x,
-                    pending: false,
-                    content: r.ok
-                      ? `![${alt}](${r.url})\n\n*رُسمت في ${(r.ms / 1000).toFixed(1)} ثانية. لتعديل عنصر فيها أو تغيير الأسلوب افتح «إنشاء صور» من زر +.*`
-                      : `⚠️ ${INLINE_IMAGE_ERRORS[r.code] ?? INLINE_IMAGE_ERRORS.FAILED}`,
-                  }
-                : x
-            )
-          );
-        });
+        void runImageGen(aid, content, imgReq.aspect, imgReq.style);
         return;
       }
       lastTextRef.current = text.trim();
@@ -1371,7 +1418,7 @@ export function ChatPage() {
         }
       }
     },
-    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, selection, pro.defaultAsk]
+    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, selection, pro.defaultAsk, runImageGen]
   );
 
   sendRef.current = send;
@@ -1392,6 +1439,39 @@ export function ChatPage() {
   const regenRef = useRef(regenerate);
   regenRef.current = regenerate;
   const onRegen = useCallback(() => regenRef.current(), []);
+
+  /* ---------- MAX auto-verify: check the finished file, send surgical repairs back (max 2 rounds) ---------- */
+  const wasStreamingRef = useRef(false);
+  const repairsRef = useRef(0);
+  useEffect(() => {
+    if (streaming) {
+      wasStreamingRef.current = true;
+      return;
+    }
+    // only answers produced live in this session (never old conversations that were just opened)
+    if (!wasStreamingRef.current) return;
+    wasStreamingRef.current = false;
+    if (tier !== "max" || !isPro) return;
+    const last = msgs[msgs.length - 1];
+    if (!last || last.role !== "assistant" || last.pending || last.imageGen) return;
+    const html = extractHtml(last.content);
+    if (!html || html.length < 1500) return;
+    const lastUser = [...msgs].reverse().find((x) => x.role === "user");
+    if (lastUser && !lastUser.content.startsWith(REPAIR_MARK)) repairsRef.current = 0; // a fresh request resets the counter
+    const issues = checkHtml(html);
+    if (issues.length === 0) {
+      setNotice(repairsRef.current > 0 ? "✓ فحص ماكس: تم الإصلاح والملف سليم" : "✓ فحص ماكس: لم أجد أخطاء");
+      return;
+    }
+    if (repairsRef.current >= 2) {
+      setNotice(`⚠️ بقيت ملاحظات في الكود (${issues.length}). اكتب «أصلح الأخطاء» ليعيد ماكس المحاولة.`);
+      return;
+    }
+    repairsRef.current += 1;
+    setNotice(`🔧 ماكس وجد ${issues.length} ملاحظة ويصلحها تلقائيًا…`);
+    // not cancelled on re-render: the one-shot flag above is already consumed
+    setTimeout(() => void sendRef.current(repairPrompt(issues)), 500);
+  }, [streaming, msgs, tier, isPro]);
   const onSuggest = useCallback((q: string) => void sendRef.current(q), []);
 
   /* ---------- Pro: attachments, voice, export ---------- */
@@ -1727,6 +1807,8 @@ export function ChatPage() {
                     onPreview={setPreview}
                     onRegenerate={onRegen}
                     onSuggest={onSuggest}
+                    onImageRetry={retryImage}
+                    onImageEdit={editImage}
                     name={user?.displayName ?? null}
                     photo={user?.photoURL ?? null}
                     thinking={t.app.thinking}
