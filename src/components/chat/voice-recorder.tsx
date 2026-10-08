@@ -150,7 +150,7 @@ export function VoiceRecorder({
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="absolute bottom-full start-0 z-20 mb-2 w-max max-w-[220px] rounded-lg bg-rose-600 px-2.5 py-1.5 text-[11px] font-bold text-white shadow-lg"
+            className="absolute bottom-full start-0 z-20 mb-2 w-max max-w-[220px] rounded-lg bg-rose-600 px-2.5 py-1.5 text-[11px] font-bold text-[#fff] shadow-lg"
           >
             {error}
           </motion.span>
@@ -196,7 +196,7 @@ export function VoiceSettings({ className }: { className?: string }) {
         aria-expanded={open}
         aria-label="إعدادات الصوت"
         title="إعدادات الصوت"
-        className="grid size-9 place-items-center rounded-xl border border-slate-900/10 bg-slate-900/5 text-slate-600 transition hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+        className="grid size-9 place-items-center rounded-xl border border-slate-900/10 bg-slate-900/5 text-slate-600 transition hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-[#fff]"
       >
         <Volume2 className="size-4" />
       </button>

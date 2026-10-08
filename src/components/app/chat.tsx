@@ -168,7 +168,8 @@ async function copyText(text: string): Promise<boolean> {
 /* v8 helpers: follow-up chips, read-aloud                             */
 /* ------------------------------------------------------------------ */
 
-type TierId = "v4" | "v5" | "v6" | "v8" | "max";
+/** v15: only two engines ship — Nexus 6 (free) and Nexus 8 PRO. */
+type TierId = "v6" | "v8";
 const PERSONAS: { id: string; label: string; emoji: string }[] = [
   { id: "genius", label: "ذكي", emoji: "🧠" },
   { id: "coder", label: "مبرمج", emoji: "💻" },
@@ -344,33 +345,57 @@ const BUILD_STEPS = [
 
 function BuildThinking({ info }: { info: CodeInfo | null }) {
   const [i, setI] = useState(0);
+  const [sec, setSec] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setI((v) => Math.min(BUILD_STEPS.length - 1, v + 1)), 5200);
-    return () => clearInterval(id);
+    const id = setInterval(() => setI((v) => Math.min(BUILD_STEPS.length - 1, v + 1)), 4200);
+    const t = setInterval(() => setSec((v) => v + 1), 1000);
+    return () => {
+      clearInterval(id);
+      clearInterval(t);
+    };
   }, []);
   const lines = info?.lines ?? 0;
-  const pct = Math.min(96, Math.round((lines / 5000) * 100));
+  const pct = Math.min(97, Math.max(5, Math.round((lines / 4200) * 100)));
+  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
   return (
-    <div className="mt-2 rounded-2xl border border-orange-300/40 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
-      <div className="flex items-center gap-3">
-        <span className="relative grid h-9 w-9 shrink-0 place-items-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-orange-400/30" />
-          <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-orange-500 border-e-amber-300" style={{ animationDuration: "1.1s" }} />
-          <Sparkles className="h-4 w-4 text-orange-600" />
+    <div className="nx-build mt-2">
+      <div className="nx-build-sheen" aria-hidden />
+      <div className="relative flex items-center gap-3">
+        <span className="nx-orb" aria-hidden>
+          <span className="nx-orb-core" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] font-black text-slate-100">Nexus AI v8.4 يفكّر ويبني…</p>
-          <p className="truncate text-[12.5px] font-semibold text-slate-400">{BUILD_STEPS[i]}…</p>
+          <p className="flex items-center gap-2 text-[14.5px] font-black text-slate-100">
+            Nexus 8 <span className="nx-badge">PRO</span>
+            <span className="text-slate-400">يفكّر ويبني…</span>
+          </p>
+          <p className="mt-0.5 truncate text-[12.5px] font-semibold text-brand-300">
+            {BUILD_STEPS[i]}
+            <span className="nx-dots" aria-hidden>
+              <i />
+              <i />
+              <i />
+            </span>
+          </p>
+        </div>
+        <span className="shrink-0 rounded-lg bg-black/[0.05] px-2 py-1 text-[11.5px] font-black tabular-nums text-slate-400" dir="ltr">
+          {mm}:{ss}
+        </span>
+      </div>
+
+      <div className="nx-track mt-3.5" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <div className="nx-fill" style={{ width: `${pct}%` }}>
+          <span className="nx-fill-glow" />
         </div>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-orange-400/20">
-        <div className="h-full rounded-full bg-gradient-to-l from-amber-400 to-orange-500 transition-[width] duration-700" style={{ width: `${Math.max(6, pct)}%` }} />
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-black text-slate-400">
+        <span dir="ltr">{(info?.lines ?? 0).toLocaleString("en-US")} lines</span>
+        <span dir="ltr">{((info?.chars ?? 0) / 1024).toFixed(0)} KB</span>
+        <span className="text-brand-300">{pct}%</span>
+        <span className="ms-auto text-emerald-500">لا تغلق الصفحة — البناء متواصل</span>
       </div>
-      {info && (
-        <p className="mt-2 text-[11.5px] font-bold text-slate-400" dir="ltr">
-          {info.lines.toLocaleString("en-US")} lines · {(info.chars / 1024).toFixed(0)} KB
-        </p>
-      )}
     </div>
   );
 }
@@ -395,7 +420,7 @@ function BuildDone({
   return (
     <div className="mt-2 rounded-2xl border border-orange-300/45 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
       <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-[#fff]">
           <Check className="h-5 w-5" strokeWidth={3} />
         </span>
         <div className="min-w-0 flex-1">
@@ -407,7 +432,7 @@ function BuildDone({
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {canPreview && (
-          <button type="button" onClick={onPreview} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-4 text-[13px] font-black text-white shadow-[0_8px_22px_-10px_rgba(234,88,12,0.9)] transition active:scale-95">
+          <button type="button" onClick={onPreview} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-4 text-[13px] font-black text-[#fff] shadow-[0_8px_22px_-10px_rgba(234,88,12,0.9)] transition active:scale-95">
             <Maximize2 className="h-4 w-4" />
             افتح اللعبة / المعاينة
           </button>
@@ -483,14 +508,14 @@ const MessageRow = memo(function MessageRow({
       >
         <div className="relative max-w-[86%] min-w-0 sm:max-w-[78%]" {...press.handlers}>
           {press.pill}
-          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-white shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
+          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-[#fff] shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
             <p className="whitespace-pre-wrap break-words">{m.content}</p>
             {m.files && m.files.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {m.files.map((f, i) => (
                   <span
                     key={`${f}-${i}`}
-                    className="inline-flex max-w-full items-center gap-1 rounded-lg bg-black/25 px-2 py-1 text-[11px] font-semibold text-white/90"
+                    className="inline-flex max-w-full items-center gap-1 rounded-lg bg-black/25 px-2 py-1 text-[11px] font-semibold text-[#fff]/90"
                   >
                     <FileText className="h-3 w-3 shrink-0" />
                     <span dir="ltr" className="truncate">{f}</span>
@@ -512,7 +537,7 @@ const MessageRow = memo(function MessageRow({
       transition={{ duration: 0.2 }}
       className="flex w-full gap-3"
     >
-      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 via-aqua-500 to-gold-400 text-base font-bold leading-none text-white ring-1 ring-white/20">
+      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 via-aqua-500 to-gold-400 text-base font-bold leading-none text-[#fff] ring-1 ring-white/20">
         ب
       </span>
 
@@ -581,7 +606,7 @@ const MessageRow = memo(function MessageRow({
                 {zipFiles.length} ملفات · {zipSizeLabel(zipFiles)} · اضغط للتحميل
               </span>
             </span>
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-gold-400 text-white">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-gold-400 text-[#fff]">
               <Download className="h-4.5 w-4.5" />
             </span>
           </button>
@@ -728,12 +753,16 @@ export function ChatPage() {
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => {
     try {
-      const v = localStorage.getItem("barq_tier");
-      // everyone lands on the new flagship once; afterwards their choice is respected
-      if (localStorage.getItem("barq_v8_default") !== "1") {
-        localStorage.setItem("barq_v8_default", "1");
+      const raw = localStorage.getItem("barq_tier");
+      // v15 migration: v4/v5 -> v6, max -> v8. Only two engines exist now.
+      const v: TierId = raw === "v6" || raw === "v4" || raw === "v5" ? "v6" : "v8";
+      if (localStorage.getItem("barq_v15_default") !== "1") {
+        localStorage.setItem("barq_v15_default", "1");
         localStorage.setItem("barq_tier", "v8");
-      } else if (v === "v4" || v === "v5" || v === "v6" || v === "v8" || v === "max") setTier(v);
+      } else {
+        setTier(v);
+        localStorage.setItem("barq_tier", v);
+      }
       const pr = localStorage.getItem("barq_persona");
       if (pr && PERSONAS.some((x) => x.id === pr)) setPersona(pr);
     } catch {}
@@ -749,9 +778,9 @@ export function ChatPage() {
         const d = JSON.parse(raw) as { text?: string; tier?: string };
         if (typeof d.text === "string" && d.text) {
           setInput(d.text);
-          if (d.tier === "max" && isPro) {
-            setTier("max");
-            try { localStorage.setItem("barq_tier", "max"); } catch {}
+          if ((d.tier === "max" || d.tier === "v8") && isPro) {
+            setTier("v8");
+            try { localStorage.setItem("barq_tier", "v8"); } catch {}
           }
           setTimeout(() => taRef.current?.focus(), 60);
         }
@@ -786,12 +815,12 @@ export function ChatPage() {
     window.addEventListener("barq:voice-call", open);
     return () => window.removeEventListener("barq:voice-call", open);
   }, []);
-  // a Pro account never runs on the free engine: 4 → 5
+  // a free account always runs Nexus 6; Pro lands on Nexus 8
   useEffect(() => {
-    if (isPro && tier === "v4") setTier("v5");
+    if (!isPro && tier !== "v6") setTier("v6");
   }, [isPro, tier]);
   const pickTier = (v: TierId) => {
-    if (v !== "v4" && !isPro) {
+    if (v === "v8" && !isPro) {
       router.push("/app/upgrade");
       return;
     }
@@ -1158,10 +1187,10 @@ export function ChatPage() {
             // model selector: gemini (default) | huggingface | grok | openrouter (grok / openrouter are Pro, enforced by the server)
             provider: selection.provider,
             model: selection.model ?? "auto",
-            ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
-            ...(isPro && tier === "v6" ? { v6: true } : {}),
+            ...(isPro && deep ? { deep: true } : {}),
+            ...(tier === "v6" ? { v6: true } : {}),
             ...(mode ? { mode } : {}),
-            ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
+            ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
           }),
           signal: controller.signal,
         });
@@ -1264,8 +1293,7 @@ export function ChatPage() {
                   continueFrom: acc,
                   v6: tier === "v6",
                   ...(mode ? { mode } : {}),
-                  ...(tier === "v8" || tier === "max" ? { v8: true } : {}),
-                  ...(tier === "max" ? { max: true } : {}),
+                  ...(tier === "v8" ? { v8: true, persona } : {}),
                 }),
                 signal: controller.signal,
               });
@@ -1874,12 +1902,9 @@ export function ChatPage() {
                 aria-label="النموذج"
                 className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
               >
-                {(isPro
-                  ? ([["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
-                  : ([["v4", "Nexus 4"], ["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
-                ).map(([id, label]) => {
-                  const on = (isPro ? tier : "v4") === id;
-                  const locked = !isPro && id !== "v4";
+                {([["v6", "Nexus 6"], ["v8", "Nexus 8"]] as const).map(([id, label]) => {
+                  const on = (isPro ? tier : "v6") === id;
+                  const locked = !isPro && id === "v8";
                   return (
                     <button
                       key={id}
@@ -1888,28 +1913,25 @@ export function ChatPage() {
                       aria-checked={on}
                       onClick={() => pickTier(id)}
                       className={cn(
-                        "inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
-                        id === "max"
-                          ? on
-                            ? "max-pill border-transparent shadow-[0_8px_22px_-6px_rgba(255,100,0,0.95)]"
-                            : "border-orange-500 bg-orange-500/15 text-orange-600 ring-1 ring-orange-400/50"
-                          : on
-                            ? id === "v8"
-                              ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
-                              : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
-                            : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
+                        "inline-flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
+                        on
+                          ? id === "v8"
+                            ? "v8-pill border-transparent shadow-[0_8px_22px_-8px_rgba(217,164,32,0.9)]"
+                            : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-[#fff] shadow-[0_8px_22px_-10px_rgba(99,102,241,0.9)]"
+                          : "border-black/10 bg-black/[0.03] text-slate-400 hover:text-slate-200"
                       )}
                     >
                       {locked ? (
                         <Lock className="h-3.5 w-3.5" />
-                      ) : id === "max" ? (
-                        <Rocket className="h-4 w-4" />
                       ) : id === "v8" ? (
                         <Crown className="h-4 w-4" />
-                      ) : id === "v6" ? (
+                      ) : (
                         <Sparkles className="h-4 w-4" />
-                      ) : null}
+                      )}
                       {label}
+                      {id === "v8" && (
+                        <span className="rounded-full bg-black/15 px-1.5 text-[10px] font-black tracking-wide">PRO</span>
+                      )}
                     </button>
                   );
                 })}
@@ -1917,12 +1939,12 @@ export function ChatPage() {
 
               <details className="group px-3 pt-1.5">
                 <summary className="cursor-pointer list-none text-[12px] font-bold text-slate-400 hover:text-brand-300">
-                  ما الفرق بين Nexus 5 و6 و8 وMAX؟
+                  ما الفرق بين Nexus 6 و Nexus 8 PRO؟
                 </summary>
                 <TierCompare className="mt-2 max-h-[46dvh] overflow-y-auto pb-2" />
               </details>
 
-              {isPro && (tier === "v8" || tier === "max") && (
+              {isPro && tier === "v8" && (
                 <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="Nexus">
                   {PERSONAS.map((p) => (
                     <button
@@ -2039,7 +2061,7 @@ export function ChatPage() {
                   <Plus className="h-4 w-4" />
                 </button>
                 <CallButton active={call} onClick={() => setCall(true)} />
-                {isPro && (tier === "v5" || tier === "v8" || tier === "max") && (
+                {isPro && tier === "v8" && (
                   <button
                     type="button"
                     onClick={() => setDeep((v) => !v)}
@@ -2078,7 +2100,7 @@ export function ChatPage() {
                     className={cn(
                       "grid h-9 w-9 shrink-0 place-items-center rounded-full transition duration-150 active:scale-90",
                       canSend
-                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-white shadow-[0_8px_24px_-8px_rgba(0,180,255,0.9)] hover:brightness-110"
+                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-[#fff] shadow-[0_8px_24px_-8px_rgba(0,180,255,0.9)] hover:brightness-110"
                         : "bg-white/[0.07] text-slate-500"
                     )}
                   >
@@ -2157,7 +2179,7 @@ export function ChatPage() {
           setImgOpen(false);
           setImgPrompt("");
         }}
-        tier={tier === "v5" || tier === "v6" || tier === "v8" || tier === "max" ? tier : "v5"}
+        tier={tier}
         initialPrompt={imgPrompt || input.trim().slice(0, 600)}
         autoStart={imgAuto}
       />

@@ -21,8 +21,8 @@
     "drizzle-orm": "0.45.2",
     "firebase": "^12.19.0",
     "framer-motion": "^14.0.0",
-    "katex": "^0.16.22",
-    "lucide-react": "^1.50.0",
+    "katex": "^0.16.47",
+    "lucide-react": "^1.53.0",
     "next": "16.2.6",
     "pg": "8.20.0",
     "react": "19.2.6",
@@ -41,12 +41,12 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
+    "esbuild": "^0.25.12",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "postcss": "8.5.8",
     "tailwindcss": "4.1.17",
-    "typescript": "5.9.3",
-    "esbuild": "^0.25.12"
+    "typescript": "5.9.3"
   },
   "version": "14.0.0",
   "engines": {

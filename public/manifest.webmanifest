@@ -1,5 +1,5 @@
 {
-  "name": "Nexus AI — الذكاء الاصطناعي الجزائري",
+  "name": "Nexus AI — مساعدك الذكي بالعربية",
   "short_name": "Nexus AI",
   "description": "مساعدك اليومي بالعربية والدارجة والفرنسية — محادثة، أدوات محتوى، ترجمة، ودراسة.",
   "id": "/",
@@ -9,8 +9,8 @@
   "orientation": "any",
   "dir": "auto",
   "lang": "ar",
-  "background_color": "#0b0620",
-  "theme_color": "#0b0620",
+  "background_color": "#f7f8fc",
+  "theme_color": "#f7f8fc",
   "categories": [
     "productivity",
     "education",
@@ -39,6 +39,7 @@
   "shortcuts": [
     {
       "name": "محادثة جديدة",
+      "short_name": "محادثة",
       "url": "/app",
       "icons": [
         {
@@ -48,7 +49,30 @@
       ]
     },
     {
+      "name": "المركز",
+      "short_name": "المركز",
+      "url": "/app/hub",
+      "icons": [
+        {
+          "src": "/icons/nexus-icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "استوديو الصور",
+      "short_name": "الصور",
+      "url": "/app/studio",
+      "icons": [
+        {
+          "src": "/icons/nexus-icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
       "name": "الأدوات",
+      "short_name": "الأدوات",
       "url": "/app/tools",
       "icons": [
         {

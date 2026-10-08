@@ -386,7 +386,7 @@ export function Workbench({
       aria-pressed={mode === m}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition",
-        mode === m ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white" : "text-slate-400 hover:text-white"
+        mode === m ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-[#fff]" : "text-slate-400 hover:text-[#fff]"
       )}
     >
       <Icon className="h-3.5 w-3.5" />

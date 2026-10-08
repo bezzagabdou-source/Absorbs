@@ -57,7 +57,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
                 className={cn(
                   "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition",
                   l === locale
-                    ? "bg-brand-500/20 text-white"
+                    ? "bg-brand-500/20 text-[#fff]"
                     : "text-slate-300 hover:bg-white/5"
                 )}
               >

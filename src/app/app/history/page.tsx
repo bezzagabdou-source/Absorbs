@@ -90,7 +90,7 @@ export default function HistoryPage() {
             className={cn(
               "flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition",
               tab === k
-                ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white shadow-lg"
+                ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-[#fff] shadow-lg"
                 : "text-slate-400 hover:text-white"
             )}
           >

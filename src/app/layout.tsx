@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Nexus AI",
   },
   openGraph: {
@@ -52,8 +52,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#181816",
-  colorScheme: "dark",
+  themeColor: "#f7f8fc",
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
   minimumScale: 1,
@@ -67,7 +67,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" data-theme="lumen" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>

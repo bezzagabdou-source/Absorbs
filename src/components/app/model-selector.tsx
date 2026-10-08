@@ -62,7 +62,7 @@ function Row({
       onClick={onPick}
       className={cn(
         "flex w-full items-start gap-3 px-3.5 py-2.5 text-start transition",
-        active ? "bg-[rgba(217,119,87,0.14)]" : "hover:bg-white/[0.06]",
+        active ? "bg-brand-500/12" : "hover:bg-black/[0.04]",
         locked && "opacity-60"
       )}
     >
@@ -72,7 +72,7 @@ function Row({
         ) : locked ? (
           <Lock className="h-4 w-4 text-[var(--v12-faint)]" />
         ) : (
-          <span className="block h-4 w-4 rounded-full border border-white/15" />
+          <span className="block h-4 w-4 rounded-full border border-black/20" />
         )}
       </span>
 
@@ -154,11 +154,20 @@ export function ModelSelector({
       </button>
 
       {open && (
+        <>
+          {/* full-screen layer: the sheet can never be clipped by a scrolling parent again */}
+          <button
+            type="button"
+            aria-label="إغلاق"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-[998] cursor-default bg-slate-950/25 backdrop-blur-[2px]"
+          />
         <div
-          className="v12-card v12-in absolute bottom-full z-50 mb-2 max-h-[62vh] w-[330px] overflow-y-auto"
-          style={{ insetInlineStart: 0 }}
+          role="dialog"
+          aria-label="اختيار النموذج"
+          className="v12-card v12-in fixed inset-x-3 bottom-3 z-[999] mx-auto max-h-[70dvh] w-auto max-w-[420px] overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)] sm:absolute sm:inset-x-auto sm:bottom-full sm:mb-2 sm:w-[340px] sm:start-0"
         >
-          <div className="sticky top-0 z-10 bg-[rgba(26,25,30,0.94)] px-3.5 py-2.5 backdrop-blur">
+          <div className="sticky top-0 z-10 bg-[var(--v12-sheet)] px-3.5 py-2.5 backdrop-blur">
             <p className="text-[11px] font-bold tracking-wide text-[var(--v12-faint)]">
               مجاني — {FREE_MODELS_V12.length} نماذج
             </p>
@@ -173,7 +182,7 @@ export function ModelSelector({
             />
           ))}
 
-          <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-[rgba(26,25,30,0.94)] px-3.5 py-2.5 backdrop-blur">
+          <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-[var(--v12-sheet)] px-3.5 py-2.5 backdrop-blur">
             <Crown className="h-3 w-3 text-[var(--v12-gold)]" />
             <p className="text-[11px] font-bold tracking-wide text-[var(--v12-faint)]">
               Pro — {PRO_MODELS_V12.length} نماذج
@@ -192,6 +201,7 @@ export function ModelSelector({
             />
           ))}
         </div>
+        </>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
-import { applyTheme, readTheme } from "@/lib/theme";
+import { applyTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 type Cmd = { id: string; label: string; hint?: string; icon: LucideIcon | null; emoji?: string; run: () => void };
@@ -90,9 +90,9 @@ export function CommandPalette() {
       { id: "settings", label: "الإعدادات", icon: Settings, run: go("/app/settings") },
       {
         id: "theme",
-        label: "تبديل المظهر (برتقالي فاتح / ليلي)",
+        label: "مظهر Lumen الفاتح",
         icon: Sun,
-        run: () => applyTheme(readTheme() === "orange-claude" ? "dark" : "orange-claude"),
+        run: () => applyTheme("lumen"),
       },
       ...MAX_ENGINE_CONFIG.starters.map((s) => ({
         id: `max-${s.label}`,
@@ -162,7 +162,7 @@ export function CommandPalette() {
                 onClick={() => exec(c)}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-start text-sm font-bold transition",
-                  i === idx ? "bg-brand-500/20 text-white" : "text-slate-300"
+                  i === idx ? "bg-brand-500/20 text-[#fff]" : "text-slate-300"
                 )}
               >
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.06]">

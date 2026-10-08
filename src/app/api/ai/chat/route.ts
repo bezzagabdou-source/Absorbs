@@ -832,7 +832,8 @@ export async function POST(req: Request) {
               v13Block +
               persona +
               memBlock
-            : CHAT_SYSTEM + schoolBlock + (chatMode?.addon ?? "");
+            : // v15: free accounts run the "Nexus 6" engine — same quality contract, smaller budget
+              CHAT_SYSTEM_V6 + schoolBlock + (chatMode?.addon ?? "");
           const base = await streamGemini({
             system,
             messages: capped,
@@ -842,7 +843,7 @@ export async function POST(req: Request) {
             // Pro: the strongest engine (Claude by default) leads; free stays on Gemini's free tier
             primaryFirst: isPro,
             mode: isPro && body.deep === true ? "quality" : "speed",
-            maxTokens: isPro ? (v8 ? PRO_OUTPUT_TOKENS : body.v6 === true ? 32000 : 20000) : FREE_OUTPUT_TOKENS,
+            maxTokens: isPro ? (v8 ? PRO_OUTPUT_TOKENS : 32000) : FREE_OUTPUT_TOKENS,
             lowThink: v8 && body.deep !== true,
             attachments: parsed.files,
             onModel: (m) => {

@@ -54,8 +54,8 @@ const STYLE_TEXT: Record<ImageStyle, string> = {
 
 const TIER_TEXT: Record<ImageTier, string> = {
   v5: "",
-  v6: "Sharp focus on the subject, rich micro-detail, clean background separation.",
-  v8: "Professional lighting setup, balanced composition (rule of thirds), micro-contrast, careful colour grading, clean professional retouch.",
+  v6: "Sharp focus on the subject, rich micro-detail, clean background separation, natural colour, crisp edges.",
+  v8: "Legendary studio-grade quality: professional multi-light setup, balanced composition (rule of thirds), micro-contrast, physically accurate reflections and shadows, careful cinematic colour grading, editorial retouch, 8K-class detail.",
   max: "Legendary ultra-detailed 8K-class resolution, physically accurate light, reflections and shadows, razor-sharp focus on the subject, rich micro-texture, perfect anatomy and perspective, cinematic colour grading, editorial retouching, award-winning masterpiece.",
 };
 
@@ -139,9 +139,18 @@ const GEMINI_FAST = ["gemini-3.1-flash-lite-image", "gemini-2.5-flash-image", "g
 const GEMINI_QUALITY = ["gemini-3.1-flash-image", "gemini-2.5-flash-image"];
 const GEMINI_ULTRA = ["gemini-3-pro-image-preview", "gemini-3.1-flash-image", "gemini-2.5-flash-image"];
 
-function geminiModels(tier: ImageTier): string[] {
+function geminiModels(tier: ImageTier, arabicText = false): string[] {
   const custom = (process.env.GEMINI_IMAGE_MODEL ?? "").trim();
-  const base = tier === "max" ? GEMINI_ULTRA : tier === "v8" ? GEMINI_QUALITY : GEMINI_FAST;
+  // v15: when real Arabic lettering has to appear inside the picture, only the
+  // strongest Gemini image models render joined RTL script correctly — never the
+  // lite one, whatever the tier is.
+  const base = arabicText
+    ? GEMINI_ULTRA
+    : tier === "max"
+      ? GEMINI_ULTRA
+      : tier === "v8"
+        ? GEMINI_QUALITY
+        : GEMINI_FAST;
   return Array.from(new Set([...(custom ? [custom] : []), ...base]));
 }
 
@@ -349,6 +358,8 @@ export async function generateImage(opts: {
     full = buildEditPrompt(instr, opts.edit.action, opts.edit.point);
   }
   const gem = findGeminiKey();
+  // does the picture itself have to contain Arabic words?
+  const needsArabicText = planArabicImage(opts.prompt).needsArabicTypography;
   let fluxPrompt: string | undefined;
   const getFluxPrompt = async (): Promise<string> => {
     if (fluxPrompt) return fluxPrompt;
@@ -378,7 +389,7 @@ export async function generateImage(opts: {
   };
 
   if (gem) {
-    for (const model of geminiModels(opts.tier)) {
+    for (const model of geminiModels(opts.tier, needsArabicText)) {
       if (Date.now() > deadline - 8_000) break;
       try {
         return await finish(await viaGemini(model, gem.value, full, perTry, opts.reference), model);

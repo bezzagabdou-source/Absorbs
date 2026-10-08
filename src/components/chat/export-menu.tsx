@@ -32,7 +32,7 @@ export function ExportMenu({
         aria-expanded={open}
         aria-label={label}
         title={label}
-        className="grid size-9 place-items-center rounded-xl border border-slate-900/10 bg-slate-900/5 text-slate-600 transition hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
+        className="grid size-9 place-items-center rounded-xl border border-slate-900/10 bg-slate-900/5 text-slate-600 transition hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-[#fff]"
       >
         <Download className="size-4" />
       </button>
