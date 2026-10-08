@@ -45,7 +45,6 @@ import {
   Info,
   Zap,
   Sparkles,
-  Rocket,
   Plus,
   type LucideIcon,
 } from "lucide-react";
@@ -170,7 +169,7 @@ async function copyText(text: string): Promise<boolean> {
 /* v8 helpers: follow-up chips, read-aloud                             */
 /* ------------------------------------------------------------------ */
 
-type TierId = "v4" | "v5" | "v6" | "v8" | "max";
+type TierId = "v4" | "v8"; // v4 = free engine, v8 = Nexus 8 Pro (the single flagship)
 const PERSONAS: { id: string; label: string; emoji: string }[] = [
   { id: "genius", label: "ذكي", emoji: "🧠" },
   { id: "coder", label: "مبرمج", emoji: "💻" },
@@ -738,10 +737,9 @@ export function ChatPage() {
     try {
       const v = localStorage.getItem("barq_tier");
       // everyone lands on the new flagship once; afterwards their choice is respected
-      if (localStorage.getItem("barq_v8_default") !== "1") {
-        localStorage.setItem("barq_v8_default", "1");
-        localStorage.setItem("barq_tier", "v8");
-      } else if (v === "v4" || v === "v5" || v === "v6" || v === "v8" || v === "max") setTier(v);
+      // one flagship only: every older choice (5 / 6 / 8 / MAX) lands on Nexus 8 Pro
+      if (v !== "v8") localStorage.setItem("barq_tier", "v8");
+      setTier("v8");
       const pr = localStorage.getItem("barq_persona");
       if (pr && PERSONAS.some((x) => x.id === pr)) setPersona(pr);
     } catch {}
@@ -758,8 +756,8 @@ export function ChatPage() {
         if (typeof d.text === "string" && d.text) {
           setInput(d.text);
           if (d.tier === "max" && isPro) {
-            setTier("max");
-            try { localStorage.setItem("barq_tier", "max"); } catch {}
+            setTier("v8");
+            try { localStorage.setItem("barq_tier", "v8"); } catch {}
           }
           setTimeout(() => taRef.current?.focus(), 60);
         }
@@ -796,7 +794,7 @@ export function ChatPage() {
   }, []);
   // a Pro account never runs on the free engine: 4 → 5
   useEffect(() => {
-    if (isPro && tier === "v4") setTier("v5");
+    if (isPro && tier === "v4") setTier("v8");
   }, [isPro, tier]);
   const pickTier = (v: TierId) => {
     if (v !== "v4" && !isPro) {
@@ -1205,10 +1203,9 @@ export function ChatPage() {
             // model selector: gemini (default) | huggingface | grok | openrouter (grok / openrouter are Pro, enforced by the server)
             provider: selection.provider,
             model: selection.model ?? "auto",
-            ...(isPro && (deep || tier === "v6") ? { deep: true } : {}),
-            ...(isPro && tier === "v6" ? { v6: true } : {}),
+            ...(isPro && deep ? { deep: true } : {}),
             ...(mode ? { mode } : {}),
-            ...(isPro && (tier === "v8" || tier === "max") ? { v8: true, persona, ...(tier === "max" ? { max: true } : {}) } : {}),
+            ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
           }),
           signal: controller.signal,
         });
@@ -1309,10 +1306,8 @@ export function ChatPage() {
                   conversationId: newConvId || convId,
                   messages: [...history, { role: "user", content }],
                   continueFrom: acc,
-                  v6: tier === "v6",
-                  ...(mode ? { mode } : {}),
-                  ...(tier === "v8" || tier === "max" ? { v8: true } : {}),
-                  ...(tier === "max" ? { max: true } : {}),
+                                    ...(mode ? { mode } : {}),
+                  ...(tier === "v8" ? { v8: true } : {}),
                 }),
                 signal: controller.signal,
               });
@@ -1451,7 +1446,7 @@ export function ChatPage() {
     // only answers produced live in this session (never old conversations that were just opened)
     if (!wasStreamingRef.current) return;
     wasStreamingRef.current = false;
-    if (tier !== "max" || !isPro) return;
+    if (tier !== "v8" || !isPro) return;
     const last = msgs[msgs.length - 1];
     if (!last || last.role !== "assistant" || last.pending || last.imageGen) return;
     const html = extractHtml(last.content);
@@ -1957,8 +1952,8 @@ export function ChatPage() {
                 className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
               >
                 {(isPro
-                  ? ([["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
-                  : ([["v4", "Nexus 4"], ["v5", "Nexus 5"], ["v6", "Nexus 6"], ["v8", "Nexus 8"], ["max", "MAX"]] as const)
+                  ? ([["v8", "Nexus 8 Pro"]] as const)
+                  : ([["v4", "Nexus 4"], ["v8", "Nexus 8 Pro"]] as const)
                 ).map(([id, label]) => {
                   const on = (isPro ? tier : "v4") === id;
                   const locked = !isPro && id !== "v4";
@@ -1971,25 +1966,17 @@ export function ChatPage() {
                       onClick={() => pickTier(id)}
                       className={cn(
                         "inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
-                        id === "max"
-                          ? on
-                            ? "max-pill border-transparent shadow-[0_8px_22px_-6px_rgba(255,100,0,0.95)]"
-                            : "border-orange-500 bg-orange-500/15 text-orange-600 ring-1 ring-orange-400/50"
-                          : on
-                            ? id === "v8"
-                              ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
-                              : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
-                            : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
+                        on
+                          ? id === "v8"
+                            ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
+                            : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
+                          : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
                       )}
                     >
                       {locked ? (
                         <Lock className="h-3.5 w-3.5" />
-                      ) : id === "max" ? (
-                        <Rocket className="h-4 w-4" />
                       ) : id === "v8" ? (
                         <Crown className="h-4 w-4" />
-                      ) : id === "v6" ? (
-                        <Sparkles className="h-4 w-4" />
                       ) : null}
                       {label}
                     </button>
@@ -1999,12 +1986,12 @@ export function ChatPage() {
 
               <details className="group px-3 pt-1.5">
                 <summary className="cursor-pointer list-none text-[12px] font-bold text-slate-400 hover:text-brand-300">
-                  ما الفرق بين Nexus 5 و6 و8 وMAX؟
+                  ماذا يقدّم Nexus 8 Pro؟
                 </summary>
                 <TierCompare className="mt-2 max-h-[46dvh] overflow-y-auto pb-2" />
               </details>
 
-              {isPro && (tier === "v8" || tier === "max") && (
+              {isPro && tier === "v8" && (
                 <div className="flex gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]" role="radiogroup" aria-label="Nexus">
                   {PERSONAS.map((p) => (
                     <button
@@ -2121,7 +2108,7 @@ export function ChatPage() {
                   <Plus className="h-4 w-4" />
                 </button>
                 <CallButton active={call} onClick={() => setCall(true)} />
-                {isPro && (tier === "v5" || tier === "v8" || tier === "max") && (
+                {isPro && tier === "v8" && (
                   <button
                     type="button"
                     onClick={() => setDeep((v) => !v)}
@@ -2239,7 +2226,7 @@ export function ChatPage() {
           setImgOpen(false);
           setImgPrompt("");
         }}
-        tier={tier === "v5" || tier === "v6" || tier === "v8" || tier === "max" ? tier : "v5"}
+        tier={tier === "v8" ? "v8" : "v5"}
         initialPrompt={imgPrompt || input.trim().slice(0, 600)}
         autoStart={imgAuto}
       />

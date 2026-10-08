@@ -96,7 +96,7 @@ export function CommandPalette() {
       },
       ...MAX_STARTERS.map((s) => ({
         id: `max-${s.label}`,
-        label: `MAX · ${s.label}`,
+        label: `8 Pro · ${s.label}`,
         hint: "ابدأ بناء ضخم",
         icon: null,
         emoji: s.emoji,

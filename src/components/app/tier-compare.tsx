@@ -1,47 +1,26 @@
-import { Crown, Rocket, Sparkles, Zap } from "lucide-react";
+import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TierRow {
-  id: "v5" | "v6" | "v8" | "max";
+  id: "v8";
   name: string;
   tagline: string;
-  icon: typeof Zap;
+  icon: typeof Crown;
   facts: string[];
 }
 
 /** What each level really does (every line matches the server code: token limits, engines, image variants). */
 const ROWS: readonly TierRow[] = [
   {
-    id: "v5",
-    name: "Nexus 5",
-    tagline: "الأسرع يوميًا",
-    icon: Zap,
-    facts: ["رد فوري بمحرك سريع", "حتى 20 ألف توكن في الإجابة", "صورة واقعية واحدة بأقصى سرعة", "رفع الصور والملفات والمكالمة الصوتية"],
-  },
-  {
-    id: "v6",
-    name: "Nexus 6",
-    tagline: "تفكير عميق",
-    icon: Sparkles,
-    facts: ["وضع جودة بتفكير أعمق وأدق", "حتى 32 ألف توكن في الإجابة", "صورة واقعية بتفاصيل أدق", "الأنسب للتحليل والشرح الطويل"],
-  },
-  {
     id: "v8",
-    name: "Nexus 8",
-    tagline: "فريق ذكاء اصطناعي",
+    name: "Nexus 8 Pro",
+    tagline: "نموذج واحد، سريع وقوي",
     icon: Crown,
-    facts: ["عدة محركات تعمل معًا وتدمج أقوى إجابة", "شخصيات: مبرمج، كاتب، معلّم، محلل", "صورتان لتختار الأفضل بإضاءة احترافية", "المهام الصعبة بحد 32 ألف توكن"],
-  },
-  {
-    id: "max",
-    name: "MAX",
-    tagline: "الأقوى على الإطلاق",
-    icon: Rocket,
     facts: [
-      "حتى 64 ألف توكن في الطلب الواحد",
-      "ألعاب ومواقع ضخمة مع استئناف تلقائي لمدة ساعة",
-      "3 نسخ صور بأقوى نموذج صور وتفاصيل فائقة",
-      "أصرم عقد جودة: واجهات بمستوى القوالب وصفر أخطاء",
+      "رد سريع جدًا من أول سطر",
+      "يصنع ألعاب 2D/3D بخلفيات ملوّنة وغنية وأعداء ومراحل وزعماء",
+      "يكتب مواقع وأكواد قوية ويفحصها ويصلحها تلقائيًا",
+      "يفهم الدارجة الجزائرية ويصنع الصور كما طلبتها بالضبط",
     ],
   },
 ];
@@ -51,7 +30,7 @@ export function TierCompare({ className }: { className?: string }) {
     <section aria-label="مقارنة النماذج" className={cn("grid gap-3 sm:grid-cols-2", className)}>
       {ROWS.map((r) => {
         const Icon = r.icon;
-        const top = r.id === "max";
+        const top = true;
         return (
           <article
             key={r.id}

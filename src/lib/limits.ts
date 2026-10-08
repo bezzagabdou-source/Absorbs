@@ -4,7 +4,7 @@
  */
 
 /** MAX (build / hard tasks): the engine asks for this much in one go, then auto-continues until the answer is finished. */
-export const MAX_OUTPUT_TOKENS = 64_000; // hard ceiling per request
+export const MAX_OUTPUT_TOKENS = 40_000; // hard ceiling per request
 export const MAX_TARGET_TOKENS = 62_000; // size the MAX contract demands: more than 60k tokens (~230 KB of real code)
 /** One continuation segment for MAX (keeps every request under the host time limit). */
 export const MAX_SEGMENT_TOKENS = 32_000;

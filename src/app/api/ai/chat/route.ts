@@ -372,7 +372,7 @@ export async function POST(req: Request) {
     const system =
       (body.v8 === true || body.max === true ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
       QUALITY_CONTRACT.split("\n6.")[0] +
-      (body.max === true ? MAX_ENGINE_CONFIG.systemPromptAddon : "");
+      "";
     const lastTurn = turns[turns.length - 1];
     const stream = withAutoContinue(emptyStream(), {
       system,
@@ -560,8 +560,8 @@ export async function POST(req: Request) {
   };
 
   // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
-  const max = isPro && (body.max === true || isBuildRequest(lastUser));
-  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") + MARATHON_ADDON : "";
+  const max = isPro && isBuildRequest(lastUser); // Nexus 8 Pro: only real build requests use the builder contract (old `max` flags are ignored)
+  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + MARATHON_ADDON : "";
   const v8 = isPro && (body.v8 === true || max || chatMode?.hard === true);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
@@ -663,7 +663,7 @@ export async function POST(req: Request) {
               usedModel = m;
             },
           });
-          return withAutoContinue(base, { system, messages: capped, rounds: 40, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer });
+          return withAutoContinue(base, { system, messages: capped, rounds: 8, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer });
         })()
       : build
       ? ensembleStream({

@@ -79,7 +79,7 @@ export function buildImagePrompt(
     `Aspect ratio ${aspect}.`,
     arabicText,
     NEGATIVE,
-    `Every object, person, colour, place and text mentioned in the main subject must be clearly visible.`,
+    `Every object, person, colour, place and text mentioned in the main subject must be clearly visible. Respect the gender, age and number of people exactly as stated.`,
   ];
   return parts.filter((p) => p.length > 0).join(" ");
 }
@@ -101,7 +101,7 @@ async function toEnglishIdea(idea: string, gemKey?: string): Promise<string> {
         systemInstruction: {
           parts: [
             {
-              text: "You turn an image request written in Arabic, Algerian Darija or French into ONE precise English image description. Keep every object, person, colour, number, place, clothing and action EXACTLY as requested; add nothing, remove nothing. Output only the English description, no quotes, no explanation.",
+              text: "You turn an image request written in Arabic, Algerian Darija or French into ONE precise English image description. Drop the request wording itself (e.g. 'make me a picture of') and describe ONLY what the picture must show. Keep every object, person, gender (رجل = man, امرأة = woman, ولد = boy, بنت = girl), age, colour, number, place, clothing and action EXACTLY as requested (e.g. a man who flies = a man flying in the sky, whole body visible); add nothing, remove nothing. Output only the English description, no quotes, no explanation.",
             },
           ],
         },
@@ -331,6 +331,12 @@ export async function generateImage(opts: {
 }): Promise<GeneratedImage> {
   const started = Date.now();
   let full = buildImagePrompt(opts.prompt, opts.style, opts.tier, opts.aspect);
+  if (!opts.edit) {
+    // Arabic / Darija requests are translated to a precise English description first, so the picture matches what was asked
+    const gemEn = findGeminiKey();
+    const en = await toEnglishIdea(opts.prompt, gemEn?.value);
+    if (en !== opts.prompt.trim()) full = buildImagePrompt(en, opts.style, opts.tier, opts.aspect);
+  }
   if (opts.edit && opts.reference) {
     // Gemini reads Arabic natively; the English twin removes any ambiguity for the other engines
     const gemForEdit = findGeminiKey();

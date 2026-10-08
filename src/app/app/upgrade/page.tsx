@@ -221,7 +221,7 @@ function UpgradeInner() {
       {/* ---------------- the four levels ---------------- */}
       <h2 className="mb-4 flex items-center gap-2 text-sm font-black text-gold-300">
         <Rocket className="h-4 w-4" />
-        الفرق بين Nexus 5 و6 و8 وMAX
+        ماذا يقدّم Nexus 8 Pro
       </h2>
       <TierCompare className="mb-10" />
 
