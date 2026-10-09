@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ChatPage } from "@/components/app/chat";
+import { ChatSkeleton } from "@/components/chat-skeleton";
 import { ArtifactsProvider } from "@/components/chat/artifacts-panel";
 
 export const metadata: Metadata = {
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<ChatSkeleton />}>
       <ArtifactsProvider>
         <ChatPage />
       </ArtifactsProvider>

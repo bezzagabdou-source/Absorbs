@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { RotateCcw } from "lucide-react";
+import { reloadOnceForChunkError } from "@/components/chunk-guard";
 
 export default function ErrorPage({
   error,
@@ -13,6 +14,8 @@ export default function ErrorPage({
 }) {
   useEffect(() => {
     console.error(error);
+    // an old deployment's JS files are gone: one automatic reload fixes it
+    reloadOnceForChunkError(`${error?.name ?? ""} ${error?.message ?? ""}`);
   }, [error]);
   return (
     <div className="grid min-h-[100dvh] place-items-center px-6 text-center">

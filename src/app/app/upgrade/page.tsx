@@ -1,5 +1,6 @@
 "use client";
 
+import { ChatSkeleton } from "@/components/chat-skeleton";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -392,7 +393,7 @@ function UpgradeInner() {
 
 export default function UpgradePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<ChatSkeleton />}>
       <UpgradeInner />
     </Suspense>
   );

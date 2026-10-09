@@ -61,14 +61,18 @@ import { Markdown } from "@/components/markdown";
 import { ExportMenu } from "@/components/chat/export-menu";
 import { VoiceRecorder, VoiceSettings } from "@/components/chat/voice-recorder";
 import { DropOverlay, useFileDrop } from "@/components/chat/drop-overlay";
-import { ImageStudio } from "@/components/app/image-studio";
+import dynamic from "next/dynamic";
+// heavy, rarely-used panels load AFTER the chat is on screen (smaller first load, faster on weak phones)
+const ImageStudio = dynamic(() => import("@/components/app/image-studio").then((m) => m.ImageStudio), { ssr: false });
 import { ToolsMenu, type ToolMenuId } from "@/components/app/tools-menu";
 import { TierCompare } from "@/components/app/tier-compare";
-import { CHAT_MODES, chatModeById, type ChatModeId } from "@/lib/chat-modes";
+import { CHAT_MODES, chatModeById, resolveChatMode, type ChatModeId } from "@/lib/chat-modes";
+import { isBuildRequest } from "@/lib/build-intent";
+import { appendChunk } from "@/lib/stream-marks";
 import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
-import { FullPreview } from "@/components/game-preview";
+const FullPreview = dynamic(() => import("@/components/game-preview").then((m) => m.FullPreview), { ssr: false });
 import { wantsPromptText } from "@/lib/design-canvas";
 import {
   isGameRequest as isForgeRequest,
@@ -81,7 +85,7 @@ import {
   type ForgeCheckpoint,
 } from "@/lib/game-forge";
 import { notifyBuildDone } from "@/lib/notify";
-import { VoiceCall } from "@/components/voice/voice-call";
+const VoiceCall = dynamic(() => import("@/components/voice/voice-call").then((m) => m.VoiceCall), { ssr: false });
 import {
   codeLooksCut,
   createZip,
@@ -113,6 +117,8 @@ type Msg = {
   pending?: boolean;
   /** names of files attached to a user message (display only) */
   files?: string[];
+  /** deliverable mode (music / video / canvas) that really applied to this user message */
+  mode?: ChatModeId;
 };
 type ConvSummary = { id: string; title: string; updatedAt: string };
 type ErrKind = "quota" | "nokey" | "busy" | "generic" | "pro";
@@ -343,7 +349,34 @@ function lineStats(body: string): CodeInfo | null {
   return { text: "", chars: body.length, lines };
 }
 
-const BUILD_RE = /(موقع|صفحة|لعبة|تطبيق|متجر|منصة|ويب|لاندينج|داشبورد|لوحة تحكم|website|web ?site|landing|game|app\b|application|dashboard|portfolio|store|site web|jeu|application|page web|build|create|اصنع|ابني|بني|سوي|اعمل|اعملي|انشئ|أنشئ|صمم|صمّم|كود)/i;
+/** the code box (thinking card / result card) is ONLY for real build requests or a deliverable mode */
+
+type BuildFlavor = "web" | "music" | "video";
+function flavorOf(userMsg: Msg | undefined): BuildFlavor {
+  return userMsg?.mode === "music" ? "music" : userMsg?.mode === "video" ? "video" : "web";
+}
+const FLAVOR_STEPS: Record<Exclude<BuildFlavor, "web">, string[]> = {
+  music: [
+    "يحدّد النمط والإيقاع والمقام",
+    "يؤلّف الكوردات واللحن",
+    "يصمّم الطبول والباس",
+    "يضيف المؤثرات والصدى",
+    "يبني المشغّل والمرئيات",
+    "يجهّز زر التحميل WAV",
+    "يفحص الأخطاء سطراً بسطر",
+    "يجهّز المعاينة",
+  ],
+  video: [
+    "يكتب سيناريو المشاهد",
+    "يصمّم الرسوم والانتقالات",
+    "يبني المخطّط الزمني",
+    "يولّد الصوت والمؤثرات",
+    "يضيف أدوات التحكم",
+    "يلمّع الحركات",
+    "يفحص الأخطاء سطراً بسطر",
+    "يجهّز المعاينة",
+  ],
+};
 
 const BUILD_STEPS = [
   "يفكّر في الفكرة والبنية",
@@ -356,11 +389,12 @@ const BUILD_STEPS = [
   "يجهّز المعاينة",
 ];
 
-function BuildThinking({ info }: { info: CodeInfo | null }) {
+function BuildThinking({ info, flavor = "web" }: { info: CodeInfo | null; flavor?: BuildFlavor }) {
+  const steps = flavor === "web" ? BUILD_STEPS : FLAVOR_STEPS[flavor];
   const [i, setI] = useState(0);
   const [sec, setSec] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setI((v) => Math.min(BUILD_STEPS.length - 1, v + 1)), 4200);
+    const id = setInterval(() => setI((v) => Math.min(steps.length - 1, v + 1)), 4200);
     const t = setInterval(() => setSec((v) => v + 1), 1000);
     return () => {
       clearInterval(id);
@@ -368,7 +402,8 @@ function BuildThinking({ info }: { info: CodeInfo | null }) {
     };
   }, []);
   const lines = info?.lines ?? 0;
-  const pct = Math.min(97, Math.max(5, Math.round((lines / 4200) * 100)));
+  const target = flavor === "web" ? 4200 : 600; // a track / clip is far smaller than a game
+  const pct = Math.min(97, Math.max(5, Math.round((lines / target) * 100)));
   const mm = String(Math.floor(sec / 60)).padStart(2, "0");
   const ss = String(sec % 60).padStart(2, "0");
   return (
@@ -381,10 +416,10 @@ function BuildThinking({ info }: { info: CodeInfo | null }) {
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 text-[14.5px] font-black text-slate-100">
             Nexus 8 <span className="nx-badge">PRO</span>
-            <span className="text-slate-400">يفكّر ويبني…</span>
+            <span className="text-slate-400">{flavor === "music" ? "يؤلّف ويبني…" : flavor === "video" ? "يخرج ويبني…" : "يفكّر ويبني…"}</span>
           </p>
           <p className="mt-0.5 truncate text-[12.5px] font-semibold text-brand-300">
-            {BUILD_STEPS[i]}
+            {steps[i]}
             <span className="nx-dots" aria-hidden>
               <i />
               <i />
@@ -473,6 +508,7 @@ const MessageRow = memo(function MessageRow({
   pro,
   isLast,
   buildIntent,
+  flavor,
   onPreview,
   onRegenerate,
   onSuggest,
@@ -487,6 +523,7 @@ const MessageRow = memo(function MessageRow({
   isLast: boolean;
   /** the user asked to build something (site / game / app): show only "thinking", never the long text */
   buildIntent: boolean;
+  flavor?: BuildFlavor;
   onPreview: (html: string) => void;
   onRegenerate: () => void;
   onSuggest: (text: string) => void;
@@ -506,7 +543,7 @@ const MessageRow = memo(function MessageRow({
   const showZip =
     zipFiles.length > 1 && zipFiles.some((f) => typeof f.data === "string" && f.data.length > 400);
   // big code is hidden on screen: "thinking" while it streams, a result card when it is done
-  const codeInfo = useMemo(() => (!isUser && pro ? analyseCode(body) : null), [isUser, pro, body]);
+  const codeInfo = useMemo(() => (!isUser && pro && buildIntent ? analyseCode(body) : null), [isUser, pro, buildIntent, body]);
 
   const act =
     "inline-flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-[12px] font-bold text-slate-400 transition active:scale-95 hover:bg-white/[0.07] hover:text-slate-100";
@@ -561,9 +598,9 @@ const MessageRow = memo(function MessageRow({
             <div>
               <TypingDots label={thinking} />
             </div>
-          ) : pro && m.pending && (buildIntent || body.includes("```")) ? (
+          ) : pro && m.pending && buildIntent ? (
             // while building: ONLY the thinking card (no long message, no raw code)
-            <BuildThinking info={codeInfo ?? lineStats(body)} />
+            <BuildThinking info={codeInfo ?? lineStats(body)} flavor={flavor} />
           ) : codeInfo && !showCode ? (
             <>
               {codeInfo.text && codeInfo.text.length <= 220 && (
@@ -574,7 +611,7 @@ const MessageRow = memo(function MessageRow({
                 </SafeBoundary>
               )}
               {m.pending ? (
-                <BuildThinking info={codeInfo} />
+                <BuildThinking info={codeInfo} flavor={flavor} />
               ) : (
                 <BuildDone
                   info={codeInfo}
@@ -1117,7 +1154,8 @@ export function ChatPage() {
         setNotice(null);
         setError(null);
         const aid = nextId();
-        setMsgs((m) => [...m, { id: nextId(), role: "user", content }, { id: aid, role: "assistant", content: "", pending: true }]);
+        const usedMode = resolveChatMode(mode, content);
+        setMsgs((m) => [...m, { id: nextId(), role: "user", content, ...(usedMode?.oneShot ? { mode: usedMode.id } : {}) }, { id: aid, role: "assistant", content: "", pending: true }]);
         stickRef.current = true;
         void generateInlineImage(authFetch, content).then((r) => {
           const alt = content.slice(0, 80).replace(/[\[\]()]/g, " ");
@@ -1302,6 +1340,8 @@ export function ChatPage() {
 
         applyHeaders(res);
         res0Ok.current = true;
+        // deliverable modes (music / video / canvas) serve ONE message, then the chat is normal again
+        if (chatModeById(mode)?.oneShot) setMode(null);
         const newConvId = res.headers.get("x-conversation-id");
         if (newConvId && !convId) setConvId(newConvId);
         if (newConvId) activeConv = newConvId;
@@ -1313,7 +1353,7 @@ export function ChatPage() {
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
-            acc += decoder.decode(value, { stream: true });
+            acc = appendChunk(acc, decoder.decode(value, { stream: true })); // a verified+repaired build replaces the draft
             // advance the forge checkpoint whenever a new file closes
             if (forgeRef.current && acc.length - (forgeRef.current.bytes || 0) > 4000) {
               const next = advanceCheckpoint(forgeRef.current, acc);
@@ -1331,7 +1371,7 @@ export function ChatPage() {
           if ((re as Error).name === "AbortError" || !isPro || acc.length === 0) throw re;
           dropped = true;
         }
-        acc += decoder.decode();
+        acc = appendChunk(acc, decoder.decode());
 
         // NEVER STOP IN THE MIDDLE OF CODE: while the answer still ends inside a code
         // block (limit / network / screen lock), ask the server to finish it — up to 12 rounds,
@@ -1363,13 +1403,13 @@ export function ChatPage() {
                   for (;;) {
                     const { done, value } = await cr.read();
                     if (done) break;
-                    acc += decoder.decode(value, { stream: true });
+                    acc = appendChunk(acc, decoder.decode(value, { stream: true }));
                     schedule();
                   }
                 } catch (ce) {
                   if ((ce as Error).name === "AbortError") throw ce;
                 }
-                acc += decoder.decode();
+                acc = appendChunk(acc, decoder.decode());
               } else if (cres.status === 403 || cres.status === 401) {
                 break;
               }
@@ -1833,7 +1873,8 @@ export function ChatPage() {
                     key={m.id}
                     m={m}
                     isLast={i === msgs.length - 1}
-                    buildIntent={i > 0 && msgs[i - 1].role === "user" && BUILD_RE.test(msgs[i - 1].content)}
+                    buildIntent={i > 0 && msgs[i - 1].role === "user" && (isBuildRequest(msgs[i - 1].content) || !!msgs[i - 1].mode)}
+                    flavor={i > 0 && msgs[i - 1].role === "user" ? flavorOf(msgs[i - 1]) : "web"}
                     onPreview={setPreview}
                     onRegenerate={onRegen}
                     onSuggest={onSuggest}

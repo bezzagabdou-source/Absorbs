@@ -99,12 +99,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [rev, setRev] = useState(0);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      setLoading(false);
-      if (u) void syncUser(u);
-    });
-    return () => unsub();
+    // if Firebase never answers (blocked storage / network), stop the endless loader after 10 s
+    const guard = setTimeout(() => setLoading(false), 10_000);
+    const unsub = onAuthStateChanged(
+      auth,
+      async (u) => {
+        clearTimeout(guard);
+        setUser(u);
+        setLoading(false);
+        if (u) void syncUser(u);
+      },
+      () => {
+        clearTimeout(guard);
+        setLoading(false);
+      }
+    );
+    return () => {
+      clearTimeout(guard);
+      unsub();
+    };
   }, []);
 
   const signInEmail = useCallback(async (email: string, password: string) => {

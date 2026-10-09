@@ -1,5 +1,5 @@
 /* Nexus AI v8.4 — service worker (offline shell + fast repeat visits) */
-const CACHE = "nexus-v15-lumen";
+const CACHE = "nexus-v16-lumen";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest"];
 const MAX_ENTRIES = 80;
@@ -49,8 +49,10 @@ self.addEventListener("fetch", (event) => {
 
   // Pages: network first, then cache, then the offline page
   if (request.mode === "navigate") {
+    // network first, but never wait forever (a hung request used to leave a blank white page)
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 12000));
     event.respondWith(
-      fetch(request)
+      Promise.race([fetch(request), timeout])
         .then((res) => {
           event.waitUntil(store(request, res.clone()));
           return res;

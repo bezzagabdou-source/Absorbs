@@ -34,7 +34,9 @@ import { isGameRequest, planGame, forgeSystemBlock } from "@/lib/game-forge";
 import { isAnyGameRequest, GAME_MASTER } from "@/lib/game-master";
 import { withDraftFilter } from "@/lib/draft-filter";
 import { TITAN_MAX_BYTES, TITAN_TARGET_BYTES } from "@/lib/limits";
-import { chatModeById } from "@/lib/chat-modes";
+import { resolveChatMode } from "@/lib/chat-modes";
+import { buildCommanderFor } from "@/lib/build-commander";
+import { withVerify, readAll } from "@/lib/build-verify";
 import { DZ_IDENTITY, DZ_SCHOOL_ADDON, looksLikeSchoolwork } from "@/lib/dz-school";
 import { VOICE_SYSTEM, personaById } from "@/lib/voice-call";
 import {
@@ -491,7 +493,8 @@ export async function POST(req: Request) {
   }
 
   const lastUser = capped[capped.length - 1].text;
-  const chatMode = chatModeById(body.mode);
+  // the chosen mode only applies when the message really fits it (no more music programs for unrelated questions)
+  const chatMode = resolveChatMode(body.mode, lastUser);
   // Algerian school brain: homework / exams / lessons or any attached image or file (the dz study mode already carries it)
   const schoolBlock =
     chatMode?.id !== "dzstudy" && (looksLikeSchoolwork(lastUser) || parsed.files.length > 0) ? DZ_SCHOOL_ADDON : "";
@@ -601,7 +604,7 @@ export async function POST(req: Request) {
 
   // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
   const max = isPro && (body.max === true || isBuildRequest(lastUser));
-  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") + MARATHON_ADDON : "";
+  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON + buildCommanderFor(lastUser) : "") + MARATHON_ADDON : "";
   const v8 = isPro && (body.v8 === true || max || chatMode?.hard === true);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
@@ -840,15 +843,40 @@ export async function POST(req: Request) {
             keepAlive: true,
             deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
             continueWith: (acc) => openSegment(acc),
-            onDone: async (full, report) => {
+            onDone: async (_full, report) => {
               titanReport = report;
               if (report.glitches.length) console.warn("[titan] glitches:", report.glitches.join(" | "));
+              // saving happens AFTER verification so the stored answer is the repaired one
+            },
+          });
+          // v17 VERIFY: the finished game / app is really checked (JS syntax, missing ids, dead buttons)
+          // and repaired with tiny surgical edits before the user can open it.
+          const verified = withVerify(titan, {
+            deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
+            ask: async (sys, prompt) =>
+              readAll(
+                await streamGemini({
+                  system: sys,
+                  messages: [{ role: "user" as const, text: prompt }],
+                  tier: "pro",
+                  task: "code",
+                  primaryFirst: false,
+                  mode: "speed",
+                  lowThink: true,
+                  temperature: 0.2,
+                  maxTokens: 6000,
+                })
+              ),
+            onResult: (r) => {
+              if (r.before > 0) console.warn(`[verify] hard errors ${r.before} -> ${r.after}`);
+            },
+            onDone: async (full) => {
               await saveAnswer(full);
             },
           });
           // v11 TURBO: a build may never die silently — heartbeats + rescue engine.
           return withInstantOpen(
-            withWatchdog(titan, {
+            withWatchdog(verified, {
               keepAlive: true,
               stallMs: TURBO.STALL_FAILOVER_MS,
               midStallMs: TURBO.MID_STALL_FAILOVER_MS,
@@ -880,21 +908,57 @@ export async function POST(req: Request) {
           onFail,
         })
       : hard
-        ? ensembleStream({
-            system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + v13Block + persona + memBlock,
-            kind: "hard",
-            task,
-            maxTokens: max ? MAX_OUTPUT_TOKENS : 32000,
-            messages: capped,
-            attachments: parsed.files,
-            temperature: 0.6,
-            keepAlive: true,
-            onModel: (m) => {
-              usedModel = m;
-            },
-            onDone: saveAnswer,
-            onFail,
-          })
+        ? await (async () => {
+            const hardSystem = HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + v13Block + persona + memBlock;
+            // deliverable modes (music / video / canvas) must END as a finished file: a cut-off or tiny answer is continued, never shown as "done"
+            const deliverable = chatMode?.oneShot === true;
+            const base = ensembleStream({
+              system: hardSystem,
+              kind: "hard",
+              task,
+              maxTokens: max ? MAX_OUTPUT_TOKENS : 32000,
+              messages: capped,
+              attachments: parsed.files,
+              temperature: 0.6,
+              keepAlive: true,
+              onModel: (m) => {
+                usedModel = m;
+              },
+              onDone: deliverable ? undefined : saveAnswer,
+              onFail,
+            });
+            if (!deliverable) return base;
+            const openSegment = (seed: string) =>
+              streamGemini({
+                system: hardSystem + TITAN_CONTINUE_PROMPT,
+                messages: [
+                  { role: "user" as const, text: lastUser.slice(0, 24_000) },
+                  { role: "model" as const, text: seed.slice(-TITAN.TAIL_CONTEXT) },
+                  { role: "user" as const, text: TITAN_CONTINUE_PROMPT },
+                ],
+                tier: "pro",
+                task,
+                primaryFirst: false,
+                mode: "speed",
+                maxTokens: MAX_SEGMENT_TOKENS,
+                temperature: 0.6,
+                onModel: (m) => {
+                  usedModel = m;
+                },
+              });
+            return withTitan(base, {
+              big: true,
+              targetBytes: chatMode?.id === "canvas" ? 0 : 9_000,
+              maxBytes: TITAN_MAX_BYTES,
+              rounds: 4,
+              keepAlive: true,
+              deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
+              continueWith: (acc) => openSegment(acc),
+              onDone: async (full) => {
+                await saveAnswer(full);
+              },
+            });
+          })()
       : await (async () => {
           const system = isPro
             ? (v8 ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +

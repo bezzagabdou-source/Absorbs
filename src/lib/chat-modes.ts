@@ -16,6 +16,8 @@ export interface ChatMode {
   addon: string;
   /** these modes need the full team / long output, so the server treats them as hard tasks */
   hard: boolean;
+  /** deliverable modes (music / video / canvas) apply to ONE message, then switch off by themselves */
+  oneShot?: boolean;
 }
 
 
@@ -41,10 +43,11 @@ export const CHAT_MODES: readonly ChatMode[] = [
     sub: "مشاهد متحركة بالكود مع صوت وتحكم كامل",
     placeholder: "صف الفيديو: الفكرة، المدة، الأجواء…",
     hard: true,
+    oneShot: true,
     addon: `
 
 VIDEO STUDIO MODE
-There is no camera-realistic video model here, so build a REAL animated video as ONE self-contained HTML file in a single \`\`\`html block: a timeline of 4-8 scenes (Canvas 2D or SVG + CSS), cinematic transitions, animated typography and captions in the user's language, a generated soundtrack and sound effects with Web Audio (start audio only after the first tap), a poster screen with a big play button, and a control bar (play / pause / restart / seek bar / fullscreen). Total length matches the request (default 30-45 s). Fluid 60 fps with requestAnimationFrame and delta time, responsive from 360px up, rich layered visuals (gradients, particles, parallax), no external assets. Say in ONE short sentence before the code that it is an interactive animated video.`,
+There is no camera-realistic video model here, so build a REAL animated video as ONE self-contained HTML file in a single \`\`\`html block: a timeline of 4-8 scenes (Canvas 2D or SVG + CSS), cinematic transitions, animated typography and captions in the user's language, a generated soundtrack and sound effects with Web Audio (start audio only after the first tap), a poster screen with a big play button, and a control bar (play / pause / restart / seek bar / fullscreen). Total length matches the request (default 30-45 s). Fluid 60 fps with requestAnimationFrame and delta time, responsive from 360px up, rich layered visuals (gradients, particles, parallax), no external assets. Before the code write ONE plain sentence in the user's language (no underscores, no asterisks) saying it is an interactive animated video. Never return a stub: the file must be complete and runnable.`,
   },
   {
     id: "music",
@@ -52,10 +55,13 @@ There is no camera-realistic video model here, so build a REAL animated video as
     sub: "مقطوعات مولّدة بالكود قابلة للتشغيل والتحميل",
     placeholder: "صف المقطوعة: النمط، المزاج، السرعة…",
     hard: true,
+    oneShot: true,
     addon: `
 
 MUSIC STUDIO MODE
-Compose REAL music as ONE self-contained HTML file in a single \`\`\`html block using Web Audio only: a scheduler with look-ahead, a chord progression and melody that fit the requested genre and mood, drums (kick / snare / hats synthesised from noise and oscillators), bass, pads and lead with envelopes, reverb (convolver built from noise), tempo / key / volume controls, a live visualiser (analyser + canvas), play / stop, and a "download WAV" button that renders the track offline with OfflineAudioContext and encodes a 16-bit WAV in plain JavaScript. Audio starts only after a tap. Loop-friendly structure with intro, build, drop and outro. Say in ONE short sentence before the code that the track is generated live in the browser.`,
+The user wants MUSIC. Compose REAL, audible music as ONE self-contained, COMPLETE HTML file in a single \`\`\`html block using Web Audio only (never a stub, never fewer than ~250 lines): a scheduler with look-ahead, a chord progression and melody that fit the requested genre / artist style / mood, drums (kick / snare / hats synthesised from noise and oscillators), bass, pads and lead with envelopes, reverb (convolver built from noise), tempo / key / volume controls, a live visualiser (analyser + canvas), play / stop, and a "download WAV" button that renders the track offline with OfflineAudioContext and encodes a 16-bit WAV in plain JavaScript. Audio starts only after a tap. Loop-friendly structure with intro, build, drop and outro. The page is responsive from 360px, RTL-ready, colourful (never a blank or black page) and every control is wrapped in try/catch.
+If the user names a real song or artist (for example an Algerian rap / trap track): you cannot reproduce the original recording or its copyrighted lyrics. Compose an ORIGINAL instrumental in that style (tempo, mood, drum pattern, instrumentation) and say so honestly. Never print the artist's lyrics.
+Before the code write ONE plain sentence in the user's language (no underscores, no asterisks, no markdown emphasis) saying the track is generated live in the browser and which style it follows. After the code add one short line on how to play it.`,
   },
   {
     id: "canvas",
@@ -63,6 +69,7 @@ Compose REAL music as ONE self-contained HTML file in a single \`\`\`html block 
     sub: "الترميز أو الكتابة أو إنشاء الشرائح",
     placeholder: "ماذا نبني في اللوحة؟ كود، مستند، عرض شرائح…",
     hard: true,
+    oneShot: true,
     addon: `
 
 CANVAS MODE
@@ -270,4 +277,41 @@ Specialist rules: state the question, the method and the caveats (sample size, m
 
 export function chatModeById(id: unknown): ChatMode | undefined {
   return CHAT_MODES.find((m) => m.id === id);
+}
+
+/* ------------------------------------------------------------------ */
+/* Intent guard: a mode chip must never hijack a message of another kind */
+/* ------------------------------------------------------------------ */
+
+/** words that prove a message really belongs to a deliverable mode */
+const MODE_TOPIC: Partial<Record<ChatModeId, RegExp>> = {
+  music: /(أغني|اغني|موسيق|لحن|مقطوع|نغم|إيقاع|ايقاع|بيت(?![\u0600-\u06FF])|راب(?![\u0600-\u06FF])|تراب(?![\u0600-\u06FF])|ريمكس|instrumental|\bsong\b|music|\bbeat\b|\btrack\b|melody|\brap\b|\btrap\b|remix|chanson|musique|rythme)/i,
+  video: /(فيديو|مقطع|انيميشن|أنيميشن|رسوم متحركة|فيلم|إعلان|video|animation|\bclip\b|\bmovie\b|trailer|vidéo)/i,
+};
+
+/** requests that are clearly a DIFFERENT job (info / lyrics / translation / schoolwork / building an app) */
+const NOT_A_DELIVERABLE =
+  /(كلمات|lyrics|paroles|من هو|من هي|who is|who was|ما معنى|معنى|ما هو|ما هي|what is|what does|ترجم|translate|traduis|اشرح|explain|لماذا|why\b|كيف (يعمل|أ|ا)|how (do|does|to)\b|تمرين|فرض|امتحان|درس|حل المسأل|exercice|devoir)/i;
+
+const OTHER_BUILD =
+  /(لعب[ةه]|العاب|ألعاب|\bgame\b|موقع|website|web ?app|تطبيق|\bapp\b|dashboard|لوحة تحكم|متجر|\bbot\b|بوت)/i;
+
+/**
+ * Returns the mode that really applies to THIS message, or undefined (plain chat / normal routing).
+ *  - persona / study modes (not oneShot) always stay: the user chose a long-lived assistant.
+ *  - deliverable modes (music / video / canvas) apply only when the message fits them;
+ *    an info / lyrics / translation question or an unrelated build request is answered normally.
+ */
+export function resolveChatMode(id: unknown, text: string): ChatMode | undefined {
+  const mode = chatModeById(id);
+  if (!mode || !mode.oneShot) return mode;
+  const topic = MODE_TOPIC[mode.id];
+  if (!topic) return mode; // canvas: the user picked it on purpose, any content fits
+  const t = (text || "").trim();
+  if (!t) return mode;
+  const onTopic = topic.test(t);
+  if (!onTopic) return undefined; // "hello", a recipe, a question ... never gets a music program
+  if (NOT_A_DELIVERABLE.test(t)) return undefined; // lyrics / who-is / explain: answer in words
+  if (OTHER_BUILD.test(t) && !/(موسيق|أغني|اغني|music|song)\s*(?:ل|for|في|in)\s*(لعب|game|موقع|تطبيق)/i.test(t)) return undefined;
+  return mode;
 }

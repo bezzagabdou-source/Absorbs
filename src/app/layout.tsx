@@ -5,6 +5,7 @@ import { I18nProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth-context";
 import { PwaRegister } from "@/components/pwa";
 import { StableViewport } from "@/components/stable-viewport";
+import { ChunkGuard } from "@/components/chunk-guard";
 import { siteUrl } from "@/lib/site";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
@@ -82,6 +83,7 @@ export default function RootLayout({
         </I18nProvider>
         <PwaRegister />
         <StableViewport />
+        <ChunkGuard />
       </body>
     </html>
   );
