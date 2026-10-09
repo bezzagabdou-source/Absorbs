@@ -56,10 +56,53 @@ export function detectCanvas(text: string): CanvasKind {
   return "none";
 }
 
+/**
+ * v15 — PROMPT REQUESTS ARE NOT CANVAS REQUESTS.
+ *
+ * Bug the user hit: "اعطيني برومت لتصميم شعار" matched the `logo` pattern, so
+ * the canvas contract fired, the model emitted a full HTML artifact, and the
+ * code-builder panel opened. The user wanted a paragraph of English text to
+ * paste into an image generator — not an app.
+ *
+ * Asking FOR a prompt is a writing task. It must come back as prose.
+ */
+const PROMPT_WORDS = w("prompt|prompts|برومبت|برومت|بروموت|برومبتات|مطالبة|نص الطلب|وصف للصورة|وصف الصورة");
+const PROMPT_ASK = w(
+  "اعطيني|أعطني|عطيني|اكتبلي|اكتب لي|كتبلي|جهزلي|حضرلي|صيغ لي|صغلي|ابغى|بغيت|حاب|نحتاج|give me|write me|generate a|make me a|i need a|craft"
+);
+
+/** True when the user wants the TEXT of a prompt, not a built artifact. */
+export function wantsPromptText(text: string): boolean {
+  const t = text.slice(0, 600);
+  if (!PROMPT_WORDS.test(t)) return false;
+  // "برومت" alone, or with any asking verb, is a writing request.
+  // Only an explicit "build an app that generates prompts" stays a build.
+  const buildsAnApp = w("تطبيق|موقع|صفحة|app|website|page|dashboard|لوحة").test(t);
+  return !buildsAnApp || PROMPT_ASK.test(t);
+}
+
 export function wantsCanvas(text: string): boolean {
+  if (wantsPromptText(text)) return false; // v15: never open the canvas for a prompt
   const kind = detectCanvas(text);
   return kind !== "none" && VERB.test(text.slice(0, 400));
 }
+
+/** Directive that forces a prompt answer to be readable prose, never a code block. */
+export const PROMPT_TEXT_CONTRACT = `
+
+===== PROMPT REQUEST — OUTPUT FORMAT =====
+The user is asking you to WRITE A PROMPT (text they will paste into another AI).
+
+- Output it as plain readable prose. Do NOT wrap it in a code fence.
+- Do NOT use \`\`\` around it. Do NOT call it JSON, HTML or a file.
+- No file manifest, no project structure, no build contract.
+- Give the prompt itself first, then at most 3 short bullets on how to tweak it.
+- If several variants help, separate them with a short bold heading each.
+- Keep the prompt in English when it is meant for an image/video model, and say
+  so in one line, but keep your surrounding explanation in the user's language.
+===== END FORMAT =====
+`;
+
 
 const KIND_BRIEF: Record<Exclude<CanvasKind, "none">, string> = {
   poster:

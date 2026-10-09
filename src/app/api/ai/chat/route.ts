@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { json, safeDetail } from "@/lib/http";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, acquire, LIMITS } from "@/lib/rate-limit";
 import { verifyRequest } from "@/lib/server-auth";
 import { takeCredit, refundCredit, chargeStreamTime, FREE_DAILY } from "@/lib/usage";
 import { MAX_OUTPUT_TOKENS, MAX_SEGMENT_TOKENS, PRO_OUTPUT_TOKENS, FREE_OUTPUT_TOKENS, REQUEST_GUARD_MS, REQUEST_DEADLINE_MS } from "@/lib/limits";
@@ -22,11 +22,14 @@ import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
 /* ---- Nexus AI v11 LEGEND ---- */
 import { withWatchdog, withInstantOpen, cleanOutput, TURBO } from "@/lib/turbo";
 import { withTitan, TITAN, TITAN_CONTINUE_PROMPT, TITAN_SIZE_CONTRACT, type TitanReport } from "@/lib/titan";
-import { wantsCanvas, detectCanvas, canvasContract } from "@/lib/design-canvas";
+import { wantsCanvas, detectCanvas, canvasContract, wantsPromptText, PROMPT_TEXT_CONTRACT } from "@/lib/design-canvas";
 import { hasArabic, ARABIC_VISION_SYSTEM } from "@/lib/arabic-vision";
 import { V11_CHAT_ADDON } from "@/lib/nexus-v11";
 /* ---- Nexus AI v13 LIVE WEB ---- */
 import { needsWeb, planQueries, multiSearch, readPages, sourcesBlock } from "@/lib/websearch";
+import { academyBlockDeep, playbookKeyFor, needsDraftStrip } from "@/lib/nexus-academy";
+import { isGameRequest, planGame, forgeSystemBlock } from "@/lib/game-forge";
+import { withDraftFilter } from "@/lib/draft-filter";
 import { TITAN_MAX_BYTES, TITAN_TARGET_BYTES } from "@/lib/limits";
 import { chatModeById } from "@/lib/chat-modes";
 import { DZ_IDENTITY, DZ_SCHOOL_ADDON, looksLikeSchoolwork } from "@/lib/dz-school";
@@ -415,6 +418,18 @@ export async function POST(req: Request) {
   const textFiles = parseTextFiles(body.textFiles);
   if (textFiles === "BAD") return json(400, { code: "BAD_ATTACHMENT" });
 
+  // v15.2: sliding-window + shared store + per-user concurrency cap.
+  // Concurrency is the binding constraint at 100k/day (~360 simultaneous
+  // streams at peak), so it is checked here before anything expensive runs.
+  // `credit` is resolved further down, so the cap here is the generous (Pro)
+  // one; the per-plan request limit below still applies on top of it.
+  const conc = acquire(`stream:${user.uid}`, LIMITS.pro.concurrent);
+  if (!conc.ok) {
+    return new Response(JSON.stringify({ code: "BUSY_USER", detail: "عندك طلبات بزاف مفتوحة فنفس الوقت." }), {
+      status: 429,
+      headers: { "content-type": "application/json", "retry-after": "3" },
+    });
+  }
   const rl = rateLimit(`ai:${user.uid}`, 30, 60_000);
   if (!rl.ok) {
     return json(
@@ -540,7 +555,7 @@ export async function POST(req: Request) {
     release = r;
   });
   if (isPro) {
-    const guard = setTimeout(() => release(), REQUEST_GUARD_MS);
+    const guard = setTimeout(() => { release(); conc.release(); }, REQUEST_GUARD_MS);
     void finished.then(() => clearTimeout(guard));
     try {
       after(() => finished);
@@ -567,6 +582,7 @@ export async function POST(req: Request) {
         .catch(() => undefined);
     } finally {
       release();
+    conc.release();
     }
   };
 
@@ -579,7 +595,9 @@ export async function POST(req: Request) {
   /* ---- v11: live design canvas + Arabic document reading ---- */
   const canvasKind = detectCanvas(lastUser);
   const canvasOn = isPro && !body.voice && wantsCanvas(lastUser);
-  const canvasBlock = canvasOn ? canvasContract(canvasKind) : "";
+  // v15: a prompt request gets the prose contract instead of the canvas one.
+  const promptAsk = wantsPromptText(lastUser);
+  const canvasBlock = promptAsk ? PROMPT_TEXT_CONTRACT : canvasOn ? canvasContract(canvasKind) : "";
   const arabicVisionBlock = parsed.files.length > 0 && hasArabic(lastUser) ? ARABIC_VISION_SYSTEM : "";
   const v11Block = canvasBlock + arabicVisionBlock;
 
@@ -587,23 +605,49 @@ export async function POST(req: Request) {
      the client asks for it explicitly. Never blocks the answer: a failed search just
      means the model answers from its own knowledge, exactly like before. ---- */
   const webAsked = body.web === true;
-  const webAuto = webAsked || (!body.voice && parsed.files.length === 0 && needsWeb(lastUser));
+  // v15: the user asked for the internet to be AUTOMATIC — no toggle, no tab.
+  // Any pasted link is fetched and read; anything time-sensitive is searched.
+  const pastedUrls = (lastUser.match(/https?:\/\/[^\s<>"'\u0600-\u06FF]{4,}/g) ?? []).slice(0, 4);
+  const webAuto = webAsked || pastedUrls.length > 0 || (!body.voice && needsWeb(lastUser));
   let webBlock = "";
   let webCount = 0;
   if (webAuto) {
     try {
-      const hits = await multiSearch(planQueries(lastUser), 5);
-      if (hits.length) {
-        const top = hits.slice(0, 6);
-        await readPages(top, 3, 6000);
-        webBlock = sourcesBlock(top);
-        webCount = top.length;
+      // 1. read every link the user pasted, verbatim
+      const linkHits = pastedUrls.map((u) => ({
+        title: u.replace(/^https?:\/\//, "").slice(0, 70),
+        url: u,
+        snippet: "",
+        host: (() => { try { return new URL(u).hostname; } catch { return ""; } })(),
+        via: "link" as const,
+      }));
+      if (linkHits.length) await readPages(linkHits, 4, 9000);
+
+      // 2. search only when a search would add something
+      let searchHits: typeof linkHits = [];
+      if (!pastedUrls.length || needsWeb(lastUser)) {
+        const hits = await multiSearch(planQueries(lastUser), 5);
+        searchHits = hits.slice(0, 6) as typeof linkHits;
+        if (searchHits.length) await readPages(searchHits, 3, 6000);
+      }
+
+      const all = [...linkHits, ...searchHits];
+      if (all.length) {
+        webBlock = sourcesBlock(all);
+        webCount = all.length;
       }
     } catch (e) {
       console.warn("[web] search skipped:", e instanceof Error ? e.message : String(e));
     }
   }
-  const v13Block = v11Block + webBlock;
+  // v15: ACADEMY (domain corpus + per-engine directive) and GAME FORGE
+  // (binding multi-file build contract) ride on the same block every engine
+  // already receives, so free and Pro models both get them.
+  const pbKey = playbookKeyFor(selection?.model);
+  const bigAsk = isBuildRequest(lastUser) && !promptAsk;
+  const academy = academyBlockDeep({ text: lastUser, modelKey: pbKey, big: bigAsk || promptAsk });
+  const forge = !promptAsk && isGameRequest(lastUser) ? forgeSystemBlock(planGame(lastUser), lastUser) : "";
+  const v13Block = v11Block + webBlock + academy + forge;
   let titanReport: TitanReport | null = null;
   try {
     // Pro + "build me a game / site / app": the whole AI team works together
@@ -702,6 +746,7 @@ export async function POST(req: Request) {
     const onFail = async () => {
       if (credit.tracked) await refundCredit(user.uid);
       release();
+    conc.release();
     };
     const stream = externalStream
       ? externalStream
@@ -882,7 +927,12 @@ export async function POST(req: Request) {
         })();
     const fixedConvId = await persistP;
 
-    return streamToResponse(stream, {
+    // v15: ONE choke point every engine passes through — Claude's draft
+    // preamble and the reasoning models' <think> blocks are removed here, so
+    // the fix covers all 16 models at once instead of per-provider.
+    const cleanStream = withDraftFilter(stream, { enabled: !voice && needsDraftStrip(pbKey) });
+
+    return streamToResponse(cleanStream, {
       "x-conversation-id": fixedConvId ?? "",
       "x-credits-remaining": String(credit.remaining),
       "x-plan": credit.plan,
@@ -890,12 +940,14 @@ export async function POST(req: Request) {
       ...(selection ? { "x-provider": externalStream ? selection.provider : "gemini" } : {}),
       ...(fellBackFrom ? { "x-fallback-from": fellBackFrom } : {}),
       ...(isPro ? { "x-model": usedModel, "x-engine": (build || hard) && !(max && build) ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
-      "x-nexus": "v11-legend",
-      ...(canvasOn ? { "x-canvas": canvasKind } : {}),
+      "x-nexus": "v15-apex",
+      ...(pbKey ? { "x-playbook": pbKey } : {}),
+      ...(canvasOn && !promptAsk ? { "x-canvas": canvasKind } : {}),
       ...(max && build ? { "x-titan": "on" } : {}),
     });
   } catch (e) {
     release();
+    conc.release();
     if (credit.tracked) await refundCredit(user.uid);
     console.error("[chat] gemini failed:", e);
     if (e instanceof GeminiError) {

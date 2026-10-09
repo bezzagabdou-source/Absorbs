@@ -69,6 +69,19 @@ import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { FullPreview } from "@/components/game-preview";
+import { wantsPromptText } from "@/lib/design-canvas";
+import {
+  isGameRequest as isForgeRequest,
+  newCheckpoint,
+  advanceCheckpoint,
+  saveCheckpoint,
+  pendingCheckpoint,
+  clearCheckpoint,
+  isComplete as forgeComplete,
+  forgeProgress,
+  type ForgeCheckpoint,
+} from "@/lib/game-forge";
+import { notifyBuildDone } from "@/lib/notify";
 import { VoiceCall } from "@/components/voice/voice-call";
 import {
   codeLooksCut,
@@ -506,7 +519,7 @@ const MessageRow = memo(function MessageRow({
         transition={{ duration: 0.2 }}
         className="flex w-full justify-end gap-2.5"
       >
-        <div className="relative max-w-[86%] min-w-0 sm:max-w-[78%]" {...press.handlers}>
+        <div className="relative max-w-[90%] min-w-0 sm:max-w-[82%]" {...press.handlers}>
           {press.pill}
           <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-[#fff] shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
             <p className="whitespace-pre-wrap break-words">{m.content}</p>
@@ -751,6 +764,12 @@ export function ChatPage() {
   const talkRef = useRef(false);
   const transcriptRef = useRef("");
   const [preview, setPreview] = useState<string | null>(null);
+  // v15.2 — FORGE. A long multi-file build survives leaving the page: the
+  // checkpoint lives in localStorage, so coming back offers "كمّل" instead of
+  // silently starting the whole game again.
+  const [forge, setForge] = useState<ForgeCheckpoint | null>(null);
+  const [resumable, setResumable] = useState<ForgeCheckpoint | null>(null);
+  const forgeRef = useRef<ForgeCheckpoint | null>(null);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("barq_tier");
@@ -839,6 +858,12 @@ export function ChatPage() {
   const silenceRef = useRef(0);
   const res0Ok = useRef(false);
   const sendRef = useRef<(t: string, retry?: boolean, base?: Msg[]) => Promise<void>>(async () => undefined);
+
+  // Offer to resume an unfinished build when the user returns.
+  useEffect(() => {
+    const cp = pendingCheckpoint();
+    if (cp) setResumable(cp);
+  }, []);
   const startListeningRef = useRef<() => void>(() => undefined);
   const stickRef = useRef(true);
   const openSeq = useRef(0);
@@ -1137,6 +1162,13 @@ export function ChatPage() {
       abortRef.current = controller;
       const mine = () => abortRef.current === controller;
 
+      // v15.2: a game build gets a checkpoint from the first token.
+      if (isForgeRequest(content)) {
+        const cp = forgeRef.current && !forgeComplete(forgeRef.current) ? forgeRef.current : newCheckpoint(content);
+        forgeRef.current = cp;
+        setForge(cp);
+        saveCheckpoint(cp);
+      }
       let acc = "";
       let activeConv: string | null = convId;
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -1263,6 +1295,15 @@ export function ChatPage() {
             const { done, value } = await reader.read();
             if (done) break;
             acc += decoder.decode(value, { stream: true });
+            // advance the forge checkpoint whenever a new file closes
+            if (forgeRef.current && acc.length - (forgeRef.current.bytes || 0) > 4000) {
+              const next = advanceCheckpoint(forgeRef.current, acc);
+              if (next.done.length !== forgeRef.current.done.length) {
+                forgeRef.current = next;
+                setForge(next);
+                saveCheckpoint(next);
+              }
+            }
             schedule();
           }
         } catch (re) {
@@ -1341,10 +1382,31 @@ export function ChatPage() {
         flush();
         setMsgs((m) => m.map((x) => (x.pending ? { ...x, pending: false } : x)));
 
+        // v15.2: close out the forge checkpoint.
+        if (forgeRef.current) {
+          const fin = advanceCheckpoint(forgeRef.current, acc);
+          forgeRef.current = fin;
+          setForge(fin);
+          saveCheckpoint(fin);
+          if (forgeComplete(fin) || /NEXUS-FORGE-COMPLETE/.test(acc)) {
+            void notifyBuildDone(fin.plan.title);
+            clearCheckpoint(fin.id);
+            forgeRef.current = null;
+            setForge(null);
+          }
+        }
+
         // finished a real web build → open the live preview full-screen by itself
-        if (isPro && mine() && !codeLooksCut(acc)) {
+        // v15: only a REAL build opens the panel. Asking for a prompt, or for
+        // an explanation that happens to quote some HTML, must stay as text.
+        if (isPro && mine() && !codeLooksCut(acc) && !wantsPromptText(content)) {
           const page = extractHtml(acc);
-          if (page && page.length > 1500 && /<(canvas|script|body)/i.test(page)) {
+          const isRealApp =
+            page &&
+            page.length > 1500 &&
+            /<(canvas|script|body)/i.test(page) &&
+            /<html|<!doctype/i.test(page); // a full document, not a snippet
+          if (isRealApp) {
             setTimeout(() => setPreview(page), 350);
           }
         }
@@ -1654,7 +1716,7 @@ export function ChatPage() {
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* messages */}
         <div ref={scrollRef} onScroll={onScroll} className="scroll-y flex-1">
-          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 pb-4 pt-4 sm:px-6">
+          <div className="nx-wide flex min-h-full flex-col px-4 pb-4 pt-4 sm:px-6">
             {/* mobile conv toggle */}
             <div className="mb-4 flex items-center justify-between xl:hidden">
               <button
@@ -1827,7 +1889,7 @@ export function ChatPage() {
 
         {/* composer */}
         <div className="relative shrink-0 bg-gradient-to-t from-ink-950 via-ink-950/92 to-transparent px-2.5 pb-1 pt-3 sm:px-6 sm:pb-3">
-          <form onSubmit={onSubmit} className="mx-auto w-full max-w-3xl">
+          <form onSubmit={onSubmit} className="nx-wide">
             {proHint && !isPro && (
               <div className="mb-2 flex items-start gap-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 p-3.5">
                 <Lock className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
@@ -2111,7 +2173,7 @@ export function ChatPage() {
             </div>
           </form>
           {profile && profile.plan !== "pro" && (
-            <div className="mx-auto mt-1 flex max-w-3xl items-center gap-2.5 px-2">
+            <div className="nx-wide mt-1 flex items-center gap-2.5 px-2">
               {(
 
                 <>
@@ -2139,12 +2201,77 @@ export function ChatPage() {
               )}
             </div>
           )}
-          <p className="mx-auto mt-1.5 hidden max-w-3xl px-2 text-center text-[11px] text-slate-600 sm:block">
+          <p className="nx-wide mt-1.5 hidden px-2 text-center text-[11px] text-slate-600 sm:block">
             <Info className="me-1 inline h-3 w-3" />
             {t.app.disclaimer}
           </p>
         </div>
       </div>
+
+      {/* v15.2 — live forge progress */}
+      {forge && !forgeComplete(forge) && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[120] flex justify-center px-4">
+          <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1020]/95 p-3 shadow-[0_18px_50px_-18px_rgba(91,140,255,.7)] backdrop-blur">
+            <div className="flex items-center justify-between gap-2 text-[12.5px]">
+              <span className="truncate font-semibold text-slate-100">
+                🔨 {forge.plan.title} — {forgeProgress(forge).pct}%
+              </span>
+              <span className="shrink-0 text-slate-400">{forgeProgress(forge).eta}</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <i
+                className="block h-full rounded-full bg-gradient-to-r from-[#5b8cff] to-[#d97757] transition-[width] duration-500"
+                style={{ width: `${forgeProgress(forge).pct}%` }}
+              />
+            </div>
+            <p className="mt-1.5 truncate text-[11.5px] text-slate-400">
+              {forgeProgress(forge).label} · {forge.done.length}/{forge.plan.files.length} ملف ·{" "}
+              {(forge.bytes / 1000).toFixed(0)} KB
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* v15.2 — resume an unfinished build after leaving the page */}
+      {resumable && !forge && (
+        <div className="fixed inset-x-0 bottom-24 z-[120] flex justify-center px-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#5b8cff]/40 bg-[#0d1020]/97 p-3.5 shadow-[0_18px_50px_-18px_rgba(91,140,255,.8)] backdrop-blur">
+            <p className="text-[13.5px] font-semibold text-slate-100">
+              عندك بناء ما كملش: {resumable.plan.title}
+            </p>
+            <p className="mt-0.5 text-[12px] text-slate-400">
+              {resumable.done.length}/{resumable.plan.files.length} ملف · يكمّل من {resumable.plan.files[resumable.cursor]?.path ?? "—"}
+            </p>
+            <div className="mt-2.5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  forgeRef.current = resumable;
+                  setForge(resumable);
+                  setResumable(null);
+                  void sendRef.current(
+                    `كمّل بناء ${resumable.plan.title} من الملف ${resumable.plan.files[resumable.cursor]?.path ?? ""}. ` +
+                      `الملفات الجاهزة: ${resumable.done.join(", ") || "والو"}. ما تعاودش تكتبهم.`
+                  );
+                }}
+                className="flex-1 rounded-xl bg-[#5b8cff] px-3 py-2.5 text-[13px] font-bold text-white"
+              >
+                كمّل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearCheckpoint(resumable.id);
+                  setResumable(null);
+                }}
+                className="rounded-xl border border-white/12 px-3 py-2.5 text-[13px] font-semibold text-slate-300"
+              >
+                نحّيه
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {preview && <FullPreview html={preview} onClose={() => setPreview(null)} />}
 

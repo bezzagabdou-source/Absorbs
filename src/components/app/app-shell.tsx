@@ -24,11 +24,10 @@ import {
   SquarePen,
   Coins,
   Wand2,
-  Gamepad2,
   Sparkles,
   Gavel,
   Telescope,
-  LayoutDashboard,
+  Plug,
   MoreVertical,
   X,
   ShieldCheck,
@@ -215,7 +214,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: "/app/research", label: "البحث", icon: Telescope, exact: true },
     { href: "/app/tools", label: t.app.tools, icon: LayoutGrid, exact: false },
     { href: "/app/studio", label: "الاستوديو", icon: Wand2, exact: true },
-    { href: "/app/arcade", label: "الأركيد", icon: Gamepad2, exact: true, desktopOnly: true },
+    { href: "/app/connectors", label: "الموصّلات", icon: Plug, exact: true },
     { href: "/app/history", label: t.app.history, icon: History, exact: true },
     { href: "/app/upgrade", label: t.app.upgrade, icon: Crown, exact: true },
     { href: "/app/settings", label: t.app.settings, icon: Settings, exact: true },
@@ -534,27 +533,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
 
-        {/* ---------------- v12: ONE bottom button ---------------- */}
-        <div className="v12-dock lg:hidden">
-          <Link
-            href={pathname === "/app/hub" ? "/app" : "/app/hub"}
-            aria-label="المركز"
-            className="v12-dock-btn"
-          >
-            {pathname === "/app/hub" ? (
-              <>
-                <MessagesSquare className="h-[18px] w-[18px] text-[var(--v12-accent-2)]" />
-                رجوع للمحادثة
-              </>
-            ) : (
-              <>
-                <span className="v12-dock-dot" />
-                <LayoutDashboard className="h-[18px] w-[18px]" />
-                المركز
-              </>
-            )}
-          </Link>
-        </div>
+        {/* v15: the hub dock is gone — the chat owns the full height. */}
       </div>
       <CommandPalette />
     </CreditsContext.Provider>

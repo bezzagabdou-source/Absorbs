@@ -13,7 +13,8 @@
     "test:v11": "node scripts/v11-test.mjs",
     "test:web": "node scripts/v13-web-test.mjs",
     "test:ar": "node scripts/v14-arabic-test.mjs",
-    "test": "npm run test:v11 && npm run test:ar && npm run test:web"
+    "test": "npm run test:v11 && npm run test:ar && npm run test:web",
+    "gen:vapid": "node scripts/gen-vapid.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -48,7 +49,7 @@
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
   },
-  "version": "14.0.0",
+  "version": "15.2.0",
   "engines": {
     "node": ">=20"
   }

@@ -49,17 +49,6 @@
       ]
     },
     {
-      "name": "المركز",
-      "short_name": "المركز",
-      "url": "/app/hub",
-      "icons": [
-        {
-          "src": "/icons/nexus-icon-192.png",
-          "sizes": "192x192"
-        }
-      ]
-    },
-    {
       "name": "استوديو الصور",
       "short_name": "الصور",
       "url": "/app/studio",

@@ -990,11 +990,13 @@ html:not([data-theme="lumen"]) .neo-chip { background: #151722; }
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  background: conic-gradient(from 0deg, #6366f1, #2dd4bf, #fbbf24, #d97757, #6366f1);
-  animation: thinkSpin 1.4s linear infinite;
-  -webkit-mask: radial-gradient(farthest-side, transparent 55%, #000 58%);
-  mask: radial-gradient(farthest-side, transparent 55%, #000 58%);
-  filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.7));
+  /* v15: the rainbow conic wheel is gone. A single-hue comet arc reads as
+     "working" without the carnival colours, and keeps the brand palette. */
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(91, 140, 255, 0.15) 90deg, var(--nx-accent, #5b8cff) 320deg, transparent 360deg);
+  animation: thinkSpin 1.15s cubic-bezier(0.62, 0.05, 0.36, 0.95) infinite;
+  -webkit-mask: radial-gradient(farthest-side, transparent 58%, #000 61%);
+  mask: radial-gradient(farthest-side, transparent 58%, #000 61%);
+  filter: drop-shadow(0 0 6px rgba(91, 140, 255, 0.55));
 }
 .think-bar {
   width: 84px;
@@ -2056,9 +2058,11 @@ html[data-theme="lumen"] { background-color: #f4f6fd; }
   height: 2.6rem;
   flex: none;
   border-radius: 999px;
-  background: conic-gradient(from 0deg, #6366f1, #22d3ee, #f472b6, #fbbf24, #6366f1);
-  animation: nxSpin 2.4s linear infinite;
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.18), 0 10px 26px -12px rgba(99, 102, 241, 0.8);
+  /* v15: calm dual-ring pulse instead of the spinning rainbow disc */
+  background:
+    conic-gradient(from 0deg, transparent 0deg, rgba(91, 140, 255, 0.1) 70deg, var(--nx-accent, #5b8cff) 300deg, transparent 360deg);
+  animation: nxSpin 1.8s cubic-bezier(0.62, 0.05, 0.36, 0.95) infinite;
+  box-shadow: 0 0 0 1px rgba(91, 140, 255, 0.16), 0 10px 26px -14px rgba(91, 140, 255, 0.75);
 }
 .nx-orb-core {
   width: 1.5rem;
@@ -2173,3 +2177,38 @@ html[dir="rtl"] .nx-drawer { animation-name: nxSlideInRtl; }
   box-shadow: 0 20px 48px -20px rgba(30, 41, 90, 0.55), inset 0 1px 0 #fff;
 }
 @media (prefers-reduced-motion: reduce) { .nx-drawer { animation: none; } }
+
+
+/* ===================================================================
+   v15 — wide canvas
+   The chat column was capped at max-w-3xl (48rem). Code and 3D game
+   output needs room, so the column scales with the viewport instead.
+   =================================================================== */
+.nx-wide {
+  width: 100%;
+  max-width: min(100%, 72rem);
+  margin-inline: auto;
+}
+@media (min-width: 1536px) {
+  .nx-wide { max-width: 84rem; }
+}
+.nx-wide-tight { width: 100%; max-width: min(100%, 72rem); margin-inline: auto; }
+
+/* v15 — connector sheet */
+.nx-conn {
+  display: flex; align-items: center; gap: 0.75rem;
+  width: 100%; padding: 0.8rem 0.9rem;
+  border: 1px solid var(--v12-line, rgba(255,255,255,0.1));
+  border-radius: 0.9rem; background: var(--v12-card-2, rgba(255,255,255,0.03));
+  text-align: start; transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+.nx-conn:hover { border-color: rgba(91,140,255,0.5); transform: translateY(-1px); }
+.nx-conn-ico {
+  display: grid; place-items: center; flex: none;
+  width: 2.2rem; height: 2.2rem; border-radius: 0.65rem;
+  font-size: 0.95rem; font-weight: 700; color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .think-orb, .nx-orb { animation-duration: 3s; }
+  .nx-conn:hover { transform: none; }
+}

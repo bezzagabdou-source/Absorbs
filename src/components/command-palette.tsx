@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search, MessagesSquare, LayoutGrid, Wand2, Gamepad2, History, Crown, Settings, Sun, Headphones, CornerDownLeft, Clapperboard, FileText, Code2, Palette,
+  Plug, Search, MessagesSquare, LayoutGrid, Wand2, History, Crown, Settings, Sun, Headphones, CornerDownLeft, Clapperboard, FileText, Code2, Palette,
   type LucideIcon,
 } from "lucide-react";
 import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
@@ -84,7 +84,7 @@ export function CommandPalette() {
       { id: "chat", label: "المحادثة", icon: MessagesSquare, run: go("/app") },
       { id: "tools", label: "الأدوات", icon: LayoutGrid, run: go("/app/tools") },
       { id: "studio", label: "الاستوديو", icon: Wand2, run: go("/app/studio") },
-      { id: "arcade", label: "الأركيد", icon: Gamepad2, run: go("/app/arcade") },
+      { id: "connectors", label: "الموصّلات", icon: Plug, run: go("/app/connectors") },
       { id: "history", label: "السجل", icon: History, run: go("/app/history") },
       { id: "upgrade", label: "V8 PRO GOLD", hint: "الترقية", icon: Crown, run: go("/app/upgrade") },
       { id: "settings", label: "الإعدادات", icon: Settings, run: go("/app/settings") },
