@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { Bell, Coins, Crown } from "lucide-react";
 import { Row, SettingsFrame, Switch } from "@/components/settings-ui";
 import { enableHourlyNotifications, disableHourlyNotifications } from "@/components/pwa";
-import { testNotification, requestPermission, enablePush, permissionState } from "@/lib/notify";
-import { useAuth } from "@/lib/auth-context";
 
 function useFlag(key: string, def: boolean) {
   const [v, setV] = useState(def);
@@ -23,9 +21,7 @@ function useFlag(key: string, def: boolean) {
 }
 
 export default function NotificationsPage() {
-  const { authFetch } = useAuth();
   const [perm, setPerm] = useState<string>("default");
-  const [tested, setTested] = useState<string>("");
   const [credits, setCredits] = useFlag("barq_notify_credits", true);
   const [offers, setOffers] = useFlag("barq_notify_offers", false);
 
@@ -34,26 +30,9 @@ export default function NotificationsPage() {
   }, []);
 
   const ask = async () => {
-    // v15: ask, then subscribe to real push when the server has VAPID keys.
-    // If it does not, the local service-worker tier still delivers.
-    await requestPermission();
-    await enablePush(authFetch).catch(() => ({ ok: false }));
+    if (typeof Notification === "undefined") return;
     await enableHourlyNotifications();
-    setPerm(String(permissionState()));
-  };
-
-  /** Fires a real notification right now so the user can SEE it works. */
-  const runTest = async () => {
-    await requestPermission();
-    const r = await testNotification();
-    setPerm(String(permissionState()));
-    setTested(
-      r.tier === "sw" || r.tier === "page"
-        ? "وصل إشعار حقيقي ✅"
-        : r.tier === "toast"
-          ? "المتصفح رافض الإشعارات — وصلك تنبيه داخل التطبيق ✅"
-          : "ما نجّمناش نبعثو. فعّل الإذن من إعدادات المتصفح."
-    );
+    setPerm(Notification.permission);
   };
   const [hourly, setHourlyState] = useState(false);
   useEffect(() => {
@@ -73,14 +52,6 @@ export default function NotificationsPage() {
 
   return (
     <SettingsFrame title="الإشعارات">
-      <button
-        type="button"
-        onClick={() => void runTest()}
-        className="mb-3 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[13.5px] font-semibold text-slate-200 transition hover:border-brand-400/50"
-      >
-        جرّب إشعار دابا
-      </button>
-      {tested && <p className="mb-3 text-[12.5px] text-emerald-300">{tested}</p>}
       <Row
         icon={Bell}
         title="إشعارات الجهاز"

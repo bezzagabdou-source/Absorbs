@@ -65,7 +65,7 @@ function Frame({
   return (
     <div className="relative flex min-h-0 min-w-0 max-w-full justify-center" style={{ width: style?.width ?? "100%", height: style?.height === "100%" ? "100%" : undefined }}>
       {!ready && (
-        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[inherit] bg-white">
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[inherit] bg-ink-950">
           <Loader2 className="h-6 w-6 animate-spin text-gold-400" />
         </div>
       )}
@@ -77,7 +77,7 @@ function Frame({
         allow="fullscreen"
         loading="eager"
         onLoad={() => setReady(true)}
-        className={cn("block max-w-full bg-white", className)}
+        className={cn("block max-w-full bg-ink-950", className)}
         style={{ ...style, width: "100%" }}
       />
     </div>
@@ -152,7 +152,7 @@ export function GamePreview({
   };
 
   const btn =
-    "inline-flex items-center gap-1.5 rounded-lg border border-brand-400/25 bg-brand-500/10 px-2.5 py-1.5 text-[11px] font-bold text-slate-300 transition hover:border-gold-400/50 hover:text-[#fff]";
+    "inline-flex items-center gap-1.5 rounded-lg border border-brand-400/25 bg-brand-500/10 px-2.5 py-1.5 text-[11px] font-bold text-slate-300 transition hover:border-gold-400/50 hover:text-white";
 
   return (
     <div
@@ -162,7 +162,7 @@ export function GamePreview({
         className
       )}
     >
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-ink-900/97 px-3 py-2 shadow-[0_10px_26px_-24px_rgba(30,41,90,0.6)] backdrop-blur">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 bg-ink-900 px-3 py-2">
         <div className="flex items-center gap-1 rounded-lg bg-black/30 p-0.5">
           {(["preview", "code"] as const).map((v) => (
             <button
@@ -171,7 +171,7 @@ export function GamePreview({
               onClick={() => setView(v)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-black transition",
-                view === v ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-[#fff]" : "text-slate-400 hover:text-[#fff]"
+                view === v ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white" : "text-slate-400 hover:text-white"
               )}
             >
               {v === "code" && <Code2 className="h-3.5 w-3.5" />}
@@ -236,11 +236,11 @@ export function GamePreview({
         </p>
       )}
       {view === "code" ? (
-        <pre dir="ltr" className="overflow-auto bg-[#0f172a] p-4 text-left text-[11.5px] leading-relaxed text-[#dbe3f5]" style={{ height, minHeight: 280 }}>
+        <pre dir="ltr" className="overflow-auto bg-black p-4 text-left text-[11.5px] leading-relaxed text-slate-300" style={{ height, minHeight: 280 }}>
           <code>{html}</code>
         </pre>
       ) : (
-        <div className="flex flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#ffffff,#e9edf9)] p-0 sm:p-3">
+        <div className="flex flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#2a2926,#181816)] p-0 sm:p-3">
           <Frame
             runKey={run}
             title={p.gameTitle}
@@ -303,7 +303,7 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
       className="fixed inset-0 z-[200] flex w-screen max-w-full flex-col overflow-hidden bg-ink-950"
       style={{ height: "100dvh" }}
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-black/10 bg-ink-900/95 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] shadow-[0_10px_30px_-24px_rgba(30,41,90,0.6)] backdrop-blur">
+      <div className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-ink-900/95 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur">
         <button type="button" onClick={onClose} aria-label="إغلاق" className={ib}>
           <X className="h-5 w-5" />
         </button>
@@ -311,7 +311,7 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
           <p className="truncate text-sm font-black text-white">{title}</p>
           <p className="truncate text-[10.5px] font-bold text-brand-300">معاينة حيّة · شاشة كاملة</p>
         </div>
-        <div className="flex min-w-0 shrink flex-wrap items-center justify-end gap-1.5">
+        <div className="no-scrollbar flex min-w-0 shrink items-center gap-1.5 overflow-x-auto">
           <button type="button" aria-label="إعادة تشغيل" onClick={() => setRun((n) => n + 1)} className={ib}>
             <RotateCcw className="h-[18px] w-[18px]" />
           </button>
@@ -360,7 +360,7 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
                 say("تعذّر النسخ");
               }
             }}
-            className={ib}
+            className={cn(ib, "hidden sm:grid")}
           >
             <Copy className="h-[18px] w-[18px]" />
           </button>
@@ -372,7 +372,7 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
               window.open(url, "_blank", "noopener");
               setTimeout(() => URL.revokeObjectURL(url), 60_000);
             }}
-            className={ib}
+            className={cn(ib, "hidden sm:grid")}
           >
             <ExternalLink className="h-[18px] w-[18px]" />
           </button>
@@ -380,7 +380,7 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
             type="button"
             aria-label="ملء الشاشة"
             onClick={() => void boxRef.current?.requestFullscreen?.().catch(() => undefined)}
-            className={ib}
+            className={cn(ib, "hidden sm:grid")}
           >
             <Maximize2 className="h-[18px] w-[18px]" />
           </button>
@@ -395,11 +395,11 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
       )}
 
       {view === "code" ? (
-        <pre dir="ltr" className="min-h-0 flex-1 overflow-auto bg-[#0f172a] p-4 text-left text-[12px] leading-relaxed text-[#dbe3f5]">
+        <pre dir="ltr" className="min-h-0 flex-1 overflow-auto bg-black p-4 text-left text-[12px] leading-relaxed text-slate-300">
           <code>{html}</code>
         </pre>
       ) : (
-        <div className="flex min-h-0 flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#ffffff,#e9edf9)] sm:p-3">
+        <div className="flex min-h-0 flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#2a2926,#181816)] sm:p-3">
           <Frame
             runKey={run}
             title={title}

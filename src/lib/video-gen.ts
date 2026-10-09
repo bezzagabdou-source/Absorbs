@@ -9,10 +9,7 @@ import { getGeminiKey } from "@/lib/gemini";
 
 export type VideoAspect = "16:9" | "9:16" | "1:1";
 export const VIDEO_ASPECTS: readonly VideoAspect[] = ["16:9", "9:16", "1:1"];
-// v15.2: "slideshow" is the keyless tier — always available, never fails for
-// want of an API key. It is a cinematic Ken-Burns piece, not diffusion video,
-// and the UI says so rather than pretending otherwise.
-export type VideoProvider = "replicate" | "gemini" | "slideshow";
+export type VideoProvider = "replicate" | "gemini";
 export type VideoChoice = "auto" | VideoProvider;
 export const VIDEO_PROMPT_MAX = 1200;
 
@@ -59,7 +56,6 @@ export function availableVideoProviders(): VideoProvider[] {
 
 export function pickProvider(choice: VideoChoice): VideoProvider {
   const have = availableVideoProviders();
-  if (!have.length) return "slideshow"; // never dead-end the user
   if (choice !== "auto") {
     if (!have.includes(choice)) throw new VideoError("NO_PROVIDER");
     return choice;

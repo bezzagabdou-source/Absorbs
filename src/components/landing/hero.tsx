@@ -63,7 +63,7 @@ function ChatMock() {
         <div className="flex min-h-[290px] flex-col gap-3 p-5">
           {/* user bubble */}
           <div className="flex justify-end">
-            <div className="max-w-[85%] rounded-2xl rounded-se-md bg-gradient-to-br from-brand-600 to-aqua-500 px-4 py-3 text-[13px] font-semibold leading-relaxed text-[#fff] shadow-lg">
+            <div className="max-w-[85%] rounded-2xl rounded-se-md bg-gradient-to-br from-brand-600 to-aqua-500 px-4 py-3 text-[13px] font-semibold leading-relaxed text-white shadow-lg">
               {userText}
               {!userDone && (
                 <span className="ms-0.5 inline-block h-3.5 w-[2px] animate-blink bg-white/80 align-middle" />
@@ -77,7 +77,7 @@ function ChatMock() {
               animate={{ opacity: 1, y: 0 }}
               className="flex items-start gap-2.5"
             >
-              <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-gold-400 text-sm font-bold leading-none text-[#fff]">
+              <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-gold-400 text-sm font-bold leading-none text-white">
                 ب
               </span>
               <div className="max-w-[88%] whitespace-pre-line rounded-2xl rounded-ss-md border border-white/10 bg-white/5 px-4 py-3 text-[13px] leading-relaxed text-slate-200">

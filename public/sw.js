@@ -1,5 +1,6 @@
-/* Nexus AI v8.4 — service worker (offline shell + fast repeat visits) */
-const CACHE = "nexus-v15-lumen";
+/* Nexus AI — service worker: offline shell, navigation preload, timeout fallback */
+const CACHE = "nexus-v10-1-perf";
+const NAV_TIMEOUT_MS = 8000; // slow network -> serve the cached page instead of hanging
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest"];
 const MAX_ENTRIES = 80;
@@ -20,6 +21,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
       )
+      .then(() => self.registration.navigationPreload && self.registration.navigationPreload.enable().catch(() => undefined))
       .then(() => self.clients.claim())
   );
 });
@@ -33,10 +35,23 @@ async function trim(cache) {
 }
 
 async function store(request, res) {
-  if (!res || !res.ok || res.type === "opaque") return;
-  const cache = await caches.open(CACHE);
-  await cache.put(request, res.clone());
-  await trim(cache);
+  try {
+    if (!res || !res.ok || res.type === "opaque") return;
+    const cache = await caches.open(CACHE);
+    await cache.put(request, res.clone());
+    await trim(cache);
+  } catch {
+    /* quota or private mode: caching is best-effort */
+  }
+}
+
+/* fetch with a hard timeout so a stalled connection falls back to cache */
+function fetchWithTimeout(request, preload, ms) {
+  const network = preload ? Promise.resolve(preload).then((r) => r || fetch(request)) : fetch(request);
+  return Promise.race([
+    network,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
 }
 
 self.addEventListener("fetch", (event) => {
@@ -50,7 +65,7 @@ self.addEventListener("fetch", (event) => {
   // Pages: network first, then cache, then the offline page
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      fetchWithTimeout(request, event.preloadResponse, NAV_TIMEOUT_MS)
         .then((res) => {
           event.waitUntil(store(request, res.clone()));
           return res;
@@ -128,7 +143,13 @@ self.addEventListener("periodicsync", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || "/app";
+  // only same-origin targets: never open an arbitrary URL from push payload data
+  let target = (event.notification.data && event.notification.data.url) || "/app";
+  try {
+    if (new URL(target, self.location.origin).origin !== self.location.origin) target = "/app";
+  } catch {
+    target = "/app";
+  }
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const c of list) {

@@ -68,7 +68,7 @@ export function VerifyEmailBanner() {
     <div role="status" className="relative mx-auto mt-2 flex w-[calc(100%-1.5rem)] max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-orange-400/40 bg-orange-500/10 px-3.5 py-2.5 text-[13px] font-bold text-slate-100">
       <MailCheck className="h-5 w-5 shrink-0 text-orange-600" />
       <span className="min-w-0 flex-1">{msg || "فعّل بريدك الإلكتروني لحماية حسابك واسترجاع كلمة المرور."}</span>
-      <button type="button" onClick={resend} disabled={busy || wait > 0} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-3 text-[12.5px] font-black text-[#fff] transition active:scale-95 disabled:opacity-50">
+      <button type="button" onClick={resend} disabled={busy || wait > 0} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-3 text-[12.5px] font-black text-white transition active:scale-95 disabled:opacity-50">
         {busy && <Loader2 className="h-4 w-4 animate-spin" />}
         {wait > 0 ? `أعد الإرسال (${wait})` : "أرسل رسالة التفعيل"}
       </button>

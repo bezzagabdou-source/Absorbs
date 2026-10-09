@@ -2,8 +2,6 @@ import { findGeminiKey } from "@/lib/gemini";
 import { findHuggingFaceKey } from "@/lib/huggingface";
 import { findEnvKey } from "@/lib/openai-stream";
 import type { ImageAspect, ImageEditAction, ImageEditPoint, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
-import { planArabicImage, ARABIC_NEGATIVE } from "@/lib/arabic-vision";
-import { ensureEnglishPrompt, translateArabicPrompt, hasArabicChars } from "@/lib/arabic-image-lexicon";
 
 /**
  * Photorealistic image engine.
@@ -54,13 +52,27 @@ const STYLE_TEXT: Record<ImageStyle, string> = {
 
 const TIER_TEXT: Record<ImageTier, string> = {
   v5: "",
-  v6: "Sharp focus on the subject, rich micro-detail, clean background separation, natural colour, crisp edges.",
-  v8: "Legendary studio-grade quality: professional multi-light setup, balanced composition (rule of thirds), micro-contrast, physically accurate reflections and shadows, careful cinematic colour grading, editorial retouch, 8K-class detail.",
+  v6: "Sharp focus on the subject, rich micro-detail, clean background separation.",
+  v8: "Professional lighting setup, balanced composition (rule of thirds), micro-contrast, careful colour grading, clean professional retouch.",
   max: "Legendary ultra-detailed 8K-class resolution, physically accurate light, reflections and shadows, razor-sharp focus on the subject, rich micro-texture, perfect anatomy and perspective, cinematic colour grading, editorial retouching, award-winning masterpiece.",
 };
 
 const NEGATIVE =
   "Avoid: extra fingers, distorted hands, plastic skin, warped faces, garbled text, watermark, logo, frame, cartoon or CGI look, blur, low resolution.";
+
+/**
+ * v11 art-direction layer: a full creative brief appended to every generation so
+ * even a three-word idea comes out looking like agency work.
+ */
+const ART_DIRECTOR = [
+  "ART DIRECTION BRIEF — follow all of it:",
+  "Composition: one unmistakable hero subject, rule-of-thirds or deliberate central symmetry, clean foreground/midground/background separation, generous negative space, no cropped limbs, no cluttered edges.",
+  "Light: one motivated key light plus a soft fill and a rim/back light that separates the subject; physically correct shadows, bounce light and reflections; coherent single light temperature.",
+  "Colour: a deliberate 3-colour palette (dominant, secondary, accent) with cinematic grading, deep but detailed shadows, highlights that never clip.",
+  "Detail: true micro-texture on skin, fabric, metal, wood, glass and liquid; accurate anatomy, hands, eyes, teeth and perspective; crisp focal plane with natural falloff.",
+  "Typography (only if text is requested): perfectly spelled, correctly kerned, integrated into the scene's perspective and lighting; Arabic text must be right-to-left with properly connected letterforms.",
+  "Finish: editorial retouch, no over-sharpening, no HDR halos, no watermark, no UI chrome, no border.",
+].join(" ");
 
 /** Turns a short user idea into a rich, camera-aware prompt (no extra LLM call, so it costs zero time). */
 export function buildImagePrompt(
@@ -70,26 +82,19 @@ export function buildImagePrompt(
   aspect: ImageAspect
 ): string {
   const subject = idea.trim();
-  // v11 ARABIC VISION: understand the Darija / Arabic intent, and protect any words that must
-  // literally appear inside the picture so the engine cannot mangle or translate them.
-  const plan = planArabicImage(subject);
-  const arabicText = plan.needsArabicTypography
-    ? `TEXT IN THE IMAGE — render these strings EXACTLY and verbatim: ${plan.renderText
-        .map((t) => `"${t}"`)
-        .join(", ")}. Right-to-left Arabic script with correctly joined letters, correct spelling, large, perfectly legible, well kerned, no invented glyphs, no Latin transliteration.`
-    : plan.arabic
-    ? "Do not draw any written text, caption or lettering unless the subject explicitly asks for it."
+  const arabicText = /[\u0600-\u06FF]/.test(subject)
+    ? "If the request asks for written text inside the picture, render that Arabic text EXACTLY as written: right-to-left, correctly connected letters, no missing or swapped letters, large and legible."
     : "";
   // the user's subject comes first and is repeated as a hard requirement, so the style text can never replace it
   const parts = [
-    `MAIN SUBJECT (draw exactly this, nothing else, no random substitutes): ${plan.prompt}.`,
+    `MAIN SUBJECT (draw exactly this, nothing else, no random substitutes): ${subject}.`,
     STYLE_TEXT[style],
     TIER_TEXT[tier],
     `Aspect ratio ${aspect}.`,
     arabicText,
     NEGATIVE,
-    plan.needsArabicTypography ? ARABIC_NEGATIVE : "",
-    `Every object, person, colour, place and text mentioned in the main subject must be clearly visible.`,
+    `Every object, person, colour, place and text mentioned in the main subject must be clearly visible. Respect the gender, age and number of people exactly as stated.`,
+    ART_DIRECTOR,
   ];
   return parts.filter((p) => p.length > 0).join(" ");
 }
@@ -111,7 +116,7 @@ async function toEnglishIdea(idea: string, gemKey?: string): Promise<string> {
         systemInstruction: {
           parts: [
             {
-              text: "You turn an image request written in Arabic, Algerian Darija or French into ONE precise English image description. Keep every object, person, colour, number, place, clothing and action EXACTLY as requested; add nothing, remove nothing. Output only the English description, no quotes, no explanation.",
+              text: "You turn an image request written in Arabic, Algerian Darija or French into ONE precise English image description. Drop the request wording itself (e.g. 'make me a picture of') and describe ONLY what the picture must show. Keep every object, person, gender (رجل = man, امرأة = woman, ولد = boy, بنت = girl), age, colour, number, place, clothing and action EXACTLY as requested (e.g. a man who flies = a man flying in the sky, whole body visible); add nothing, remove nothing. Output only the English description, no quotes, no explanation.",
             },
           ],
         },
@@ -135,22 +140,18 @@ async function toEnglishIdea(idea: string, gemKey?: string): Promise<string> {
   }
 }
 
-const GEMINI_FAST = ["gemini-3.1-flash-lite-image", "gemini-2.5-flash-image", "gemini-3.1-flash-image"];
-const GEMINI_QUALITY = ["gemini-3.1-flash-image", "gemini-2.5-flash-image"];
-const GEMINI_ULTRA = ["gemini-3-pro-image-preview", "gemini-3.1-flash-image", "gemini-2.5-flash-image"];
+const GEMINI_FAST = ["gemini-3.1-flash-lite-image", "gemini-3.1-flash-image", "gemini-2.5-flash-image"];
+const GEMINI_QUALITY = ["gemini-3.1-flash-image", "gemini-3-pro-image-preview", "gemini-2.5-flash-image"];
+const GEMINI_ULTRA = [
+  "gemini-3-pro-image-preview",
+  "gemini-3.1-pro-image",
+  "gemini-3.1-flash-image",
+  "gemini-2.5-flash-image",
+];
 
-function geminiModels(tier: ImageTier, arabicText = false): string[] {
+function geminiModels(tier: ImageTier): string[] {
   const custom = (process.env.GEMINI_IMAGE_MODEL ?? "").trim();
-  // v15: when real Arabic lettering has to appear inside the picture, only the
-  // strongest Gemini image models render joined RTL script correctly — never the
-  // lite one, whatever the tier is.
-  const base = arabicText
-    ? GEMINI_ULTRA
-    : tier === "max"
-      ? GEMINI_ULTRA
-      : tier === "v8"
-        ? GEMINI_QUALITY
-        : GEMINI_FAST;
+  const base = tier === "max" ? GEMINI_ULTRA : tier === "v8" ? GEMINI_QUALITY : GEMINI_FAST;
   return Array.from(new Set([...(custom ? [custom] : []), ...base]));
 }
 
@@ -350,6 +351,12 @@ export async function generateImage(opts: {
 }): Promise<GeneratedImage> {
   const started = Date.now();
   let full = buildImagePrompt(opts.prompt, opts.style, opts.tier, opts.aspect);
+  if (!opts.edit) {
+    // Arabic / Darija requests are translated to a precise English description first, so the picture matches what was asked
+    const gemEn = findGeminiKey();
+    const en = await toEnglishIdea(opts.prompt, gemEn?.value);
+    if (en !== opts.prompt.trim()) full = buildImagePrompt(en, opts.style, opts.tier, opts.aspect);
+  }
   if (opts.edit && opts.reference) {
     // Gemini reads Arabic natively; the English twin removes any ambiguity for the other engines
     const gemForEdit = findGeminiKey();
@@ -358,22 +365,10 @@ export async function generateImage(opts: {
     full = buildEditPrompt(instr, opts.edit.action, opts.edit.point);
   }
   const gem = findGeminiKey();
-  // does the picture itself have to contain Arabic words?
-  const needsArabicText = planArabicImage(opts.prompt).needsArabicTypography;
   let fluxPrompt: string | undefined;
   const getFluxPrompt = async (): Promise<string> => {
     if (fluxPrompt) return fluxPrompt;
-    // v14: toEnglishIdea() needs a Gemini key. Without one it used to return the
-    // Arabic string unchanged and Flux/Pollinations rendered a random picture.
-    // ensureEnglishPrompt() falls back to a deterministic offline translator so an
-    // Arabic request ALWAYS reaches the engine in English.
-    let llm = "";
-    try {
-      llm = await toEnglishIdea(opts.prompt, gem?.value);
-    } catch {
-      llm = "";
-    }
-    const en = ensureEnglishPrompt(opts.prompt, llm);
+    const en = await toEnglishIdea(opts.prompt, gem?.value);
     fluxPrompt = buildImagePrompt(en, opts.style, opts.tier, opts.aspect);
     return fluxPrompt;
   };
@@ -389,7 +384,7 @@ export async function generateImage(opts: {
   };
 
   if (gem) {
-    for (const model of geminiModels(opts.tier, needsArabicText)) {
+    for (const model of geminiModels(opts.tier)) {
       if (Date.now() > deadline - 8_000) break;
       try {
         return await finish(await viaGemini(model, gem.value, full, perTry, opts.reference), model);

@@ -32,14 +32,14 @@ export function ExportMenu({
         aria-expanded={open}
         aria-label={label}
         title={label}
-        className="grid size-9 place-items-center rounded-xl border border-slate-900/10 bg-slate-900/5 text-slate-600 transition hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-[#fff]"
+        className="grid size-9 place-items-center rounded-xl border border-slate-900/10 bg-slate-900/5 text-slate-600 transition hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white"
       >
         <Download className="size-4" />
       </button>
       <AnimatePresence>
         {open && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div aria-hidden="true" className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
             <GlassCard
               static
               initial={{ opacity: 0, y: -6, scale: 0.97 }}

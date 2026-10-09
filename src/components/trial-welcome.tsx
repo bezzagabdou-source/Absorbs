@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useCredits } from "@/components/app/app-shell";
 
 const PERKS = [
-  { icon: Rocket, text: "ماكس MAX — أقوى نموذج، حتى 60 ألف توكن" },
+  { icon: Rocket, text: "Nexus 8 Pro — نموذج واحد سريع وقوي للألعاب والمواقع والكود" },
   { icon: Brain, text: "كل النماذج + فريق ذكاء اصطناعي على المهام الصعبة" },
   { icon: ImagePlus, text: "استوديو الصور الأسطوري (حتى 3 نسخ)" },
   { icon: Gamepad2, text: "بناء الألعاب والمواقع الضخمة" },

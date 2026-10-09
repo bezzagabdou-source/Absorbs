@@ -174,7 +174,7 @@ export function CodeBlockAction({
       ) : (
         <pre
           className={cn(
-            "!m-0 !rounded-none !border-0 !bg-[#05041a]",
+            "code-pre !m-0 !rounded-none !border-0",
             wrap && "!whitespace-pre-wrap !break-words"
           )}
         >

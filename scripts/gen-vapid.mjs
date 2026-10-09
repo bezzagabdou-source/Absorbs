@@ -1,17 +1,11 @@
-/**
- * v15 — يولّد مفاتيح VAPID بلا أي مكتبة خارجية.
- * الاستعمال:  node scripts/gen-vapid.mjs
- * ثم انسخ السطرين لملف .env
- */
-import { webcrypto } from "node:crypto";
-const { subtle } = webcrypto;
-const b64u = (buf) => Buffer.from(buf).toString("base64url");
-
-const pair = await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
-const pub = await subtle.exportKey("raw", pair.publicKey);
-const jwk = await subtle.exportKey("jwk", pair.privateKey);
-
-console.log("\n# زيد هذي فـ .env ثم أعد تشغيل الخادم\n");
-console.log(`VAPID_PUBLIC_KEY=${b64u(pub)}`);
-console.log(`VAPID_PRIVATE_KEY=${jwk.d}`);
-console.log(`VAPID_SUBJECT=mailto:admin@example.com\n`);
+// node scripts/gen-vapid.mjs  → prints the 3 env vars to add on Vercel
+import crypto from "crypto";
+const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+const pub = publicKey.export({ format: "jwk" });
+const prv = privateKey.export({ format: "jwk" });
+const b64 = (s) => s; // jwk fields are already base64url
+const raw = Buffer.concat([Buffer.from([4]), Buffer.from(pub.x, "base64url"), Buffer.from(pub.y, "base64url")]);
+console.log("VAPID_PUBLIC_KEY=" + raw.toString("base64url"));
+console.log("VAPID_PRIVATE_KEY=" + b64(prv.d));
+console.log("VAPID_SUBJECT=mailto:abdiubz0@gmail.com");
+console.log("CRON_SECRET=" + crypto.randomBytes(24).toString("hex"));

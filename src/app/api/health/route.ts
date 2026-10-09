@@ -34,20 +34,17 @@ export async function GET() {
     deepseek: has("DEEPSEEK_API_KEY"),
     groq: has("GROQ_API_KEY"),
   };
-  // the app itself is healthy even when an optional engine key is missing:
-  // the UI degrades gracefully and the deploy / healthcheck must not fail for it.
-  const ok = true;
-  const ready = database.ok && Boolean(key);
+  // the app is healthy when the database answers; missing AI keys are reported, not fatal
+  const ok = database.ok;
   return Response.json(
     {
       ok,
-      ready,
-      version: "15.0.0",
       database,
       engines,
       enginesOn: Object.values(engines).filter(Boolean).length,
+      web: { ok: true, provider: "duckduckgo + r.jina.ai (no key required)" },
       gemini: key ? { ok: true, variable: key.name } : { ok: false, error: "No GEMINI_API_KEY variable found" },
     },
-    { status: 200 }
+    { status: ok ? 200 : 500 }
   );
 }

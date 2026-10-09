@@ -20,12 +20,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   applicationName: "Nexus AI",
   title: {
-    default: "Nexus AI v8.4 — مساعدك اليومي للكتابة والترجمة والدراسة",
-    template: "%s | Nexus AI v8.4",
+    default: "Nexus AI — مساعدك اليومي للكتابة والترجمة والدراسة",
+    template: "%s | Nexus AI",
   },
   description:
     "مساعدك اليومي بالعربية والدارجة والفرنسية — محادثة، أدوات محتوى للتجار، ترجمة، سيرة ذاتية ومساعد دراسة. مجاني كل يوم.",
-  keywords: ["الجزائر", "دارجة", "مساعد", "ترجمة", "Algeria", "Nexus AI v8.4", "Nexus AI v8.4"],
+  keywords: ["الجزائر", "دارجة", "مساعد", "ترجمة", "Algeria", "Nexus AI"],
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -36,29 +36,26 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Nexus AI",
   },
   openGraph: {
-    title: "Nexus AI v8.4",
+    title: "Nexus AI",
     description:
       "مساعدك اليومي بالعربية والدارجة والفرنسية — مجاني كل يوم.",
-    siteName: "Nexus AI v8.4",
+    siteName: "Nexus AI",
     type: "website",
     locale: "ar_DZ",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Nexus AI v8.4" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Nexus AI" }],
   },
   twitter: { card: "summary_large_image", images: ["/og.png"] },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f7f8fc",
-  colorScheme: "light",
+  themeColor: "#181816",
+  colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
-  minimumScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
 };
@@ -67,7 +64,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ar" dir="rtl" data-theme="lumen" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>

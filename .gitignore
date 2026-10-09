@@ -22,6 +22,3 @@ next-env.d.ts
 
 # never publish the activation codes list
 PRO-CODES-V*.txt
-.v11-build/
-.v13-build/
-.v14-build/

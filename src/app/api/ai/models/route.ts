@@ -1,6 +1,7 @@
 import { json } from "@/lib/http";
 import { verifyRequest } from "@/lib/server-auth";
 import { getProfile } from "@/lib/usage";
+import { TASK_ROSTER } from "@/lib/model-access";
 
 export const runtime = "nodejs";
 
@@ -62,9 +63,10 @@ export async function GET(req: Request) {
   if (!user) return json(401, { code: "UNAUTHENTICATED" });
   try {
     const prof = await getProfile(user.uid);
-    if (prof?.plan !== "pro") return json(403, { code: "PRO_ONLY" });
-    const models = await loadModels();
-    return json(200, { models });
+    const all = await loadModels();
+    // Pro: the whole OpenRouter catalog. Free: every zero-cost model (still hundreds).
+    const models = prof?.plan === "pro" ? all : all.filter((m) => m.free);
+    return json(200, { models, plan: prof?.plan ?? "free", roster: TASK_ROSTER });
   } catch (e) {
     console.error("[models]", String(e).slice(0, 160));
     return json(200, { models: cache?.list ?? [] });

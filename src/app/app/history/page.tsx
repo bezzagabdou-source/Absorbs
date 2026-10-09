@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ChevronDown,
   History as HistoryIcon,
   MessagesSquare,
   PenLine,
-  Search,
-  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
@@ -34,31 +32,6 @@ export default function HistoryPage() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [openRun, setOpenRun] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-
-  const norm = (v: string) => v.toLowerCase().normalize("NFKD").replace(/[\u064B-\u065F\u0670]/g, "");
-  const needle = norm(query.trim());
-  const shownConvs = useMemo(
-    () => (needle ? convs.filter((c) => norm(c.title || "").includes(needle)) : convs),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [convs, needle]
-  );
-  const shownRuns = useMemo(
-    () =>
-      needle
-        ? runs.filter((r) => {
-            const def = getTool(r.tool);
-            const toolName = def ? loc(def.name, locale) : r.tool;
-            return norm(`${r.title || ""} ${toolName} ${r.output || ""}`).includes(needle);
-          })
-        : runs,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [runs, needle, locale]
-  );
-  const searchPlaceholder =
-    locale === "ar" ? "ابحث في محادثاتك ونتائجك…" : locale === "fr" ? "Rechercher dans l'historique…" : "Search your history…";
-  const noResults =
-    locale === "ar" ? "لا توجد نتائج مطابقة" : locale === "fr" ? "Aucun résultat" : "No matching results";
 
   useEffect(() => {
     void (async () => {
@@ -117,7 +90,7 @@ export default function HistoryPage() {
             className={cn(
               "flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition",
               tab === k
-                ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-[#fff] shadow-lg"
+                ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white shadow-lg"
                 : "text-slate-400 hover:text-white"
             )}
           >
@@ -134,28 +107,6 @@ export default function HistoryPage() {
         ))}
       </div>
 
-      {/* search */}
-      <div className="glass mb-5 flex items-center gap-2.5 rounded-2xl px-4 py-3">
-        <Search className="h-4 w-4 shrink-0 text-slate-500" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={searchPlaceholder}
-          aria-label={searchPlaceholder}
-          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            aria-label="clear"
-            className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
       {loading ? (
         <div className="space-y-3">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -165,11 +116,9 @@ export default function HistoryPage() {
       ) : tab === "chats" ? (
         convs.length === 0 ? (
           emptyState
-        ) : shownConvs.length === 0 ? (
-          <p className="py-16 text-center text-sm text-slate-500">{noResults}</p>
         ) : (
           <div className="space-y-2.5">
-            {shownConvs.map((c, i) => (
+            {convs.map((c, i) => (
               <motion.div
                 key={c.id}
                 initial={{ opacity: 0, y: 12 }}
@@ -199,11 +148,9 @@ export default function HistoryPage() {
         )
       ) : runs.length === 0 ? (
         emptyState
-      ) : shownRuns.length === 0 ? (
-        <p className="py-16 text-center text-sm text-slate-500">{noResults}</p>
       ) : (
         <div className="space-y-3">
-          {shownRuns.map((r, i) => {
+          {runs.map((r, i) => {
             const toolDef = getTool(r.tool);
             const open = openRun === r.id;
             return (

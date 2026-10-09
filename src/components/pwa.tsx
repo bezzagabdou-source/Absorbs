@@ -19,11 +19,26 @@ export function PwaRegister() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
+    let reg: ServiceWorkerRegistration | undefined;
     const onLoad = () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .then((r) => {
+          reg = r;
+        })
+        .catch(() => undefined);
     };
-    window.addEventListener("load", onLoad);
-    return () => window.removeEventListener("load", onLoad);
+    // pick up a new deploy when the user returns to the tab/app
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reg?.update().catch(() => undefined);
+    };
+    if (document.readyState === "complete") onLoad();
+    else window.addEventListener("load", onLoad);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("load", onLoad);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   useEffect(() => {

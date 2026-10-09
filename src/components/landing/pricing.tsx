@@ -60,7 +60,7 @@ export function Pricing() {
                 className={cn(
                   "rounded-xl px-5 py-2 text-sm font-bold transition",
                   yearly === y
-                    ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-[#fff] shadow-lg"
+                    ? "bg-gradient-to-r from-brand-500 to-aqua-400 text-white shadow-lg"
                     : "text-slate-400 hover:text-white"
                 )}
               >
@@ -91,7 +91,7 @@ export function Pricing() {
               )}
             >
               {p.popular && (
-                <span className="absolute -top-3.5 start-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand-600 rtl:translate-x-1/2 px-4 py-1.5 text-xs font-black text-[#fff] shadow-lg">
+                <span className="absolute -top-3.5 start-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-brand-600 rtl:translate-x-1/2 px-4 py-1.5 text-xs font-black text-white shadow-lg">
                   <Crown className="h-3.5 w-3.5" />
                   {t.pricing.popular}
                 </span>

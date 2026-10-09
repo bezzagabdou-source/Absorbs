@@ -230,7 +230,7 @@ export function ToolRunner({ tool }: { tool: ToolDef }) {
                     className={cn(
                       "rounded-xl border px-2 py-2.5 text-[11px] font-bold transition",
                       outLang === o.v
-                        ? "border-brand-400/60 bg-brand-500/20 text-[#fff]"
+                        ? "border-brand-400/60 bg-brand-500/20 text-white"
                         : "border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/25",
                       o.v === "auto" && "col-span-2"
                     )}

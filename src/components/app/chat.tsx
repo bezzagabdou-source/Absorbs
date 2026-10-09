@@ -45,7 +45,6 @@ import {
   Info,
   Zap,
   Sparkles,
-  Rocket,
   Plus,
   type LucideIcon,
 } from "lucide-react";
@@ -69,19 +68,6 @@ import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { FullPreview } from "@/components/game-preview";
-import { wantsPromptText } from "@/lib/design-canvas";
-import {
-  isGameRequest as isForgeRequest,
-  newCheckpoint,
-  advanceCheckpoint,
-  saveCheckpoint,
-  pendingCheckpoint,
-  clearCheckpoint,
-  isComplete as forgeComplete,
-  forgeProgress,
-  type ForgeCheckpoint,
-} from "@/lib/game-forge";
-import { notifyBuildDone } from "@/lib/notify";
 import { VoiceCall } from "@/components/voice/voice-call";
 import {
   codeLooksCut,
@@ -100,17 +86,19 @@ import {
   type PendingFile,
 } from "@/lib/attachments";
 import { CallButton } from "@/components/chat/call-button";
-import { generateInlineImage, INLINE_IMAGE_ERRORS } from "@/lib/inline-image";
-
-/** v8: "generate me an image" requests (the image engine is not available yet). */
-const IMAGE_INTENT =
-  /(ولّ?د|اصنع|أنشئ|انشئ|صمّ?م|ارسم|اعمل|سوّ?ي|توليد|generate|create|make|draw|génère|genere|crée|cree|dessine)\s+(لي\s+|لنا\s+|me\s+|moi\s+)?(an?\s+|une?\s+|des\s+)?(صور[ةه]?|صور|image|images|picture|pictures|photo|photos)(?![\w\u0600-\u06FF])/i;
+import { generateInlineImage } from "@/lib/inline-image";
+import { detectImageRequest } from "@/lib/image-intent";
+import { checkHtml, repairPrompt, REPAIR_MARK } from "@/lib/code-check";
+import { ImageGenCard, type ImageGenState } from "@/components/chat/image-gen-card";
+import type { ImageAspect, ImageStyle } from "@/lib/image-types";
 
 type Msg = {
   id: number;
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
+  /** in-chat image request (Gemini-style card: shimmer while drawing, then the picture) */
+  imageGen?: ImageGenState;
   /** names of files attached to a user message (display only) */
   files?: string[];
 };
@@ -181,8 +169,7 @@ async function copyText(text: string): Promise<boolean> {
 /* v8 helpers: follow-up chips, read-aloud                             */
 /* ------------------------------------------------------------------ */
 
-/** v15: only two engines ship — Nexus 6 (free) and Nexus 8 PRO. */
-type TierId = "v6" | "v8";
+type TierId = "v4" | "v8"; // v4 = free engine, v8 = Nexus 8 Pro (the single flagship)
 const PERSONAS: { id: string; label: string; emoji: string }[] = [
   { id: "genius", label: "ذكي", emoji: "🧠" },
   { id: "coder", label: "مبرمج", emoji: "💻" },
@@ -358,57 +345,33 @@ const BUILD_STEPS = [
 
 function BuildThinking({ info }: { info: CodeInfo | null }) {
   const [i, setI] = useState(0);
-  const [sec, setSec] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setI((v) => Math.min(BUILD_STEPS.length - 1, v + 1)), 4200);
-    const t = setInterval(() => setSec((v) => v + 1), 1000);
-    return () => {
-      clearInterval(id);
-      clearInterval(t);
-    };
+    const id = setInterval(() => setI((v) => Math.min(BUILD_STEPS.length - 1, v + 1)), 5200);
+    return () => clearInterval(id);
   }, []);
   const lines = info?.lines ?? 0;
-  const pct = Math.min(97, Math.max(5, Math.round((lines / 4200) * 100)));
-  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
-  const ss = String(sec % 60).padStart(2, "0");
+  const pct = Math.min(96, Math.round((lines / 5000) * 100));
   return (
-    <div className="nx-build mt-2">
-      <div className="nx-build-sheen" aria-hidden />
-      <div className="relative flex items-center gap-3">
-        <span className="nx-orb" aria-hidden>
-          <span className="nx-orb-core" />
+    <div className="mt-2 rounded-2xl border border-orange-300/40 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
+      <div className="flex items-center gap-3">
+        <span className="relative grid h-9 w-9 shrink-0 place-items-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-orange-400/30" />
+          <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-orange-500 border-e-amber-300" style={{ animationDuration: "1.1s" }} />
+          <Sparkles className="h-4 w-4 text-orange-600" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-[14.5px] font-black text-slate-100">
-            Nexus 8 <span className="nx-badge">PRO</span>
-            <span className="text-slate-400">يفكّر ويبني…</span>
-          </p>
-          <p className="mt-0.5 truncate text-[12.5px] font-semibold text-brand-300">
-            {BUILD_STEPS[i]}
-            <span className="nx-dots" aria-hidden>
-              <i />
-              <i />
-              <i />
-            </span>
-          </p>
-        </div>
-        <span className="shrink-0 rounded-lg bg-black/[0.05] px-2 py-1 text-[11.5px] font-black tabular-nums text-slate-400" dir="ltr">
-          {mm}:{ss}
-        </span>
-      </div>
-
-      <div className="nx-track mt-3.5" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-        <div className="nx-fill" style={{ width: `${pct}%` }}>
-          <span className="nx-fill-glow" />
+          <p className="text-[14px] font-black text-slate-100">Nexus AI v8.4 يفكّر ويبني…</p>
+          <p className="truncate text-[12.5px] font-semibold text-slate-400">{BUILD_STEPS[i]}…</p>
         </div>
       </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-black text-slate-400">
-        <span dir="ltr">{(info?.lines ?? 0).toLocaleString("en-US")} lines</span>
-        <span dir="ltr">{((info?.chars ?? 0) / 1024).toFixed(0)} KB</span>
-        <span className="text-brand-300">{pct}%</span>
-        <span className="ms-auto text-emerald-500">لا تغلق الصفحة — البناء متواصل</span>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-orange-400/20">
+        <div className="h-full rounded-full bg-gradient-to-l from-amber-400 to-orange-500 transition-[width] duration-700" style={{ width: `${Math.max(6, pct)}%` }} />
       </div>
+      {info && (
+        <p className="mt-2 text-[11.5px] font-bold text-slate-400" dir="ltr">
+          {info.lines.toLocaleString("en-US")} lines · {(info.chars / 1024).toFixed(0)} KB
+        </p>
+      )}
     </div>
   );
 }
@@ -433,7 +396,7 @@ function BuildDone({
   return (
     <div className="mt-2 rounded-2xl border border-orange-300/45 bg-orange-500/10 p-4 shadow-[0_18px_40px_-26px_rgba(194,65,12,0.45)]">
       <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-[#fff]">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white">
           <Check className="h-5 w-5" strokeWidth={3} />
         </span>
         <div className="min-w-0 flex-1">
@@ -445,7 +408,7 @@ function BuildDone({
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {canPreview && (
-          <button type="button" onClick={onPreview} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-4 text-[13px] font-black text-[#fff] shadow-[0_8px_22px_-10px_rgba(234,88,12,0.9)] transition active:scale-95">
+          <button type="button" onClick={onPreview} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-l from-orange-500 to-amber-400 px-4 text-[13px] font-black text-white shadow-[0_8px_22px_-10px_rgba(234,88,12,0.9)] transition active:scale-95">
             <Maximize2 className="h-4 w-4" />
             افتح اللعبة / المعاينة
           </button>
@@ -476,6 +439,8 @@ const MessageRow = memo(function MessageRow({
   onPreview,
   onRegenerate,
   onSuggest,
+  onImageRetry,
+  onImageEdit,
 }: {
   m: Msg;
   name: string | null;
@@ -490,6 +455,8 @@ const MessageRow = memo(function MessageRow({
   onPreview: (html: string) => void;
   onRegenerate: () => void;
   onSuggest: (text: string) => void;
+  onImageRetry: (id: number) => void;
+  onImageEdit: (prompt: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -497,7 +464,7 @@ const MessageRow = memo(function MessageRow({
   const isUser = m.role === "user";
   const press = useLongPressCopy(m.content);
   const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
-  const done = !isUser && !m.pending && !!body;
+  const done = !isUser && !m.pending && !!body && !m.imageGen;
   const html = useMemo(() => (done && pro ? extractHtml(body) : null), [done, pro, body]);
   const zipFiles = useMemo(
     () => (done && pro && body.includes("```") ? filesFromReply(body) : []),
@@ -519,16 +486,16 @@ const MessageRow = memo(function MessageRow({
         transition={{ duration: 0.2 }}
         className="flex w-full justify-end gap-2.5"
       >
-        <div className="relative max-w-[90%] min-w-0 sm:max-w-[82%]" {...press.handlers}>
+        <div className="relative max-w-[94%] min-w-0 sm:max-w-[86%]" {...press.handlers}>
           {press.pill}
-          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-[#fff] shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
+          <div className="rounded-3xl rounded-se-lg bg-gradient-to-br from-brand-600 to-aqua-500 px-4.5 py-3 text-[16px] leading-[1.75] text-white shadow-[0_10px_30px_-14px_rgba(0,180,255,0.9)] ring-1 ring-white/20">
             <p className="whitespace-pre-wrap break-words">{m.content}</p>
             {m.files && m.files.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {m.files.map((f, i) => (
                   <span
                     key={`${f}-${i}`}
-                    className="inline-flex max-w-full items-center gap-1 rounded-lg bg-black/25 px-2 py-1 text-[11px] font-semibold text-[#fff]/90"
+                    className="inline-flex max-w-full items-center gap-1 rounded-lg bg-black/25 px-2 py-1 text-[11px] font-semibold text-white/90"
                   >
                     <FileText className="h-3 w-3 shrink-0" />
                     <span dir="ltr" className="truncate">{f}</span>
@@ -550,14 +517,16 @@ const MessageRow = memo(function MessageRow({
       transition={{ duration: 0.2 }}
       className="flex w-full gap-3"
     >
-      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 via-aqua-500 to-gold-400 text-base font-bold leading-none text-[#fff] ring-1 ring-white/20">
+      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 via-aqua-500 to-gold-400 text-base font-bold leading-none text-white ring-1 ring-white/20">
         ب
       </span>
 
       <div className="relative min-w-0 flex-1">
         {press.pill}
         <div className="text-[16px] leading-[1.85] text-slate-100" {...press.handlers}>
-          {m.pending && !m.content ? (
+          {m.imageGen ? (
+            <ImageGenCard gen={m.imageGen} onRetry={() => onImageRetry(m.id)} onEdit={() => onImageEdit(m.imageGen?.prompt ?? "")} />
+          ) : m.pending && !m.content ? (
             <div>
               <TypingDots label={thinking} />
             </div>
@@ -619,7 +588,7 @@ const MessageRow = memo(function MessageRow({
                 {zipFiles.length} ملفات · {zipSizeLabel(zipFiles)} · اضغط للتحميل
               </span>
             </span>
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-gold-400 text-[#fff]">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-gold-400 text-white">
               <Download className="h-4.5 w-4.5" />
             </span>
           </button>
@@ -764,24 +733,13 @@ export function ChatPage() {
   const talkRef = useRef(false);
   const transcriptRef = useRef("");
   const [preview, setPreview] = useState<string | null>(null);
-  // v15.2 — FORGE. A long multi-file build survives leaving the page: the
-  // checkpoint lives in localStorage, so coming back offers "كمّل" instead of
-  // silently starting the whole game again.
-  const [forge, setForge] = useState<ForgeCheckpoint | null>(null);
-  const [resumable, setResumable] = useState<ForgeCheckpoint | null>(null);
-  const forgeRef = useRef<ForgeCheckpoint | null>(null);
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("barq_tier");
-      // v15 migration: v4/v5 -> v6, max -> v8. Only two engines exist now.
-      const v: TierId = raw === "v6" || raw === "v4" || raw === "v5" ? "v6" : "v8";
-      if (localStorage.getItem("barq_v15_default") !== "1") {
-        localStorage.setItem("barq_v15_default", "1");
-        localStorage.setItem("barq_tier", "v8");
-      } else {
-        setTier(v);
-        localStorage.setItem("barq_tier", v);
-      }
+      const v = localStorage.getItem("barq_tier");
+      // everyone lands on the new flagship once; afterwards their choice is respected
+      // one flagship only: every older choice (5 / 6 / 8 / MAX) lands on Nexus 8 Pro
+      if (v !== "v8") localStorage.setItem("barq_tier", "v8");
+      setTier("v8");
       const pr = localStorage.getItem("barq_persona");
       if (pr && PERSONAS.some((x) => x.id === pr)) setPersona(pr);
     } catch {}
@@ -797,7 +755,7 @@ export function ChatPage() {
         const d = JSON.parse(raw) as { text?: string; tier?: string };
         if (typeof d.text === "string" && d.text) {
           setInput(d.text);
-          if ((d.tier === "max" || d.tier === "v8") && isPro) {
+          if (d.tier === "max" && isPro) {
             setTier("v8");
             try { localStorage.setItem("barq_tier", "v8"); } catch {}
           }
@@ -834,12 +792,12 @@ export function ChatPage() {
     window.addEventListener("barq:voice-call", open);
     return () => window.removeEventListener("barq:voice-call", open);
   }, []);
-  // a free account always runs Nexus 6; Pro lands on Nexus 8
+  // a Pro account never runs on the free engine: 4 → 5
   useEffect(() => {
-    if (!isPro && tier !== "v6") setTier("v6");
+    if (isPro && tier === "v4") setTier("v8");
   }, [isPro, tier]);
   const pickTier = (v: TierId) => {
-    if (v === "v8" && !isPro) {
+    if (v !== "v4" && !isPro) {
       router.push("/app/upgrade");
       return;
     }
@@ -858,12 +816,6 @@ export function ChatPage() {
   const silenceRef = useRef(0);
   const res0Ok = useRef(false);
   const sendRef = useRef<(t: string, retry?: boolean, base?: Msg[]) => Promise<void>>(async () => undefined);
-
-  // Offer to resume an unfinished build when the user returns.
-  useEffect(() => {
-    const cp = pendingCheckpoint();
-    if (cp) setResumable(cp);
-  }, []);
   const startListeningRef = useRef<() => void>(() => undefined);
   const stickRef = useRef(true);
   const openSeq = useRef(0);
@@ -930,7 +882,11 @@ export function ChatPage() {
     openSeq.current += 1;
     abortRef.current?.abort();
     abortRef.current = null;
-    setMsgs([]);
+    // release the blob URLs of generated pictures when the chat is cleared
+    setMsgs((prev) => {
+      for (const x of prev) if (x.imageGen?.url) URL.revokeObjectURL(x.imageGen.url);
+      return [];
+    });
     setConvId(null);
     try { localStorage.removeItem(ACTIVE_CONV_KEY); } catch {}
     setError(null);
@@ -1096,35 +1052,70 @@ export function ChatPage() {
 
 
 
+  /* ---------- in-chat image generation (card: shimmer -> picture) ---------- */
+
+  const runImageGen = useCallback(
+    async (aid: number, prompt: string, aspect: ImageAspect, style: ImageStyle) => {
+      const startedAt = Date.now();
+      setMsgs((m) =>
+        m.map((x) =>
+          x.id === aid && x.imageGen ? { ...x, imageGen: { ...x.imageGen, status: "loading", startedAt, url: undefined, code: undefined } } : x
+        )
+      );
+      const r = await generateInlineImage(authFetch, prompt, { aspect, style });
+      setMsgs((m) =>
+        m.map((x) => {
+          if (x.id !== aid || !x.imageGen) return x;
+          if (r.ok) return { ...x, imageGen: { ...x.imageGen, status: "done", url: r.url, ms: r.ms, code: undefined } };
+          return { ...x, imageGen: { ...x.imageGen, status: "error", url: undefined, code: r.code } };
+        })
+      );
+    },
+    [authFetch]
+  );
+
+  const retryImage = useCallback(
+    (id: number) => {
+      const g = msgs.find((x) => x.id === id)?.imageGen;
+      if (!g || g.status === "loading") return;
+      if (g.url) URL.revokeObjectURL(g.url); // free the previous picture's memory
+      stickRef.current = true;
+      void runImageGen(id, g.prompt, g.aspect, g.style);
+    },
+    [msgs, runImageGen]
+  );
+
+  const editImage = useCallback((prompt: string) => {
+    setImgPrompt(prompt.slice(0, 600));
+    setImgOpen(true);
+  }, []);
+
   const send = useCallback(
     async (text: string, retry = false, baseOverride?: Msg[]) => {
       const sendFiles = retry ? lastFilesRef.current : baseOverride ? [] : files;
       const content = text.trim() || (sendFiles.length > 0 ? pro.defaultAsk : "");
       if (!content || streaming) return;
       // "generate me an image": the picture is drawn right here in the chat (free + Pro)
-      if (!retry && !baseOverride && IMAGE_INTENT.test(content)) {
+      const imgReq = !retry && !baseOverride && sendFiles.length === 0 ? detectImageRequest(content) : null;
+      if (imgReq) {
         setInput("");
         setNotice(null);
         setError(null);
+        if (taRef.current) taRef.current.style.height = "auto";
         const aid = nextId();
-        setMsgs((m) => [...m, { id: nextId(), role: "user", content }, { id: aid, role: "assistant", content: "", pending: true }]);
+        // content doubles as short context for the text model on later turns
+        setMsgs((m) => [
+          ...m,
+          { id: nextId(), role: "user", content },
+          {
+            id: aid,
+            role: "assistant",
+            content: `[تم توليد صورة: ${content.slice(0, 120)}]`,
+            imageGen: { prompt: content, aspect: imgReq.aspect, style: imgReq.style, status: "loading", startedAt: Date.now() },
+          },
+        ]);
         stickRef.current = true;
-        void generateInlineImage(authFetch, content).then((r) => {
-          const alt = content.slice(0, 80).replace(/[\[\]()]/g, " ");
-          setMsgs((m) =>
-            m.map((x) =>
-              x.id === aid
-                ? {
-                    ...x,
-                    pending: false,
-                    content: r.ok
-                      ? `![${alt}](${r.url})\n\n*رُسمت في ${(r.ms / 1000).toFixed(1)} ثانية. لتعديل عنصر فيها أو تغيير الأسلوب افتح «إنشاء صور» من زر +.*`
-                      : `⚠️ ${INLINE_IMAGE_ERRORS[r.code] ?? INLINE_IMAGE_ERRORS.FAILED}`,
-                  }
-                : x
-            )
-          );
-        });
+        void runImageGen(aid, content, imgReq.aspect, imgReq.style);
         return;
       }
       lastTextRef.current = text.trim();
@@ -1162,13 +1153,6 @@ export function ChatPage() {
       abortRef.current = controller;
       const mine = () => abortRef.current === controller;
 
-      // v15.2: a game build gets a checkpoint from the first token.
-      if (isForgeRequest(content)) {
-        const cp = forgeRef.current && !forgeComplete(forgeRef.current) ? forgeRef.current : newCheckpoint(content);
-        forgeRef.current = cp;
-        setForge(cp);
-        saveCheckpoint(cp);
-      }
       let acc = "";
       let activeConv: string | null = convId;
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -1220,7 +1204,6 @@ export function ChatPage() {
             provider: selection.provider,
             model: selection.model ?? "auto",
             ...(isPro && deep ? { deep: true } : {}),
-            ...(tier === "v6" ? { v6: true } : {}),
             ...(mode ? { mode } : {}),
             ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
           }),
@@ -1295,15 +1278,6 @@ export function ChatPage() {
             const { done, value } = await reader.read();
             if (done) break;
             acc += decoder.decode(value, { stream: true });
-            // advance the forge checkpoint whenever a new file closes
-            if (forgeRef.current && acc.length - (forgeRef.current.bytes || 0) > 4000) {
-              const next = advanceCheckpoint(forgeRef.current, acc);
-              if (next.done.length !== forgeRef.current.done.length) {
-                forgeRef.current = next;
-                setForge(next);
-                saveCheckpoint(next);
-              }
-            }
             schedule();
           }
         } catch (re) {
@@ -1332,9 +1306,8 @@ export function ChatPage() {
                   conversationId: newConvId || convId,
                   messages: [...history, { role: "user", content }],
                   continueFrom: acc,
-                  v6: tier === "v6",
-                  ...(mode ? { mode } : {}),
-                  ...(tier === "v8" ? { v8: true, persona } : {}),
+                                    ...(mode ? { mode } : {}),
+                  ...(tier === "v8" ? { v8: true } : {}),
                 }),
                 signal: controller.signal,
               });
@@ -1382,31 +1355,10 @@ export function ChatPage() {
         flush();
         setMsgs((m) => m.map((x) => (x.pending ? { ...x, pending: false } : x)));
 
-        // v15.2: close out the forge checkpoint.
-        if (forgeRef.current) {
-          const fin = advanceCheckpoint(forgeRef.current, acc);
-          forgeRef.current = fin;
-          setForge(fin);
-          saveCheckpoint(fin);
-          if (forgeComplete(fin) || /NEXUS-FORGE-COMPLETE/.test(acc)) {
-            void notifyBuildDone(fin.plan.title);
-            clearCheckpoint(fin.id);
-            forgeRef.current = null;
-            setForge(null);
-          }
-        }
-
         // finished a real web build → open the live preview full-screen by itself
-        // v15: only a REAL build opens the panel. Asking for a prompt, or for
-        // an explanation that happens to quote some HTML, must stay as text.
-        if (isPro && mine() && !codeLooksCut(acc) && !wantsPromptText(content)) {
+        if (isPro && mine() && !codeLooksCut(acc)) {
           const page = extractHtml(acc);
-          const isRealApp =
-            page &&
-            page.length > 1500 &&
-            /<(canvas|script|body)/i.test(page) &&
-            /<html|<!doctype/i.test(page); // a full document, not a snippet
-          if (isRealApp) {
+          if (page && page.length > 1500 && /<(canvas|script|body)/i.test(page)) {
             setTimeout(() => setPreview(page), 350);
           }
         }
@@ -1461,7 +1413,7 @@ export function ChatPage() {
         }
       }
     },
-    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, selection, pro.defaultAsk]
+    [msgs, streaming, convId, authFetch, applyHeaders, loadConvs, waitForAnswer, files, isPro, deep, tier, persona, mode, selection, pro.defaultAsk, runImageGen]
   );
 
   sendRef.current = send;
@@ -1482,6 +1434,39 @@ export function ChatPage() {
   const regenRef = useRef(regenerate);
   regenRef.current = regenerate;
   const onRegen = useCallback(() => regenRef.current(), []);
+
+  /* ---------- MAX auto-verify: check the finished file, send surgical repairs back (max 2 rounds) ---------- */
+  const wasStreamingRef = useRef(false);
+  const repairsRef = useRef(0);
+  useEffect(() => {
+    if (streaming) {
+      wasStreamingRef.current = true;
+      return;
+    }
+    // only answers produced live in this session (never old conversations that were just opened)
+    if (!wasStreamingRef.current) return;
+    wasStreamingRef.current = false;
+    if (tier !== "v8" || !isPro) return;
+    const last = msgs[msgs.length - 1];
+    if (!last || last.role !== "assistant" || last.pending || last.imageGen) return;
+    const html = extractHtml(last.content);
+    if (!html || html.length < 1500) return;
+    const lastUser = [...msgs].reverse().find((x) => x.role === "user");
+    if (lastUser && !lastUser.content.startsWith(REPAIR_MARK)) repairsRef.current = 0; // a fresh request resets the counter
+    const issues = checkHtml(html);
+    if (issues.length === 0) {
+      setNotice(repairsRef.current > 0 ? "✓ فحص ماكس: تم الإصلاح والملف سليم" : "✓ فحص ماكس: لم أجد أخطاء");
+      return;
+    }
+    if (repairsRef.current >= 2) {
+      setNotice(`⚠️ بقيت ملاحظات في الكود (${issues.length}). اكتب «أصلح الأخطاء» ليعيد ماكس المحاولة.`);
+      return;
+    }
+    repairsRef.current += 1;
+    setNotice(`🔧 ماكس وجد ${issues.length} ملاحظة ويصلحها تلقائيًا…`);
+    // not cancelled on re-render: the one-shot flag above is already consumed
+    setTimeout(() => void sendRef.current(repairPrompt(issues)), 500);
+  }, [streaming, msgs, tier, isPro]);
   const onSuggest = useCallback((q: string) => void sendRef.current(q), []);
 
   /* ---------- Pro: attachments, voice, export ---------- */
@@ -1716,7 +1701,7 @@ export function ChatPage() {
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* messages */}
         <div ref={scrollRef} onScroll={onScroll} className="scroll-y flex-1">
-          <div className="nx-wide flex min-h-full flex-col px-4 pb-4 pt-4 sm:px-6">
+          <div className="mx-auto flex min-h-full w-full chat-wide flex-col px-4 pb-4 pt-4 sm:px-6">
             {/* mobile conv toggle */}
             <div className="mb-4 flex items-center justify-between xl:hidden">
               <button
@@ -1817,6 +1802,8 @@ export function ChatPage() {
                     onPreview={setPreview}
                     onRegenerate={onRegen}
                     onSuggest={onSuggest}
+                    onImageRetry={retryImage}
+                    onImageEdit={editImage}
                     name={user?.displayName ?? null}
                     photo={user?.photoURL ?? null}
                     thinking={t.app.thinking}
@@ -1889,7 +1876,7 @@ export function ChatPage() {
 
         {/* composer */}
         <div className="relative shrink-0 bg-gradient-to-t from-ink-950 via-ink-950/92 to-transparent px-2.5 pb-1 pt-3 sm:px-6 sm:pb-3">
-          <form onSubmit={onSubmit} className="nx-wide">
+          <form onSubmit={onSubmit} className="mx-auto w-full chat-wide">
             {proHint && !isPro && (
               <div className="mb-2 flex items-start gap-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 p-3.5">
                 <Lock className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
@@ -1964,9 +1951,12 @@ export function ChatPage() {
                 aria-label="النموذج"
                 className="flex w-full items-center gap-1.5 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]"
               >
-                {([["v6", "Nexus 6"], ["v8", "Nexus 8"]] as const).map(([id, label]) => {
-                  const on = (isPro ? tier : "v6") === id;
-                  const locked = !isPro && id === "v8";
+                {(isPro
+                  ? ([["v8", "Nexus 8 Pro"]] as const)
+                  : ([["v4", "Nexus 4"], ["v8", "Nexus 8 Pro"]] as const)
+                ).map(([id, label]) => {
+                  const on = (isPro ? tier : "v4") === id;
+                  const locked = !isPro && id !== "v4";
                   return (
                     <button
                       key={id}
@@ -1975,25 +1965,20 @@ export function ChatPage() {
                       aria-checked={on}
                       onClick={() => pickTier(id)}
                       className={cn(
-                        "inline-flex h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
+                        "inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-[14px] font-black transition active:scale-95",
                         on
                           ? id === "v8"
-                            ? "v8-pill border-transparent shadow-[0_8px_22px_-8px_rgba(217,164,32,0.9)]"
-                            : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-[#fff] shadow-[0_8px_22px_-10px_rgba(99,102,241,0.9)]"
-                          : "border-black/10 bg-black/[0.03] text-slate-400 hover:text-slate-200"
+                            ? "v8-pill border-transparent shadow-[0_6px_18px_-6px_rgba(251,191,36,0.9)]"
+                            : "border-transparent bg-gradient-to-r from-brand-500 to-aqua-400 text-white"
+                          : "border-white/15 bg-white/[0.06] text-slate-300 hover:text-slate-100"
                       )}
                     >
                       {locked ? (
                         <Lock className="h-3.5 w-3.5" />
                       ) : id === "v8" ? (
                         <Crown className="h-4 w-4" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
+                      ) : null}
                       {label}
-                      {id === "v8" && (
-                        <span className="rounded-full bg-black/15 px-1.5 text-[10px] font-black tracking-wide">PRO</span>
-                      )}
                     </button>
                   );
                 })}
@@ -2001,7 +1986,7 @@ export function ChatPage() {
 
               <details className="group px-3 pt-1.5">
                 <summary className="cursor-pointer list-none text-[12px] font-bold text-slate-400 hover:text-brand-300">
-                  ما الفرق بين Nexus 6 و Nexus 8 PRO؟
+                  ماذا يقدّم Nexus 8 Pro؟
                 </summary>
                 <TierCompare className="mt-2 max-h-[46dvh] overflow-y-auto pb-2" />
               </details>
@@ -2078,7 +2063,7 @@ export function ChatPage() {
               />
 
               {/* tools row: attach · voice · deep · model switch ........ send */}
-              <div className="flex min-w-0 flex-nowrap items-center gap-0.5 overflow-hidden px-2 pb-1.5 pt-0.5">
+              <div className="flex items-center gap-0.5 px-2 pb-1.5 pt-0.5">
                 {voiceOk && !streaming && !talk && (
                   <VoiceRecorder
                     lang={locale === "ar" ? "ar-DZ" : locale === "fr" ? "fr-FR" : "en-US"}
@@ -2141,7 +2126,7 @@ export function ChatPage() {
                   </button>
                 )}
 
-                <span className="min-w-0 flex-1" />
+                <span className="flex-1" />
 
                 {streaming ? (
                   <button
@@ -2162,7 +2147,7 @@ export function ChatPage() {
                     className={cn(
                       "grid h-9 w-9 shrink-0 place-items-center rounded-full transition duration-150 active:scale-90",
                       canSend
-                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-[#fff] shadow-[0_8px_24px_-8px_rgba(0,180,255,0.9)] hover:brightness-110"
+                        ? "bg-gradient-to-br from-brand-500 to-aqua-400 text-white shadow-[0_8px_24px_-8px_rgba(0,180,255,0.9)] hover:brightness-110"
                         : "bg-white/[0.07] text-slate-500"
                     )}
                   >
@@ -2173,7 +2158,7 @@ export function ChatPage() {
             </div>
           </form>
           {profile && profile.plan !== "pro" && (
-            <div className="nx-wide mt-1 flex items-center gap-2.5 px-2">
+            <div className="mx-auto mt-1 flex chat-wide items-center gap-2.5 px-2">
               {(
 
                 <>
@@ -2201,77 +2186,12 @@ export function ChatPage() {
               )}
             </div>
           )}
-          <p className="nx-wide mt-1.5 hidden px-2 text-center text-[11px] text-slate-600 sm:block">
+          <p className="mx-auto mt-1.5 hidden chat-wide px-2 text-center text-[11px] text-slate-600 sm:block">
             <Info className="me-1 inline h-3 w-3" />
             {t.app.disclaimer}
           </p>
         </div>
       </div>
-
-      {/* v15.2 — live forge progress */}
-      {forge && !forgeComplete(forge) && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[120] flex justify-center px-4">
-          <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1020]/95 p-3 shadow-[0_18px_50px_-18px_rgba(91,140,255,.7)] backdrop-blur">
-            <div className="flex items-center justify-between gap-2 text-[12.5px]">
-              <span className="truncate font-semibold text-slate-100">
-                🔨 {forge.plan.title} — {forgeProgress(forge).pct}%
-              </span>
-              <span className="shrink-0 text-slate-400">{forgeProgress(forge).eta}</span>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <i
-                className="block h-full rounded-full bg-gradient-to-r from-[#5b8cff] to-[#d97757] transition-[width] duration-500"
-                style={{ width: `${forgeProgress(forge).pct}%` }}
-              />
-            </div>
-            <p className="mt-1.5 truncate text-[11.5px] text-slate-400">
-              {forgeProgress(forge).label} · {forge.done.length}/{forge.plan.files.length} ملف ·{" "}
-              {(forge.bytes / 1000).toFixed(0)} KB
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* v15.2 — resume an unfinished build after leaving the page */}
-      {resumable && !forge && (
-        <div className="fixed inset-x-0 bottom-24 z-[120] flex justify-center px-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#5b8cff]/40 bg-[#0d1020]/97 p-3.5 shadow-[0_18px_50px_-18px_rgba(91,140,255,.8)] backdrop-blur">
-            <p className="text-[13.5px] font-semibold text-slate-100">
-              عندك بناء ما كملش: {resumable.plan.title}
-            </p>
-            <p className="mt-0.5 text-[12px] text-slate-400">
-              {resumable.done.length}/{resumable.plan.files.length} ملف · يكمّل من {resumable.plan.files[resumable.cursor]?.path ?? "—"}
-            </p>
-            <div className="mt-2.5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  forgeRef.current = resumable;
-                  setForge(resumable);
-                  setResumable(null);
-                  void sendRef.current(
-                    `كمّل بناء ${resumable.plan.title} من الملف ${resumable.plan.files[resumable.cursor]?.path ?? ""}. ` +
-                      `الملفات الجاهزة: ${resumable.done.join(", ") || "والو"}. ما تعاودش تكتبهم.`
-                  );
-                }}
-                className="flex-1 rounded-xl bg-[#5b8cff] px-3 py-2.5 text-[13px] font-bold text-white"
-              >
-                كمّل
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  clearCheckpoint(resumable.id);
-                  setResumable(null);
-                }}
-                className="rounded-xl border border-white/12 px-3 py-2.5 text-[13px] font-semibold text-slate-300"
-              >
-                نحّيه
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {preview && <FullPreview html={preview} onClose={() => setPreview(null)} />}
 
@@ -2306,7 +2226,7 @@ export function ChatPage() {
           setImgOpen(false);
           setImgPrompt("");
         }}
-        tier={tier}
+        tier={tier === "v8" ? "v8" : "v5"}
         initialPrompt={imgPrompt || input.trim().slice(0, 600)}
         autoStart={imgAuto}
       />

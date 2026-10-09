@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { json, safeDetail } from "@/lib/http";
-import { rateLimit, acquire, LIMITS } from "@/lib/rate-limit";
+import { rateLimit } from "@/lib/rate-limit";
 import { verifyRequest } from "@/lib/server-auth";
 import { takeCredit, refundCredit, chargeStreamTime, FREE_DAILY } from "@/lib/usage";
 import { MAX_OUTPUT_TOKENS, MAX_SEGMENT_TOKENS, PRO_OUTPUT_TOKENS, FREE_OUTPUT_TOKENS, REQUEST_GUARD_MS, REQUEST_DEADLINE_MS } from "@/lib/limits";
@@ -19,18 +19,6 @@ import { classifyTask } from "@/lib/task-router";
 import { checkModelAccess, parseSelection } from "@/lib/model-access";
 import { streamSelectedModel } from "@/lib/model-router";
 import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
-/* ---- Nexus AI v11 LEGEND ---- */
-import { withWatchdog, withInstantOpen, cleanOutput, TURBO } from "@/lib/turbo";
-import { withTitan, TITAN, TITAN_CONTINUE_PROMPT, TITAN_SIZE_CONTRACT, type TitanReport } from "@/lib/titan";
-import { wantsCanvas, detectCanvas, canvasContract, wantsPromptText, PROMPT_TEXT_CONTRACT } from "@/lib/design-canvas";
-import { hasArabic, ARABIC_VISION_SYSTEM } from "@/lib/arabic-vision";
-import { V11_CHAT_ADDON } from "@/lib/nexus-v11";
-/* ---- Nexus AI v13 LIVE WEB ---- */
-import { needsWeb, planQueries, multiSearch, readPages, sourcesBlock } from "@/lib/websearch";
-import { academyBlockDeep, playbookKeyFor, needsDraftStrip } from "@/lib/nexus-academy";
-import { isGameRequest, planGame, forgeSystemBlock } from "@/lib/game-forge";
-import { withDraftFilter } from "@/lib/draft-filter";
-import { TITAN_MAX_BYTES, TITAN_TARGET_BYTES } from "@/lib/limits";
 import { chatModeById } from "@/lib/chat-modes";
 import { DZ_IDENTITY, DZ_SCHOOL_ADDON, looksLikeSchoolwork } from "@/lib/dz-school";
 import { VOICE_SYSTEM, personaById } from "@/lib/voice-call";
@@ -48,6 +36,7 @@ import { db } from "@/db";
 import { aiMemories, conversations, messages } from "@/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getProfile } from "@/lib/usage";
+import { buildWebContext } from "@/lib/web-search";
 
 /* ---- Nexus AI v8.4: free OpenRouter ids + hidden no-filler prompt (inline, no extra file) ---- */
 const FREE_MODEL_IDS: ReadonlySet<string> = new Set(["openrouter/free", "qwen/qwen3.8-27b:free", "cohere/north-mini-code:free", "poolside/laguna-s-2.1:free", "poolside/laguna-xs-2.1:free", "nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-super-120b-a12b:free", "nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "thinkingmachines/inkling:free", "thinkingmachines/inkling-small:free", "apodex/apodex-1.1-mini:free", "google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free", "dots-studio/dots-3-note-preview:free", "liquid/lfm-2.5-2.6b:free", "inclusionai/ling-3.0-flash-sante:free", "stealth/space-bunny-alpha"]);
@@ -328,8 +317,6 @@ export async function POST(req: Request) {
     /** Nexus: legacy OpenRouter model id (older clients). Ignored for free accounts. */
     freeModel?: unknown;
     /** Model selector: gemini | huggingface | grok | openrouter (grok / openrouter = Pro only) */
-    /** v13: force a live web lookup for this message */
-    web?: boolean;
     provider?: unknown;
     /** Model selector: provider-specific model id ("auto" = provider default) */
     model?: unknown;
@@ -386,7 +373,7 @@ export async function POST(req: Request) {
     const system =
       (body.v8 === true || body.max === true ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
       QUALITY_CONTRACT.split("\n6.")[0] +
-      (body.max === true ? MAX_ENGINE_CONFIG.systemPromptAddon : "");
+      "";
     const lastTurn = turns[turns.length - 1];
     const stream = withAutoContinue(emptyStream(), {
       system,
@@ -418,18 +405,6 @@ export async function POST(req: Request) {
   const textFiles = parseTextFiles(body.textFiles);
   if (textFiles === "BAD") return json(400, { code: "BAD_ATTACHMENT" });
 
-  // v15.2: sliding-window + shared store + per-user concurrency cap.
-  // Concurrency is the binding constraint at 100k/day (~360 simultaneous
-  // streams at peak), so it is checked here before anything expensive runs.
-  // `credit` is resolved further down, so the cap here is the generous (Pro)
-  // one; the per-plan request limit below still applies on top of it.
-  const conc = acquire(`stream:${user.uid}`, LIMITS.pro.concurrent);
-  if (!conc.ok) {
-    return new Response(JSON.stringify({ code: "BUSY_USER", detail: "عندك طلبات بزاف مفتوحة فنفس الوقت." }), {
-      status: 429,
-      headers: { "content-type": "application/json", "retry-after": "3" },
-    });
-  }
   const rl = rateLimit(`ai:${user.uid}`, 30, 60_000);
   if (!rl.ok) {
     return json(
@@ -459,7 +434,7 @@ export async function POST(req: Request) {
     return json(400, { code: "BAD_PROVIDER" });
   }
   if (selection) {
-    const access = checkModelAccess(credit.plan, selection.provider);
+    const access = checkModelAccess(credit.plan, selection.provider, selection.model);
     if (!access.ok) {
       if (credit.tracked) await refundCredit(user.uid);
       return json(access.status, {
@@ -490,7 +465,12 @@ export async function POST(req: Request) {
   // Algerian school brain: homework / exams / lessons or any attached image or file (the dz study mode already carries it)
   const schoolBlock =
     chatMode?.id !== "dzstudy" && (looksLikeSchoolwork(lastUser) || parsed.files.length > 0) ? DZ_SCHOOL_ADDON : "";
-  const memBlock = (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") + (chatMode?.addon ?? "") + schoolBlock;
+  // live internet: long-term memory + fresh web context are fetched in parallel
+  const [longMem, webBlock] = await Promise.all([
+    isPro && credit.tracked ? loadMemoryBlock(user.uid) : Promise.resolve(""),
+    buildWebContext(lastUser),
+  ]);
+  const memBlock = longMem + (chatMode?.addon ?? "") + schoolBlock + webBlock;
   if (isPro && credit.tracked) void rememberFrom(user.uid, lastUser);
   const fileNames = [...parsed.names, ...textFiles.map((f) => f.name)];
   const savedUser =
@@ -555,7 +535,7 @@ export async function POST(req: Request) {
     release = r;
   });
   if (isPro) {
-    const guard = setTimeout(() => { release(); conc.release(); }, REQUEST_GUARD_MS);
+    const guard = setTimeout(() => release(), REQUEST_GUARD_MS);
     void finished.then(() => clearTimeout(guard));
     try {
       after(() => finished);
@@ -568,7 +548,7 @@ export async function POST(req: Request) {
   const saveAnswer = async (full: string) => {
     if (!isPro && credit.tracked) void chargeStreamTime(user.uid, Date.now() - startedAt);
     try {
-      const text = cleanOutput(full).trim();
+      const text = full.trim();
       const id = await persistP;
       if (!text || !id) return;
       await db
@@ -582,73 +562,15 @@ export async function POST(req: Request) {
         .catch(() => undefined);
     } finally {
       release();
-    conc.release();
     }
   };
 
   // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
-  const max = isPro && (body.max === true || isBuildRequest(lastUser));
-  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON : "") + MARATHON_ADDON : "";
+  const max = isPro && isBuildRequest(lastUser); // Nexus 8 Pro: only real build requests use the builder contract (old `max` flags are ignored)
+  const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + MARATHON_ADDON : "";
   const v8 = isPro && (body.v8 === true || max || chatMode?.hard === true);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
   const hasFiles = parsed.files.length > 0 || textFiles.length > 0;
-  /* ---- v11: live design canvas + Arabic document reading ---- */
-  const canvasKind = detectCanvas(lastUser);
-  const canvasOn = isPro && !body.voice && wantsCanvas(lastUser);
-  // v15: a prompt request gets the prose contract instead of the canvas one.
-  const promptAsk = wantsPromptText(lastUser);
-  const canvasBlock = promptAsk ? PROMPT_TEXT_CONTRACT : canvasOn ? canvasContract(canvasKind) : "";
-  const arabicVisionBlock = parsed.files.length > 0 && hasArabic(lastUser) ? ARABIC_VISION_SYSTEM : "";
-  const v11Block = canvasBlock + arabicVisionBlock;
-
-  /* ---- v13 LIVE WEB: go online when the question is clearly time-sensitive, or when
-     the client asks for it explicitly. Never blocks the answer: a failed search just
-     means the model answers from its own knowledge, exactly like before. ---- */
-  const webAsked = body.web === true;
-  // v15: the user asked for the internet to be AUTOMATIC — no toggle, no tab.
-  // Any pasted link is fetched and read; anything time-sensitive is searched.
-  const pastedUrls = (lastUser.match(/https?:\/\/[^\s<>"'\u0600-\u06FF]{4,}/g) ?? []).slice(0, 4);
-  const webAuto = webAsked || pastedUrls.length > 0 || (!body.voice && needsWeb(lastUser));
-  let webBlock = "";
-  let webCount = 0;
-  if (webAuto) {
-    try {
-      // 1. read every link the user pasted, verbatim
-      const linkHits = pastedUrls.map((u) => ({
-        title: u.replace(/^https?:\/\//, "").slice(0, 70),
-        url: u,
-        snippet: "",
-        host: (() => { try { return new URL(u).hostname; } catch { return ""; } })(),
-        via: "link" as const,
-      }));
-      if (linkHits.length) await readPages(linkHits, 4, 9000);
-
-      // 2. search only when a search would add something
-      let searchHits: typeof linkHits = [];
-      if (!pastedUrls.length || needsWeb(lastUser)) {
-        const hits = await multiSearch(planQueries(lastUser), 5);
-        searchHits = hits.slice(0, 6) as typeof linkHits;
-        if (searchHits.length) await readPages(searchHits, 3, 6000);
-      }
-
-      const all = [...linkHits, ...searchHits];
-      if (all.length) {
-        webBlock = sourcesBlock(all);
-        webCount = all.length;
-      }
-    } catch (e) {
-      console.warn("[web] search skipped:", e instanceof Error ? e.message : String(e));
-    }
-  }
-  // v15: ACADEMY (domain corpus + per-engine directive) and GAME FORGE
-  // (binding multi-file build contract) ride on the same block every engine
-  // already receives, so free and Pro models both get them.
-  const pbKey = playbookKeyFor(selection?.model);
-  const bigAsk = isBuildRequest(lastUser) && !promptAsk;
-  const academy = academyBlockDeep({ text: lastUser, modelKey: pbKey, big: bigAsk || promptAsk });
-  const forge = !promptAsk && isGameRequest(lastUser) ? forgeSystemBlock(planGame(lastUser), lastUser) : "";
-  const v13Block = v11Block + webBlock + academy + forge;
-  let titanReport: TitanReport | null = null;
   try {
     // Pro + "build me a game / site / app": the whole AI team works together
     const task = classifyTask(lastUser, parsed.files.length > 0);
@@ -663,64 +585,18 @@ export async function POST(req: Request) {
     // explicit choice from the model selector: Grok / OpenRouter (Pro, gated above) or Hugging Face (free + Pro).
     // Builds and attachments keep the built-in engines. If the chosen provider fails, Gemini answers instead.
     let fellBackFrom: string | undefined;
-    // v14: the chosen external model now gets the SAME v13 context (canvas, Arabic
-    // vision, live web) and the SAME TITAN continuation + watchdog as Gemini, so
-    // "Claude can't finish a big file" and "Grok stops at 40 KB" are both gone.
-    const externalBig = isBuildRequest(lastUser);
-    const openExternal = (seed?: string) =>
-      streamSelectedModel({
-        selection: selection!,
-        system:
-          NEXUS_SYSTEM +
-          DZ_IDENTITY +
-          (chatMode?.addon ?? "") +
-          schoolBlock +
-          memBlock +
-          v13Block +
-          (externalBig ? TITAN_SIZE_CONTRACT : "") +
-          (seed ? TITAN_CONTINUE_PROMPT : ""),
-        messages: seed
-          ? [
-              { role: "user" as const, text: lastUser.slice(0, 24_000) },
-              { role: "model" as const, text: seed.slice(-TITAN.TAIL_CONTEXT) },
-              { role: "user" as const, text: TITAN_CONTINUE_PROMPT },
-            ]
-          : capped,
-        maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
-        onModel: (m) => {
-          usedModel = m;
-        },
-        onDone: () => {},
-      });
-
     const externalStream =
       selection && selection.provider !== "gemini" && !voice && !(isPro && isBuildRequest(lastUser)) && parsed.files.length === 0
-        ? await openExternal()
-            .then((base) =>
-              withInstantOpen(
-                withWatchdog(
-                  withTitan(base, {
-                    big: externalBig,
-                    targetBytes: TITAN_TARGET_BYTES,
-                    maxBytes: TITAN_MAX_BYTES,
-                    rounds: externalBig ? TITAN.MAX_ROUNDS : 6,
-                    keepAlive: true,
-                    deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
-                    continueWith: (acc) => openExternal(acc),
-                    onDone: async (full) => {
-                      await saveAnswer(full);
-                    },
-                  }),
-                  {
-                    keepAlive: true,
-                    stallMs: TURBO.STALL_FAILOVER_MS,
-                    midStallMs: TURBO.MID_STALL_FAILOVER_MS,
-                    rescue: async () => openExternal().catch(() => null),
-                  }
-                )
-              )
-            )
-            .catch((e) => {
+        ? await streamSelectedModel({
+            selection,
+            system: NEXUS_SYSTEM + DZ_IDENTITY + (chatMode?.addon ?? "") + schoolBlock + memBlock,
+            messages: capped,
+            maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
+            onModel: (m) => {
+              usedModel = m;
+            },
+            onDone: saveAnswer,
+          }).catch((e) => {
             console.error(`[chat] ${selection.provider} failed, falling back to Gemini:`, e instanceof Error ? e.message : String(e));
             fellBackFrom = selection.provider;
             return null;
@@ -746,7 +622,6 @@ export async function POST(req: Request) {
     const onFail = async () => {
       if (credit.tracked) await refundCredit(user.uid);
       release();
-    conc.release();
     };
     const stream = externalStream
       ? externalStream
@@ -777,57 +652,24 @@ export async function POST(req: Request) {
             BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) +
             QUALITY_CONTRACT.split("\n6.")[0] +
             maxAddon +
-            v13Block +
             persona +
             memBlock;
-          const openSegment = (seed?: string) =>
-            streamGemini({
-              system: seed ? system + TITAN_CONTINUE_PROMPT : system,
-              messages: seed
-                ? [
-                    { role: "user" as const, text: lastUser.slice(0, 24_000) },
-                    { role: "model" as const, text: seed.slice(-TITAN.TAIL_CONTEXT) },
-                    { role: "user" as const, text: TITAN_CONTINUE_PROMPT },
-                  ]
-                : capped,
-              tier: "pro",
-              task: "code",
-              primaryFirst: false,
-              mode: "quality",
-              epic: true,
-              maxTokens: seed ? MAX_SEGMENT_TOKENS : MAX_OUTPUT_TOKENS,
-              temperature: 0.7,
-              attachments: seed ? [] : parsed.files,
-              onModel: (m) => {
-                usedModel = m;
-              },
-            });
-          const base = await openSegment();
-          // v11 TITAN: keep chaining segments until the build is complete (up to 5 MB),
-          // with overlap de-duplication and an automatic integrity repair at the end.
-          const titan = withTitan(base, {
-            big: true,
-            targetBytes: TITAN_TARGET_BYTES,
-            maxBytes: TITAN_MAX_BYTES,
-            rounds: TITAN.MAX_ROUNDS,
-            keepAlive: true,
-            deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
-            continueWith: (acc) => openSegment(acc),
-            onDone: async (full, report) => {
-              titanReport = report;
-              if (report.glitches.length) console.warn("[titan] glitches:", report.glitches.join(" | "));
-              await saveAnswer(full);
+          const base = await streamGemini({
+            system,
+            messages: capped,
+            tier: "pro",
+            task: "code",
+            primaryFirst: false,
+            mode: "quality",
+            epic: true,
+            maxTokens: MAX_OUTPUT_TOKENS,
+            temperature: 0.35, // MAX precision: low randomness = fewer slips in code
+            attachments: parsed.files,
+            onModel: (m) => {
+              usedModel = m;
             },
           });
-          // v11 TURBO: a build may never die silently — heartbeats + rescue engine.
-          return withInstantOpen(
-            withWatchdog(titan, {
-              keepAlive: true,
-              stallMs: TURBO.STALL_FAILOVER_MS,
-              midStallMs: TURBO.MID_STALL_FAILOVER_MS,
-              rescue: async () => openSegment().catch(() => null),
-            })
-          );
+          return withAutoContinue(base, { system, messages: capped, rounds: 8, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer });
         })()
       : build
       ? ensembleStream({
@@ -835,7 +677,6 @@ export async function POST(req: Request) {
             (v8 ? BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) : BUILD_SYSTEM_PRO) +
             QUALITY_CONTRACT.split("\n6.")[0] +
             maxAddon +
-            v13Block +
             persona +
             memBlock,
           kind: "build",
@@ -844,7 +685,7 @@ export async function POST(req: Request) {
           maxTokens: MAX_OUTPUT_TOKENS,
           messages: capped,
           attachments: parsed.files,
-          temperature: 0.7,
+          temperature: max ? 0.35 : 0.7,
           keepAlive: true,
           onModel: (m) => {
             usedModel = m;
@@ -854,13 +695,13 @@ export async function POST(req: Request) {
         })
       : hard
         ? ensembleStream({
-            system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + v13Block + persona + memBlock,
+            system: HARD_SYSTEM_V8 + QUALITY_CONTRACT + maxAddon + persona + memBlock,
             kind: "hard",
             task,
             maxTokens: max ? MAX_OUTPUT_TOKENS : 32000,
             messages: capped,
             attachments: parsed.files,
-            temperature: 0.6,
+            temperature: max ? 0.3 : 0.6,
             keepAlive: true,
             onModel: (m) => {
               usedModel = m;
@@ -873,12 +714,9 @@ export async function POST(req: Request) {
             ? (v8 ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
               QUALITY_CONTRACT +
               MARATHON_ADDON +
-              V11_CHAT_ADDON +
-              v13Block +
               persona +
               memBlock
-            : // v15: free accounts run the "Nexus 6" engine — same quality contract, smaller budget
-              CHAT_SYSTEM_V6 + schoolBlock + (chatMode?.addon ?? "");
+            : CHAT_SYSTEM + schoolBlock + (chatMode?.addon ?? "") + webBlock;
           const base = await streamGemini({
             system,
             messages: capped,
@@ -888,7 +726,7 @@ export async function POST(req: Request) {
             // Pro: the strongest engine (Claude by default) leads; free stays on Gemini's free tier
             primaryFirst: isPro,
             mode: isPro && body.deep === true ? "quality" : "speed",
-            maxTokens: isPro ? (v8 ? PRO_OUTPUT_TOKENS : 32000) : FREE_OUTPUT_TOKENS,
+            maxTokens: isPro ? (v8 ? PRO_OUTPUT_TOKENS : body.v6 === true ? 32000 : 20000) : FREE_OUTPUT_TOKENS,
             lowThink: v8 && body.deep !== true,
             attachments: parsed.files,
             onModel: (m) => {
@@ -897,57 +735,22 @@ export async function POST(req: Request) {
             // Pro answers go through the never-stop guard, which saves the final text itself
             onDone: isPro ? undefined : saveAnswer,
           });
-          // v11: the never-stop guard, then the watchdog so a stalled engine is replaced
-          // instead of leaving the user in front of an empty bubble.
-          const guarded = isPro
+          return isPro
             ? withAutoContinue(base, { system, messages: capped, rounds: 24, deadlineAt: Date.now() + REQUEST_DEADLINE_MS, keepAlive: true, onDone: saveAnswer })
             : base;
-          return withInstantOpen(
-            withWatchdog(guarded, {
-              keepAlive: isPro,
-              stallMs: TURBO.STALL_FAILOVER_MS,
-              midStallMs: TURBO.MID_STALL_FAILOVER_MS,
-              onDone: isPro ? undefined : saveAnswer,
-              rescue: async () =>
-                streamGemini({
-                  system,
-                  messages: capped,
-                  tier: "pro",
-                  task,
-                  primaryFirst: false,
-                  mode: "speed",
-                  lowThink: true,
-                  maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
-                  onModel: (m) => {
-                    usedModel = m + " (rescue)";
-                  },
-                }).catch(() => null),
-            })
-          );
         })();
     const fixedConvId = await persistP;
 
-    // v15: ONE choke point every engine passes through — Claude's draft
-    // preamble and the reasoning models' <think> blocks are removed here, so
-    // the fix covers all 16 models at once instead of per-provider.
-    const cleanStream = withDraftFilter(stream, { enabled: !voice && needsDraftStrip(pbKey) });
-
-    return streamToResponse(cleanStream, {
+    return streamToResponse(stream, {
       "x-conversation-id": fixedConvId ?? "",
       "x-credits-remaining": String(credit.remaining),
       "x-plan": credit.plan,
-      ...(webCount ? { "x-web": String(webCount) } : {}),
       ...(selection ? { "x-provider": externalStream ? selection.provider : "gemini" } : {}),
       ...(fellBackFrom ? { "x-fallback-from": fellBackFrom } : {}),
       ...(isPro ? { "x-model": usedModel, "x-engine": (build || hard) && !(max && build) ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
-      "x-nexus": "v15-apex",
-      ...(pbKey ? { "x-playbook": pbKey } : {}),
-      ...(canvasOn && !promptAsk ? { "x-canvas": canvasKind } : {}),
-      ...(max && build ? { "x-titan": "on" } : {}),
     });
   } catch (e) {
     release();
-    conc.release();
     if (credit.tracked) await refundCredit(user.uid);
     console.error("[chat] gemini failed:", e);
     if (e instanceof GeminiError) {
