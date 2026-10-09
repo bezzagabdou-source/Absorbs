@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64" fill="none">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop stop-color="#1b1f3b"/><stop offset=".55" stop-color="#111528"/><stop offset="1" stop-color="#0b0e1a"/></linearGradient>
+<linearGradient id="core" x1="18" y1="14" x2="46" y2="50" gradientUnits="userSpaceOnUse"><stop stop-color="#8ab4ff"/><stop offset=".5" stop-color="#5b8cff"/><stop offset="1" stop-color="#d97757"/></linearGradient>
+<radialGradient id="glow" cx=".5" cy=".42" r=".62"><stop stop-color="#5b8cff" stop-opacity=".55"/><stop offset="1" stop-color="#5b8cff" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="64" height="64" fill="url(#bg)"/><rect width="64" height="64" fill="url(#glow)"/>
+<g stroke="url(#core)" stroke-width="2.6" stroke-linecap="round" opacity=".9"><path d="M32 29V17.5"/><path d="M29 34 19.6 42.2"/><path d="M35 34l9.4 8.2"/></g>
+<g fill="url(#core)"><circle cx="32" cy="14.5" r="5.2"/><circle cx="17" cy="44.5" r="5.2"/><circle cx="47" cy="44.5" r="5.2"/></g>
+<circle cx="32" cy="31.5" r="7.4" fill="#fff"/><circle cx="32" cy="31.5" r="7.4" fill="url(#core)" fill-opacity=".28"/>
+</svg>

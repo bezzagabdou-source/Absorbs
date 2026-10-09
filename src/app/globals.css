@@ -2212,3 +2212,263 @@ html[dir="rtl"] .nx-drawer { animation-name: nxSlideInRtl; }
   .think-orb, .nx-orb { animation-duration: 3s; }
   .nx-conn:hover { transform: none; }
 }
+
+/* ==========================================================================
+   Nexus AI v16 — "Aurora Light"
+   Built on top of the Lumen light theme (kept on purpose). One palette taken from
+   the logo: blue #5b8cff -> violet #8b6bff -> coral #d97757, an airy aurora
+   background, frosted-glass surfaces, soft depth. Loaded last so it wins.
+   ========================================================================== */
+[data-theme="lumen"] {
+  --nx-blue: #5b8cff;
+  --nx-violet: #8b6bff;
+  --nx-coral: #d97757;
+  --nx-line: rgba(30, 41, 99, 0.10);
+  --nx-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* background: pearl base, three drifting colour orbs, a faint dotted grid */
+[data-theme="lumen"] body::before {
+  background-image: radial-gradient(rgba(91, 108, 190, 0.13) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 65% at 50% 0%, #000 0%, rgba(0,0,0,.35) 55%, transparent 90%);
+  mask-image: radial-gradient(ellipse 90% 65% at 50% 0%, #000 0%, rgba(0,0,0,.35) 55%, transparent 90%);
+}
+[data-theme="lumen"] body::after {
+  background:
+    radial-gradient(60% 40% at 10% -8%, rgba(91, 140, 255, 0.20), transparent 70%),
+    radial-gradient(50% 36% at 100% 4%, rgba(139, 107, 255, 0.15), transparent 70%),
+    radial-gradient(50% 36% at 88% 112%, rgba(217, 119, 87, 0.14), transparent 70%),
+    linear-gradient(180deg, #f5f7ff, #f7f8fc 60%, #fbf8f6);
+}
+[data-theme="lumen"] .aurora i:nth-child(1) { background: radial-gradient(circle, #8fb0ff 0%, transparent 66%); opacity: .38; }
+[data-theme="lumen"] .aurora i:nth-child(2) { background: radial-gradient(circle, #b9a6ff 0%, transparent 66%); opacity: .32; }
+[data-theme="lumen"] .aurora i:nth-child(3) { background: radial-gradient(circle, #ffc2a8 0%, transparent 66%); opacity: .34; }
+
+/* primary buttons wear the logo gradient */
+[data-theme="lumen"] .btn-primary,
+[data-theme="lumen"] .btn-brand {
+  background: linear-gradient(120deg, #3f6fe6 0%, #5b8cff 45%, #8b6bff 100%) !important;
+  color: #fff !important;
+  border: 0 !important;
+  box-shadow: 0 10px 28px -10px rgba(91, 140, 255, 0.8);
+}
+[data-theme="lumen"] .btn-primary:hover,
+[data-theme="lumen"] .btn-brand:hover { filter: brightness(1.07); transform: translateY(-1px); }
+[data-theme="lumen"] .btn-primary:active,
+[data-theme="lumen"] .btn-brand:active { transform: scale(.98); }
+
+[data-theme="lumen"] ::selection { background: rgba(91, 140, 255, 0.28); color: #101437; }
+[data-theme="lumen"] * { scrollbar-color: rgba(91, 140, 255, 0.35) transparent; }
+[data-theme="lumen"] ::-webkit-scrollbar-thumb { background: rgba(91, 140, 255, 0.3); }
+
+/* smoother, glitch-free motion */
+button, a, [role="button"] { transition: background-color .18s, border-color .18s, transform .18s cubic-bezier(.22,1,.36,1), opacity .18s; }
+img, video, canvas { max-width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+/* ---- v16.2 shell polish: the three fixed dots, drawer, sidebar ---- */
+[data-theme="lumen"] .nx-dots-btn {
+  color: #3f55c9;
+  background: linear-gradient(145deg, rgba(255,255,255,.95), rgba(238,243,255,.9));
+  border: 1px solid rgba(91, 140, 255, 0.35);
+  box-shadow: 0 12px 30px -14px rgba(91, 140, 255, 0.75), inset 0 1px 0 #fff;
+  z-index: 70;
+}
+[data-theme="lumen"] .nx-dots-btn:hover { box-shadow: 0 14px 34px -12px rgba(91, 140, 255, 0.95), inset 0 1px 0 #fff; }
+[data-theme="lumen"] .nx-drawer {
+  background: linear-gradient(170deg, rgba(255,255,255,.96) 0%, rgba(243,246,255,.96) 55%, rgba(251,246,250,.96) 100%);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  border-inline-end: 1px solid rgba(91, 140, 255, 0.18);
+  border-radius: 0 28px 28px 0;
+}
+html[dir="rtl"] [data-theme="lumen"] .nx-drawer,
+[data-theme="lumen"][dir="rtl"] .nx-drawer { border-radius: 28px 0 0 28px; }
+[data-theme="lumen"] .nx-drawer-title { color: #5b6bb8; letter-spacing: .02em; }
+
+/* ==========================================================================
+   Nexus AI v17 — "Legend"
+   CSS-only design system layer (no component logic touched => nothing can break).
+   Legendary buttons, frosted cards, premium inputs, richer background.
+   ========================================================================== */
+@property --nx-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes nx-spin-angle { to { --nx-angle: 360deg; } }
+@keyframes nx-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes nx-pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(91,140,255,.45); } 100% { box-shadow: 0 0 0 16px rgba(91,140,255,0); } }
+
+/* ---------- background: deeper aurora + vignette ---------- */
+[data-theme="lumen"] body::after {
+  background:
+    radial-gradient(70% 45% at 8% -10%, rgba(91, 140, 255, 0.26), transparent 70%),
+    radial-gradient(55% 40% at 102% 2%, rgba(139, 107, 255, 0.20), transparent 70%),
+    radial-gradient(55% 40% at 90% 115%, rgba(255, 140, 105, 0.18), transparent 70%),
+    radial-gradient(40% 30% at 0% 100%, rgba(56, 189, 248, 0.14), transparent 70%),
+    linear-gradient(180deg, #f3f6ff, #f7f8fc 55%, #fcf7f5);
+}
+
+/* ---------- PRIMARY: the legendary button ---------- */
+[data-theme="lumen"] .btn-primary,
+[data-theme="lumen"] .v11-btn-primary,
+[data-theme="lumen"] .v12-btn-primary {
+  position: relative;
+  isolation: isolate;
+  min-height: 44px;
+  border-radius: 16px !important;
+  color: #fff !important;
+  font-weight: 800;
+  letter-spacing: .01em;
+  text-shadow: 0 1px 0 rgba(20, 30, 90, .35);
+  border: 1px solid rgba(255, 255, 255, .28) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,0) 46%),
+    linear-gradient(120deg, #2f5be0 0%, #5b8cff 38%, #8b6bff 72%, #b36bff 100%) !important;
+  background-size: 100% 100%, 220% 100% !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.55) inset,
+    0 -2px 0 rgba(20, 30, 120, .22) inset,
+    0 14px 30px -12px rgba(91, 108, 255, .85),
+    0 4px 10px -4px rgba(60, 80, 220, .5) !important;
+  transition: transform .2s cubic-bezier(.22,1,.36,1), box-shadow .2s, background-position .6s, filter .2s !important;
+}
+[data-theme="lumen"] .btn-primary::before,
+[data-theme="lumen"] .v11-btn-primary::before,
+[data-theme="lumen"] .v12-btn-primary::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(from var(--nx-angle), #5b8cff, #8b6bff, #ff8c69, #38bdf8, #5b8cff);
+  filter: blur(10px);
+  opacity: 0;
+  transition: opacity .25s;
+  animation: nx-spin-angle 4s linear infinite;
+}
+[data-theme="lumen"] .btn-primary:hover,
+[data-theme="lumen"] .v11-btn-primary:hover,
+[data-theme="lumen"] .v12-btn-primary:hover {
+  transform: translateY(-2px) scale(1.015);
+  background-position: 0 0, 100% 0 !important;
+  filter: saturate(1.15) brightness(1.04);
+}
+[data-theme="lumen"] .btn-primary:hover::before,
+[data-theme="lumen"] .v11-btn-primary:hover::before,
+[data-theme="lumen"] .v12-btn-primary:hover::before { opacity: .55; }
+[data-theme="lumen"] .btn-primary:active,
+[data-theme="lumen"] .v11-btn-primary:active,
+[data-theme="lumen"] .v12-btn-primary:active {
+  transform: translateY(1px) scale(.975);
+  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 6px 14px -8px rgba(91,108,255,.8) !important;
+}
+[data-theme="lumen"] .btn-primary:focus-visible,
+[data-theme="lumen"] .btn-gold:focus-visible,
+[data-theme="lumen"] .btn-ghost:focus-visible { outline: 3px solid rgba(91,140,255,.55); outline-offset: 3px; }
+
+/* ---------- GOLD: metallic, reserved for Pro ---------- */
+[data-theme="lumen"] .btn-gold,
+[data-theme="lumen"] .v11-btn-gold {
+  min-height: 44px;
+  border-radius: 16px !important;
+  color: #3a2200 !important;
+  border: 1px solid rgba(255, 244, 190, .9) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,0) 50%),
+    linear-gradient(115deg, #f59e0b 0%, #ffe27a 35%, #f5a70f 62%, #ffd54a 100%) !important;
+  background-size: 100% 100%, 220% 100% !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 -2px 0 rgba(160, 90, 0, .25) inset,
+    0 16px 34px -12px rgba(245, 158, 11, .85),
+    0 0 0 1px rgba(217, 119, 6, .25) !important;
+  animation: nx-float 3.6s ease-in-out infinite;
+}
+[data-theme="lumen"] .btn-gold:hover { transform: translateY(-2px) scale(1.02); animation-play-state: paused; }
+[data-theme="lumen"] .btn-gold:active { transform: scale(.975); }
+
+/* ---------- GHOST: glass with a gradient hairline ---------- */
+[data-theme="lumen"] .btn-ghost,
+[data-theme="lumen"] .v11-btn,
+[data-theme="lumen"] .v12-btn,
+[data-theme="lumen"] .v12-btn-quiet {
+  min-height: 44px;
+  border-radius: 16px !important;
+  color: #2b3a8f !important;
+  font-weight: 700;
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(rgba(255,255,255,.88), rgba(255,255,255,.88)) padding-box,
+    linear-gradient(135deg, rgba(91,140,255,.7), rgba(139,107,255,.5), rgba(255,140,105,.6)) border-box !important;
+  box-shadow: 0 8px 22px -14px rgba(60, 80, 200, .55) !important;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: transform .2s cubic-bezier(.22,1,.36,1), box-shadow .2s !important;
+}
+[data-theme="lumen"] .btn-ghost:hover,
+[data-theme="lumen"] .v11-btn:hover,
+[data-theme="lumen"] .v12-btn:hover,
+[data-theme="lumen"] .v12-btn-quiet:hover { transform: translateY(-1px); box-shadow: 0 14px 28px -14px rgba(60, 80, 200, .7) !important; }
+[data-theme="lumen"] .btn-ghost:active { transform: scale(.97); }
+
+/* ---------- cards ---------- */
+[data-theme="lumen"] .glass,
+[data-theme="lumen"] .glass-deep,
+[data-theme="lumen"] .v12-card,
+[data-theme="lumen"] .v8-card,
+[data-theme="lumen"] .neo-panel {
+  background: linear-gradient(160deg, rgba(255,255,255,.92), rgba(244,247,255,.8)) !important;
+  border: 1px solid rgba(91, 108, 220, .14) !important;
+  border-radius: 22px;
+  box-shadow: 0 1px 0 #fff inset, 0 22px 50px -26px rgba(40, 60, 160, .45);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+[data-theme="lumen"] .v12-card-hover { transition: transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s; }
+[data-theme="lumen"] .v12-card-hover:hover { transform: translateY(-3px); box-shadow: 0 1px 0 #fff inset, 0 30px 60px -26px rgba(60, 80, 220, .5); }
+
+/* ---------- inputs ---------- */
+[data-theme="lumen"] .input-base,
+[data-theme="lumen"] .neo-input {
+  border-radius: 16px;
+  background: rgba(255,255,255,.9);
+  border: 1px solid rgba(91, 108, 220, .22);
+  box-shadow: 0 1px 0 #fff inset, 0 8px 20px -16px rgba(40, 60, 160, .5);
+  transition: border-color .2s, box-shadow .2s;
+}
+[data-theme="lumen"] .input-base:focus,
+[data-theme="lumen"] .neo-input:focus,
+[data-theme="lumen"] .input-base:focus-within,
+[data-theme="lumen"] .neo-input:focus-within {
+  outline: none;
+  border-color: rgba(91, 140, 255, .8);
+  box-shadow: 0 0 0 4px rgba(91, 140, 255, .18), 0 10px 26px -14px rgba(91, 108, 255, .6);
+}
+
+/* ---------- chips & pills ---------- */
+[data-theme="lumen"] .neo-chip,
+[data-theme="lumen"] .v12-chip,
+[data-theme="lumen"] .v11-pill {
+  border-radius: 999px;
+  background: rgba(255,255,255,.85);
+  border: 1px solid rgba(91, 108, 220, .2);
+  transition: transform .18s, background .18s;
+}
+[data-theme="lumen"] .neo-chip-on {
+  background: linear-gradient(120deg, #5b8cff, #8b6bff);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 8px 20px -10px rgba(91, 108, 255, .9);
+}
+
+/* three-dots button gets a calm pulse so it is always findable */
+[data-theme="lumen"] .nx-dots-btn { animation: nx-pulse-ring 2.8s ease-out 1.2s 2; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="lumen"] .btn-primary::before, [data-theme="lumen"] .btn-gold,
+  [data-theme="lumen"] .nx-dots-btn { animation: none !important; }
+}
+
+/* never a white flash/blank: the page behind the app frame always has the theme colour */
+html { background-color: #f7f8fc; }

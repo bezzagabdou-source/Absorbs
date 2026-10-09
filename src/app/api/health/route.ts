@@ -30,9 +30,16 @@ export async function GET() {
     grok: has("GROK_API_KEY", "XAI_API_KEY"),
     openrouter: has("OPENROUTER_API_KEY"),
     huggingface: has("HF_TOKEN", "HUGGINGFACE_API_KEY"),
-    claude: has("ANTHROPIC_API_KEY"),
+    claude: has("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"),
+    openai: has("OPENAI_API_KEY"),
     deepseek: has("DEEPSEEK_API_KEY"),
     groq: has("GROQ_API_KEY"),
+  };
+  // v19: vector memory / RAG backend diagnostics (names only, never secrets)
+  const memory = {
+    pinecone: has("PINECONE_API_KEY", "PINECONE_KEY"),
+    index: Boolean((process.env.PINECONE_INDEX ?? "").trim() || (process.env.PINECONE_INDEX_NAME ?? "").trim()),
+    embedProvider: (process.env.RAG_EMBED_PROVIDER ?? "auto").trim() || "auto",
   };
   // the app itself is healthy even when an optional engine key is missing:
   // the UI degrades gracefully and the deploy / healthcheck must not fail for it.
@@ -42,9 +49,10 @@ export async function GET() {
     {
       ok,
       ready,
-      version: "16.0.0-apex",
+      version: "19.0.0-unified",
       database,
       engines,
+      memory,
       enginesOn: Object.values(engines).filter(Boolean).length,
       gemini: key ? { ok: true, variable: key.name } : { ok: false, error: "No GEMINI_API_KEY variable found" },
     },

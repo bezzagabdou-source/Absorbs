@@ -121,3 +121,53 @@ export function classifyTask(text: string, hasMedia = false): Task {
   if (t.length > 0 && t.length <= 60) return "quick";
   return "general";
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ *  AGENTIC INTENT — multi-step autonomous execution routing (v19)
+ * ═══════════════════════════════════════════════════════════════════
+ *  An "agentic" request needs more than one model call: research THEN
+ *  summarise, search THEN compare THEN build, remember THEN act.
+ *  classifyAgenticIntent() routes those to the agent engine
+ *  (@/lib/agent-engine) which loops plan → tool → observe with existing
+ *  engines doing the thinking.
+ */
+
+/** hard caps — agents are powerful, so the guardrails live next to the classifier */
+export const AGENT_MAX_STEPS = 6;
+export const AGENT_BUDGET_MS = 90_000;
+
+const RE_AGENTIC =
+  /(ابحث(?:\s+لي)?(?:\s+عن)?\s+(?:أفضل|كل|حيث|عن|في).*(?:و|ثم)|قارن (?:لي |بين )|خطط لي رحلة|راقب|كل (?:يوم|أسبوع)|اعمل (?:بحث|دراسة) عن|حلل (?:لي )?(?:هذا|الموقع|السوق)|تصفح (?:هذا|الرابط)|لخص لي محتوى|اجمع لي معلومات عن|plan (?:a|my) trip|compare (?:these|the)|research (?:and|then)|browse (?:this|the) (?:site|link|url)|analy[sz]e this (?:site|page|market)|summari[sz]e (?:this|the) (?:page|article|link)|gather (?:info|data) about|monit[eo]r)/i;
+
+/** A URL was pasted AND the user asks something about it → needs tool calling. */
+const RE_URL_TASK = /(https?:\/\/\S+).*(لخص|اشرح|حلل|اقرأ|summari|explain|analy|read)|((لخص|اشرح|حلل|اقرأ|summari|explain|analy|read).*)https?:\/\/\S+/i;
+
+/**
+ * Multi-word chaining verbs (افعل X ثم Y) count as agentic when they wrap
+ * tool-like subtasks (search / memory / fetch), not for ordinary dialog.
+ */
+const RE_CHAINED = /(ثم|بعدها|بعد ما|and then|then also|puis ensuite)/i;
+
+export function classifyAgenticIntent(text: string): boolean {
+  const t = (text ?? "").trim();
+  if (t.length < 12) return false;
+  if (RE_AGENTIC.test(t)) return true;
+  if (RE_URL_TASK.test(t)) return true;
+  if (RE_CHAINED.test(t) && needsAgentTool(t)) return true;
+  return false;
+}
+
+/** True when the request explicitly requires a capability the agent owns. */
+export function needsAgentTool(text: string): boolean {
+  return /(ابحث|تصفح|الرابط|الموقع|تذكر|خليك تتذكر|احسب|الوقت الآن|كم الساعة|search|browse|link|calculate|remember|what time)/i.test(
+    text ?? ""
+  );
+}
+
+/** Short Arabic labels for the agent progress banner, in execution order. */
+export const AGENT_STAGE_AR = {
+  plan: "الوكيل يخطّط الخطوات",
+  tool: "الوكيل ينفّذ أداة",
+  observe: "الوكيل يقرأ النتيجة",
+  final: "الوكيل يصيغ الجواب النهائي",
+} as const;

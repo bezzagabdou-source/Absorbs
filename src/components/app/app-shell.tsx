@@ -27,7 +27,6 @@ import {
   Sparkles,
   Gavel,
   Telescope,
-  Plug,
   MoreVertical,
   X,
   ShieldCheck,
@@ -44,6 +43,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPalette } from "@/components/command-palette";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { cn } from "@/lib/utils";
+import { SafeBoundary } from "@/components/safe-boundary";
 
 /* ------------------------------------------------------------------ */
 /* Credits context — refreshed from /api/user/me                       */
@@ -214,7 +214,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: "/app/research", label: "البحث", icon: Telescope, exact: true },
     { href: "/app/tools", label: t.app.tools, icon: LayoutGrid, exact: false },
     { href: "/app/studio", label: "الاستوديو", icon: Wand2, exact: true },
-    { href: "/app/connectors", label: "الموصّلات", icon: Plug, exact: true },
     { href: "/app/history", label: t.app.history, icon: History, exact: true },
     { href: "/app/upgrade", label: t.app.upgrade, icon: Crown, exact: true },
     { href: "/app/settings", label: t.app.settings, icon: Settings, exact: true },
@@ -530,7 +529,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* ---------------- content ---------------- */}
         <main className="scroll-y min-h-0 min-w-0 flex-1">
           <VerifyEmailBanner />
-          {children}
+          <SafeBoundary resetKey={pathname} label="صار خلل في هذه الصفحة">
+            {children}
+          </SafeBoundary>
         </main>
 
         {/* v15: the hub dock is gone — the chat owns the full height. */}

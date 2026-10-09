@@ -33,6 +33,8 @@ export function openRouterFallbackModel(): string {
 
 export async function streamOpenRouter(o: {
   model?: string;
+  /** extra engines tried in order if the first one is busy (instant failover, no error shown) */
+  alsoTry?: string[];
   system: string;
   messages: ChatTurn[];
   maxTokens: number;
@@ -49,7 +51,9 @@ export async function streamOpenRouter(o: {
     provider: "openrouter",
     url: OPENROUTER_URL,
     key,
-    models: [requested, openRouterFallbackModel()],
+    models: Array.from(
+      new Set([requested, ...(o.alsoTry ?? []).filter((m) => OPENROUTER_ID_RE.test(m)), openRouterFallbackModel()])
+    ),
     system: o.system,
     messages: o.messages,
     maxTokens: o.maxTokens,

@@ -855,3 +855,120 @@ export function getTool(id: string): ToolDef | undefined {
 export function loc(l: L, locale: Locale): string {
   return l[locale] ?? l.ar;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ *  AUTONOMOUS AGENT TOOLS (v19) — function-calling registry metadata
+ * ═══════════════════════════════════════════════════════════════════
+ *  Declarative metadata for the multi-step agent engine
+ *  (@/lib/agent-engine). Executors live server-side; this list is the
+ *  UI + LLM facing contract (OpenAI-style JSON schemas included below),
+ *  so a tool card, a system prompt, and the function-calling payload can
+ *  never drift apart.
+ */
+
+export type AgentToolMeta = {
+  id: string;
+  icon: LucideIcon;
+  name: L;
+  desc: L;
+  /** OpenAI-compatible function-calling JSON schema */
+  schema: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+};
+
+export const AGENT_TOOL_SCHEMAS: AgentToolMeta[] = [
+  {
+    id: "web_search",
+    icon: Search,
+    name: { ar: "بحث ويب", en: "Web search", fr: "Recherche web" },
+    desc: { ar: "يبحث في الويب ويعيد النتائج الحديثة", en: "Searches the web and returns fresh results", fr: "Recherche sur le web et renvoie des résultats récents" },
+    schema: {
+      name: "web_search",
+      description: "Search the live web for fresh facts, prices, news or documentation. Returns a list of results with titles, URLs and snippets.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "The search query, in the user's language or English, whichever is more precise." } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    id: "read_page",
+    icon: FileText,
+    name: { ar: "قراءة صفحة", en: "Read page", fr: "Lire une page" },
+    desc: { ar: "يقرأ محتوى رابط ويلخصه", en: "Fetches a URL and returns readable text", fr: "Récupère une URL et renvoie le texte lisible" },
+    schema: {
+      name: "read_page",
+      description: "Open a web page / article URL and extract its readable text content for summarising or analysis.",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string", description: "The full http(s) URL to read." } },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    id: "memory_recall",
+    icon: Lightbulb,
+    name: { ar: "استرجاع ذاكرة", en: "Recall memory", fr: "Rappel mémoire" },
+    desc: { ar: "يسترجع ما يعرفه عن المستخدم", en: "Semantically recalls stored user facts", fr: "Rappelle sémantiquement les faits stockés" },
+    schema: {
+      name: "memory_recall",
+      description: "Search the user's long-term vector memory for facts relevant to a topic (preferences, projects, personal details).",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string" }, topK: { type: "number", default: 5 } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    id: "memory_save",
+    icon: ShieldCheck,
+    name: { ar: "حفظ في الذاكرة", en: "Save memory", fr: "Sauvegarder en mémoire" },
+    desc: { ar: "يحفظ معلومة دائمة عن المستخدم", en: "Stores a durable fact about the user", fr: "Stocke un fait durable sur l'utilisateur" },
+    schema: {
+      name: "memory_save",
+      description: "Permanently store one short fact about the user (preference, name, project, goal) so future conversations remember it.",
+      parameters: {
+        type: "object",
+        properties: { fact: { type: "string", description: "One concise fact, third-person, max 200 chars." } },
+        required: ["fact"],
+      },
+    },
+  },
+  {
+    id: "calculate",
+    icon: FlaskConical,
+    name: { ar: "حاسبة دقيقة", en: "Calculator", fr: "Calculatrice" },
+    desc: { ar: "يحسب تعابير رياضية بدقة", en: "Evaluates math expressions exactly", fr: "Évalue des expressions mathématiques" },
+    schema: {
+      name: "calculate",
+      description: "Evaluate a math expression (arithmetic, percent, powers, sqrt…) exactly instead of estimating.",
+      parameters: {
+        type: "object",
+        properties: { expression: { type: "string", description: "e.g. (125000*0.19)+sqrt(81)" } },
+        required: ["expression"],
+      },
+    },
+  },
+  {
+    id: "current_datetime",
+    icon: GraduationCap,
+    name: { ar: "التاريخ والوقت", en: "Date & time", fr: "Date et heure" },
+    desc: { ar: "وقت الجزائر الآن وتحويلاته", en: "Current date/time (Algiers) and conversions", fr: "Date/heure actuelle (Alger)" },
+    schema: {
+      name: "current_datetime",
+      description: "Get the current date and time (Africa/Algiers by default) in ISO and human-readable forms.",
+      parameters: { type: "object", properties: { timezone: { type: "string", default: "Africa/Algiers" } } },
+    },
+  },
+];
+
+/** Compact function-calling payload (schemas only) for the planner model. */
+export function agentFunctionSchemas(): Record<string, unknown>[] {
+  return AGENT_TOOL_SCHEMAS.map((t) => t.schema as unknown as Record<string, unknown>);
+}

@@ -216,6 +216,7 @@ export function buildPlan(task: AITask): Target[] {
     case "code":
       return [
         { provider: "openrouter", model: or.fast },
+        { provider: "openrouter", model: envModel("OPENROUTER_KIMI_MODEL", "moonshotai/kimi-k2") },
         ...cb(),
         { provider: "gemini", model: gemPro },
         { provider: "openrouter", model: or.deepseek },

@@ -18,11 +18,18 @@ import {
   RotateCcw,
   Smartphone,
   Tablet,
+  Terminal,
   Trash2,
   Wand2,
+  X,
   Zap,
 } from "lucide-react";
 import { createZip, downloadBlob, filesFromReply, splitHtml, zipSizeLabel, type ZipFile } from "@/lib/zip";
+import {
+  buildSandboxDocument,
+  parseSandboxMessage,
+  type SandboxConsoleEntry,
+} from "@/lib/sandbox-engine";
 import { extractHtml } from "@/lib/attachments";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -216,6 +223,13 @@ export function Workbench({
   const healCount = useRef(0);
   const frameRef = useRef<HTMLIFrameElement>(null);
 
+  /* ----- v19: in-browser execution sandbox (multi-file JS/TS live runner) ----- */
+  const [sandbox, setSandbox] = useState(false);
+  const [sandboxDoc, setSandboxDoc] = useState("");
+  const [sandboxEngine, setSandboxEngine] = useState<"esbuild" | "shim" | "static">("static");
+  const [consoleLog, setConsoleLog] = useState<SandboxConsoleEntry[]>([]);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+
   /* ----- hot reload: follow the stream, throttled, only complete scripts ----- */
   const latest = useRef(reply);
   latest.current = reply;
@@ -268,6 +282,14 @@ export function Workbench({
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.source !== frameRef.current?.contentWindow) return;
+      /* v19 sandbox console bridge */
+      const entry = parseSandboxMessage(e.data);
+      if (entry) {
+        setConsoleLog((l) => (l.length >= 200 ? [...l.slice(-199), entry] : [...l, entry]));
+        if (entry.kind === "error" && !streaming)
+          setErrors((l) => (l.includes(entry.text) || l.length >= 6 ? l : [...l, entry.text]));
+        return;
+      }
       const d = e.data as { __barq?: number; type?: string; msg?: string; html?: string; tag?: string; text?: string; size?: number; comp?: string; outer?: string };
       if (!d || d.__barq !== 1) return;
       if (d.type === "error" && !streaming && d.msg) {
@@ -309,6 +331,29 @@ export function Workbench({
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), [files]);
   const activeFile = files.find((f) => f.path === activePath) ?? files[0];
   const activeText = activeFile ? (typeof activeFile.data === "string" ? activeFile.data : "") : "";
+
+  /* ----- sandbox build: recompiles the live document whenever the project changes ----- */
+  useEffect(() => {
+    if (!sandbox) return;
+    let alive = true;
+    const projectFiles = files
+      .filter((f) => typeof f.data === "string")
+      .map((f) => ({ path: f.path, code: f.data as string }));
+    if (projectFiles.length === 0) return;
+    const t = setTimeout(() => {
+      void buildSandboxDocument(projectFiles, { allowCdn: true }).then((built) => {
+        if (!alive) return;
+        setSandboxDoc(built.doc);
+        setSandboxEngine(built.engine);
+      });
+    }, 450);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [sandbox, files, reload]);
+
+  const displayDoc = sandbox && mode === "live" && sandboxDoc ? sandboxDoc : doc;
 
   const say = (m: string) => {
     setFlash(m);
@@ -437,6 +482,21 @@ export function Workbench({
             <RotateCcw className="h-3.5 w-3.5" />
             تشغيل
           </button>
+          <button
+            type="button"
+            className={cn(act, sandbox && "border-aqua-300/70 bg-aqua-400/10 text-white")}
+            onClick={() => {
+              setSandbox((s) => !s);
+              setConsoleLog([]);
+              if (!sandbox) setConsoleOpen(true);
+              setReload((n) => n + 1);
+            }}
+            disabled={files.length === 0}
+            title="محرك التنفيذ داخل المتصفح: يشغّل مشاريع JS/TS متعددة الملفات مع وحدة تحكم حية"
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            Sandbox{sandbox ? ` · ${sandboxEngine}` : ""}
+          </button>
           <button type="button" className={act} onClick={() => void copy()} disabled={!current}>
             <Copy className="h-3.5 w-3.5" />
             نسخ
@@ -552,12 +612,12 @@ export function Workbench({
             </div>
           ) : (
             <div className="relative flex min-h-0 flex-1 justify-center bg-[radial-gradient(circle_at_50%_0%,#18181b,#050505)] sm:p-3">
-              {doc ? (
+              {displayDoc ? (
                 <iframe
                   ref={frameRef}
-                  key={`${mode}-${reload}`}
+                  key={`${mode}-${reload}-${sandbox ? "sb" : "std"}`}
                   title="المعاينة"
-                  srcDoc={doc}
+                  srcDoc={displayDoc}
                   sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms"
                   allow="fullscreen"
                   className={cn("block h-full bg-black transition-all duration-300", device !== "desktop" && "rounded-[1.6rem] ring-4 ring-white/10")}
@@ -565,6 +625,52 @@ export function Workbench({
                 />
               ) : (
                 <Empty />
+              )}
+
+              {/* v19: live sandbox console */}
+              {consoleOpen && sandbox && mode === "live" && (
+                <div className="glass-deep absolute inset-x-3 bottom-3 z-10 max-h-44 overflow-hidden rounded-xl" dir="ltr">
+                  <div className="flex items-center justify-between border-b border-white/10 px-3 py-1.5">
+                    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
+                      <Terminal className="h-3 w-3 text-aqua-300" />
+                      sandbox console · {sandboxEngine}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button type="button" aria-label="مسح السجل" className="text-slate-500 transition hover:text-white" onClick={() => setConsoleLog([])}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" aria-label="إغلاق" className="text-slate-500 transition hover:text-white" onClick={() => setConsoleOpen(false)}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="scroll-y max-h-32 overflow-y-auto px-3 py-1.5 font-mono text-[11px] leading-relaxed">
+                    {consoleLog.length === 0 ? (
+                      <p className="text-slate-600">console output appears here…</p>
+                    ) : (
+                      consoleLog.map((e, i) => (
+                        <p
+                          key={i}
+                          className={cn(
+                            "truncate",
+                            e.kind === "error" || e.level === "error"
+                              ? "text-rose-300"
+                              : e.level === "warn"
+                                ? "text-amber-200"
+                                : e.kind === "ready"
+                                  ? "text-emerald-300"
+                                  : "text-slate-300"
+                          )}
+                          title={e.text}
+                        >
+                          {e.kind === "error" ? "✕ " : e.kind === "ready" ? "✓ " : ""}
+                          {e.text}
+                          {e.line ? `:${e.line}` : ""}
+                        </p>
+                      ))
+                    )}
+                  </div>
+                </div>
               )}
 
               {mode === "visual" && doc && (

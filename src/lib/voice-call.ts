@@ -83,3 +83,88 @@ export const personaById = (id: unknown): VoicePersona =>
 /** Spoken commands that hang up the call. */
 export const HANGUP_RE =
   /^\s*(?:(?:ok|okay|حسنا|يا?لاه|طيب)\s*)?(?:وقف(?:ي)?|توقف|أنهي?|انهي?|سكر|مع السلامة|بصح السلامة|باي|bye|stop|raccroche|au revoir|hang up)\s*(?:المكالمة|الاتصال|الكلام|call)?[.!؟\s]*$/i;
+
+/* ═══════════════════════════════════════════════════════════════════
+ *  REAL-TIME VOICE STREAM PROTOCOL  (nexus-rt/1.0 — shared client/server)
+ * ═══════════════════════════════════════════════════════════════════
+ *  The call screen streams PCM16 audio frames over a single long-lived
+ *  session (WebSocket when NEXT_PUBLIC_REALTIME_WS is configured, fetch
+ *  body-streaming otherwise via @/lib/realtime-stream) instead of the old
+ *  one-HTTP-request-per-turn loop. These pure helpers are safe to import
+ *  from both the browser call screen and the server voice route.
+ */
+
+/** Wire format settings the call screen and the server must agree on. */
+export const VOICE_RT = {
+  /** PCM16 mono capture rate expected by realtime voice engines */
+  sampleRate: 16_000,
+  /** one streamed audio frame covers this many milliseconds */
+  frameMs: 250,
+  /** partial transcripts are re-sent when stable for this long */
+  partialCommitMs: 320,
+  /** user speech energy ≥ noise margin that counts as a barge-in */
+  bargeInMargin: 2.2,
+  /** playback is interrupted within this budget after a barge-in */
+  bargeInBudgetMs: 150,
+} as const;
+
+/** What the realtime engine receives on EVERY streamed turn (appended to VOICE_SYSTEM). */
+export const VOICE_RT_SYSTEM = `
+
+REALTIME STREAMING CONTRACT (nexus-rt/1.0)
+- The user's voice arrives as a live stream of partial transcripts; they may be revised mid-sentence. Wait for a FINAL transcript marker before answering.
+- Answer IMMEDIATELY when the meaning is already clear — in a live call the silence after the user's last word must stay under half a second.
+- The user can BARGE IN at any moment: if a new user stream starts while you are answering, stop at once and answer only the new turn.
+- Each reply turn stays under ~40 spoken words per chunk; long answers are cut into natural breath-sized chunks streamed one after another.
+- Tool-ish content (code, lists, long text) goes to the fenced chat block, never into the spoken stream.`;
+
+/**
+ * One audio frame as it travels on the wire.
+ * `final: true` marks the end of the user's utterance (server may reply now).
+ */
+export type VoiceFrame = {
+  seq: number;
+  /** base64-encoded little-endian PCM16 mono at VOICE_RT.sampleRate */
+  b64: string;
+  final: boolean;
+  at: number;
+};
+
+/** Serializes a frame for the wire (pure — no Buffer, browser-safe). */
+export function encodeVoiceFrame(f: VoiceFrame): string {
+  return JSON.stringify({ t: "audio", seq: f.seq, b64: f.b64, codec: "pcm16", sr: VOICE_RT.sampleRate, final: f.final, at: f.at });
+}
+
+/** Parses a wire frame. Returns null for anything that isn't a valid audio frame. */
+export function decodeVoiceFrame(raw: string): VoiceFrame | null {
+  try {
+    const j = JSON.parse(raw) as { t?: string; seq?: unknown; b64?: unknown; final?: unknown; at?: unknown };
+    if (j?.t !== "audio" || typeof j.seq !== "number" || typeof j.b64 !== "string") return null;
+    return { seq: j.seq, b64: j.b64, final: j.final === true, at: typeof j.at === "number" ? j.at : Date.now() };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when the current user speech should interrupt the assistant NOW.
+ * `rms`        = energy of the freshest 20ms input slice
+ * `noiseFloor` = adaptive ambient floor tracked while nobody speaks
+ */
+export function shouldBargeIn(rms: number, noiseFloor: number, assistantSpeaking: boolean): boolean {
+  return assistantSpeaking && rms > Math.max(140, noiseFloor * VOICE_RT.bargeInMargin);
+}
+
+/**
+ * Which realtime transport the call screen should use right now:
+ * a configured WS gateway wins; the same-origin stream route is the built-in fallback.
+ */
+export function realtimeVoiceTransport(): { transport: "websocket" | "fetch-stream"; url: string } {
+  const ws = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_REALTIME_WS?.trim()) || "";
+  if (ws.startsWith("ws://") || ws.startsWith("wss://")) return { transport: "websocket", url: ws };
+  const base =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : ((typeof process !== "undefined" && process.env?.NEXT_PUBLIC_SITE_URL?.trim()) || "http://localhost:3000");
+  return { transport: "fetch-stream", url: `${base}/api/realtime?mode=voice` };
+}

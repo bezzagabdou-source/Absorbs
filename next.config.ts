@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
+  // keep these server-only packages out of the webpack bundle:
+  // `pg` ships native bindings, `sharp` is a native image binary —
+  // bundling either one is the #1 cause of broken Vercel builds.
+  serverExternalPackages: ["pg", "sharp"],
   experimental: {
     // smaller bundles = faster first load
     optimizePackageImports: ["lucide-react", "framer-motion"],

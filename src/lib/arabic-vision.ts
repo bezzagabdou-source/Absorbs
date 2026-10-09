@@ -193,3 +193,100 @@ ARABIC IMAGE CONTRACT (v11)
 - The user may describe a picture in Darija, Arabic, French or English. Understand the intent, never ask for a translation.
 - When the user wants Arabic words printed inside the picture, repeat those words verbatim in the prompt and demand correct right-to-left joined Arabic typography.
 - Default to a polished, modern, culturally-aware result; never produce a flat clip-art look.`;
+
+/* ═══════════════════════════════════════════════════════════════════
+ *  REAL-TIME VISION STREAM  (nexus-rt/1.0 — live camera / screen frames)
+ * ═══════════════════════════════════════════════════════════════════
+ *  Instead of one HTTP upload per photo, a live session streams sampled
+ *  JPEG frames (see @/lib/realtime-stream). These pure helpers decide the
+ *  sampling policy and build the wire frames; they are shared between the
+ *  browser capture loop and the server vision route.
+ */
+
+/** Reading contract for STREAMED frames — appended to ARABIC_VISION_SYSTEM. */
+export const ARABIC_VISION_STREAM_SYSTEM = `
+LIVE VISION STREAM CONTRACT
+- Frames arrive as a continuous, low-resolution stream, NOT as one perfect photo: read what is stable across at least two consecutive frames before stating it.
+- Partial readings are progressive: say what changed since your last reading ("الآن أرى أن الرقم اتضح: …"), never restart the whole description on every frame.
+- Arabic text in motion (a sign, a book page, a phone screen) is read line-by-line as it stabilises; mark still-blurry glyphs as [غير واضح بعد] instead of guessing.
+- If the user moves the camera somewhere new, acknowledge the scene change in three words or fewer ("ننتقل للواجهة…") and keep the live narration in their dialect.
+- Never comment on people's appearance / identity; describe objects, text and documents only.`;
+
+export type VisionStreamQoS = "low" | "medium" | "high";
+
+export interface VisionStreamPolicy {
+  /** frames per second to sample from the camera */
+  fps: number;
+  /** longest edge of a sent frame, px */
+  width: number;
+  /** JPEG quality 0..1 */
+  quality: number;
+  /** max bytes per frame before quality is stepped down */
+  frameBudget: number;
+  /** drop frames instead of queuing when the stream falls behind */
+  dropWhenBehind: boolean;
+}
+
+const QOS_PRESETS: Record<VisionStreamQoS, VisionStreamPolicy> = {
+  // careful on metered mobile data (the default in Algeria)
+  low: { fps: 1, width: 480, quality: 0.55, frameBudget: 60_000, dropWhenBehind: true },
+  medium: { fps: 2, width: 768, quality: 0.65, frameBudget: 110_000, dropWhenBehind: true },
+  // reading documents / handwriting live
+  high: { fps: 3, width: 1024, quality: 0.8, frameBudget: 200_000, dropWhenBehind: false },
+};
+
+/**
+ * Sampling policy for a live vision session. `readingText` (the user said
+ * they're showing a document / screen) forces the high-bandwidth preset.
+ */
+export function planVisionStream(qos: VisionStreamQoS = "medium", readingText = false): VisionStreamPolicy {
+  if (readingText) return QOS_PRESETS.high;
+  return QOS_PRESETS[qos];
+}
+
+/** Detects requests that clearly need a LIVE camera instead of a photo upload. */
+export function needsLiveVision(text: string): boolean {
+  return /(شنو قدامي|شنو هاذي بالكاميرا|الكاميرا مباشرة|مباشر بالكاميرا|راقب معايا|شوف معايا|عينك على|live camera|watch this|regarde ça|en direct|stream the camera)/i.test(
+    text ?? ""
+  );
+}
+
+/** A live frame on the wire. */
+export type VisionFrameMessage = {
+  t: "frame";
+  seq: number;
+  /** base64 JPEG, ≤ policy.frameBudget bytes */
+  b64: string;
+  w: number;
+  h: number;
+  /** hint for the engine: what kind of content to expect */
+  focus: "document" | "scene";
+};
+
+export function visionFrameMessage(
+  b64: string,
+  seq: number,
+  size: { w: number; h: number },
+  focus: "document" | "scene" = "scene"
+): VisionFrameMessage {
+  return { t: "frame", seq, b64, w: size.w, h: size.h, focus };
+}
+
+/**
+ * Frame-difference gate: sends only when the scene changed enough to matter
+ * (cheap SSIM-lite on downscaled luma). Runs fully in the browser.
+ */
+export function frameChangedEnough(prev: Uint8ClampedArray | null, next: Uint8ClampedArray, threshold = 0.045): boolean {
+  if (!prev || prev.length !== next.length || prev.length === 0) return true;
+  let diff = 0;
+  const stride = 16; // every 4th pixel of an RGBA grid
+  let n = 0;
+  for (let i = 0; i < next.length; i += stride) {
+    const d0 = Math.abs(next[i] - prev[i]);
+    const d1 = Math.abs(next[i + 1] - prev[i + 1]);
+    const d2 = Math.abs(next[i + 2] - prev[i + 2]);
+    diff += (d0 + d1 + d2) / 3;
+    n++;
+  }
+  return diff / (n * 255) > threshold;
+}

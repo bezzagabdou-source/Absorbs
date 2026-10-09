@@ -360,3 +360,92 @@ export function clearCheckpoint(id: string): void {
     /* ignore */
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ *  PLAYABLE ASSEMBLY — In-Browser Execution for forged games (v19)
+ * ═══════════════════════════════════════════════════════════════════
+ *  Turns the forged file set into ONE self-contained, instrumented HTML
+ *  document that runs instantly in a sandboxed iframe (no servers, no
+ *  build step). The bridge reports console output + crashes to the host
+ *  via window.postMessage ({__nexus_sandbox:1, …}) so the Studio can show
+ *  a live console and auto-heal against a real error log.
+ */
+
+export interface PlayableFile {
+  path: string;
+  code: string;
+}
+
+/** Runtime guards every playable game gets: error capture, canvas sizing, input focus. */
+export const GAME_RUNTIME_BRIDGE = `<script data-nexus-game>(function(){
+"use strict";
+function post(m){try{parent.postMessage(Object.assign({__nexus_sandbox:1,at:Date.now()},m),"*")}catch(e){}}
+function stringify(a){if(typeof a==="string")return a;try{return JSON.stringify(a).slice(0,500)}catch(e){return String(a)}}
+["log","warn","error"].forEach(function(lv){var o=console[lv].bind(console);console[lv]=function(){try{post({kind:"console",level:lv,text:Array.prototype.map.call(arguments,stringify).join(" ")})}catch(e){}o.apply(null,arguments)}});
+window.addEventListener("error",function(e){post({kind:"error",text:String(e.message||"script error"),line:e.lineno||0})});
+// canvas autofit: generated games often assume a fixed window size
+function fit(){var c=document.querySelector("canvas");if(!c)return;if(!c.style.width){c.style.width="100vw";c.style.height="100vh";c.style.display="block";}document.body.style.margin="0";document.body.style.overflow="hidden";document.body.style.background="#0a0a12";}
+document.addEventListener("DOMContentLoaded",fit);
+window.addEventListener("resize",fit);
+// keyboard focus: click once so WASD/arrow input works without a foundry-specific fix
+window.addEventListener("pointerdown",function(){try{window.focus()}catch(e){}},{once:true});
+document.addEventListener("DOMContentLoaded",function(){post({kind:"ready",text:"game ready"})});
+})();</script>`;
+
+/**
+ * Assembles forged game files into a single runnable HTML document.
+ * JS files execute in dependency-friendly order (utils/engine first,
+ * main/game/loop last) inside isolated IIFEs — a file that crashes can
+ * never take down the files after it. Three.js / CDN script tags inside
+ * an index.html are preserved; everything else is inlined offline-style.
+ */
+export function assemblePlayableGame(files: PlayableFile[], title = "Nexus Game"): string {
+  const html = files.find((f) => /\.html?$/i.test(f.path));
+  const css = files.filter((f) => /\.css$/i.test(f.path));
+  const js = files
+    .filter((f) => /\.m?js$/i.test(f.path))
+    .sort(
+      (a, b) =>
+        rankOf(a.path) - rankOf(b.path)
+    );
+
+  const styleBlock = css.map((c) => `<style data-src="${c.path}">\n${c.code}\n</style>`).join("\n");
+  const scriptBlock = js
+    .map(
+      (f) =>
+        `<script data-src="${f.path}">\ntry{\n${f.code}\n}catch(e){console.error("[${f.path}]",e&&(e.message||e));parent.postMessage({__nexus_sandbox:1,kind:"error",text:"${f.path.replace(
+          /"/g,
+          '\\"'
+        )}: "+(e&&(e.message||e)),at:Date.now()},"*")}\n</script>`
+    )
+    .join("\n");
+
+  if (html) {
+    let doc = html.code;
+    // drop external <script src> tags that point at our own local files (they 404 in srcdoc)
+    for (const f of js) {
+      const esc = f.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      doc = doc.replace(new RegExp(`<script[^>]+src=["'](?:\\.?\\/)?${esc}["'][^>]*>\\s*<\\/script>`, "gi"), "");
+    }
+    for (const c of css) {
+      const esc = c.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      doc = doc.replace(new RegExp(`<link[^>]+href=["'](?:\\.?\\/)?${esc}["'][^>]*>\\s*`, "gi"), "");
+    }
+    const inject = (s: string) => (/<\/head>/i.test(doc) ? doc.replace(/<\/head>/i, `${s}\n</head>`) : s + doc);
+    doc = inject(GAME_RUNTIME_BRIDGE + styleBlock);
+    doc = /<\/body>/i.test(doc) ? doc.replace(/<\/body>/i, `${scriptBlock}\n</body>`) : doc + scriptBlock;
+    return doc;
+  }
+
+  return (
+    `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">` +
+    `<title>${title}</title>${GAME_RUNTIME_BRIDGE}${styleBlock}</head>` +
+    `<body><canvas id="game"></canvas>${scriptBlock}</body></html>`
+  );
+}
+
+function rankOf(p: string): number {
+  if (/(^|\/)(main|game|index|loop|app)\.m?js$/i.test(p)) return 10;
+  if (/(^|\/)(utils?|math|engine|core|asset|input|audio)/i.test(p)) return 0;
+  return 5;
+}

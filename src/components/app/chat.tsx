@@ -78,7 +78,6 @@ import {
   pendingCheckpoint,
   clearCheckpoint,
   isComplete as forgeComplete,
-  forgeProgress,
   type ForgeCheckpoint,
 } from "@/lib/game-forge";
 import { notifyBuildDone } from "@/lib/notify";
@@ -100,6 +99,7 @@ import {
   type PendingFile,
 } from "@/lib/attachments";
 import { CallButton } from "@/components/chat/call-button";
+import { SafeBoundary } from "@/components/safe-boundary";
 import { generateInlineImage, INLINE_IMAGE_ERRORS } from "@/lib/inline-image";
 
 /** v8: "generate me an image" requests (the image engine is not available yet). */
@@ -567,9 +567,11 @@ const MessageRow = memo(function MessageRow({
           ) : codeInfo && !showCode ? (
             <>
               {codeInfo.text && codeInfo.text.length <= 220 && (
-                <Markdown pro={pro} plainCode>
-                  {codeInfo.text}
-                </Markdown>
+                <SafeBoundary fallback={<p className="whitespace-pre-wrap">{codeInfo.text}</p>}>
+                  <Markdown pro={pro} plainCode>
+                    {codeInfo.text}
+                  </Markdown>
+                </SafeBoundary>
               )}
               {m.pending ? (
                 <BuildThinking info={codeInfo} />
@@ -591,9 +593,11 @@ const MessageRow = memo(function MessageRow({
             </>
           ) : (
             <>
-              <Markdown pro={pro} plainCode={!!m.pending}>
-                {body}
-              </Markdown>
+              <SafeBoundary resetKey={body.length} fallback={<p className="whitespace-pre-wrap" dir="auto">{body}</p>}>
+                <Markdown pro={pro} plainCode={!!m.pending}>
+                  {body}
+                </Markdown>
+              </SafeBoundary>
               {codeInfo && !m.pending && (
                 <button type="button" onClick={() => setShowCode(false)} className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-xl border border-orange-300/40 px-3 text-[12.5px] font-bold text-slate-300 transition active:scale-95">
                   <Code2 className="h-4 w-4" />
@@ -939,6 +943,12 @@ export function ChatPage() {
     setFiles([]);
     setNotice(null);
     stickRef.current = true;
+    // a half-finished build of the OLD chat must not leak into the new one
+    forgeRef.current = null;
+    setForge(null);
+    setPreview(null);
+    setShowJump(false);
+    if (taRef.current) taRef.current.style.height = "auto";
     taRef.current?.focus();
   }, []);
 
@@ -1176,6 +1186,8 @@ export function ChatPage() {
       // markdown re-parsing, so long answers stay smooth even on weak phones
       const flush = () => {
         timer = null;
+        // a stale timer from a cancelled request must never overwrite the new chat
+        if (abortRef.current !== controller) return;
         const snapshot = acc;
         setMsgs((m) => {
           const last = m[m.length - 1];
@@ -1194,9 +1206,16 @@ export function ChatPage() {
       // keep the screen awake while building: a locked phone suspends the connection (the glitch you saw)
       type WL = { release: () => Promise<void> };
       let wake: WL | null = null;
+      let reqDone = false;
       try {
         const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<WL> } };
-        nav.wakeLock?.request("screen").then((l) => (wake = l)).catch(() => undefined);
+        nav.wakeLock
+          ?.request("screen")
+          .then((l) => {
+            wake = l;
+            if (reqDone) void l.release().catch(() => undefined);
+          })
+          .catch(() => undefined);
       } catch {
         /* not supported */
       }
@@ -1450,6 +1469,7 @@ export function ChatPage() {
           setError("generic");
         }
       } finally {
+        reqDone = true;
         try {
           void (wake as WL | null)?.release();
         } catch {
@@ -2207,30 +2227,6 @@ export function ChatPage() {
           </p>
         </div>
       </div>
-
-      {/* v15.2 — live forge progress */}
-      {forge && !forgeComplete(forge) && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-[120] flex justify-center px-4">
-          <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1020]/95 p-3 shadow-[0_18px_50px_-18px_rgba(91,140,255,.7)] backdrop-blur">
-            <div className="flex items-center justify-between gap-2 text-[12.5px]">
-              <span className="truncate font-semibold text-slate-100">
-                🔨 {forge.plan.title} — {forgeProgress(forge).pct}%
-              </span>
-              <span className="shrink-0 text-slate-400">{forgeProgress(forge).eta}</span>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <i
-                className="block h-full rounded-full bg-gradient-to-r from-[#5b8cff] to-[#d97757] transition-[width] duration-500"
-                style={{ width: `${forgeProgress(forge).pct}%` }}
-              />
-            </div>
-            <p className="mt-1.5 truncate text-[11.5px] text-slate-400">
-              {forgeProgress(forge).label} · {forge.done.length}/{forge.plan.files.length} ملف ·{" "}
-              {(forge.bytes / 1000).toFixed(0)} KB
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* v15.2 — resume an unfinished build after leaving the page */}
       {resumable && !forge && (

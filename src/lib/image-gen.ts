@@ -271,10 +271,10 @@ async function viaHuggingFace(token: string, prompt: string, aspect: ImageAspect
   }
 }
 
-async function viaPollinations(prompt: string, aspect: ImageAspect, timeoutMs: number): Promise<RawImage> {
+async function viaPollinations(prompt: string, aspect: ImageAspect, timeoutMs: number, engine = "flux"): Promise<RawImage> {
   const { w, h } = DIMENSIONS[aspect];
   const seed = Math.floor(Math.random() * 1_000_000_000);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 900))}?width=${w}&height=${h}&model=flux&nologo=true&seed=${seed}`;
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 900))}?width=${w}&height=${h}&model=${engine}&nologo=true&enhance=true&seed=${seed}`;
   const t = withTimeout(timeoutMs);
   try {
     const res = await fetch(url, { signal: t.signal, cache: "no-store" });
@@ -315,7 +315,21 @@ export function buildEditPrompt(instruction: string, action: ImageEditAction, po
 }
 
 /** OpenRouter image models (chat/completions with image output) — extra engine, also used when Gemini is down. */
-const OPENROUTER_IMAGE_MODELS = ["google/gemini-2.5-flash-image", "google/gemini-3.1-flash-image-preview"];
+/**
+ * Extra, stronger image engines on OpenRouter. OPENROUTER_IMAGE_MODEL (comma-separated) goes first so a newer
+ * model can be added from env; a busy / unknown id just fails over to the next one.
+ */
+const OPENROUTER_IMAGE_MODELS = Array.from(
+  new Set([
+    ...(process.env.OPENROUTER_IMAGE_MODEL ?? "")
+      .split(",")
+      .map((m) => m.trim())
+      .filter(Boolean),
+    "google/gemini-2.5-flash-image",
+    "google/gemini-3.1-flash-image-preview",
+    "openai/gpt-5-image-mini",
+  ])
+);
 
 async function viaOpenRouterImage(
   model: string,
@@ -441,6 +455,14 @@ export async function generateImage(opts: {
   if (Date.now() < deadline - 8_000) {
     try {
       return await finish(await viaPollinations(await getFluxPrompt(), opts.aspect, Math.min(perTry, deadline - Date.now())), "flux-pollinations");
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  // last resort: a second, different Pollinations engine
+  if (Date.now() < deadline - 8_000) {
+    try {
+      return await finish(await viaPollinations(await getFluxPrompt(), opts.aspect, Math.min(perTry, deadline - Date.now()), "turbo"), "turbo-pollinations");
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
     }

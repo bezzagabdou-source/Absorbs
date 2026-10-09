@@ -18,6 +18,7 @@ import {
 import { classifyTask } from "@/lib/task-router";
 import { checkModelAccess, parseSelection } from "@/lib/model-access";
 import { streamSelectedModel } from "@/lib/model-router";
+import { autoDistillAndStore, buildMemoryContext } from "@/lib/memory";
 import { MAX_ENGINE_CONFIG, MARATHON_ADDON } from "@/lib/max-engine";
 /* ---- Nexus AI v11 LEGEND ---- */
 import { withWatchdog, withInstantOpen, cleanOutput, TURBO } from "@/lib/turbo";
@@ -27,6 +28,7 @@ import { hasArabic, ARABIC_VISION_SYSTEM } from "@/lib/arabic-vision";
 import { V11_CHAT_ADDON } from "@/lib/nexus-v11";
 /* ---- Nexus AI v13 LIVE WEB ---- */
 import { needsWeb, planQueries, multiSearch, readPages, sourcesBlock } from "@/lib/websearch";
+import { inspectLinksBlock } from "@/lib/link-reader";
 import { academyBlockDeep, playbookKeyFor, needsDraftStrip } from "@/lib/nexus-academy";
 import { isGameRequest, planGame, forgeSystemBlock } from "@/lib/game-forge";
 import { isAnyGameRequest, GAME_MASTER } from "@/lib/game-master";
@@ -493,8 +495,16 @@ export async function POST(req: Request) {
   // Algerian school brain: homework / exams / lessons or any attached image or file (the dz study mode already carries it)
   const schoolBlock =
     chatMode?.id !== "dzstudy" && (looksLikeSchoolwork(lastUser) || parsed.files.length > 0) ? DZ_SCHOOL_ADDON : "";
-  const memBlock = (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") + (chatMode?.addon ?? "") + schoolBlock;
-  if (isPro && credit.tracked) void rememberFrom(user.uid, lastUser);
+  const memBlock =
+    (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") +
+    // v19 RAG: semantically relevant long-term memory (vector recall, best-effort)
+    (isPro && credit.tracked ? await buildMemoryContext(user.uid, lastUser, { topK: 4, budget: 1200 }).catch(() => "") : "") +
+    (chatMode?.addon ?? "") +
+    schoolBlock;
+  if (isPro && credit.tracked) {
+    void rememberFrom(user.uid, lastUser);
+    autoDistillAndStore(user.uid, lastUser); // passive vector-memory distillation
+  }
   const fileNames = [...parsed.names, ...textFiles.map((f) => f.name)];
   const savedUser =
     fileNames.length > 0 ? `${lastUser}\n\n📎 ${fileNames.join(" · ")}` : lastUser;
@@ -614,6 +624,7 @@ export async function POST(req: Request) {
   const webAuto = webAsked || pastedUrls.length > 0 || (!body.voice && needsWeb(lastUser));
   let webBlock = "";
   let webCount = 0;
+  let linkInspection = "";
   if (webAuto) {
     try {
       // 1. read every link the user pasted, verbatim
@@ -624,7 +635,11 @@ export async function POST(req: Request) {
         host: (() => { try { return new URL(u).hostname; } catch { return ""; } })(),
         via: "link" as const,
       }));
-      if (linkHits.length) await readPages(linkHits, 4, 9000);
+      // the link reader downloads pages AND files (zip/json/csv/code/images/pdf info) safely
+      if (pastedUrls.length) {
+        const insp = await inspectLinksBlock(pastedUrls, 4);
+        linkInspection = insp.block;
+      }
 
       // 2. search only when a search would add something
       let searchHits: typeof linkHits = [];
@@ -634,10 +649,15 @@ export async function POST(req: Request) {
         if (searchHits.length) await readPages(searchHits, 3, 6000);
       }
 
-      const all = [...linkHits, ...searchHits];
+      // pasted links are covered by the link inspection above; search results keep the classic sources block
+      const all = searchHits;
       if (all.length) {
         webBlock = sourcesBlock(all);
         webCount = all.length;
+      }
+      if (linkInspection) {
+        webBlock += linkInspection;
+        webCount += pastedUrls.length;
       }
     } catch (e) {
       console.warn("[web] search skipped:", e instanceof Error ? e.message : String(e));
