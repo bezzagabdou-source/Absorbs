@@ -44,8 +44,6 @@ export function Markdown({
         const props = el.props as { className?: string; children?: ReactNode };
         const lang = /language-([\w+-]+)/.exec(props.className ?? "")?.[1] ?? "";
         const code = textOf(props.children).replace(/\n$/, "");
-        // while streaming, a fence can exist with no content yet → never paint an empty black box
-        if (!code.trim()) return null;
         if (lang === "prompt") return <PromptDraft text={code} />;
         return (
           <CodeBlock lang={lang} code={code} pro={pro}>
@@ -53,7 +51,6 @@ export function Markdown({
           </CodeBlock>
         );
       }
-      if (!textOf(c).trim()) return null;
       return <pre>{c}</pre>;
     },
     img({ src, alt }) {

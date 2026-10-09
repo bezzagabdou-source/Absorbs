@@ -22,13 +22,13 @@ export const TURBO = {
   /** Start a parallel back-up engine if the leader is still silent after this. */
   HEDGE_AFTER_MS: 750,
   /** Start a third engine after this. */
-  HEDGE_2_AFTER_MS: 2_200,
+  HEDGE_2_AFTER_MS: 1_800,
   /** Emit an invisible heartbeat when nothing has been produced for this long. */
-  HEARTBEAT_EVERY_MS: 4_000,
+  HEARTBEAT_EVERY_MS: 3_000,
   /** No token at all for this long => the engine is considered dead, rescue takes over. */
-  STALL_FAILOVER_MS: 18_000,
+  STALL_FAILOVER_MS: 12_000,
   /** Mid-answer silence (tokens already flowing) tolerated before rescue. */
-  MID_STALL_FAILOVER_MS: 45_000,
+  MID_STALL_FAILOVER_MS: 38_000,
   /** Absolute cap for a single rescue chain. */
   MAX_RESCUES: 3,
 } as const;

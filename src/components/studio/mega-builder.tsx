@@ -105,7 +105,7 @@ export function MegaBuilder({ isPro }: { isPro: boolean }) {
             rows={4}
             dir="auto"
             placeholder="مثال: لعبة مغامرات كاملة بـ 12 مستوى و8 أنواع أعداء ونظام ترقيات… (يمكنك تحديد عدد الملفات أو الحجم)"
-            className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-[16px] text-white outline-none placeholder:text-slate-500"
+            className="w-full resize-none rounded-xl bg-black/30 px-3 py-2.5 text-[16px] text-[#fff] outline-none placeholder:text-slate-500"
           />
           <div className="mt-2 flex flex-wrap gap-2">
             {IDEAS.map((idea) => (

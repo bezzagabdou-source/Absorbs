@@ -730,7 +730,7 @@ export function VoiceCall({
                   onClick={() => pickLang(l.id)}
                   className={cn(
                     "h-7 rounded-full px-3 text-[11px] font-black transition active:scale-95",
-                    lang === l.id ? "bg-brand-500/25 text-white ring-1 ring-brand-400/50" : "text-slate-500 hover:text-slate-200"
+                    lang === l.id ? "bg-brand-500/25 text-[#fff] ring-1 ring-brand-400/50" : "text-slate-500 hover:text-slate-200"
                   )}
                 >
                   {l.label}
@@ -785,7 +785,7 @@ export function VoiceCall({
               type="button"
               onClick={hangup}
               aria-label="إنهاء المكالمة"
-              className="grid size-[4.5rem] place-items-center rounded-full bg-gradient-to-b from-rose-500 to-rose-700 text-white shadow-[0_10px_30px_-8px_rgba(244,63,94,0.8)] transition active:scale-90"
+              className="grid size-[4.5rem] place-items-center rounded-full bg-gradient-to-b from-rose-500 to-rose-700 text-[#fff] shadow-[0_10px_30px_-8px_rgba(244,63,94,0.8)] transition active:scale-90"
             >
               <PhoneOff className="size-8" />
             </button>

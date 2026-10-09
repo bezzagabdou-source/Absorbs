@@ -18,6 +18,9 @@ import {
   updateProfile,
   sendEmailVerification,
   sendPasswordResetEmail,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   getAdditionalUserInfo,
   type User,
 } from "firebase/auth";
@@ -35,6 +38,8 @@ type AuthContextValue = {
   /** reloads the Firebase user and returns the fresh emailVerified flag */
   refreshVerified: () => Promise<boolean>;
   sendReset: (email: string) => Promise<void>;
+  /** v14: change the password in-app (requires the current one) */
+  changePassword: (current: string, next: string) => Promise<void>;
   /** fetch() wrapper that attaches a fresh Firebase ID token */
   authFetch: (input: string, init?: RequestInit) => Promise<Response>;
 };
@@ -154,6 +159,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await mailWithFallback((s) => sendPasswordResetEmail(auth, email.trim().toLowerCase(), s));
   }, []);
 
+  /**
+   * v14 — real in-app password change.
+   * Firebase requires a fresh credential before updatePassword(), so we
+   * re-authenticate first and translate its error codes into Arabic.
+   */
+  const changePassword = useCallback(async (current: string, next: string) => {
+    const u = auth.currentUser;
+    if (!u?.email) throw new Error("ما كاينش حساب مسجّل بالبريد.");
+    if (next.length < 8) throw new Error("كلمة السر الجديدة لازم 8 حروف على الأقل.");
+    if (next === current) throw new Error("كلمة السر الجديدة بحال القديمة.");
+    try {
+      await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, current));
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        throw new Error("كلمة السر الحالية غالطة.");
+      }
+      if (code === "auth/too-many-requests") {
+        throw new Error("محاولات بزاف. استنى شوية وعاود.");
+      }
+      throw new Error("ما نجّمناش نتأكّدو منك. عاود دخول وجرّب.");
+    }
+    try {
+      await updatePassword(u, next);
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code === "auth/weak-password") throw new Error("كلمة السر ضعيفة بزاف.");
+      throw new Error("ما تبدّلاتش كلمة السر. جرّب مرة أخرى.");
+    }
+    await u.getIdToken(true);
+  }, []);
+
   const authFetch = useCallback(
     async (input: string, init: RequestInit = {}) => {
       const token = await auth.currentUser?.getIdToken();
@@ -178,9 +215,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendVerification,
       refreshVerified,
       sendReset,
+      changePassword,
       authFetch,
     }),
-    [user, rev, loading, signInEmail, signUpEmail, signInGoogle, signOut, sendVerification, refreshVerified, sendReset, authFetch]
+    [user, rev, loading, signInEmail, signUpEmail, signInGoogle, signOut, sendVerification, refreshVerified, sendReset, changePassword, authFetch]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

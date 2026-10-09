@@ -3,7 +3,6 @@ import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
   dialect: "postgresql",
-  schemaFilter: ["public", "barq"],
   schema: "./src/db/schema.ts",
   dbCredentials: {
     // Read from your environment — never a hard-coded local URL.

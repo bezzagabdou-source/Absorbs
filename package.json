@@ -9,7 +9,12 @@
     "typecheck": "tsc --noEmit",
     "preflight": "node scripts/preflight.mjs",
     "db:push": "drizzle-kit push",
-    "vercel-build": "next build"
+    "vercel-build": "next build",
+    "test:v11": "node scripts/v11-test.mjs",
+    "test:web": "node scripts/v13-web-test.mjs",
+    "test:ar": "node scripts/v14-arabic-test.mjs",
+    "test": "npm run test:v11 && npm run test:ar && npm run test:web",
+    "gen:vapid": "node scripts/gen-vapid.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -37,13 +42,14 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
+    "esbuild": "^0.25.12",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "postcss": "8.5.8",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
   },
-  "version": "10.0.0",
+  "version": "15.2.0",
   "engines": {
     "node": ">=20"
   }

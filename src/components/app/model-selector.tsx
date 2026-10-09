@@ -1,15 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Lock } from "lucide-react";
+/**
+ * Nexus AI v12 — the model picker.
+ *
+ * Exactly 16 models: 8 free, 8 Pro. No raw provider dump, no duplicates.
+ * Every row states what the model is for and how fast it is, so the choice is
+ * informed instead of a guess.
+ */
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Crown, Lock, Sparkles } from "lucide-react";
+import type { ModelOption, ModelSelection } from "@/lib/model-access";
 import {
-  MODEL_CATALOG,
-  PROVIDER_LABEL,
-  isProProvider,
-  type ModelOption,
-  type ModelSelection,
-  type ProviderId,
-} from "@/lib/model-access";
+  FREE_MODELS_V12,
+  PRO_MODELS_V12,
+  SPEED_META,
+  fromSelection,
+  saveModelKey,
+  toSelection,
+  type Model12,
+} from "@/lib/models-v12";
+import { cn } from "@/lib/utils";
 
 export interface OrModel {
   id: string;
@@ -17,31 +27,88 @@ export interface OrModel {
   free: boolean;
 }
 
-const ORDER: ProviderId[] = ["gemini", "huggingface", "grok", "openrouter"];
-
-function ProBadge() {
+function Bars({ m }: { m: Model12 }) {
+  const meta = SPEED_META[m.speed];
   return (
-    <span className="rounded-md bg-gradient-to-r from-amber-300 to-brand-400 px-1.5 py-[1px] text-[9px] font-black leading-4 tracking-wide text-ink-950">
-      PRO
+    <span
+      className="v12-bars flex-none"
+      data-on={meta.bars}
+      style={{ color: meta.tone }}
+      title={`${meta.label} — ${meta.note}`}
+    >
+      <i />
+      <i />
+      <i />
+      <i />
     </span>
   );
 }
 
-/**
- * Model dropdown for the chat composer.
- * Free accounts see a PRO badge next to Grok and OpenRouter; tapping one calls onLocked (upgrade modal).
- */
+function Row({
+  m,
+  active,
+  locked,
+  onPick,
+}: {
+  m: Model12;
+  active: boolean;
+  locked: boolean;
+  onPick: () => void;
+}) {
+  const meta = SPEED_META[m.speed];
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      className={cn(
+        "flex w-full items-start gap-3 px-3.5 py-2.5 text-start transition",
+        active ? "bg-brand-500/12" : "hover:bg-black/[0.04]",
+        locked && "opacity-60"
+      )}
+    >
+      <span className="mt-0.5 flex-none">
+        {active ? (
+          <Check className="h-4 w-4 text-[var(--v12-accent-2)]" />
+        ) : locked ? (
+          <Lock className="h-4 w-4 text-[var(--v12-faint)]" />
+        ) : (
+          <span className="block h-4 w-4 rounded-full border border-black/20" />
+        )}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate text-[13.5px] font-semibold text-[var(--v12-text)]">
+            {m.label}
+          </span>
+          {m.flagship && <Sparkles className="h-3 w-3 flex-none text-[var(--v12-gold)]" />}
+        </span>
+        <span className="mt-0.5 block truncate text-[11.5px] leading-snug text-[var(--v12-faint)]">
+          {m.blurb}
+        </span>
+        <span className="mt-1 flex flex-wrap items-center gap-1">
+          <span className="text-[10px] font-medium" style={{ color: meta.tone }}>
+            {meta.label}
+          </span>
+          <span className="text-[10px] text-[var(--v12-faint)]">· {m.ctxK}k سياق</span>
+        </span>
+      </span>
+
+      <Bars m={m} />
+    </button>
+  );
+}
+
 export function ModelSelector({
   value,
   isPro,
-  orModels,
   onChange,
   onLocked,
 }: {
   value: ModelSelection;
   isPro: boolean;
-  /** full OpenRouter catalog (Pro only, loaded by the chat screen) */
-  orModels: OrModel[];
+  /** kept for call-site compatibility — v12 no longer shows the raw catalog */
+  orModels?: OrModel[];
   onChange: (s: ModelSelection) => void;
   onLocked: (o: ModelOption) => void;
 }) {
@@ -62,107 +129,79 @@ export function ModelSelector({
     };
   }, [open]);
 
-  const curated = useMemo(() => new Set(MODEL_CATALOG.map((m) => `${m.provider}:${m.id}`)), []);
-  const extra = useMemo(
-    () => (isPro ? orModels.filter((m) => !curated.has(`openrouter:${m.id}`)) : []),
-    [isPro, orModels, curated]
-  );
+  const current = fromSelection(value) ?? FREE_MODELS_V12[0];
 
-  const current =
-    MODEL_CATALOG.find((m) => m.provider === value.provider && m.id === (value.model ?? "auto")) ??
-    (value.provider === "openrouter" && value.model
-      ? { provider: "openrouter" as const, id: value.model, label: orModels.find((m) => m.id === value.model)?.name ?? value.model }
-      : MODEL_CATALOG[0]);
-
-  const pick = (o: ModelOption) => {
-    if (!isPro && isProProvider(o.provider)) {
-      setOpen(false);
-      onLocked(o);
+  const pick = (m: Model12) => {
+    if (m.plan === "pro" && !isPro) {
+      onLocked({ provider: m.provider, id: m.model, label: m.label, hint: m.blurb });
       return;
     }
-    onChange({ provider: o.provider, model: o.id });
+    saveModelKey(m.key);
+    onChange(toSelection(m));
     setOpen(false);
   };
 
-  const isActive = (o: { provider: ProviderId; id: string }) =>
-    value.provider === o.provider && (value.model ?? "auto") === o.id;
-
   return (
-    <div ref={box} className="relative shrink-0" dir="ltr">
+    <div ref={box} className="relative min-w-0 shrink">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label="AI model"
-        title="AI model"
-        className="flex h-8 max-w-[132px] items-center gap-1 rounded-full border border-white/12 px-2.5 text-[11px] font-bold text-slate-300 outline-none transition hover:bg-white/8 focus-visible:border-aqua-300"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-auto min-w-0 max-w-[88px] shrink items-center gap-1.5 rounded-full sm:max-w-[150px] lg:max-w-[210px] border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[12.5px] font-medium text-[var(--v12-text)] transition hover:bg-white/[0.09]"
       >
-        <span className="truncate">{current.label}</span>
-        <ChevronDown className={`h-3 w-3 shrink-0 transition ${open ? "rotate-180" : ""}`} />
+        <Bars m={current} />
+        <span className="hidden truncate xs:inline sm:inline">{current.label}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 flex-none transition", open && "rotate-180")} />
       </button>
 
       {open && (
+        <>
+          {/* full-screen layer: the sheet can never be clipped by a scrolling parent again */}
+          <button
+            type="button"
+            aria-label="إغلاق"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-[998] cursor-default bg-slate-950/25 backdrop-blur-[2px]"
+          />
         <div
-          role="listbox"
-          className="absolute bottom-full start-0 z-50 mb-2 max-h-[min(70vh,26rem)] w-72 overflow-y-auto rounded-2xl border border-white/12 bg-ink-900 p-1.5 shadow-2xl shadow-black/50"
+          role="dialog"
+          aria-label="اختيار النموذج"
+          className="v12-card v12-in fixed inset-x-3 bottom-3 z-[999] mx-auto max-h-[70dvh] w-auto max-w-[420px] overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)] sm:absolute sm:inset-x-auto sm:bottom-full sm:mb-2 sm:w-[340px] sm:start-0"
         >
-          {ORDER.map((p) => {
-            const items = MODEL_CATALOG.filter((m) => m.provider === p);
-            const locked = !isPro && isProProvider(p);
-            return (
-              <div key={p} className="py-1">
-                <div className="flex items-center gap-2 px-2.5 pb-1 pt-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  <span>{PROVIDER_LABEL[p]}</span>
-                  {locked && <ProBadge />}
-                </div>
-                {items.map((m) => (
-                  <button
-                    key={`${m.provider}:${m.id}`}
-                    type="button"
-                    role="option"
-                    aria-selected={isActive(m)}
-                    onClick={() => pick(m)}
-                    className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-start text-[13px] transition hover:bg-white/8 ${
-                      isActive(m) ? "bg-white/8 text-slate-50" : "text-slate-300"
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1 truncate font-bold">{m.label}</span>
-                    {m.hint && <span className="shrink-0 text-[10px] text-slate-500">{m.hint}</span>}
-                    {locked ? <Lock className="h-3.5 w-3.5 shrink-0 text-amber-300" /> : isActive(m) ? <Check className="h-3.5 w-3.5 shrink-0 text-brand-300" /> : null}
-                  </button>
-                ))}
-                {p === "openrouter" && extra.length > 0 && (
-                  <details className="mt-0.5">
-                    <summary className="cursor-pointer list-none rounded-xl px-2.5 py-2 text-[12px] font-bold text-aqua-300 hover:bg-white/8">
-                      All OpenRouter models ({extra.length})
-                    </summary>
-                    <div className="max-h-56 overflow-y-auto">
-                      {extra.map((m) => {
-                        const o = { provider: "openrouter" as const, id: m.id, label: m.name };
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            role="option"
-                            aria-selected={isActive(o)}
-                            onClick={() => pick(o)}
-                            className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-[12px] hover:bg-white/8 ${
-                              isActive(o) ? "text-slate-50" : "text-slate-400"
-                            }`}
-                          >
-                            <span className="min-w-0 flex-1 truncate">{m.name}</span>
-                            {m.free && <span className="text-[10px] text-emerald-300">free</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </details>
-                )}
-              </div>
-            );
-          })}
+          <div className="sticky top-0 z-10 bg-[var(--v12-sheet)] px-3.5 py-2.5 backdrop-blur">
+            <p className="text-[11px] font-bold tracking-wide text-[var(--v12-faint)]">
+              مجاني — {FREE_MODELS_V12.length} نماذج
+            </p>
+          </div>
+          {FREE_MODELS_V12.map((m) => (
+            <Row
+              key={m.key}
+              m={m}
+              active={m.key === current.key}
+              locked={false}
+              onPick={() => pick(m)}
+            />
+          ))}
+
+          <div className="sticky top-0 z-10 flex items-center gap-1.5 bg-[var(--v12-sheet)] px-3.5 py-2.5 backdrop-blur">
+            <Crown className="h-3 w-3 text-[var(--v12-gold)]" />
+            <p className="text-[11px] font-bold tracking-wide text-[var(--v12-faint)]">
+              Pro — {PRO_MODELS_V12.length} نماذج
+            </p>
+            {!isPro && (
+              <span className="v12-chip v12-chip-pro ms-auto !px-2 !py-0.5 !text-[9.5px]">مقفولة</span>
+            )}
+          </div>
+          {PRO_MODELS_V12.map((m) => (
+            <Row
+              key={m.key}
+              m={m}
+              active={m.key === current.key}
+              locked={!isPro}
+              onPick={() => pick(m)}
+            />
+          ))}
         </div>
+        </>
       )}
     </div>
   );

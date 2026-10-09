@@ -918,7 +918,7 @@ export function isBuildRequest(text: string): boolean {
   const noun =
     /(لعب[ةه]|العاب|ألعاب|\bgame|موقع|مواقع|\bsite\b|website|web ?app|landing|صفح[ةه] (هبوط|ويب)|تطبيق|\bapp\b|dashboard|لوح[ةه] (تحكم|قيادة)|متجر|\bstore\b|portfolio|بوت|\bbot\b|extension|إضاف[ةه]|html|نظام|system)/i;
   const verb =
-    /(اصنع|اصنعلي|صنع|اعمل|سو[يّ]|صمم|برمج|ابن[يِ]|انشئ|أنشئ|طور|create|build|make|develop|design|generate|بغيت|ابغى|أبغى|أريد|اريد|نحب|حاب|حبيت)/i;
+    /(اصنع|اصنعلي|صنع|اعمل|سو[يّ]|صمم|برمج|ابن[يِ]|انشئ|أنشئ|طور|create|build|make|develop|design|generate|بغيت|ابغى|أبغى|أريد|اريد|نحب|حاب|حبيت|دير(لي)?|ندير|درلي|ديرولي|سوي|سولي|اصنعها|برمجلي)/i;
   const codeWrite = /(اكتب|write|اعطني|أعطني|عطيني).{0,40}(كود|code|script|سكريبت|سكربت|برنامج|program)/i;
   return (noun.test(t) && verb.test(t)) || codeWrite.test(t);
 }

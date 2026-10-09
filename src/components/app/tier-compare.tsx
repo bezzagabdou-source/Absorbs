@@ -1,26 +1,38 @@
-import { Crown } from "lucide-react";
+import { Crown, Sparkles, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TierRow {
-  id: "v8";
+  id: "v6" | "v8";
   name: string;
   tagline: string;
-  icon: typeof Crown;
+  icon: typeof Zap;
   facts: string[];
 }
 
 /** What each level really does (every line matches the server code: token limits, engines, image variants). */
 const ROWS: readonly TierRow[] = [
   {
+    id: "v6",
+    name: "Nexus 6",
+    tagline: "المجاني السريع",
+    icon: Sparkles,
+    facts: [
+      "رد فوري لكل الاستعمال اليومي",
+      "ترجمة، كتابة، دراسة، تلخيص وتحليل",
+      "رفع الصور والملفات والمكالمة الصوتية",
+      "توليد صور بالعربية بنص واضح",
+    ],
+  },
+  {
     id: "v8",
-    name: "Nexus 8 Pro",
-    tagline: "نموذج واحد، سريع وقوي",
+    name: "Nexus 8 PRO",
+    tagline: "الأقوى — فريق ذكاء اصطناعي",
     icon: Crown,
     facts: [
-      "رد سريع جدًا من أول سطر",
-      "يصنع ألعاب 2D/3D بخلفيات ملوّنة وغنية وأعداء ومراحل وزعماء",
-      "يكتب مواقع وأكواد قوية ويفحصها ويصلحها تلقائيًا",
-      "يفهم الدارجة الجزائرية ويصنع الصور كما طلبتها بالضبط",
+      "أسرع رد ممكن: أول حرف في أقل من ثانية",
+      "أكواد وألعاب ضخمة بدون توقف (ماراثون حتى ساعة)",
+      "شخصيات: مبرمج، كاتب، معلّم، محلل",
+      "استوديو صور ونصوص عربية بدقة عالية + معاينة حيّة",
     ],
   },
 ];
@@ -30,7 +42,7 @@ export function TierCompare({ className }: { className?: string }) {
     <section aria-label="مقارنة النماذج" className={cn("grid gap-3 sm:grid-cols-2", className)}>
       {ROWS.map((r) => {
         const Icon = r.icon;
-        const top = true;
+        const top = r.id === "v8";
         return (
           <article
             key={r.id}
@@ -40,7 +52,7 @@ export function TierCompare({ className }: { className?: string }) {
             )}
           >
             <header className="flex items-center gap-3">
-              <span className={cn("grid h-10 w-10 place-items-center rounded-xl", top ? "bg-brand-500 text-white" : "bg-ink-800 text-brand-300")}>
+              <span className={cn("grid h-10 w-10 place-items-center rounded-xl", top ? "bg-brand-500 text-[#fff]" : "bg-ink-800 text-brand-300")}>
                 <Icon className="h-5 w-5" aria-hidden />
               </span>
               <div>

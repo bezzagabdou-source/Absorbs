@@ -1,38 +1,38 @@
-/** Theme helpers: "dark" (Claude warm dark, default) and "orange-claude" (light peach). */
-export type ThemeId = "dark" | "orange-claude";
-export const THEME_KEY = "nexus_theme_v3";
-const META_COLOR: Record<ThemeId, string> = { dark: "#181816", "orange-claude": "#fffaf5" };
+/**
+ * Nexus AI v15 — "Lumen" is the one and only look: a luxurious, airy light theme.
+ *
+ * The dark theme was removed on purpose (product decision): one polished surface
+ * beats two half-polished ones. These helpers stay so every old import keeps
+ * compiling, they simply always resolve to Lumen.
+ */
+export type ThemeId = "lumen";
+export const THEME_KEY = "nexus_theme_v4";
+const META_COLOR = "#f7f8fc";
 
 export function readTheme(): ThemeId {
-  try {
-    // warm dark is the default look; the light theme is an explicit opt-in
-    return localStorage.getItem(THEME_KEY) === "orange-claude" ? "orange-claude" : "dark";
-  } catch {
-    return "dark";
-  }
+  return "lumen";
 }
 
-export function applyTheme(theme: ThemeId, persist = true): void {
+export function applyTheme(_theme: ThemeId = "lumen", persist = true): void {
   const root = document.documentElement;
-  if (theme === "orange-claude") root.setAttribute("data-theme", "orange-claude");
-  else root.removeAttribute("data-theme");
-  document.body.classList.toggle("bg-orange-animated", theme === "orange-claude");
+  root.setAttribute("data-theme", "lumen");
+  root.classList.remove("dark");
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement("meta");
     meta.name = "theme-color";
     document.head.appendChild(meta);
   }
-  meta.content = META_COLOR[theme];
+  meta.content = META_COLOR;
   if (persist) {
     try {
-      localStorage.setItem(THEME_KEY, theme);
+      localStorage.setItem(THEME_KEY, "lumen");
     } catch {
       /* private mode */
     }
   }
-  window.dispatchEvent(new CustomEvent("barq:theme", { detail: theme }));
+  window.dispatchEvent(new CustomEvent("barq:theme", { detail: "lumen" }));
 }
 
-/** Runs before first paint (inlined in <head>) so there is no flash of the wrong theme. */
-export const THEME_BOOT_SCRIPT = `try{if(localStorage.getItem('${THEME_KEY}')==='orange-claude'){document.documentElement.setAttribute('data-theme','orange-claude');document.addEventListener('DOMContentLoaded',function(){document.body.classList.add('bg-orange-animated');var m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content','${META_COLOR["orange-claude"]}')})}}catch(e){}`;
+/** Runs before first paint (inlined in <head>) so there is never a flash. */
+export const THEME_BOOT_SCRIPT = `try{document.documentElement.setAttribute('data-theme','lumen');document.documentElement.classList.remove('dark');}catch(e){}`;

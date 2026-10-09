@@ -14,7 +14,7 @@ const CREATE = [
   { id: "ui-designer", label: "واجهة تطبيق", Icon: Smartphone },
   { id: "wallpaper-designer", label: "خلفية متحركة", Icon: Palette },
   { id: "logo-designer", label: "شعار", Icon: PenTool },
-  { id: "game-builder", label: "لعبة", Icon: Gamepad2 },
+  { id: "game-builder", label: "لعبة 3D", Icon: Gamepad2 },
 ] as const;
 
 export default function StudioPage() {
@@ -89,21 +89,7 @@ export default function StudioPage() {
         )}
       </header>
 
-      <Link
-        href="/app/arcade"
-        className="gold-border group relative mb-6 flex min-w-0 items-center gap-4 overflow-hidden rounded-3xl p-5 transition active:scale-[0.99]"
-      >
-        <span className="pro-shine grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-gold-200 via-gold-400 to-gold-600 text-[#2a1700]">
-          <Gamepad2 className="h-7 w-7" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="gold-text block text-lg font-black">الأركيد: عاصفة Nexus</span>
-          <span className="mt-0.5 block text-xs leading-relaxed text-slate-300">
-            لعبة كاملة بمراحل وزعماء وقوى خاصة. العبها الآن وحطّم رقمك القياسي.
-          </span>
-        </span>
-        <ChevronLeft className="h-5 w-5 shrink-0 text-gold-300 transition group-hover:-translate-x-1" />
-      </Link>
+      
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2">
         <Link href="/app/studio/video" className="neo-panel group flex items-center gap-4 rounded-3xl p-5 transition active:scale-[0.99]">
