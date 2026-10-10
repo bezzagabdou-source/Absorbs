@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -24,6 +25,9 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   getAdditionalUserInfo,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  type ConfirmationResult,
   type User,
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
@@ -44,6 +48,12 @@ type AuthContextValue = {
   changePassword: (current: string, next: string) => Promise<void>;
   /** fetch() wrapper that attaches a fresh Firebase ID token */
   authFetch: (input: string, init?: RequestInit) => Promise<Response>;
+  /** v18: sends an SMS code. `containerId` = id of an empty div used by the invisible reCAPTCHA */
+  startPhoneSignIn: (e164: string, containerId: string) => Promise<ConfirmationResult>;
+  /** v18: checks the SMS code and signs the user in */
+  confirmPhoneCode: (confirmation: ConfirmationResult, code: string) => Promise<void>;
+  /** v18: drops the reCAPTCHA widget (call when leaving the phone step) */
+  resetPhoneVerifier: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -78,6 +88,10 @@ function isEmbeddedBrowser(): boolean {
   return /FBAN|FBAV|FB_IAB|Instagram|TikTok|musical_ly|Line\/|Snapchat|; wv\)|MicroMessenger/i.test(navigator.userAgent);
 }
 
+/**
+ * Records the profile + login event on the server. Callers do NOT await it: the user is
+ * already signed in on the client, so the app opens immediately and the sync finishes in the background.
+ */
 async function syncUser(u: User, event?: "login" | "signup", provider?: string) {
   try {
     const token = await u.getIdToken();
@@ -143,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInEmail = useCallback(async (email: string, password: string) => {
     const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
-    await syncUser(cred.user, "login", "password");
+    void syncUser(cred.user, "login", "password");
   }, []);
 
   const signUpEmail = useCallback(
@@ -156,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // a real verification e-mail (non-blocking: the account works immediately)
       mailWithFallback((s) => sendEmailVerification(cred.user, s)).catch(() => undefined);
-      await syncUser(cred.user, "signup", "password");
+      void syncUser(cred.user, "signup", "password");
     },
     []
   );
@@ -167,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       const isNew = getAdditionalUserInfo(cred)?.isNewUser === true;
-      await syncUser(cred.user, isNew ? "signup" : "login", "google");
+      void syncUser(cred.user, isNew ? "signup" : "login", "google");
     } catch (e) {
       const code = (e as { code?: string }).code ?? "";
       // popup blocked / unsupported (iOS Safari, PWA, strict browsers): full-page redirect always works
@@ -178,6 +192,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw e;
     }
   }, []);
+
+  /* v18 — phone sign-in (SMS code). Needs the Phone provider enabled in Firebase Authentication. */
+  const verifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  const resetPhoneVerifier = useCallback(() => {
+    try {
+      verifierRef.current?.clear();
+    } catch {
+      /* already cleared */
+    }
+    verifierRef.current = null;
+  }, []);
+
+  const startPhoneSignIn = useCallback(
+    async (e164: string, containerId: string) => {
+      if (!verifierRef.current) {
+        verifierRef.current = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
+        await verifierRef.current.render();
+      }
+      try {
+        return await signInWithPhoneNumber(auth, e164, verifierRef.current);
+      } catch (e) {
+        // a failed reCAPTCHA must be rebuilt, otherwise every retry fails with the same error
+        resetPhoneVerifier();
+        throw e;
+      }
+    },
+    [resetPhoneVerifier]
+  );
+
+  const confirmPhoneCode = useCallback(async (confirmation: ConfirmationResult, code: string) => {
+    const cred = await confirmation.confirm(code.trim());
+    const isNew = getAdditionalUserInfo(cred)?.isNewUser === true;
+    void syncUser(cred.user, isNew ? "signup" : "login", "phone");
+    resetPhoneVerifier();
+  }, [resetPhoneVerifier]);
 
   const signOut = useCallback(async () => {
     await fbSignOut(auth);
@@ -263,8 +313,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sendReset,
       changePassword,
       authFetch,
+      startPhoneSignIn,
+      confirmPhoneCode,
+      resetPhoneVerifier,
     }),
-    [user, rev, loading, signInEmail, signUpEmail, signInGoogle, signOut, sendVerification, refreshVerified, sendReset, changePassword, authFetch]
+    [user, rev, loading, signInEmail, signUpEmail, signInGoogle, signOut, sendVerification, refreshVerified, sendReset, changePassword, authFetch, startPhoneSignIn, confirmPhoneCode, resetPhoneVerifier]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -304,6 +357,15 @@ export function authErrorKey(code: string): string {
       return "other";
     case "auth/too-many-requests":
       return "tooMany";
+    case "auth/invalid-phone-number":
+      return "badPhone";
+    case "auth/invalid-verification-code":
+    case "auth/code-expired":
+    case "auth/missing-verification-code":
+      return "badCode";
+    case "auth/captcha-check-failed":
+    case "auth/missing-client-identifier":
+      return "captcha";
     default:
       return "generic";
   }

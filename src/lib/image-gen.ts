@@ -252,11 +252,29 @@ async function viaGemini(model: string, key: string, prompt: string, timeoutMs: 
   }
 }
 
-async function viaHuggingFace(token: string, prompt: string, aspect: ImageAspect, timeoutMs: number): Promise<RawImage> {
+/**
+ * Hugging Face image engines, in order. Qwen-Image (strong prompt-following and text rendering)
+ * leads the quality tiers; FLUX.1-schnell is the fast one. HF_IMAGE_MODEL puts any model first.
+ */
+export function huggingFaceImageModels(fast: boolean): string[] {
+  const custom = (process.env.HF_IMAGE_MODEL ?? "").trim();
+  const base = fast
+    ? ["black-forest-labs/FLUX.1-schnell", "Qwen/Qwen-Image"]
+    : ["Qwen/Qwen-Image", "black-forest-labs/FLUX.1-schnell"];
+  return Array.from(new Set([...(custom && /^[\w.\-]+\/[\w.\-]+$/.test(custom) ? [custom] : []), ...base]));
+}
+
+async function viaHuggingFace(
+  token: string,
+  prompt: string,
+  aspect: ImageAspect,
+  timeoutMs: number,
+  model = "black-forest-labs/FLUX.1-schnell"
+): Promise<RawImage> {
   const { w, h } = DIMENSIONS[aspect];
   const t = withTimeout(timeoutMs);
   try {
-    const res = await fetch("https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell", {
+    const res = await fetch(`https://router.huggingface.co/hf-inference/models/${model}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "image/png" },
       body: JSON.stringify({ inputs: prompt, parameters: { width: w, height: h } }),
@@ -445,11 +463,15 @@ export async function generateImage(opts: {
   }
   // engines below cannot read a reference picture: with one attached, fail honestly instead of ignoring it
   if (opts.reference) throw new ImageError(gem ? "FAILED" : "NO_PROVIDER", lastError);
-  if (hf && Date.now() < deadline - 8_000) {
-    try {
-      return await finish(await viaHuggingFace(hf.value, await getFluxPrompt(), opts.aspect, perTry), "flux-schnell");
-    } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
+  if (hf) {
+    for (const model of huggingFaceImageModels(fast)) {
+      if (Date.now() > deadline - 8_000) break;
+      try {
+        const label = model.split("/").pop() ?? model;
+        return await finish(await viaHuggingFace(hf.value, await getFluxPrompt(), opts.aspect, perTry, model), `hf:${label}`);
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : String(e);
+      }
     }
   }
   if (Date.now() < deadline - 8_000) {

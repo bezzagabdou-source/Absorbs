@@ -391,6 +391,8 @@ const BUILD_STEPS = [
   "يجهّز المعاينة",
 ];
 
+const SIGNAL_BARS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] as const;
+
 function BuildThinking({ info, flavor = "web" }: { info: CodeInfo | null; flavor?: BuildFlavor }) {
   const steps = flavor === "web" ? BUILD_STEPS : FLAVOR_STEPS[flavor];
   const [i, setI] = useState(0);
@@ -434,10 +436,12 @@ function BuildThinking({ info, flavor = "web" }: { info: CodeInfo | null; flavor
         </span>
       </div>
 
-      <div className="nx-track mt-3.5" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-        <div className="nx-fill" style={{ width: `${pct}%` }}>
-          <span className="nx-fill-glow" />
-        </div>
+      {/* v18: the straight progress line is replaced by a live signal meter (bars + %) */}
+      <div className="nx-signal mt-3.5" role="progressbar" aria-label="progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        {SIGNAL_BARS.map((d) => (
+          <i key={d} style={{ animationDelay: `${d}s` }} />
+        ))}
+        <span className="nx-signal-pct" dir="ltr">{pct}%</span>
       </div>
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-black text-slate-400">

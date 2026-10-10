@@ -140,9 +140,21 @@ const FREE: readonly Model12[] = [
 ];
 
 /* ------------------------------------------------------------------ *
- * PRO — 8 models (xAI + OpenRouter)
+ * PRO — xAI + OpenRouter + OpenAI (GPT-6 Astra)
  * ------------------------------------------------------------------ */
 const PRO: readonly Model12[] = [
+  {
+    key: "gpt-astra",
+    label: "GPT-6 Astra",
+    blurb: "أحدث نموذج من OpenAI — استدلال عميق وكود قوي وأدوات متعددة.",
+    provider: "openai",
+    model: "gpt-6-astra",
+    plan: "pro",
+    speed: "balanced",
+    flagship: true,
+    strengths: ["استدلال", "كود", "وكلاء وأدوات"],
+    ctxK: 256,
+  },
   {
     key: "auto",
     label: "التوجيه الذكي",

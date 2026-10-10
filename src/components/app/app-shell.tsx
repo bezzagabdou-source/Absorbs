@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { applyMotionPref } from "@/lib/motion-pref";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronRight,
@@ -150,6 +151,9 @@ function FullLoader({ label }: { label: string }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { t, dir } = useI18n();
+  useEffect(() => {
+    applyMotionPref();
+  }, []);
   const { user, loading, signOut, authFetch } = useAuth();
   const router = useRouter();
   const pathname = usePathname();

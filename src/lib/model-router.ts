@@ -98,11 +98,42 @@ export async function streamSelectedModel(o: {
       return streamGrok(common);
     case "openrouter":
       return streamOpenRouter(common);
+    case "openai":
+      return streamAstra(common);
     case "huggingface":
       return streamHuggingFace(common);
     default:
       throw new Error("gemini is handled by the chat route");
   }
+}
+
+/** Default id of GPT-6 Astra on the OpenAI API. Override with OPENAI_ASTRA_MODEL if OpenAI renames it. */
+export const ASTRA_DEFAULT_MODEL = "gpt-6-astra";
+const ASTRA_ID_RE = /^gpt-[\w.\-]{1,40}$/;
+
+/**
+ * GPT-6 Astra: direct OpenAI key first (fallback chain: astra → gpt-4o-mini → gpt-4o inside
+ * streamOpenAIDirect); without an OpenAI key the same request goes through OpenRouter's GPT-4o.
+ */
+async function streamAstra(o: {
+  model?: string;
+  system: string;
+  messages: ChatTurn[];
+  maxTokens: number;
+  signal?: AbortSignal;
+  onModel: (model: string) => void;
+  onDone: (full: string) => void | Promise<void>;
+}): Promise<ReadableStream<string>> {
+  const requested = o.model && ASTRA_ID_RE.test(o.model) ? o.model : envModel("OPENAI_ASTRA_MODEL", ASTRA_DEFAULT_MODEL);
+  if (getOpenAiKey()) {
+    try {
+      return await streamOpenAIDirect({ ...o, model: requested });
+    } catch (e) {
+      if (!getOpenRouterKey()) throw e;
+      console.error("[astra] direct OpenAI failed, trying OpenRouter:", e instanceof Error ? e.message : String(e));
+    }
+  }
+  return streamOpenRouter({ ...o, model: envModel("OPENROUTER_OPENAI_MODEL", "openai/gpt-4o") });
 }
 
 /* ════════════════════════ 2 · CONTENT-KIND DETECTION ════════════════════════ */
