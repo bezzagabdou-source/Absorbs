@@ -37,34 +37,48 @@ type AnalyticsApi = typeof import("firebase/analytics");
 let analyticsMod: AnalyticsApi | null = null;
 let analyticsInst: import("firebase/analytics").Analytics | null = null;
 
+/**
+ * v18: App Check, Analytics and Performance are NOT needed to sign in. They used to start on
+ * the first paint and compete with the auth handshake. They now start when the browser is idle.
+ */
+function whenIdle(fn: () => void) {
+  if (typeof window === "undefined") return;
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number })
+    .requestIdleCallback;
+  if (ric) ric(fn, { timeout: 4000 });
+  else window.setTimeout(fn, 2000);
+}
+
 if (typeof window !== "undefined") {
-  // 1) App Check (anti-abuse for Firebase calls): only when a reCAPTCHA v3 site key is configured
-  const siteKey = (process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_KEY ?? "").trim();
-  if (siteKey) {
-    import("firebase/app-check")
-      .then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
-        initializeAppCheck(app, { provider: new ReCaptchaV3Provider(siteKey), isTokenAutoRefreshEnabled: true });
+  whenIdle(() => {
+    // 1) App Check (anti-abuse for Firebase calls): only when a reCAPTCHA v3 site key is configured
+    const siteKey = (process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_KEY ?? "").trim();
+    if (siteKey) {
+      import("firebase/app-check")
+        .then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
+          initializeAppCheck(app, { provider: new ReCaptchaV3Provider(siteKey), isTokenAutoRefreshEnabled: true });
+        })
+        .catch(() => undefined);
+    }
+
+    // 2) Analytics
+    import("firebase/analytics")
+      .then((mod) =>
+        mod.isSupported().then((ok) => {
+          if (!ok) return;
+          analyticsMod = mod;
+          analyticsInst = mod.getAnalytics(app);
+        })
+      )
+      .catch(() => undefined);
+
+    // 3) Performance Monitoring (page load, network timing)
+    import("firebase/performance")
+      .then(({ getPerformance }) => {
+        getPerformance(app);
       })
       .catch(() => undefined);
-  }
-
-  // 2) Analytics
-  import("firebase/analytics")
-    .then((mod) =>
-      mod.isSupported().then((ok) => {
-        if (!ok) return;
-        analyticsMod = mod;
-        analyticsInst = mod.getAnalytics(app);
-      })
-    )
-    .catch(() => undefined);
-
-  // 3) Performance Monitoring (page load, network timing)
-  import("firebase/performance")
-    .then(({ getPerformance }) => {
-      getPerformance(app);
-    })
-    .catch(() => undefined);
+  });
 }
 
 /** Sends a custom Analytics event (no personal data, no prompts). Safe to call anywhere. */

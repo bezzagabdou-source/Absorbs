@@ -196,9 +196,16 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   };
 
   return (
-    <div className="relative grid min-h-[var(--app-h,100dvh)] lg:grid-cols-2" dir={dir}>
-      {/* brand panel */}
-      <div className="lattice relative hidden overflow-hidden bg-brand-700 lg:flex lg:flex-col lg:justify-between lg:p-12">
+    <div className="auth-stage relative grid min-h-[var(--app-h,100dvh)] lg:grid-cols-2" dir={dir}>
+      {/* brand panel: v18 "Nexus Gate" */}
+      <div className="relative hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
+        <span className="auth-orb -start-24 -top-24 h-[30rem] w-[30rem] bg-[#d97757]" aria-hidden />
+        <span
+          className="auth-orb -bottom-24 end-[-4rem] h-[24rem] w-[24rem] bg-[#d4bf98]"
+          style={{ animationDelay: "-7s" }}
+          aria-hidden
+        />
+
         <div className="relative flex items-center justify-between">
           <Link href="/">
             <Logo size={40} />
@@ -207,14 +214,17 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
         </div>
 
         <div className="relative">
+          <span className="auth-chip">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#f0b49f]" />
+            v18
+          </span>
           <motion.h2
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.1 }}
-            className="text-5xl font-bold leading-tight text-white"
+            className="auth-hero-title mt-6 text-5xl font-black leading-[1.15]"
           >
-            {t.auth.brandLine}
-            .
+            {t.auth.brandLine}.
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 24 }}
@@ -224,18 +234,30 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
           >
             {t.auth.brandSub}
           </motion.p>
-          <motion.ul
+
+          <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
-            className="mt-8 space-y-3.5"
+            className="mt-8 max-w-md space-y-2.5 rounded-3xl bg-white/[0.03] p-4 ring-1 ring-white/10 backdrop-blur"
+            aria-hidden
+          >
+            <div className="auth-bubble auth-bubble-user">Nexus، شرحلي الفرق بين Claude وGPT-6 Astra بالدارجة</div>
+            <div className="auth-bubble auth-bubble-ai">
+              <span className="font-black text-[#f0b49f]">Nexus</span> — نعم، ها الفرق في سطرين… <span className="nx-dots"><i /><i /><i /></span>
+            </div>
+          </motion.div>
+
+          <motion.ul
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.4 }}
+            className="mt-6 flex flex-wrap gap-2"
           >
             {t.auth.brandPoints.map((p) => (
-              <li key={p} className="flex items-center gap-3 text-slate-200">
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/15">
-                  <BadgeCheck className="h-4 w-4 text-white" />
-                </span>
-                <span className="font-bold">{p}</span>
+              <li key={p} className="flex items-center gap-2 rounded-full bg-white/[0.05] px-3.5 py-2 text-sm font-bold text-slate-200 ring-1 ring-white/10">
+                <BadgeCheck className="h-4 w-4 text-[#f0b49f]" />
+                {p}
               </li>
             ))}
           </motion.ul>
@@ -266,6 +288,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
             initial={{ opacity: 0, y: 26 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            className="auth-card rounded-[28px] p-6 sm:p-9"
           >
             <Link
               href="/"

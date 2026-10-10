@@ -58,6 +58,9 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Set right before a Google redirect so the return trip knows to read the result. */
+const REDIRECT_FLAG = "nx_redirect_pending";
+
 /** Where the e-mail link brings the user back to. */
 function actionSettings() {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -142,8 +145,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Returning from a Google redirect (used on phones / when the popup is blocked)
+  // Returning from a Google redirect (used on phones / when the popup is blocked).
+  // v18: only runs when we actually started a redirect. Calling getRedirectResult() on every
+  // page load spins up Firebase's cross-domain auth iframe and slowed the first paint / sign-in.
   useEffect(() => {
+    let pending = false;
+    try {
+      pending = sessionStorage.getItem(REDIRECT_FLAG) === "1";
+      if (pending) sessionStorage.removeItem(REDIRECT_FLAG);
+    } catch {
+      /* private mode */
+    }
+    if (!pending) return;
     getRedirectResult(auth)
       .then((cred) => {
         if (!cred) return;
@@ -186,6 +199,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const code = (e as { code?: string }).code ?? "";
       // popup blocked / unsupported (iOS Safari, PWA, strict browsers): full-page redirect always works
       if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+        try {
+          sessionStorage.setItem(REDIRECT_FLAG, "1");
+        } catch {
+          /* private mode */
+        }
         await signInWithRedirect(auth, googleProvider);
         return;
       }
