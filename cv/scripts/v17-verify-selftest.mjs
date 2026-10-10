@@ -1,0 +1,18 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+const here = dirname(fileURLToPath(import.meta.url));
+const { verifyHtml, hardErrors, findHtmlBlock } = await import(join(here, ".v17-build", "html-verify.js"));
+const { repairBuild } = await import(join(here, ".v17-build", "build-verify.js"));
+let bad = 0;
+const ok = (c, m) => { if (!c) bad++; console.log(c ? "PASS" : "FAIL", m); };
+const wrap = (body) => "```html\n<!doctype html><html><body>" + body + "</body></html>\n```";
+const good = wrap('<canvas id="c"></canvas><button onclick="start()">go</button><script>\nfunction start(){ const c=document.getElementById("c"); c.width=10; }\n</script>');
+ok(hardErrors(verifyHtml(findHtmlBlock(good).code)).length === 0, "valid game has no errors");
+const syn = wrap("<script>\nconst a = 1;\nfunction f(){\n  if (a) {\n    draw(;\n  }\n}\n</script>");
+ok(hardErrors(verifyHtml(findHtmlBlock(syn).code)).length === 1, "syntax error found");
+ok(hardErrors(verifyHtml(findHtmlBlock(wrap("<script>\ndocument.getElementById('score').textContent = 0;\n</script>")).code)).length === 1, "missing id found");
+ok(hardErrors(verifyHtml(findHtmlBlock(wrap('<button onclick="shoot()">x</button><script>function other(){}</script>')).code)).length === 1, "dead button found");
+const fake = async () => JSON.stringify({ edits: [{ find: "    draw(;\n  }", replace: "    draw();\n  }" }] });
+const r = await repairBuild(syn, fake);
+ok(r && r.before === 1 && r.after === 0, "surgical repair fixes the syntax error");
+process.exit(bad ? 1 : 0);
