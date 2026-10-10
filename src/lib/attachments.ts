@@ -1,5 +1,6 @@
 /** Client-side preparation of chat attachments (Pro). Nothing here touches the network. */
 import { readZip, zipToPrompt } from "@/lib/zip";
+import { bundleProject, parseFenceFiles } from "@/lib/game-bundle";
 
 export type PendingFile = {
   id: number;
@@ -130,6 +131,14 @@ export const MAX_FILES = 4;
 
 /** Pulls the playable HTML out of an AI reply (the ```html block). */
 export function extractHtml(reply: string): string | null {
+  // multi-file build (```index.html + ```src/main.js …): bundle it into ONE document the sandbox can run
+  if (/```[^\n`]*\.[a-z0-9]+\n/i.test(reply)) {
+    const files = parseFenceFiles(reply);
+    if (files.some((f) => /\.html?$/i.test(f.path)) || files.filter((f) => /\.m?js$/i.test(f.path)).length >= 2) {
+      const bundled = bundleProject(files);
+      if (bundled) return bundled;
+    }
+  }
   const m = reply.match(/```html\s*\n([\s\S]*?)(?:```|$)/i);
   const code = m?.[1]?.trim();
   if (code && /<(canvas|body|script|div|html)/i.test(code)) return code;

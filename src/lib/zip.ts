@@ -209,7 +209,7 @@ const LANG_EXT: Record<string, string> = {
   yml: "yml", markdown: "md", md: "md", xml: "xml", svg: "svg", text: "txt", txt: "txt",
 };
 
-export type Block = { lang: string; info: string; code: string };
+export type Block = { lang: string; info: string; code: string; /** the whole fence line, original case */ raw?: string };
 
 export function codeBlocks(reply: string): Block[] {
   const out: Block[] = [];
@@ -217,7 +217,7 @@ export function codeBlocks(reply: string): Block[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(reply))) {
     const code = m[3].replace(/\n$/, "");
-    if (code.trim()) out.push({ lang: m[1].toLowerCase(), info: m[2] ?? "", code });
+    if (code.trim()) out.push({ lang: m[1].toLowerCase(), info: m[2] ?? "", code, raw: `${m[1]}${m[2] ?? ""}`.trim() });
     if (m[0].length === 0) re.lastIndex++;
   }
   return out;
@@ -245,6 +245,10 @@ export function splitHtml(html: string): ZipFile[] {
 }
 
 function nameHint(b: Block): string | null {
+  // ```src/engine.js  → the whole fence line is the path (the Forge contract)
+  const asPath = (b.raw ?? "").replace(/^[a-z]+:/i, "").replace(/^\.?\//, "");
+  if (/^[\w\-./]+\.[a-z0-9]{1,6}$/i.test(asPath) && asPath.includes("/")) return asPath;
+  if (/^[\w\-.]+\.[a-z0-9]{1,6}$/i.test(asPath) && !/^(?:c\+\+|c#)$/i.test(asPath)) return asPath;
   const fromInfo = /(?:title|file|filename|name)\s*=\s*["']?([\w./-]+\.\w{1,6})/i.exec(b.info)?.[1];
   if (fromInfo) return fromInfo;
   const first = b.code.split("\n", 1)[0] ?? "";

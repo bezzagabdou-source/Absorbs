@@ -217,10 +217,17 @@ HARD RULES
      <script type="module"> or broken path = failed delivery.
  10. After writing each file, verify its exports match what index.html
      imports.
- 11. Saving: src/save.js is part of the contract. It exposes
-     save(slot, data) / load(slot) using localStorage as the fallback and, when
-     the host page offers it, the Nexus saves API. Never crash if storage is
-     blocked (private mode, sandboxed iframe) — fall back to memory.
+ 11. Saving: src/save.js is part of the contract. It exposes save(slot, data) /
+     load(slot) and uses window.NexusDB when it exists (it stores in the player's
+     cloud database: NexusDB.save(slot, obj) / NexusDB.load(slot) both return a
+     Promise), otherwise localStorage inside try/catch, otherwise memory. Never
+     crash when storage is blocked and never await a save inside the frame loop.
+ 12. Module paths: every import is a relative path that matches a file of the
+     manifest exactly ("./engine.js", "../src/state.js"), with the .js extension.
+     No circular import may read an export at load time (only inside functions).
+ 13. index.html must contain exactly ONE entry: <script type="module" src="src/main.js">
+     (plus the importmap for three.js if used) and a visible loading screen, so
+     the first frame is never black.
 
 DO NOT stop to ask whether to continue. DO NOT summarise what you are about to
 do. DO NOT write a plan paragraph. Start with file 01 immediately.

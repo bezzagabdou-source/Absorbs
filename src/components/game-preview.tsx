@@ -24,6 +24,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { createZip, downloadBlob, splitHtml } from "@/lib/zip";
 import { usePro } from "@/lib/pro-i18n";
+import { NEXUS_DB_SHIM } from "@/lib/game-bundle";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,7 +32,7 @@ import { cn } from "@/lib/utils";
  * (cannot read the app's cookies / tokens) and a CSP that blocks all network.
  */
 const CSP =
-  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; worker-src blob: data:; child-src blob:; style-src \'unsafe-inline\'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src \'none\'">';
+  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; worker-src blob: data:; child-src blob:; style-src \'unsafe-inline\'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src \'none\'">';
 
 /**
  * RUNTIME GUARD — injected into every previewed document.
@@ -120,7 +121,7 @@ setTimeout(function(){
 })();</script>`;
 
 function withCsp(html: string): string {
-  const inject = CSP + GUARD;
+  const inject = CSP + GUARD + NEXUS_DB_SHIM;
   if (/<head[^>]*>/i.test(html)) return html.replace(/<head([^>]*)>/i, `<head$1>${inject}`);
   if (/<html[^>]*>/i.test(html)) return html.replace(/<html([^>]*)>/i, `<html$1><head>${inject}</head>`);
   return `<!DOCTYPE html><html><head>${inject}<meta charset="utf-8"></head><body>${html}</body></html>`;
@@ -146,10 +147,42 @@ function usePreviewErrors(): {
 } {
   const [error, setError] = useState<PreviewError>(null);
   const [retryTick, setRetryTick] = useState(0);
+  const { authFetch } = useAuth();
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      const d = e.data as { __nexus?: number; type?: string; kind?: string; message?: string } | null;
+      const d = e.data as { __nexus?: number; type?: string; kind?: string; message?: string; id?: number; op?: string; game?: string; slot?: string; data?: unknown } | null;
       if (!d || d.__nexus !== 1) return;
+      // NexusDB bridge: the sandboxed game cannot reach the network, the host saves for it (Postgres via /api/saves)
+      if (d.type === "db") {
+        const reply = (body: Record<string, unknown>) => {
+          try {
+            (e.source as Window | null)?.postMessage({ __nexus: 1, type: "db-reply", id: d.id, ...body }, "*");
+          } catch {
+            /* the frame is gone */
+          }
+        };
+        const game = encodeURIComponent(String(d.game ?? "game").slice(0, 64));
+        const slot = encodeURIComponent(String(d.slot ?? "auto").slice(0, 64));
+        void (async () => {
+          try {
+            if (d.op === "save") {
+              const r = await authFetch("/api/saves", { method: "POST", body: JSON.stringify({ game: d.game, slot: d.slot, data: d.data }) });
+              reply({ ok: r.ok });
+            } else if (d.op === "load") {
+              const r = await authFetch(`/api/saves?game=${game}&slot=${slot}`);
+              const j = r.ok ? ((await r.json()) as { save?: { data?: unknown } }) : null;
+              reply({ ok: !!j?.save, data: j?.save?.data ?? null });
+            } else if (d.op === "list") {
+              const r = await authFetch(`/api/saves?game=${game}`);
+              const j = r.ok ? ((await r.json()) as { saves?: unknown[] }) : null;
+              reply({ ok: !!j, data: j?.saves ?? [] });
+            } else reply({ ok: false });
+          } catch {
+            reply({ ok: false });
+          }
+        })();
+        return;
+      }
       if (d.type === "preview-error") {
         setError({ kind: d.kind ?? "error", message: d.message ?? "خطأ غير معروف" });
       } else if (d.type === "preview-retry") {
@@ -159,7 +192,7 @@ function usePreviewErrors(): {
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, []);
+  }, [authFetch]);
   return { error, retryTick, clear: () => setError(null) };
 }
 

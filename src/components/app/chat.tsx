@@ -84,6 +84,7 @@ import {
   type ForgeCheckpoint,
 } from "@/lib/game-forge";
 import { notifyBuildDone } from "@/lib/notify";
+import { bundleProject, hardIssues, issuesToPrompt, latestProject, verifyProject, REPAIR_PREFIX } from "@/lib/game-bundle";
 const VoiceCall = dynamic(() => import("@/components/voice/voice-call").then((m) => m.VoiceCall), { ssr: false });
 import {
   codeLooksCut,
@@ -894,6 +895,8 @@ export function ChatPage() {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const autoRetryRef = useRef(0);
+  // automatic project repair rounds (max 2 per user request): the checker found a broken import / missing file
+  const repairRef = useRef(0);
   const silenceRef = useRef(0);
   const res0Ok = useRef(false);
   const sendRef = useRef<(t: string, retry?: boolean, base?: Msg[]) => Promise<void>>(async () => undefined);
@@ -1171,6 +1174,7 @@ export function ChatPage() {
       lastTextRef.current = text.trim();
       lastFilesRef.current = sendFiles;
       if (!retry) autoRetryRef.current = 0;
+      if (!text.startsWith(REPAIR_PREFIX)) repairRef.current = 0;
       openSeq.current += 1; // cancels any stale "waiting for the server" loop
       const mySeq = openSeq.current;
       stopSpeaking();
@@ -1452,14 +1456,28 @@ export function ChatPage() {
         // v15: only a REAL build opens the panel. Asking for a prompt, or for
         // an explanation that happens to quote some HTML, must stay as text.
         if (isPro && mine() && !codeLooksCut(acc) && !wantsPromptText(content)) {
-          const page = extractHtml(acc);
-          const isRealApp =
-            page &&
-            page.length > 1500 &&
-            /<(canvas|script|body)/i.test(page) &&
-            /<html|<!doctype/i.test(page); // a full document, not a snippet
-          if (isRealApp) {
-            setTimeout(() => setPreview(page), 350);
+          // multi-file project (Game Forge): check it, auto-repair what is broken, THEN open one bundled page
+          const proj = latestProject([...history.filter((h) => h.role === "assistant").map((h) => h.content), acc], { keepOpen: true });
+          if (proj.length >= 2 && proj.some((f) => /\.html?$/i.test(f.path))) {
+            const hard = hardIssues(verifyProject(proj));
+            if (hard.length > 0 && repairRef.current < 2) {
+              repairRef.current += 1;
+              const fix = issuesToPrompt(hard);
+              setTimeout(() => void sendRef.current(fix), 500);
+            } else {
+              const bundled = bundleProject(proj.filter((f) => !f.open));
+              if (bundled) setTimeout(() => setPreview(bundled), 350);
+            }
+          } else {
+            const page = extractHtml(acc);
+            const isRealApp =
+              page &&
+              page.length > 1500 &&
+              /<(canvas|script|body)/i.test(page) &&
+              /<html|<!doctype/i.test(page); // a full document, not a snippet
+            if (isRealApp) {
+              setTimeout(() => setPreview(page), 350);
+            }
           }
         }
         // live voice chat: read the answer aloud, then listen again

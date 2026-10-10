@@ -46,7 +46,7 @@ PART 1 — ZERO-CRASH ENGINEERING (a single runtime error = failed delivery)
   (on-screen buttons / swipe with dead-zone), all listeners removed on state
   changes; preventDefault on game keys and on touchmove over the canvas so
   the page NEVER scrolls/zooms mid-play.
-- Persistence: localStorage behind try/catch (sandbox may deny it).
+- Persistence: use window.NexusDB when present — NexusDB.save(slot, obj) / NexusDB.load(slot) return Promises and store in the player's cloud database — and ALWAYS fall back to localStorage behind try/catch (sandbox may deny it, a downloaded copy has no NexusDB). Never block the frame loop on a save.
 - Absolutely ZERO network: no remote images, fonts, audio, fetch, import —
   every sprite is drawn with canvas/SVG/CSS, every font is a system stack.
 

@@ -6,6 +6,7 @@
  * (/api/projects) by itself.
  */
 import { extractHtml } from "@/lib/attachments";
+import { fencesFromFiles, parseFenceFiles } from "@/lib/game-bundle";
 
 type AuthFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -114,18 +115,8 @@ async function pump(id: string, r: Response, base: string): Promise<string> {
 
 /** Parse ```path fences and keep ONLY the last version of each file, in order. */
 export function mergeBuildFiles(text: string): string {
-  const re = /```([^\n`]*)\n([\s\S]*?)```/g;
-  const order: string[] = [];
-  const files = new Map<string, string>();
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) {
-    const p = (m[1] || "").trim().replace(/^[a-z]+:/i, "");
-    if (!p || !/^[a-z0-9_\-\.\/]+\.[a-z0-9]+$/i.test(p)) continue;
-    if (!files.has(p)) order.push(p);
-    files.set(p, m[2] || "");
-  }
-  if (!order.length) return text;
-  return order.map((p) => "```" + p + "\n" + files.get(p) + "```").join("\n\n");
+  const files = parseFenceFiles(text);
+  return files.length ? fencesFromFiles(files) : text;
 }
 
 async function finish(
