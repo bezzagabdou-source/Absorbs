@@ -528,13 +528,17 @@ export async function POST(req: Request) {
     void awardXp(user.uid, "mind_read").catch(() => undefined);
   }
 
-  const memBlock =
-    mindBrief +
-    (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") +
-    // v19 RAG: semantically relevant long-term memory (vector recall, best-effort)
-    (isPro && credit.tracked ? await buildMemoryContext(user.uid, lastUser, { topK: 4, budget: 1200 }).catch(() => "") : "") +
-    (chatMode?.addon ?? "") +
-    schoolBlock;
+  // v18 speed: the two memory reads are independent, so they run together instead of one after the other.
+  // Both sit on the critical path before the first token, so this saves a full round-trip for Pro users.
+  const [longTermBlock, recalledBlock] =
+    isPro && credit.tracked
+      ? await Promise.all([
+          loadMemoryBlock(user.uid).catch(() => ""),
+          // v19 RAG: semantically relevant long-term memory (vector recall, best-effort)
+          buildMemoryContext(user.uid, lastUser, { topK: 4, budget: 1200 }).catch(() => ""),
+        ])
+      : ["", ""];
+  const memBlock = mindBrief + longTermBlock + recalledBlock + (chatMode?.addon ?? "") + schoolBlock;
   if (isPro && credit.tracked) {
     void rememberFrom(user.uid, lastUser);
     autoDistillAndStore(user.uid, lastUser); // passive vector-memory distillation

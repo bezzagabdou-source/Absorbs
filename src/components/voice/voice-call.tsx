@@ -118,7 +118,9 @@ const ORB_COLOR: Record<Phase, [number, number, number]> = {
 function Orb({ phase, energyRef }: { phase: Phase; energyRef: { current: number } }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<Phase>(phase);
-  phaseRef.current = phase;
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     const cv = ref.current;

@@ -548,13 +548,13 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
   const [fixedHtml, setFixedHtml] = useState<string | null>(null);
   const liveHtml = fixedHtml ?? html;
   const { error, retryTick, clear } = usePreviewErrors();
+  const [run, setRun] = useState(0);
   const fix = useAutoFix(liveHtml, (f) => {
     setFixedHtml(f);
     clear();
     setRun((n) => n + 1);
   });
   const doc = useMemo(() => withCsp(liveHtml), [liveHtml]);
-  const [run, setRun] = useState(0);
   const [view, setView] = useState<"preview" | "code">("preview");
   const [device, setDevice] = useState<"phone" | "tablet" | "desktop">("desktop");
   const [flash, setFlash] = useState("");
