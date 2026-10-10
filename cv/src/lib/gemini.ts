@@ -696,7 +696,7 @@ export async function streamGemini(opts: {
   /** never fall back to the other engines (used when the caller manages failover) */
   noFallback?: boolean;
   /** what kind of job this is: decides which engine leads and the fallback order */
-  task?: Task;
+  task?: any; // loose on purpose: accepts "build" | "repair" even if task-router types lag
   /** let the engines ranked above Gemini for this task (Claude by default) answer first; Gemini is the safety net */
   primaryFirst?: boolean;
   /** Nexus: force one free OpenRouter model (validated catalog id) before anything else */
