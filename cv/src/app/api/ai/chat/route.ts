@@ -32,7 +32,7 @@ import { inspectLinksBlock } from "@/lib/link-reader";
 import { academyBlockDeep, playbookKeyFor, needsDraftStrip } from "@/lib/nexus-academy";
 import { isGameRequest, planGame, forgeSystemBlock } from "@/lib/game-forge";
 import { isAnyGameRequest, GAME_MASTER } from "@/lib/game-master";
-import { MOBILE_GAME_SYSTEM, MOBILE_GAME_TARGET_BYTES, MOBILE_GAME_MAX_ROUNDS, MOBILE_GAME_MAX_TOKENS, BIG_GAME_ADDON, BIG_GAME_TARGET_BYTES, BIG_GAME_MAX_ROUNDS, BIG_GAME_MAX_TOKENS, isBigGameRequest, wantsInternet } from "@/lib/mobile-game";
+import { MOBILE_GAME_SYSTEM, MOBILE_GAME_TARGET_BYTES, MOBILE_GAME_MAX_ROUNDS, MOBILE_GAME_MAX_TOKENS, BIG_GAME_ADDON, BIG_GAME_TARGET_BYTES, BIG_GAME_MAX_ROUNDS, BIG_GAME_MAX_TOKENS, isBigGameRequest, wantsInternet } from "../../../../lib/mobile-game";
 import { withDraftFilter } from "@/lib/draft-filter";
 import { TITAN_MAX_BYTES, TITAN_TARGET_BYTES } from "@/lib/limits";
 import { resolveChatMode } from "@/lib/chat-modes";
