@@ -5,14 +5,14 @@
  *   Free: Gemini + Hugging Face (open models)
  *   Pro : everything above + Grok (xAI) + OpenRouter models
  */
-export type ProviderId = "gemini" | "huggingface" | "grok" | "openrouter";
+export type ProviderId = "gemini" | "huggingface" | "grok" | "openrouter" | "openai";
 export type PlanId = "free" | "pro";
 
 /** display order: Grok first, then OpenRouter, then Gemini, then open models */
-export const PROVIDERS: readonly ProviderId[] = ["grok", "openrouter", "gemini", "huggingface"];
+export const PROVIDERS: readonly ProviderId[] = ["openai", "grok", "openrouter", "gemini", "huggingface"];
 
 /** providers that need a Pro plan */
-export const PRO_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(["grok", "openrouter"]);
+export const PRO_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(["openai", "grok", "openrouter"]);
 
 export interface ModelOption {
   provider: ProviderId;
@@ -23,6 +23,7 @@ export interface ModelOption {
 }
 
 export const MODEL_CATALOG: readonly ModelOption[] = [
+  { provider: "openai", id: "gpt-6-astra", label: "GPT-6 Astra", hint: "OpenAI" },
   { provider: "grok", id: "grok-4", label: "Grok 4", hint: "xAI" },
   { provider: "grok", id: "grok-3", label: "Grok 3", hint: "xAI" },
   { provider: "grok", id: "grok-2-1212", label: "Grok 2", hint: "xAI" },
@@ -36,6 +37,7 @@ export const MODEL_CATALOG: readonly ModelOption[] = [
 ];
 
 export const PROVIDER_LABEL: Record<ProviderId, string> = {
+  openai: "GPT-6 Astra (OpenAI)",
   grok: "Grok (xAI)",
   openrouter: "OpenRouter — Pro models",
   gemini: "Gemini",

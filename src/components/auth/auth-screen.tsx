@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   User,
   LogIn,
+  Smartphone,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth, authErrorKey } from "@/lib/auth-context";
@@ -21,6 +22,8 @@ import { useI18n } from "@/lib/i18n";
 import { Logo } from "@/components/logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { cn } from "@/lib/utils";
+import { PHONE_COUNTRIES, toE164 } from "@/lib/phone";
+import type { ConfirmationResult } from "firebase/auth";
 
 function GoogleMark() {
   return (
@@ -47,7 +50,17 @@ function GoogleMark() {
 
 export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   const { t, dir } = useI18n();
-  const { user, loading, signInEmail, signUpEmail, signInGoogle, sendReset } = useAuth();
+  const {
+    user,
+    loading,
+    signInEmail,
+    signUpEmail,
+    signInGoogle,
+    sendReset,
+    startPhoneSignIn,
+    confirmPhoneCode,
+    resetPhoneVerifier,
+  } = useAuth();
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -59,6 +72,67 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const isSignup = mode === "signup";
+
+  /* v18 — phone (SMS) sign-in */
+  const [method, setMethod] = useState<"email" | "phone">("email");
+  const [country, setCountry] = useState(PHONE_COUNTRIES[0].code);
+  const [localPhone, setLocalPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+
+  const phoneError = (e: unknown): string => {
+    const k = authErrorKey((e as { code?: string }).code ?? "");
+    const dict = t.auth.errors as Record<string, string>;
+    return dict[k] ?? t.auth.errors.generic;
+  };
+
+  const sendCode = async () => {
+    setError(null);
+    const e164 = toE164(country, localPhone);
+    if (!e164) {
+      setError(t.auth.errors.badPhone);
+      return;
+    }
+    setPhoneBusy(true);
+    try {
+      const conf = await startPhoneSignIn(e164, "nx-recaptcha");
+      setConfirmation(conf);
+      setNotice(`${t.auth.phone.codeSent} ${e164}`);
+    } catch (e) {
+      setError(phoneError(e));
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
+  const verifyCode = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!confirmation) return;
+    setError(null);
+    setPhoneBusy(true);
+    try {
+      await confirmPhoneCode(confirmation, code);
+      router.replace("/app");
+    } catch (err) {
+      setError(phoneError(err));
+      setPhoneBusy(false);
+    }
+  };
+
+  const changeNumber = () => {
+    setConfirmation(null);
+    setCode("");
+    setNotice(null);
+    setError(null);
+    resetPhoneVerifier();
+  };
+
+  const switchMethod = (m: "email" | "phone") => {
+    setMethod(m);
+    setError(null);
+    setNotice(null);
+  };
 
   // already signed in (e.g. pressed "back" to this page): go straight to the app
   useEffect(() => {
@@ -232,6 +306,28 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
               <span className="h-px flex-1 bg-white/10" />
             </div>
 
+            {/* v18 — method switch */}
+            <div className="mt-6 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1" role="tablist">
+              {(["email", "phone"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={method === m}
+                  onClick={() => switchMethod(m)}
+                  className={cn(
+                    "flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-black transition",
+                    method === m ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : "text-slate-400 hover:text-slate-200"
+                  )}
+                >
+                  {m === "email" ? <Mail className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
+                  {m === "email" ? t.auth.phone.tabEmail : t.auth.phone.tabPhone}
+                </button>
+              ))}
+            </div>
+            <div className="mt-5" />
+
+            {method === "email" && (
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignup && (
                 <div className="relative">
@@ -358,6 +454,87 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
                 {isSignup ? t.auth.signupBtn : t.auth.loginBtn}
               </button>
             </form>
+            )}
+
+            {/* v18 — phone sign-in: a 6-digit SMS code, no password needed */}
+            {method === "phone" && (
+              <form onSubmit={confirmation ? verifyCode : (e) => { e.preventDefault(); void sendCode(); }} className="space-y-4">
+                {!confirmation ? (
+                  <>
+                    <div className="flex gap-2" dir="ltr">
+                      <select
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        className="input-base w-[8.5rem] shrink-0 px-3"
+                        aria-label="country code"
+                      >
+                        {PHONE_COUNTRIES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.flag} {c.code} {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="relative min-w-0 flex-1">
+                        <Smartphone className="pointer-events-none absolute start-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-500" />
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          required
+                          value={localPhone}
+                          onChange={(e) => setLocalPhone(e.target.value)}
+                          placeholder={t.auth.phone.phoneLabel}
+                          className="input-base ps-11"
+                          dir="ltr"
+                          autoComplete="tel-national"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500">{t.auth.phone.phoneHint}</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute start-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-500" />
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        required
+                        maxLength={6}
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                        placeholder={t.auth.phone.codeLabel}
+                        className="input-base ps-11 text-center text-2xl font-black tracking-[0.5em]"
+                        dir="ltr"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-sm font-bold">
+                      <button type="button" onClick={changeNumber} className="text-slate-400 transition hover:text-slate-200">
+                        {t.auth.phone.change}
+                      </button>
+                      <button type="button" onClick={() => void sendCode()} disabled={phoneBusy} className="text-brand-300 transition hover:text-brand-400">
+                        {t.auth.phone.resend}
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {error && (
+                  <p className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-300">{error}</p>
+                )}
+                {notice && (
+                  <p className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-300">{notice}</p>
+                )}
+
+                <button type="submit" disabled={phoneBusy} className="btn-primary w-full py-4 text-base">
+                  {phoneBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Smartphone className="h-5 w-5" />}
+                  {confirmation ? t.auth.phone.verify : t.auth.phone.sendCode}
+                </button>
+                <p className="text-center text-[11px] text-slate-600">{t.auth.phone.captchaNote}</p>
+              </form>
+            )}
+
 
             <p className="mt-7 text-center text-sm text-slate-400">
               {isSignup ? t.auth.haveAccount : t.auth.noAccount}{" "}
@@ -371,6 +548,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
           </motion.div>
         </div>
       </div>
+      <div id="nx-recaptcha" />
     </div>
   );
 }

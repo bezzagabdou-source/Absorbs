@@ -27,22 +27,27 @@ export async function POST(req: Request) {
   }
 
   try {
+    // v18: the user row must exist first; the remaining writes/reads then run in parallel
+    // (the DB pool is small per instance, so fewer sequential round-trips = faster login).
+    const isLogin = body.event === "login" || body.event === "signup";
     await ensureUser(user, {
       displayName: body.displayName ?? user.name ?? null,
       photoUrl: body.photoUrl ?? user.picture ?? null,
       locale: body.locale ?? "ar",
     });
-    if (body.event === "login" || body.event === "signup") {
-      await recordLogin(user.uid, {
-        kind: body.event,
-        // trusted values come from the signed Firebase token, not from the request body
-        provider: user.provider === "google.com" ? "google" : "password",
-        emailVerified: user.emailVerified === true,
-        userAgent: req.headers.get("user-agent") ?? "",
-      }).catch((e) => console.error("[sync] recordLogin", e));
-    }
-    await syncVerified(user.uid, user.emailVerified === true).catch(() => undefined);
-    const profile = await getProfile(user.uid);
+    const [, , profile] = await Promise.all([
+      isLogin
+        ? recordLogin(user.uid, {
+            kind: body.event as "login" | "signup",
+            // trusted values come from the signed Firebase token, not from the request body
+            provider: user.provider === "google.com" ? "google" : user.provider === "phone" ? "phone" : "password",
+            emailVerified: user.emailVerified === true,
+            userAgent: req.headers.get("user-agent") ?? "",
+          }).catch((e) => console.error("[sync] recordLogin", e))
+        : Promise.resolve(),
+      syncVerified(user.uid, user.emailVerified === true).catch(() => undefined),
+      getProfile(user.uid),
+    ]);
     return json(200, { ok: true, profile });
   } catch (e) {
     return serverError("sync", e, "DB");

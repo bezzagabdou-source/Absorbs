@@ -2125,8 +2125,67 @@ html[data-theme="lumen"] { background-color: #f4f6fd; }
   background: #fff;
   box-shadow: 0 0 14px 2px rgba(236, 72, 153, 0.85);
 }
+/* v18 — signal meter: replaces the straight progress line while the model works */
+.nx-signal {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 2.1rem;
+  padding: 0 0.85rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(34, 211, 238, 0.04));
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.16);
+  overflow: hidden;
+}
+.nx-signal i {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #22d3ee, #6366f1 55%, #ec4899);
+  transform-origin: center;
+  animation: nxSignal 1.1s ease-in-out infinite;
+  box-shadow: 0 0 10px -2px rgba(34, 211, 238, 0.7);
+}
+@keyframes nxSignal {
+  0%, 100% { transform: scaleY(0.22); opacity: 0.45; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+.nx-signal::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  animation: nxSweep 2.4s linear infinite;
+  pointer-events: none;
+}
+@keyframes nxSweep { from { transform: translateX(-120%); } to { transform: translateX(320%); } }
+.nx-signal-pct {
+  margin-inline-start: auto;
+  font-size: 11.5px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #a5b4fc;
+}
+html[data-motion="reduced"] .nx-build-sheen,
+html[data-motion="reduced"] .nx-orb,
+html[data-motion="reduced"] .nx-orb-core,
+html[data-motion="reduced"] .nx-dots i,
+html[data-motion="reduced"] .nx-fill,
+html[data-motion="reduced"] .nx-signal i,
+html[data-motion="reduced"] .nx-signal::after {
+  animation: none !important;
+}
+html[data-motion="reduced"] .nx-signal i { transform: scaleY(0.6); }
+
 @media (prefers-reduced-motion: reduce) {
-  .nx-build-sheen, .nx-orb, .nx-orb-core, .nx-dots i, .nx-fill { animation: none !important; }
+  .nx-build-sheen, .nx-orb, .nx-orb-core, .nx-dots i, .nx-fill,
+  .nx-signal i, .nx-signal::after { animation: none !important; }
+  .nx-signal i { transform: scaleY(0.6); }
 }
 
 /* ---------- v15: three-dots launcher + side drawer ---------- */

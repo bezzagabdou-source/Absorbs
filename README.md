@@ -1,5 +1,7 @@
 # Nexus AI v11.0 — LEGEND
 
+> 🆕 **v18** — GPT-6 Astra (Pro) · صور Qwen-Image · دخول أسرع · تسجيل الدخول برمز SMS · مقياس انتظار جديد · إعداد «تقليل الحركة». التفاصيل: [`UPGRADE-V18.md`](./UPGRADE-V18.md)
+
 مساعد للسوق الجزائري والعربي: محادثة بالدارجة والعربية والفرنسية، 10 أدوات جاهزة، نظام نقاط يومي، وترقية Pro بالدينار (v8: أدوات الكود، صانع الألعاب، رفع الملفات، أحدث النماذج).
 تطبيق **PWA** — Next.js 16 · Firebase Auth · فريق AI موحّد (Claude + Gemini + DeepSeek + Grok + OpenRouter + Groq) · PostgreSQL (Drizzle) · Chargily Pay.
 
