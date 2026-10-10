@@ -15,6 +15,8 @@
  */
 
 /** Continuation budget for a game: finish the file, do NOT pad it to megabytes. */
+import { kbGenerationBlock } from "@/lib/game-kb";
+
 export const MOBILE_GAME_TARGET_BYTES = 28_000;
 export const MOBILE_GAME_MAX_ROUNDS = 3;
 export const MOBILE_GAME_MAX_TOKENS = 28_000;
@@ -53,7 +55,7 @@ GOAL: build EXACTLY the game the user asked for, as a FAST, FINISHED, PHONE-FIRS
    They never throw and never hang (timeouts built in): they resolve null/false on failure. RULES: only use stable public https URLs you are SURE exist (Google Fonts, fonts.gstatic.com, cdnjs, jsdelivr/unpkg packages, raw.githubusercontent.com / cdn.jsdelivr.net/gh/ files of well-known repos, upload.wikimedia.org, kenney.nl packs mirrored on GitHub). Do not guess random file URLs. Start the game IMMEDIATELY with procedural art; load remote assets in the background and swap them in when they arrive. If an asset is null, keep the canvas-drawn version. If the user pasted a link or file URL, use exactly that URL.
    - Heavy engines (Phaser, Three.js r128, Howler) are allowed ONLY when the user asks for 3D or the genre truly needs it; load with NexusNet.script() and show the procedural/canvas fallback or a clear message if it fails. 2D games default to plain Canvas 2D (fastest, nothing to fail).
 9. FINAL SILENT QA before you answer: boot -> title -> play -> die -> retry -> pause -> resume -> mute all work; every id used by JS exists; no TODO / "rest of code"; text fits at 360px; file ends with </html>.
-===== END MOBILE GAME CONTRACT =====`;
+===== END MOBILE GAME CONTRACT =====${kbGenerationBlock()}`;
 
 /**
  * window.NexusNet — injected into every previewed document.

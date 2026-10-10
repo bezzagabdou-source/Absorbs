@@ -122,7 +122,9 @@ setTimeout(function(){
 }, 2600);
 })();</script>`;
 
-function withCsp(html: string): string {
+function withCsp(raw: string): string {
+  // CORS-enabled CDN scripts: real error text instead of the opaque "Script error."
+  const html = raw.replace(/<script\b([^>]*\bsrc\s*=[^>]*)>/gi, (m, a) => (/crossorigin/i.test(a) ? m : `<script${a} crossorigin="anonymous">`));
   const inject = CSP + GUARD + NEXUS_DB_SHIM + NEXUS_NET_SHIM;
   if (/<head[^>]*>/i.test(html)) return html.replace(/<head([^>]*)>/i, `<head$1>${inject}`);
   if (/<html[^>]*>/i.test(html)) return html.replace(/<html([^>]*)>/i, `<html$1><head>${inject}</head>`);

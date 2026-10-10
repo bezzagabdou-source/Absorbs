@@ -1,12 +1,14 @@
 /**
  * REAL verification of a generated single-file HTML game / app — before the user ever sees it.
  *
- * It only PARSES the JavaScript (node:vm compile, never runs it), so it is safe on untrusted code.
+ * It PARSES every script (node:vm compile) and then SMOKE-RUNS the game against a fake browser inside a
+ * locked-down vm context (no network / fs / process, hard time limit; see game-smoke.ts).
  * Server-only (node:vm). Catches the failures that make "the game does not run":
  *   - JavaScript syntax errors (truncation, duplicate declarations, stray braces ...)
  *   - getElementById('x') used directly but no element / creation of id "x" exists  (null crash on boot)
  *   - inline handlers (onclick="fn()") that call a function that is never defined     (dead buttons)
  */
+import { smokeRun } from "@/lib/game-smoke";
 import vm from "node:vm";
 
 export type Issue = {
@@ -54,6 +56,8 @@ export function verifyHtml(code: string): Issue[] {
   const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
   let sm: RegExpExecArray | null;
   const jsBodies: string[] = [];
+  const scriptsForRun: { body: string; startLine: number }[] = [];
+  let syntaxBroken = false;
   while ((sm = scriptRe.exec(code))) {
     const attrs = sm[1] ?? "";
     const body = sm[2] ?? "";
@@ -62,9 +66,11 @@ export function verifyHtml(code: string): Issue[] {
     if (!JS_TYPE.test(type)) continue; // module / json / importmap / template
     jsBodies.push(body);
     const startLine = code.slice(0, sm.index + sm[0].indexOf(">") + 1).split("\n").length; // line where the body starts
+    scriptsForRun.push({ body, startLine });
     try {
       new vm.Script(body, { filename: "inline.js" });
     } catch (e) {
+      syntaxBroken = true;
       const err = e as Error;
       const stack = String(err.stack ?? "");
       const lm = /inline\.js:(\d+)/.exec(stack);
@@ -79,6 +85,22 @@ export function verifyHtml(code: string): Issue[] {
     }
   }
   const js = jsBodies.join("\n");
+
+  /* ---------- 1b. SMOKE RUN: really execute the game against a fake browser (dead buttons, ReferenceError, TDZ ...) ---------- */
+  if (!syntaxBroken) {
+    try {
+      for (const si of smokeRun(scriptsForRun)) {
+        issues.push({
+          level: si.level,
+          message: si.message,
+          line: si.line,
+          context: si.line ? numbered(all, si.line - 6, si.line + 5) : undefined,
+        });
+      }
+    } catch {
+      /* the harness must never block a build */
+    }
+  }
 
   /* ---------- 2. ids that scripts need but the page never provides ---------- */
   const known = new Set<string>();

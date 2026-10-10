@@ -31,19 +31,24 @@ import { NEXUS_NET_SHIM } from "@/lib/mobile-game";
 
 /** https-only assets (images, sounds, Google Fonts), scripts only from the CDNs below, never same-origin with the app. */
 const CSP =
-  "default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://cdn.tailwindcss.com; style-src 'unsafe-inline' https://fonts.googleapis.com; img-src data: blob: https:; media-src data: blob: https:; font-src data: https://fonts.gstatic.com; connect-src https:";
+  "default-src 'none'; script-src 'unsafe-inline' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com; worker-src blob: data:; child-src blob:; style-src 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src data: blob: https:; media-src data: blob: https:; font-src data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; connect-src https:";
 
 /** Forwards console output and errors to the parent window. */
 const BRIDGE = `(function(){var P=function(t,a){try{parent.postMessage({__barq:1,t:t,a:a},"*")}catch(e){}};
 ["log","info","warn","error"].forEach(function(k){var o=console[k];console[k]=function(){var a=[].slice.call(arguments).map(function(x){if(typeof x==="string")return x;try{var s=JSON.stringify(x);return s===undefined?String(x):s}catch(e){return String(x)}});P(k,a.join(" "));if(o)o.apply(console,arguments)}});
-window.addEventListener("error",function(e){P("error",e.message)});
+window.addEventListener("error",function(e){var m=e.message||"Script error";if(e.filename){m+=" ("+String(e.filename).split("/").pop()+(e.lineno?":"+e.lineno:"")+")"}else if(e.target&&e.target.src){m="Failed to load script: "+e.target.src}P("error",m)},true);
 window.addEventListener("unhandledrejection",function(e){P("error",String(e.reason))});})();`;
 
 const HEAD = `<meta http-equiv="Content-Security-Policy" content="${CSP}"><meta name="viewport" content="width=device-width,initial-scale=1"><script>${BRIDGE}</script>${NEXUS_NET_SHIM}`;
 
 const safeScript = (s: string) => s.replace(/<\/script/gi, "<\\/script");
 
-function htmlDoc(code: string): string {
+/** CORS-enabled CDN scripts so the real error text is reported instead of the opaque "Script error." */
+const withCors = (code: string) =>
+  code.replace(/<script\b([^>]*\bsrc\s*=[^>]*)>/gi, (m, a) => (/crossorigin/i.test(a) ? m : `<script${a} crossorigin="anonymous">`));
+
+function htmlDoc(raw: string): string {
+  const code = withCors(raw);
   if (/<head[^>]*>/i.test(code)) return code.replace(/<head([^>]*)>/i, `<head$1>${HEAD}`);
   if (/<html[^>]*>/i.test(code)) return code.replace(/<html([^>]*)>/i, `<html$1><head>${HEAD}</head>`);
   return `<!doctype html><html><head><meta charset="utf-8">${HEAD}</head><body>${code}</body></html>`;

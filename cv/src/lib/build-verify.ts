@@ -10,6 +10,7 @@ import { findHtmlBlock, hardErrors, verifyHtml, type Issue } from "@/lib/html-ve
 import { assertPublic } from "@/lib/link-reader";
 import { HEARTBEAT } from "@/lib/turbo";
 import { REPLACE_MARK } from "@/lib/stream-marks";
+import { kbRepairHints } from "@/lib/game-kb";
 
 export type AskModel = (system: string, prompt: string) => Promise<string>;
 
@@ -88,7 +89,8 @@ function repairPrompt(issues: Issue[], code: string): string {
     .slice(0, 6)
     .map((i, n) => `ERROR ${n + 1}${i.line ? ` (line ${i.line})` : ""}: ${i.message}${i.context ? `\n${i.context.slice(0, 2600)}` : ""}`)
     .join("\n\n");
-  return `${list}\n\nIDS THAT EXIST IN THE PAGE: ${uniq.join(", ") || "(none)"}\n\nReturn the JSON edits now.`;
+  const hints = kbRepairHints(issues.slice(0, 6).map((i) => i.message));
+  return `${list}${hints}\n\nIDS THAT EXIST IN THE PAGE: ${uniq.join(", ") || "(none)"}\n\nReturn the JSON edits now.`;
 }
 
 /** Applies edits whose `find` occurs exactly once. Returns the new code and how many were applied. */
@@ -136,7 +138,7 @@ export async function repairBuild(
   if (before === 0) return null;
 
   let errs = before;
-  for (let round = 0; round < (o.rounds ?? 2); round++) {
+  for (let round = 0; round < (o.rounds ?? 3); round++) {
     if (o.deadlineAt && Date.now() >= o.deadlineAt) break;
     let raw = "";
     try {
