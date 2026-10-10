@@ -67,6 +67,8 @@ const ImageStudio = dynamic(() => import("@/components/app/image-studio").then((
 import { ToolsMenu, type ToolMenuId } from "@/components/app/tools-menu";
 import { TierCompare } from "@/components/app/tier-compare";
 import { CHAT_MODES, chatModeById, resolveChatMode, type ChatModeId } from "@/lib/chat-modes";
+/* v17 MIND — قوة الفهم: pure analyser, runs client-side so the card is instant */
+import { readMind, mindChips, INTENT_LABEL_AR, type MindChip, type MindReading } from "@/lib/mind";
 import { isBuildRequest } from "@/lib/build-intent";
 import { appendChunk } from "@/lib/stream-marks";
 import { speak, stopSpeaking } from "@/lib/voice";
@@ -737,6 +739,159 @@ const MessageRow = memo(function MessageRow({
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * MindCard — "قوة الفهم" made visible.
+ *
+ * Everything here comes from readMind() running IN THE BROWSER on the draft:
+ * no request, no tokens, no waiting. It shows the user what the platform
+ * understood (language, dialect, intent, entities, what was left unsaid) and
+ * offers one-tap chips to fix a wrong guess before sending.
+ * ───────────────────────────────────────────────────────────────────────── */
+function MindCard({
+  reading,
+  chips,
+  onChip,
+  onClose,
+}: {
+  reading: MindReading;
+  chips: MindChip[];
+  onChip: (c: MindChip) => void;
+  onClose: () => void;
+}) {
+  const [more, setMore] = useState(false);
+  const langLabel =
+    reading.language === "ar-dz"
+      ? "دارجة جزائرية"
+      : reading.language === "ar"
+        ? "عربية"
+        : reading.language === "fr"
+          ? "فرنسية"
+          : reading.language === "en"
+            ? "إنجليزية"
+            : "خليط لغات";
+  const facts: [string, string][] = [];
+  if (reading.entities.money.length) facts.push(["الميزانية", reading.entities.money.map((m) => m.raw).join(" · ")]);
+  if (reading.entities.places.length) facts.push(["المكان", reading.entities.places.join(" · ")]);
+  if (reading.entities.quantities.length)
+    facts.push(["الكميات", reading.entities.quantities.map((q) => `${q.value} ${q.unit ?? ""}`.trim()).join(" · ")]);
+  if (reading.entities.levels.length) facts.push(["المستوى", reading.entities.levels.join(" · ")]);
+  if (reading.entities.codeLangs.length) facts.push(["التقنية", reading.entities.codeLangs.join(" · ")]);
+  if (reading.entities.languages.length) facts.push(["لغة مطلوبة", reading.entities.languages.join(" · ")]);
+  if (reading.entities.urls.length) facts.push(["روابط", reading.entities.urls.join(" · ")]);
+  if (reading.entities.dates.length) facts.push(["التاريخ", reading.entities.dates.join(" · ")]);
+  const shown = more ? reading.explain : reading.explain.slice(0, 4);
+
+  return (
+    <div className="mx-2 mt-2 overflow-hidden rounded-2xl border border-brand-400/30 bg-brand-500/[.07]">
+      <div className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
+        <Brain className="h-4 w-4 shrink-0 text-brand-300" />
+        <span className="text-[12px] font-black text-white">قوة الفهم</span>
+        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-slate-300">{langLabel}</span>
+        {reading.arabizi && (
+          <span className="rounded-full bg-sky-400/15 px-2 py-0.5 text-[10px] font-bold text-sky-200">عربيزي ✓</span>
+        )}
+        <span className="mr-auto flex items-center gap-1.5" dir="ltr">
+          <span className="h-1.5 w-16 overflow-hidden rounded-full bg-white/15">
+            <span
+              className="block h-full rounded-full bg-gradient-to-r from-brand-400 to-gold-300"
+              style={{ width: `${reading.confidence}%` }}
+            />
+          </span>
+          <span className="text-[10px] font-black text-gold-200">{reading.confidence}%</span>
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="إغلاق قوة الفهم"
+          className="grid h-6 w-6 place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+
+      <div className="px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="rounded-lg bg-gold-400/15 px-2 py-1 font-black text-gold-200">
+            {INTENT_LABEL_AR[reading.intent] ?? reading.intent}
+          </span>
+          <span className="rounded-lg bg-white/[.06] px-2 py-1 text-slate-300">{reading.domain}</span>
+          <span className="rounded-lg bg-white/[.06] px-2 py-1 text-slate-300">
+            {reading.deliverable.format === "html"
+              ? "ملف HTML جاهز"
+              : reading.deliverable.format === "code"
+                ? "كود"
+                : reading.deliverable.format === "steps"
+                  ? "خطوات"
+                  : "نص"}{" "}
+            · {reading.deliverable.length === "long" ? "مفصّل" : reading.deliverable.length === "short" ? "مختصر" : "متوسط"}
+          </span>
+          {reading.urgency === "high" && (
+            <span className="rounded-lg bg-rose-500/15 px-2 py-1 font-bold text-rose-200">مستعجل</span>
+          )}
+        </div>
+
+        {facts.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {facts.map(([k, v]) => (
+              <span key={k} className="max-w-full truncate rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[10.5px] text-slate-300">
+                <b className="text-slate-400">{k}:</b> {v}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {reading.corrections.length > 0 && (
+          <p className="mt-2 text-[10.5px] text-emerald-200/90">
+            صحّحت الكتابة: {reading.corrections.slice(0, 3).join("  ·  ")}
+          </p>
+        )}
+
+        <ul className="mt-2 space-y-1">
+          {shown.map((line) => (
+            <li key={line} className="flex gap-1.5 text-[11px] leading-relaxed text-slate-400">
+              <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-brand-400/70" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+        {reading.explain.length > 4 && (
+          <button
+            type="button"
+            onClick={() => setMore((v) => !v)}
+            className="mt-1 text-[10.5px] font-bold text-brand-300 hover:underline"
+          >
+            {more ? "أقل ▲" : `كل التحليل (${reading.explain.length}) ▼`}
+          </button>
+        )}
+
+        {chips.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-white/10 pt-2.5">
+            {chips.map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                onClick={() => onChip(c)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-bold transition active:scale-95",
+                  c.kind === "route"
+                    ? "border-gold-400/50 bg-gold-400/15 text-gold-200 hover:bg-gold-400/25"
+                    : "border-white/15 bg-white/[.05] text-slate-200 hover:bg-white/10"
+                )}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+          هذا التحليل يُرسل سرًّا مع طلبك ليوجّه الجواب — ما يُذكرش في الرد، وما يُخزّنش من كلامك غير الإحصائيات.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ChatPage() {
   const { t, locale, dir } = useI18n();
   const pro = usePro();
@@ -759,6 +914,7 @@ export function ChatPage() {
   const [deep, setDeep] = useState(false);
   const [mode, setMode] = useState<ChatModeId | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [mindOpen, setMindOpen] = useState(false);
   const [imgOpen, setImgOpen] = useState(false);
   const [imgPrompt, setImgPrompt] = useState("");
   const [imgAuto, setImgAuto] = useState(0);
@@ -893,6 +1049,31 @@ export function ChatPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  /* MIND reads the draft live — ~1 ms, no network, nothing is sent anywhere */
+  const mind: MindReading | null = useMemo(
+    () => (mindOpen && input.trim().length > 1 ? readMind(input) : null),
+    [mindOpen, input]
+  );
+  const mindChipList: MindChip[] = useMemo(() => (mind ? mindChips(mind) : []), [mind]);
+  const applyMindChip = useCallback(
+    (c: MindChip) => {
+      if (c.kind === "route" && c.href) {
+        window.dispatchEvent(new CustomEvent("barq:prefill", { detail: { text: "" } }));
+        window.location.href = c.href;
+        return;
+      }
+      if (!c.text) return;
+      setInput((v) => (v.trim() ? `${v.trim()}، ${c.text}` : c.text!));
+      const el = taRef.current;
+      if (el) {
+        el.style.height = "auto";
+        el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
+        el.focus();
+      }
+    },
+    []
+  );
+
   const abortRef = useRef<AbortController | null>(null);
   const autoRetryRef = useRef(0);
   // automatic project repair rounds (max 2 per user request): the checker found a broken import / missing file
@@ -2119,6 +2300,15 @@ export function ChatPage() {
                 </div>
               )}
 
+              {mind && (
+                <MindCard
+                  reading={mind}
+                  chips={mindChipList}
+                  onChip={applyMindChip}
+                  onClose={() => setMindOpen(false)}
+                />
+              )}
+
               <textarea
                 ref={taRef}
                 value={input}
@@ -2181,6 +2371,20 @@ export function ChatPage() {
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-white/8 hover:text-brand-300 active:scale-90"
                 >
                   <Paperclip className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMindOpen((v) => !v)}
+                  aria-label="قوة الفهم"
+                  title="قوة الفهم 🧠 — شوف كيف فهم Nexus طلبك قبل ما تبعثو"
+                  className={cn(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-full transition active:scale-90",
+                    mindOpen
+                      ? "bg-brand-500/20 text-brand-300 ring-1 ring-brand-500/50"
+                      : "text-slate-400 hover:bg-white/8 hover:text-brand-300"
+                  )}
+                >
+                  <Brain className="h-4 w-4" />
                 </button>
                 <button
                   type="button"

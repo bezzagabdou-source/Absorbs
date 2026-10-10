@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans_Arabic } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { I18nProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth-context";
@@ -9,11 +9,43 @@ import { ChunkGuard } from "@/components/chunk-guard";
 import { siteUrl } from "@/lib/site";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
-const plex = IBM_Plex_Sans_Arabic({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-plex",
+/**
+ * v17 — self-hosted IBM Plex Sans Arabic (woff2 vendored in `src/fonts`).
+ * Why: `next/font/google` downloads the font at BUILD time. When Google Fonts is
+ * slow or blocked, the whole Vercel build fails and nothing deploys. Vendoring the
+ * files makes the build hermetic (zero network), removes a render-blocking third
+ * party, and the subsets are split by unicode-range so a Latin-only page never
+ * downloads the Arabic file.
+ */
+/* next/font/local takes no `unicodeRange` per source, and Next reads this call
+ * statically (a computed `src` fails the whole build). So the two subsets are
+ * declared as two families, every value written long-hand, and the browser does
+ * per-character fallback: Latin glyphs resolve in the Latin face, Arabic script
+ * falls through to the Arabic face. */
+const plexArabic = localFont({
+  variable: "--font-plex-arabic",
   display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Tahoma", "sans-serif"],
+  adjustFontFallback: "Arial",
+  src: [
+    { path: "../fonts/plex-arabic-400.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/plex-arabic-500.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/plex-arabic-600.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/plex-arabic-700.woff2", weight: "700", style: "normal" },
+  ],
+});
+
+const plexLatin = localFont({
+  variable: "--font-plex-latin",
+  display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Tahoma", "sans-serif"],
+  adjustFontFallback: "Arial",
+  src: [
+    { path: "../fonts/plex-latin-400.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/plex-latin-500.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/plex-latin-600.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/plex-latin-700.woff2", weight: "700", style: "normal" },
+  ],
 });
 
 export const metadata: Metadata = {
@@ -74,7 +106,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
-      <body className={`${plex.variable} antialiased`}>
+      <body className={`${plexLatin.variable} ${plexArabic.variable} antialiased`}>
         <div className="aurora" aria-hidden>
           <i />
           <i />

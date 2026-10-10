@@ -34,6 +34,8 @@ import {
   Database,
   Languages,
   BrainCircuit,
+  Anvil,
+  Trophy,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
@@ -214,6 +216,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: "/app/research", label: "البحث", icon: Telescope, exact: true },
     { href: "/app/tools", label: t.app.tools, icon: LayoutGrid, exact: false },
     { href: "/app/studio", label: "الاستوديو", icon: Wand2, exact: true },
+    // v17 — the two new destinations: the instant game factory and the XP path
+    { href: "/app/smith", label: "صانع الألعاب", icon: Anvil, exact: false },
+    { href: "/app/mastery", label: "مسار الإتقان", icon: Crown, exact: false },
     { href: "/app/history", label: t.app.history, icon: History, exact: true },
     { href: "/app/upgrade", label: t.app.upgrade, icon: Crown, exact: true },
     { href: "/app/settings", label: t.app.settings, icon: Settings, exact: true },
@@ -229,6 +234,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: "/app/settings/notifications", label: "الإشعارات", icon: Bell },
     { href: "/app/settings/privacy", label: "الخصوصية", icon: ShieldCheck },
     { href: "/app/settings/storage", label: "التخزين", icon: Database },
+    { href: "/app/mastery", label: "مسار الإتقان والشارات", icon: Trophy },
   ];
 
   const isActive = (href: string, exact: boolean) =>
