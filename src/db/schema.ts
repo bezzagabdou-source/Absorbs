@@ -7,6 +7,8 @@ import {
   boolean,
   bigint,
   index,
+  uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 /** Dedicated Postgres schema: Nexus AI v8.4 never touches tables of other apps sharing this database. */
@@ -182,3 +184,19 @@ export const loginEvents = barq.table(
 );
 
 export type DbUser = typeof users.$inferSelect;
+
+/** Game saves (one row per user + game + slot). The generated game's src/save.js talks to /api/saves. */
+export const gameSaves = barq.table(
+  "game_saves",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    game: text("game").notNull(),
+    slot: text("slot").notNull().default("auto"),
+    data: jsonb("data").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("game_saves_uq").on(t.userId, t.game, t.slot)]
+);

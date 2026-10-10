@@ -346,6 +346,7 @@ export function ToolRunner({ tool }: { tool: ToolDef }) {
                     <p dir="ltr" className="text-xs tabular-nums text-slate-400">
                       {result.split("\n").length.toLocaleString()} سطر · {result.length.toLocaleString()} chars{part > 1 ? ` · الجزء ${part}` : ""}
                     </p>
+                    {note && <p className="mt-1 text-[12.5px] font-semibold text-brand-200">{note}</p>}
                   </div>
                 </div>
               )}

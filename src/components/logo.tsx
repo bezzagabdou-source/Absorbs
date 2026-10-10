@@ -4,11 +4,10 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
 /**
- * v15 — the real Nexus mark.
- * A nexus = a node that links other nodes, so the glyph is a central core with
- * three orbiting satellites joined by links, cut into a squircle tile. No more
- * bare letter "N". The same geometry is used for the PWA icon and the favicon,
- * so the brand reads identically on the home screen, the tab bar and in-app.
+ * v20 — the Nexus logo: a bold "N" drawn as one connected stroke (a path through nodes)
+ * plus an AI spark. The same geometry is used for the PWA icon, the favicon and the
+ * iOS icon (see public/icons/*.svg + scripts/gen-icons.mjs), so the brand reads
+ * identically on the home screen, the tab bar and in-app.
  */
 export function NexusMark({ size = 36, className }: { size?: number; className?: string }) {
   const id = "nx";
@@ -20,47 +19,40 @@ export function NexusMark({ size = 36, className }: { size?: number; className?:
       fill="none"
       aria-hidden
       className={cn("shrink-0", className)}
-      style={{ borderRadius: Math.round(size * 0.26) }}
+      style={{ borderRadius: Math.round(size * 0.24) }}
     >
       <defs>
         <linearGradient id={`${id}-bg`} x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#1b1f3b" />
-          <stop offset="0.55" stopColor="#111528" />
-          <stop offset="1" stopColor="#0b0e1a" />
+          <stop stopColor="#2a2f6b" />
+          <stop offset="0.5" stopColor="#141733" />
+          <stop offset="1" stopColor="#090b17" />
         </linearGradient>
-        <linearGradient id={`${id}-core`} x1="18" y1="14" x2="46" y2="50" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#8ab4ff" />
-          <stop offset="0.5" stopColor="#5b8cff" />
-          <stop offset="1" stopColor="#d97757" />
-        </linearGradient>
-        <radialGradient id={`${id}-glow`} cx="0.5" cy="0.42" r="0.62">
-          <stop stopColor="#5b8cff" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#5b8cff" stopOpacity="0" />
+        <radialGradient id={`${id}-glow`} cx="0.3" cy="0.25" r="0.8">
+          <stop stopColor="#6d8dff" stopOpacity="0.55" />
+          <stop offset="1" stopColor="#6d8dff" stopOpacity="0" />
         </radialGradient>
+        <linearGradient id={`${id}-n`} x1="16" y1="14" x2="48" y2="50" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ffffff" />
+          <stop offset="0.45" stopColor="#9db8ff" />
+          <stop offset="1" stopColor="#5b8cff" />
+        </linearGradient>
+        <linearGradient id={`${id}-sp`} x1="44" y1="6" x2="56" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ffd7a8" />
+          <stop offset="1" stopColor="#ff7a45" />
+        </linearGradient>
       </defs>
 
-      <rect width="64" height="64" rx="17" fill={`url(#${id}-bg)`} />
-      <rect width="64" height="64" rx="17" fill={`url(#${id}-glow)`} />
-      <rect x="0.6" y="0.6" width="62.8" height="62.8" rx="16.4" stroke="#ffffff" strokeOpacity="0.14" strokeWidth="1.2" />
+      <rect width="64" height="64" rx="15" fill={`url(#${id}-bg)`} />
+      <rect width="64" height="64" rx="15" fill={`url(#${id}-glow)`} />
+      <rect x="0.6" y="0.6" width="62.8" height="62.8" rx="14.4" stroke="#fff" strokeOpacity="0.16" strokeWidth="1.2" />
 
-      {/* links */}
-      <g stroke={`url(#${id}-core)`} strokeWidth="2.6" strokeLinecap="round" opacity="0.9">
-        <path d="M32 29V17.5" />
-        <path d="M29 34 19.6 42.2" />
-        <path d="M35 34l9.4 8.2" />
-      </g>
-
-      {/* satellites */}
-      <g fill={`url(#${id}-core)`}>
-        <circle cx="32" cy="14.5" r="5.2" />
-        <circle cx="17" cy="44.5" r="5.2" />
-        <circle cx="47" cy="44.5" r="5.2" />
-      </g>
-
-      {/* core */}
-      <circle cx="32" cy="31.5" r="7.4" fill="#fff" />
-      <circle cx="32" cy="31.5" r="7.4" fill={`url(#${id}-core)`} fillOpacity="0.28" />
-      <circle cx="32" cy="31.5" r="7.4" stroke="#fff" strokeOpacity="0.9" strokeWidth="1.4" />
+      {/* N: one continuous stroke, a node at the start and an AI spark at the end */}
+      <path d="M17 47V20.5L43 44.5V18" stroke={`url(#${id}-n)`} strokeWidth="6.4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="17" cy="47" r="3.1" fill="#fff" />
+      <path
+        d="M50.5 9.5c.7 3.7 1.6 4.6 5.3 5.3-3.7.7-4.6 1.6-5.3 5.3-.7-3.7-1.6-4.6-5.3-5.3 3.7-.7 4.6-1.6 5.3-5.3Z"
+        fill={`url(#${id}-sp)`}
+      />
     </svg>
   );
 }

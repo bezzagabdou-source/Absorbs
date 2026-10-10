@@ -83,7 +83,10 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
       router.replace("/app");
     } catch (e) {
       const code = (e as { code?: string }).code ?? "";
-      setError(t.auth.errors[authErrorKey(code) as keyof typeof t.auth.errors]);
+      const key = authErrorKey(code);
+      const msg = t.auth.errors[key as keyof typeof t.auth.errors];
+      // unauthorized domain: tell the owner exactly which host to add in Firebase → Authentication → Settings
+      setError(key === "domain" && typeof window !== "undefined" ? `${msg} (${window.location.hostname})` : msg);
       setBusy(null);
     }
   };

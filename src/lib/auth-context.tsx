@@ -14,6 +14,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as fbSignOut,
   updateProfile,
   sendEmailVerification,
@@ -70,6 +72,12 @@ export function passwordProblem(pw: string): "short" | "weak" | null {
   return null;
 }
 
+/** True inside Facebook / Instagram / TikTok / Line / Android WebView — Google blocks sign-in there. */
+function isEmbeddedBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /FBAN|FBAV|FB_IAB|Instagram|TikTok|musical_ly|Line\/|Snapchat|; wv\)|MicroMessenger/i.test(navigator.userAgent);
+}
+
 async function syncUser(u: User, event?: "login" | "signup", provider?: string) {
   try {
     const token = await u.getIdToken();
@@ -120,6 +128,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Returning from a Google redirect (used on phones / when the popup is blocked)
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((cred) => {
+        if (!cred) return;
+        const isNew = getAdditionalUserInfo(cred)?.isNewUser === true;
+        void syncUser(cred.user, isNew ? "signup" : "login", "google");
+      })
+      .catch((e) => {
+        console.warn("[auth] redirect sign-in failed:", (e as { code?: string })?.code ?? e);
+      });
+  }, []);
+
   const signInEmail = useCallback(async (email: string, password: string) => {
     const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
     await syncUser(cred.user, "login", "password");
@@ -141,9 +162,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signInGoogle = useCallback(async () => {
-    const cred = await signInWithPopup(auth, googleProvider);
-    const isNew = getAdditionalUserInfo(cred)?.isNewUser === true;
-    await syncUser(cred.user, isNew ? "signup" : "login", "google");
+    // Google refuses OAuth inside in-app browsers (Facebook, Instagram, TikTok…): say so instead of a blank popup
+    if (isEmbeddedBrowser()) throw Object.assign(new Error("webview"), { code: "auth/webview" });
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      const isNew = getAdditionalUserInfo(cred)?.isNewUser === true;
+      await syncUser(cred.user, isNew ? "signup" : "login", "google");
+    } catch (e) {
+      const code = (e as { code?: string }).code ?? "";
+      // popup blocked / unsupported (iOS Safari, PWA, strict browsers): full-page redirect always works
+      if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+      throw e;
+    }
   }, []);
 
   const signOut = useCallback(async () => {
@@ -259,6 +292,16 @@ export function authErrorKey(code: string): string {
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return "cancelled";
+    case "auth/unauthorized-domain":
+      return "domain";
+    case "auth/operation-not-allowed":
+      return "disabled";
+    case "auth/network-request-failed":
+      return "network";
+    case "auth/webview":
+      return "webview";
+    case "auth/account-exists-with-different-credential":
+      return "other";
     case "auth/too-many-requests":
       return "tooMany";
     default:

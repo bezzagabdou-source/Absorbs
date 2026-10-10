@@ -213,6 +213,14 @@ HARD RULES
   8. When the last file is written, output the single line:
      NEXUS-FORGE-COMPLETE
      and nothing after it.
+  9. index.html must import EVERY module in the manifest — a missing
+     <script type="module"> or broken path = failed delivery.
+ 10. After writing each file, verify its exports match what index.html
+     imports.
+ 11. Saving: src/save.js is part of the contract. It exposes
+     save(slot, data) / load(slot) using localStorage as the fallback and, when
+     the host page offers it, the Nexus saves API. Never crash if storage is
+     blocked (private mode, sandboxed iframe) — fall back to memory.
 
 DO NOT stop to ask whether to continue. DO NOT summarise what you are about to
 do. DO NOT write a plan paragraph. Start with file 01 immediately.

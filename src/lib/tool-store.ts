@@ -78,6 +78,15 @@ export function cutOff(text: string): boolean {
 type WakeLockish = { release: () => Promise<void> };
 const wakes = new Map<string, WakeLockish>();
 
+/** What the builder is doing right now, shown under the progress bar. */
+const PHASES = [
+  "يكتب المحرّك والفيزياء…",
+  "يضيف الأعداء والمستويات…",
+  "يلمّع الحركات والأصوات…",
+  "يفحص الأخطاء سطراً بسطر…",
+  "يجهّز المعاينة…",
+];
+
 async function pump(id: string, r: Response, base: string): Promise<string> {
   const reader = r.body?.getReader();
   if (!reader) return base;
@@ -92,7 +101,7 @@ async function pump(id: string, r: Response, base: string): Promise<string> {
       const now = Date.now();
       if (now - last > 120) {
         last = now;
-        toolPatch(id, { result: acc });
+        toolPatch(id, { result: acc, note: PHASES[Math.min(PHASES.length - 1, Math.floor(acc.length / 18000))] });
       }
     }
   } catch {
@@ -101,6 +110,22 @@ async function pump(id: string, r: Response, base: string): Promise<string> {
   acc += decoder.decode();
   toolPatch(id, { result: acc });
   return acc;
+}
+
+/** Parse ```path fences and keep ONLY the last version of each file, in order. */
+export function mergeBuildFiles(text: string): string {
+  const re = /```([^\n`]*)\n([\s\S]*?)```/g;
+  const order: string[] = [];
+  const files = new Map<string, string>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const p = (m[1] || "").trim().replace(/^[a-z]+:/i, "");
+    if (!p || !/^[a-z0-9_\-\.\/]+\.[a-z0-9]+$/i.test(p)) continue;
+    if (!files.has(p)) order.push(p);
+    files.set(p, m[2] || "");
+  }
+  if (!order.length) return text;
+  return order.map((p) => "```" + p + "\n" + files.get(p) + "```").join("\n\n");
 }
 
 async function finish(
@@ -142,7 +167,8 @@ async function finish(
       i--;
     }
   }
-  toolPatch(id, { part: 0 });
+  acc = mergeBuildFiles(acc);
+  toolPatch(id, { part: 0, result: acc });
   return acc;
 }
 

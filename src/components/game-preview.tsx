@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
  * (cannot read the app's cookies / tokens) and a CSP that blocks all network.
  */
 const CSP =
-  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src \'unsafe-inline\'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src \'none\'">';
+  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; worker-src blob: data:; child-src blob:; style-src \'unsafe-inline\'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src \'none\'">';
 
 /**
  * RUNTIME GUARD — injected into every previewed document.

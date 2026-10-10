@@ -30,6 +30,15 @@ const nextConfig: NextConfig = {
       { source: `/upgrade`, destination: "/app/upgrade", permanent: false },
     ];
   },
+  // optional: serve Firebase's auth handler from our own domain (see firebase-config.ts)
+  async rewrites() {
+    if (process.env.NEXT_PUBLIC_FIREBASE_AUTH_PROXY !== "1") return [];
+    const host = `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "mohtal-9b1d3"}.firebaseapp.com`;
+    return [
+      { source: "/__/auth/:path*", destination: `https://${host}/__/auth/:path*` },
+      { source: "/__/firebase/:path*", destination: `https://${host}/__/firebase/:path*` },
+    ];
+  },
   async headers() {
     return [
       {

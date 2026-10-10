@@ -79,7 +79,6 @@ import {
   newCheckpoint,
   advanceCheckpoint,
   saveCheckpoint,
-  pendingCheckpoint,
   clearCheckpoint,
   isComplete as forgeComplete,
   type ForgeCheckpoint,
@@ -809,7 +808,6 @@ export function ChatPage() {
   // checkpoint lives in localStorage, so coming back offers "كمّل" instead of
   // silently starting the whole game again.
   const [forge, setForge] = useState<ForgeCheckpoint | null>(null);
-  const [resumable, setResumable] = useState<ForgeCheckpoint | null>(null);
   const forgeRef = useRef<ForgeCheckpoint | null>(null);
   useEffect(() => {
     try {
@@ -900,11 +898,6 @@ export function ChatPage() {
   const res0Ok = useRef(false);
   const sendRef = useRef<(t: string, retry?: boolean, base?: Msg[]) => Promise<void>>(async () => undefined);
 
-  // Offer to resume an unfinished build when the user returns.
-  useEffect(() => {
-    const cp = pendingCheckpoint();
-    if (cp) setResumable(cp);
-  }, []);
   const startListeningRef = useRef<() => void>(() => undefined);
   const stickRef = useRef(true);
   const openSeq = useRef(0);
@@ -2268,47 +2261,6 @@ export function ChatPage() {
           </p>
         </div>
       </div>
-
-      {/* v15.2 — resume an unfinished build after leaving the page */}
-      {resumable && !forge && (
-        <div className="fixed inset-x-0 bottom-24 z-[120] flex justify-center px-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#5b8cff]/40 bg-[#0d1020]/97 p-3.5 shadow-[0_18px_50px_-18px_rgba(91,140,255,.8)] backdrop-blur">
-            <p className="text-[13.5px] font-semibold text-slate-100">
-              عندك بناء ما كملش: {resumable.plan.title}
-            </p>
-            <p className="mt-0.5 text-[12px] text-slate-400">
-              {resumable.done.length}/{resumable.plan.files.length} ملف · يكمّل من {resumable.plan.files[resumable.cursor]?.path ?? "—"}
-            </p>
-            <div className="mt-2.5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  forgeRef.current = resumable;
-                  setForge(resumable);
-                  setResumable(null);
-                  void sendRef.current(
-                    `كمّل بناء ${resumable.plan.title} من الملف ${resumable.plan.files[resumable.cursor]?.path ?? ""}. ` +
-                      `الملفات الجاهزة: ${resumable.done.join(", ") || "والو"}. ما تعاودش تكتبهم.`
-                  );
-                }}
-                className="flex-1 rounded-xl bg-[#5b8cff] px-3 py-2.5 text-[13px] font-bold text-white"
-              >
-                كمّل
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  clearCheckpoint(resumable.id);
-                  setResumable(null);
-                }}
-                className="rounded-xl border border-white/12 px-3 py-2.5 text-[13px] font-semibold text-slate-300"
-              >
-                نحّيه
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {preview && <FullPreview html={preview} onClose={() => setPreview(null)} />}
 
