@@ -15,7 +15,10 @@ import {
   type Attachment,
   type ChatTurn,
 } from "@/lib/gemini";
-import { classifyTask } from "@/lib/task-router";
+import { classifyTask, type Task } from "@/lib/task-router";
+/* ---- Nexus AI v17 MIND — قوة الفهم ---- */
+import { readMind, mindTask, mindTelemetry } from "@/lib/mind";
+import { award as awardXp } from "@/lib/mastery";
 import { checkModelAccess, parseSelection } from "@/lib/model-access";
 import { streamSelectedModel } from "@/lib/model-router";
 import { autoDistillAndStore, buildMemoryContext } from "@/lib/memory";
@@ -50,7 +53,7 @@ import {
   QUALITY_CONTRACT,
 } from "@/lib/prompts";
 import { db } from "@/db";
-import { aiMemories, conversations, messages } from "@/db/schema";
+import { aiMemories, conversations, messages, mindEvents } from "@/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getProfile } from "@/lib/usage";
 
@@ -498,7 +501,35 @@ export async function POST(req: Request) {
   // Algerian school brain: homework / exams / lessons or any attached image or file (the dz study mode already carries it)
   const schoolBlock =
     chatMode?.id !== "dzstudy" && (looksLikeSchoolwork(lastUser) || parsed.files.length > 0) ? DZ_SCHOOL_ADDON : "";
+  /* ── MIND v17 — understand the message BEFORE any model is chosen ────────
+   * readMind() is a pure, dependency-free analyser: dialect vs. MSA vs. French,
+   * Arabizi (bghit n3mel → بغيت نعمل), 24 intents, entities (money, places,
+   * quantities, languages, URLs, code), typos, and what the user left unsaid.
+   * Its `brief` is injected into the system prompt so the model answers in the
+   * right language, keeps technical terms verbatim and states its assumptions
+   * instead of asking four clarifying questions. Cost: ~1 ms, no tokens.
+   */
+  const mind = readMind(lastUser);
+  const mindBrief = mind.brief;
+  {
+    const tele = mindTelemetry(mind);
+    db.insert(mindEvents)
+      .values({
+        userId: user.uid,
+        kind: "mind",
+        intent: tele.intent,
+        lang: tele.lang,
+        confidence: tele.confidence,
+        ms: tele.ms,
+        payload: tele.payload,
+      })
+      .execute()
+      .catch(() => undefined);
+    void awardXp(user.uid, "mind_read").catch(() => undefined);
+  }
+
   const memBlock =
+    mindBrief +
     (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") +
     // v19 RAG: semantically relevant long-term memory (vector recall, best-effort)
     (isPro && credit.tracked ? await buildMemoryContext(user.uid, lastUser, { topK: 4, budget: 1200 }).catch(() => "") : "") +
@@ -680,8 +711,18 @@ export async function POST(req: Request) {
   const v13Block = v11Block + webBlock + academy + forge + gameMasterBlock;
   let titanReport: TitanReport | null = null;
   try {
-    // Pro + "build me a game / site / app": the whole AI team works together
-    const task = classifyTask(lastUser, parsed.files.length > 0);
+    // Pro + "build me a game / site / app": the whole AI team works together.
+    // The keyword classifier decides first; MIND only overrides it when the
+    // keywords fell through to a generic route but the intent is clear — that
+    // is exactly the Darija / mixed-language case the regexes miss.
+    const keywordTask = classifyTask(lastUser, parsed.files.length > 0);
+    const mindGuess = mindTask(mind);
+    const task: Task =
+      (keywordTask === "general" || keywordTask === "quick") &&
+      mind.confidence >= 58 &&
+      mindGuess !== "general"
+        ? mindGuess
+        : keywordTask;
     const voice = body.voice === true;
     // Nexus: a free OpenRouter model (default: openrouter/free) answers when a key exists; otherwise the classic engines run
     // legacy `freeModel` (cached older clients) is honoured for Pro only; free accounts stay on Gemini

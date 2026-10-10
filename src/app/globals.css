@@ -10,9 +10,9 @@
    ========================================================================== */
 
 @theme {
-  --font-sans: var(--font-plex), ui-sans-serif, system-ui, -apple-system,
+  --font-sans: var(--font-plex-latin), var(--font-plex-arabic), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
-  --font-display: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-plex-latin), var(--font-plex-arabic), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
   /* warm dark anthracite surfaces */
