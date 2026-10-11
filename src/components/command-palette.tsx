@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   Search, MessagesSquare, LayoutGrid, Wand2, History, Crown, Settings, Sun, Headphones, CornerDownLeft, Clapperboard, FileText, Code2, Palette,
   type LucideIcon,
+  Anvil,
+  Trophy,
 } from "lucide-react";
 import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
 import { applyTheme } from "@/lib/theme";
@@ -84,6 +86,9 @@ export function CommandPalette() {
       { id: "chat", label: "المحادثة", icon: MessagesSquare, run: go("/app") },
       { id: "tools", label: "الأدوات", icon: LayoutGrid, run: go("/app/tools") },
       { id: "studio", label: "الاستوديو", icon: Wand2, run: go("/app/studio") },
+      // v17 — new destinations, reachable from Ctrl/⌘K like everything else
+      { id: "smith", label: "صانع الألعاب الفوري", hint: "لعبة كاملة في ثانية", icon: Anvil, run: go("/app/smith") },
+      { id: "mastery", label: "مسار الإتقان", hint: "XP · شارات · لوحة الشرف", icon: Trophy, run: go("/app/mastery") },
       { id: "history", label: "السجل", icon: History, run: go("/app/history") },
       { id: "upgrade", label: "V8 PRO GOLD", hint: "الترقية", icon: Crown, run: go("/app/upgrade") },
       { id: "settings", label: "الإعدادات", icon: Settings, run: go("/app/settings") },

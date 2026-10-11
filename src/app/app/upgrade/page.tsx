@@ -61,7 +61,7 @@ function UpgradeInner() {
       });
       const data = (await res.json()) as { checkout_url?: string };
       if (res.ok && data.checkout_url) {
-        window.location.href = data.checkout_url;
+        window.location.assign(data.checkout_url);
         return;
       }
       setPayNote(true);

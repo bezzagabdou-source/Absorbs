@@ -23,6 +23,9 @@ import { LOCALE_NAMES, useI18n } from "@/lib/i18n";
 import { useCredits, UserAvatar, meterLabel } from "@/components/app/app-shell";
 import { InstallButton } from "@/components/pwa";
 import { ThemeCard } from "@/components/theme-toggle";
+import { Switch } from "@/components/settings-ui";
+import { getMotionPref, setMotionPref } from "@/lib/motion-pref";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
@@ -30,6 +33,8 @@ export default function SettingsPage() {
   const { user, signOut } = useAuth();
   const { profile } = useCredits();
   const router = useRouter();
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => setReduceMotion(getMotionPref()), []);
 
   const isPro = profile?.plan === "pro";
 
@@ -105,6 +110,20 @@ export default function SettingsPage() {
             المظهر
           </h2>
           <ThemeCard />
+          <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/10">
+            <div className="min-w-0">
+              <p className="text-sm font-black text-white">تقليل الحركة</p>
+              <p className="mt-0.5 text-xs text-slate-400">يوقف الأنيميشن الدائم (المؤشرات والتوهّج) — أخف على الهاتف وبطارية أطول.</p>
+            </div>
+            <Switch
+              label="تقليل الحركة"
+              on={reduceMotion}
+              onChange={(v) => {
+                setReduceMotion(v);
+                setMotionPref(v);
+              }}
+            />
+          </div>
         </motion.section>
 
         {/* sections — each opens its own page */}

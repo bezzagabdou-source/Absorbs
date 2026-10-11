@@ -134,6 +134,74 @@ create table if not exists barq.promo_codes (
   created_at timestamptz not null default now()
 );
 
+/* ── v17 SMITH + MASTERY ─────────────────────────────────────────────────────── */
+
+create table if not exists barq.smith_games (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  slug text not null,
+  title text not null default '',
+  blueprint text not null,
+  theme text not null default 'neon',
+  engine text not null default 'smith',
+  config jsonb not null default '{}'::jsonb,
+  html text not null,
+  visibility text not null default 'private',
+  plays integer not null default 0,
+  likes integer not null default 0,
+  best_score integer not null default 0,
+  bytes integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists smith_games_slug_uq on barq.smith_games (slug);
+create index if not exists smith_games_user_idx on barq.smith_games (user_id, updated_at);
+create index if not exists smith_games_public_idx on barq.smith_games (visibility, plays);
+
+create table if not exists barq.smith_scores (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid not null references barq.smith_games(id) on delete cascade,
+  user_id text not null references barq.users(id) on delete cascade,
+  score integer not null default 0,
+  level integer not null default 1,
+  duration_ms integer not null default 0,
+  handle text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists smith_scores_board_idx on barq.smith_scores (game_id, score);
+create index if not exists smith_scores_user_idx on barq.smith_scores (user_id, created_at);
+
+create table if not exists barq.mastery_profiles (
+  user_id text primary key references barq.users(id) on delete cascade,
+  xp integer not null default 0,
+  level integer not null default 1,
+  games_built integer not null default 0,
+  games_played integer not null default 0,
+  runs_submitted integer not null default 0,
+  mind_reads integer not null default 0,
+  best_score integer not null default 0,
+  streak integer not null default 0,
+  longest_streak integer not null default 0,
+  last_active_day text,
+  badges jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+create index if not exists mastery_xp_idx on barq.mastery_profiles (xp);
+
+create table if not exists barq.mind_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  kind text not null default 'mind',
+  intent text not null default '',
+  lang text not null default '',
+  confidence integer not null default 0,
+  ms integer not null default 0,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists mind_user_idx on barq.mind_events (user_id, created_at);
+create index if not exists mind_kind_idx on barq.mind_events (kind, created_at);
+
 `;
 
 const g = globalThis as typeof globalThis & {

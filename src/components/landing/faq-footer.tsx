@@ -185,12 +185,12 @@ export function Footer() {
             </h4>
             <ul className="space-y-2.5">
               <li>
-                <a
+                <Link
                   href="/#features"
                   className="text-sm text-slate-400 transition hover:text-brand-300"
                 >
                   {t.footer.about}
-                </a>
+                </Link>
               </li>
               <li>
                 <a

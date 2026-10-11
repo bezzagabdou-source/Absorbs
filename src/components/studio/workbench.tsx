@@ -232,7 +232,9 @@ export function Workbench({
 
   /* ----- hot reload: follow the stream, throttled, only complete scripts ----- */
   const latest = useRef(reply);
-  latest.current = reply;
+  useEffect(() => {
+    latest.current = reply;
+  }, [reply]);
   useEffect(() => {
     if (!streaming) return;
     const t = setInterval(() => {

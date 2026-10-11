@@ -19,6 +19,8 @@ import {
   SquarePen,
   Wand2,
   type LucideIcon,
+  Anvil,
+  Trophy,
 } from "lucide-react";
 import { useCredits, UserAvatar } from "@/components/app/app-shell";
 import { useAuth } from "@/lib/auth-context";
@@ -65,6 +67,8 @@ export default function HubPage() {
     { href: "/app/tools", label: "الأدوات", sub: "أدوات جاهزة", icon: LayoutGrid },
     { href: "/app/studio/video", label: "الصور والفيديو", sub: "توليد بصري", icon: ImageIcon },
     { href: "/app/arcade", label: "الأركيد", sub: "ألعابك المولَّدة", icon: Gamepad2 },
+    { href: "/app/smith", label: "صانع الألعاب", sub: "لعبة كاملة في ثانية ⚡", icon: Anvil, tone: "gold" },
+    { href: "/app/mastery", label: "مسار الإتقان", sub: "XP · شارات · صدارة", icon: Trophy },
     { href: "/app/history", label: "السجلّ", sub: "محادثاتك السابقة", icon: History },
     { href: "/app/settings", label: "الإعدادات", sub: "الحساب والمظهر", icon: Settings },
   ];

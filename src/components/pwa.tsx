@@ -20,7 +20,24 @@ export function PwaRegister() {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
     const onLoad = () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .then((reg) => {
+          // look for a new deployment every time the app is opened / comes back to the foreground
+          void reg.update().catch(() => undefined);
+          document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") void reg.update().catch(() => undefined);
+          });
+        })
+        .catch(() => undefined);
+      // when a new service worker takes control, reload once so the new version shows immediately
+      let reloaded = false;
+      const hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadController || reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
     };
     window.addEventListener("load", onLoad);
     return () => window.removeEventListener("load", onLoad);

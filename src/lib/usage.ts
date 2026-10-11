@@ -257,18 +257,21 @@ export async function recordLogin(
   uid: string,
   o: { kind: "login" | "signup"; provider: string; emailVerified: boolean; userAgent: string }
 ): Promise<void> {
-  const provider = o.provider === "google" ? "google" : "password";
+  const provider = o.provider === "google" ? "google" : o.provider === "phone" ? "phone" : "password";
+  // one round-trip for both writes (login counter + event log) — login speed matters
   await db.execute(sql`
-    update barq.users
-    set login_count = login_count + 1,
-        last_login_at = now(),
-        provider = ${provider},
-        email_verified = ${o.emailVerified}
-    where id = ${uid}
-  `);
-  await db.execute(sql`
+    with upd as (
+      update barq.users
+      set login_count = login_count + 1,
+          last_login_at = now(),
+          provider = ${provider},
+          email_verified = ${o.emailVerified}
+      where id = ${uid}
+      returning id
+    )
     insert into barq.login_events (user_id, kind, provider, user_agent)
-    values (${uid}, ${o.kind}, ${provider}, ${o.userAgent.slice(0, 200)})
+    select ${uid}, ${o.kind}, ${provider}, ${o.userAgent.slice(0, 200)}
+    from upd
   `);
 }
 
