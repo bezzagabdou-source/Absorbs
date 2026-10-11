@@ -74,6 +74,7 @@ import { appendChunk } from "@/lib/stream-marks";
 import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
+import { boostPrompt } from "@/lib/prompt-booster";
 const FullPreview = dynamic(() => import("@/components/game-preview").then((m) => m.FullPreview), { ssr: false });
 import { wantsPromptText } from "@/lib/design-canvas";
 import {
@@ -2375,6 +2376,28 @@ export function ChatPage() {
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-white/8 hover:text-brand-300 active:scale-90"
                 >
                   <Paperclip className="h-4 w-4" />
+                </button>
+                {/* v18.2 — ⚡ Prompt Booster: expands a rough build request into a full brief (no model call) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = boostPrompt(input);
+                    if (!r.changed) return;
+                    setInput(r.text);
+                    requestAnimationFrame(() => {
+                      const ta = taRef.current;
+                      if (!ta) return;
+                      ta.style.height = "auto";
+                      ta.style.height = `${Math.min(ta.scrollHeight, 190)}px`;
+                      ta.focus();
+                    });
+                  }}
+                  disabled={input.trim().length < 4}
+                  aria-label="حسّن البرومبت"
+                  title="⚡ حسّن البرومبت — يحوّل طلبك لمواصفات كاملة (لعبة / موقع / كود)"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-white/8 hover:text-gold-300 active:scale-90 disabled:opacity-40"
+                >
+                  <Sparkles className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
