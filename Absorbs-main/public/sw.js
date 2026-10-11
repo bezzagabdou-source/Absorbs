@@ -1,5 +1,5 @@
 /* Nexus AI v8.4 — service worker (offline shell + fast repeat visits) */
-const CACHE = "nexus-v16-lumen";
+const CACHE = "nexus-v19-fresh";
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest"];
 const MAX_ENTRIES = 80;
@@ -46,6 +46,10 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return; // never cache API
+  // Next.js client-navigation (RSC) payloads and data requests must ALWAYS come from the network,
+  // otherwise the app keeps showing the previous deployment's pages
+  if (url.searchParams.has("_rsc") || request.headers.get("RSC") || request.headers.get("Next-Router-State-Tree")) return;
+  if (url.pathname.startsWith("/_next/data/") || url.pathname.startsWith("/_next/image")) return;
 
   // Pages: network first, then cache, then the offline page
   if (request.mode === "navigate") {
@@ -80,17 +84,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else (icons, fonts, images): answer from cache at once, refresh in background
+  // Everything else (icons, fonts, images, manifest): network first, cache only as an offline fallback
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((res) => {
-          event.waitUntil(store(request, res.clone()));
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(request)
+      .then((res) => {
+        event.waitUntil(store(request, res.clone()));
+        return res;
+      })
+      .catch(async () => (await caches.match(request)) || Response.error())
   );
 });
 
