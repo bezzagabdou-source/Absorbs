@@ -101,10 +101,14 @@ export interface StreamOpts {
 class SseText {
   private buf = "";
   private readonly dec = new TextDecoder();
-  constructor(
-    private readonly reader: ReadableStreamDefaultReader<Uint8Array>,
-    private readonly provider: string
-  ) {}
+  /* plain fields (no TS parameter properties) so the node strip-types smoke
+     harness can import this module. Same behaviour, testable. */
+  private readonly reader: ReadableStreamDefaultReader<Uint8Array>;
+  private readonly provider: string;
+  constructor(reader: ReadableStreamDefaultReader<Uint8Array>, provider: string) {
+    this.reader = reader;
+    this.provider = provider;
+  }
 
   async next(): Promise<string | null> {
     for (;;) {

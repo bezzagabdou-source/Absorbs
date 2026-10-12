@@ -465,7 +465,13 @@ export async function streamOpenAIDirect(o: {
 class AnthropicSse {
   private buf = "";
   private readonly dec = new TextDecoder();
-  constructor(private readonly reader: ReadableStreamDefaultReader<Uint8Array>) {}
+  /* a plain field (not a TS parameter property) keeps this file importable by
+     the node --experimental-strip-types smoke harness, which cannot strip
+     parameter properties. Identical behaviour, better testability. */
+  private readonly reader: ReadableStreamDefaultReader<Uint8Array>;
+  constructor(reader: ReadableStreamDefaultReader<Uint8Array>) {
+    this.reader = reader;
+  }
   async next(): Promise<string | null> {
     for (;;) {
       const nl = this.buf.indexOf("\n");

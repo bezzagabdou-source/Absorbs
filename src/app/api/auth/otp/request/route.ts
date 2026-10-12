@@ -34,12 +34,19 @@ export async function POST(req: Request): Promise<Response> {
 
   void sweepCodes().catch(() => undefined);
 
-  const r = await issueCode({
-    email,
-    purpose,
-    userId: user?.uid ?? null,
-    ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim(),
-  });
+  let r: Awaited<ReturnType<typeof issueCode>>;
+  try {
+    r = await issueCode({
+      email,
+      purpose,
+      userId: user?.uid ?? null,
+      ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim(),
+    });
+  } catch (e) {
+    // no DATABASE_URL / Postgres unreachable: say so plainly, never a bare 500
+    console.error("[otp] request failed:", e instanceof Error ? e.message : String(e));
+    return json(503, { code: "DB" });
+  }
 
   if (!r.ok) {
     if (r.code === "RATE") return json(429, { code: "COOLDOWN", retryAfter: r.retryAfter ?? 60 });

@@ -34,8 +34,14 @@
 
 التفاصيل الكاملة في [`UPGRADE-V18-ATLAS.md`](./UPGRADE-V18-ATLAS.md).
 
-**الفحص قبل النشر:** `npx tsc --noEmit` · `npx next build` · `npm run smoke:smith`
-(36 توليفة لعبة تُبنى وتُشغَّل فعليًا بلا متصفح).
+**الفحص قبل النشر:**
+
+```bash
+npx tsc --noEmit        # أنواع
+npx next build          # بناء كامل
+npm run smoke:smith     # 36 توليفة لعبة تُبنى وتُشغَّل فعليًا بلا متصفح
+npm run test:guardian   # 16 فحصًا للحارس: ملف نظيف = صفر إنذارات كاذبة
+```
 
 ---
 

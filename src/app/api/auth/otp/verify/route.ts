@@ -32,7 +32,13 @@ export async function POST(req: Request): Promise<Response> {
   const rl = rateLimit(`otp-chk:${key}`, 12, 10 * 60_000);
   if (!rl.ok) return json(429, { code: "RATE", retryAfter: rl.retryAfter });
 
-  const r = await verifyCode({ email, code, purpose, userId: user?.uid ?? null });
+  let r: Awaited<ReturnType<typeof verifyCode>>;
+  try {
+    r = await verifyCode({ email, code, purpose, userId: user?.uid ?? null });
+  } catch (e) {
+    console.error("[otp] verify failed:", e instanceof Error ? e.message : String(e));
+    return json(503, { code: "DB" });
+  }
   if (!r.ok) return json(r.code === "LOCKED" ? 429 : 400, { code: r.code });
 
   if (purpose !== "login") {
