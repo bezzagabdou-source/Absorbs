@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useCredits, UserAvatar } from "@/components/app/app-shell";
 import { useAuth } from "@/lib/auth-context";
-import { MODELS_V12, FREE_MODELS_V12 } from "@/lib/models-v12";
+import { MODELS_V12, FREE_MODELS_V12, PRO_MODELS_V12 } from "@/lib/models-v12";
 import { cn } from "@/lib/utils";
 
 interface Tile {
@@ -179,8 +179,8 @@ export default function HubPage() {
             </p>
             <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--v12-faint)]">
               {isPro
-                ? "8 مجانية + 8 Pro. بلا قوائم طويلة، بلا نماذج ميتة."
-                : "8 نماذج مجانية. رقّي لـ Pro باش تفتح 8 زيادة فيهم Claude وGrok."}
+                ? `${FREE_MODELS_V12.length} مجانية + ${PRO_MODELS_V12.length} Pro — GPT-5 · Astra · Kimi 3 · Claude · Grok · Gemini. كل نموذج عندو برومبت تعليمات خاص بيه.`
+                : `${FREE_MODELS_V12.length} نماذج مجانية، فيهم نماذج خفيفة جداً للجوال. رقّي لـ Pro باش تفتح ${PRO_MODELS_V12.length} زيادة.`}
             </p>
           </div>
           <Link href="/app/upgrade" className="v12-btn v12-btn-quiet flex-none !px-4 !py-2 !text-[13px]">

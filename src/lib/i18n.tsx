@@ -28,8 +28,8 @@ export const LOCALE_DIR: Record<Locale, "rtl" | "ltr"> = {
 /* ------------------------------------------------------------------ */
 const ar = {
   common: {
-    appName: "Nexus AI v8.4",
-    appTag: "Nexus AI v8.4",
+    appName: "Nexus AI",
+    appTag: "Nexus AI",
     loading: "جارٍ التحميل…",
     error: "حدث خطأ، حاول مجددًا",
     retry: "إعادة المحاولة",
@@ -38,7 +38,7 @@ const ar = {
     copied: "تم النسخ",
     close: "إغلاق",
     soon: "قريبًا",
-    generating: "Nexus AI v8.4 يكتب…",
+    generating: "Nexus AI يكتب…",
     free: "مجاني",
     pro: "احترافي",
     new: "جديد",
@@ -64,7 +64,7 @@ const ar = {
     titleA: "مساعد واحد،",
     titleB: "ألف مهمة تخلص لك",
     titleC: "",
-    sub: "Nexus AI v8.4 مساعدك اليومي بالعربية والدارجة والفرنسية: محادثة، كتابة محتوى، ترجمة، سيرة ذاتية، مساعدة في الدراسة، وأدوات جاهزة للتجار وأصحاب المشاريع في الجزائر.",
+    sub: "Nexus AI مساعدك اليومي بالعربية والدارجة والفرنسية: محادثة، كتابة محتوى، ترجمة، سيرة ذاتية، مساعدة في الدراسة، وأدوات جاهزة للتجار وأصحاب المشاريع في الجزائر.",
     cta1: "جرّبه مجانًا الآن",
     cta2: "اكتشف الأدوات",
     note: "بدون بطاقة بنكية • 20 نقطة مجانية كل يوم",
@@ -90,7 +90,7 @@ const ar = {
   ],
   stats: {
     users: "مستخدم",
-    usersLabel: "يثقون في Nexus AI v8.4",
+    usersLabel: "يثقون في Nexus AI",
     gens: "نص مولَّد",
     gensLabel: "بواسطة الذكاء الاصطناعي",
     tools: "أداة ذكية",
@@ -99,10 +99,10 @@ const ar = {
     langsLabel: "عربية، دارجة، فرنسية، إنجليزية",
   },
   features: {
-    kicker: "لماذا Nexus AI v8.4؟",
+    kicker: "لماذا Nexus AI؟",
     title: "كل ما تحتاجه،",
     highlight: "في منصة واحدة",
-    sub: "صممنا Nexus AI v8.4 ليكون رفيقك اليومي: للطالب، التاجر، صانع المحتوى، والموظف.",
+    sub: "صممنا Nexus AI ليكون رفيقك اليومي: للطالب، التاجر، صانع المحتوى، والموظف.",
     items: [
       {
         t: "يفهم الدارجة",
@@ -134,7 +134,7 @@ const ar = {
     kicker: "صندوق الأدوات",
     title: "10 أدوات جاهزة",
     highlight: "تخدمك في كل يوم",
-    sub: "أدوات احترافية جاهزة — املأ الخانات فقط وNexus AI v8.4 يفعل الباقي.",
+    sub: "أدوات احترافية جاهزة — املأ الخانات فقط وNexus AI يفعل الباقي.",
     open: "استعمل الأداة",
     all: "كل الأدوات",
   },
@@ -163,7 +163,7 @@ const ar = {
       cta: "ابدأ مجانًا",
     },
     pro: {
-      name: "Nexus AI v8.4 Pro",
+      name: "Nexus AI Pro",
       desc: "للمحترفين والتجار والطلبة الجادين",
       price: "990",
       priceYear: "9 900",
@@ -185,7 +185,7 @@ const ar = {
     highlight: "عندنا الجواب",
     items: [
       {
-        q: "هل Nexus AI v8.4 مجاني فعلًا؟",
+        q: "هل Nexus AI مجاني فعلًا؟",
         a: "نعم! تحصل على 20 نقطة مجانية تتجدد كل يوم، بدون بطاقة بنكية. كل رسالة أو استعمال أداة يستهلك نقطة واحدة فقط.",
       },
       {
@@ -198,7 +198,7 @@ const ar = {
       },
       {
         q: "هل أحتاج تثبيت تطبيق؟",
-        a: "لا. Nexus AI v8.4 تطبيق ويب تقدمي (PWA): افتحه في المتصفح واضغط 'تثبيت التطبيق' ليصبح على شاشتك الرئيسية كأي تطبيق، بحجم صغير جدًا.",
+        a: "لا. Nexus AI تطبيق ويب تقدمي (PWA): افتحه في المتصفح واضغط 'تثبيت التطبيق' ليصبح على شاشتك الرئيسية كأي تطبيق، بحجم صغير جدًا.",
       },
       {
         q: "ماذا عن خصوصية بياناتي؟",
@@ -212,7 +212,7 @@ const ar = {
   },
   cta: {
     title: "جاهز تربح وقتك؟",
-    sub: "انضم لآلاف الجزائريين الذين يستعملون Nexus AI v8.4 كل يوم — مجانًا.",
+    sub: "انضم لآلاف الجزائريين الذين يستعملون Nexus AI كل يوم — مجانًا.",
     btn: "أنشئ حسابك المجاني",
     note: "30 ثانية وتبدأ",
   },
@@ -233,7 +233,7 @@ const ar = {
   },
   auth: {
     loginTitle: "مرحبًا بعودتك",
-    loginSub: "سجّل دخولك لإكمال رحلتك مع Nexus AI v8.4",
+    loginSub: "سجّل دخولك لإكمال رحلتك مع Nexus AI",
     signupTitle: "أنشئ حسابك المجاني",
     signupSub: "20 نقطة مجانية كل يوم — بدون بطاقة بنكية",
     name: "الاسم الكامل",
@@ -249,7 +249,7 @@ const ar = {
     forgot: "نسيت كلمة المرور؟",
     resetSent: "أرسلنا رابط إعادة التعيين إلى بريدك ✉️",
     brandLine: "مساعد يفهمك",
-    brandSub: "بالدارجة، بالعربية، بالفرنسية — Nexus AI v8.4 معاك في كل مهامك.",
+    brandSub: "بالدارجة، بالعربية، بالفرنسية — Nexus AI معاك في كل مهامك.",
     brandPoints: [
       "محادثة بلا حدود",
       "10 أدوات للمحتوى والتجارة والدراسة",
@@ -296,8 +296,8 @@ const ar = {
     stop: "إيقاف",
     remainingToday: "طاقة متبقية",
     jumpToEnd: "إلى آخر الرسائل",
-    thinking: "Nexus AI v8.4 يفكر",
-    disclaimer: "Nexus AI v8.4 قد يخطئ أحيانًا — تحقق من المعلومات المهمة.",
+    thinking: "Nexus AI يفكر",
+    disclaimer: "Nexus AI قد يخطئ أحيانًا — تحقق من المعلومات المهمة.",
     quotaTitle: "خلصت طاقتك المجانية",
     quotaSub: "الطاقة المجانية (ساعتين استعمال متواصل) توصل 0% وتتجدد بعد ساعتين، أو رقِّ إلى Pro بلا حدّ زمني وبسرعة أكبر.",
     quotaBtn: "رقِّ إلى Pro",
@@ -321,7 +321,7 @@ const ar = {
     chatsTab: "المحادثات",
     runsTab: "نتائج الأدوات",
     viewChat: "افتح",
-    upgradeTitle: "رقِّ إلى Nexus AI v8.4 Pro",
+    upgradeTitle: "رقِّ إلى Nexus AI Pro",
     upgradeSub: "نقاط شبه غير محدودة، سرعة أعلى، وميزات حصرية.",
     currentPlan: "خطتك الحالية",
     activeUntil: "صالحة حتى",
@@ -332,7 +332,7 @@ const ar = {
     redeemTitle: "عندك كود تفعيل؟",
     redeemPh: "أدخل الكود",
     redeemBtn: "تفعيل",
-    redeemOk: "مبروك! تم تفعيلك على Nexus AI v8.4 Pro 🎉",
+    redeemOk: "مبروك! تم تفعيلك على Nexus AI Pro 🎉",
     redeemBad: "كود غير صالح أو مستعمل",
     monthPlan: "باقة شهرية",
     yearPlan: "باقة سنوية",
@@ -365,8 +365,8 @@ export type Dict = typeof ar;
 /* ------------------------------------------------------------------ */
 const fr: Dict = {
   common: {
-    appName: "Nexus AI v8.4",
-    appTag: "Nexus AI v8.4",
+    appName: "Nexus AI",
+    appTag: "Nexus AI",
     loading: "Chargement…",
     error: "Une erreur est survenue, réessayez",
     retry: "Réessayer",
@@ -375,7 +375,7 @@ const fr: Dict = {
     copied: "Copié",
     close: "Fermer",
     soon: "Bientôt",
-    generating: "Nexus AI v8.4 écrit…",
+    generating: "Nexus AI écrit…",
     free: "Gratuit",
     pro: "Pro",
     new: "Nouveau",
@@ -401,7 +401,7 @@ const fr: Dict = {
     titleA: "Une seule IA,",
     titleB: "mille tâches accomplies",
     titleC: "",
-    sub: "Nexus AI v8.4 est votre assistant intelligent en arabe, darija et français : chat intelligent, rédaction, traduction, CV, aide aux études et outils prêts pour les vendeurs et entrepreneurs d'Algérie.",
+    sub: "Nexus AI est votre assistant intelligent en arabe, darija et français : chat intelligent, rédaction, traduction, CV, aide aux études et outils prêts pour les vendeurs et entrepreneurs d'Algérie.",
     cta1: "Essayer gratuitement",
     cta2: "Découvrir les outils",
     note: "Sans carte bancaire • 20 crédits gratuits chaque jour",
@@ -427,7 +427,7 @@ const fr: Dict = {
   ],
   stats: {
     users: "utilisateurs",
-    usersLabel: "font confiance à Nexus AI v8.4",
+    usersLabel: "font confiance à Nexus AI",
     gens: "textes générés",
     gensLabel: "par l'intelligence artificielle",
     tools: "outils IA",
@@ -436,10 +436,10 @@ const fr: Dict = {
     langsLabel: "arabe, darija, français, anglais",
   },
   features: {
-    kicker: "Pourquoi Nexus AI v8.4 ?",
+    kicker: "Pourquoi Nexus AI ?",
     title: "Tout ce qu'il vous faut,",
     highlight: "dans une seule plateforme",
-    sub: "Nexus AI v8.4 est votre compagnon quotidien : étudiant, vendeur, créateur de contenu ou employé.",
+    sub: "Nexus AI est votre compagnon quotidien : étudiant, vendeur, créateur de contenu ou employé.",
     items: [
       {
         t: "Comprend la darija",
@@ -471,7 +471,7 @@ const fr: Dict = {
     kicker: "Boîte à outils",
     title: "10 outils IA",
     highlight: "à votre service",
-    sub: "Des outils professionnels prêts — remplissez les champs, Nexus AI v8.4 fait le reste.",
+    sub: "Des outils professionnels prêts — remplissez les champs, Nexus AI fait le reste.",
     open: "Utiliser",
     all: "Tous les outils",
   },
@@ -500,7 +500,7 @@ const fr: Dict = {
       cta: "Commencer gratuitement",
     },
     pro: {
-      name: "Nexus AI v8.4 Pro",
+      name: "Nexus AI Pro",
       desc: "Pour les pros, vendeurs et étudiants sérieux",
       price: "990",
       priceYear: "9 900",
@@ -522,7 +522,7 @@ const fr: Dict = {
     highlight: "On a la réponse",
     items: [
       {
-        q: "Nexus AI v8.4 est-il vraiment gratuit ?",
+        q: "Nexus AI est-il vraiment gratuit ?",
         a: "Oui ! 20 crédits gratuits renouvelés chaque jour, sans carte bancaire. Chaque message ou outil consomme 1 crédit.",
       },
       {
@@ -535,7 +535,7 @@ const fr: Dict = {
       },
       {
         q: "Faut-il installer une application ?",
-        a: "Non. Nexus AI v8.4 est une PWA : ouvrez-le dans le navigateur puis 'Installer l'app' pour l'avoir sur votre écran d'accueil, très légère.",
+        a: "Non. Nexus AI est une PWA : ouvrez-le dans le navigateur puis 'Installer l'app' pour l'avoir sur votre écran d'accueil, très légère.",
       },
       {
         q: "Et la confidentialité ?",
@@ -549,7 +549,7 @@ const fr: Dict = {
   },
   cta: {
     title: "Prêt à gagner du temps ?",
-    sub: "Rejoignez des milliers d'Algériens qui utilisent Nexus AI v8.4 chaque jour — gratuitement.",
+    sub: "Rejoignez des milliers d'Algériens qui utilisent Nexus AI chaque jour — gratuitement.",
     btn: "Créer mon compte gratuit",
     note: "30 secondes pour commencer",
   },
@@ -570,7 +570,7 @@ const fr: Dict = {
   },
   auth: {
     loginTitle: "Bon retour",
-    loginSub: "Connectez-vous pour continuer avec Nexus AI v8.4",
+    loginSub: "Connectez-vous pour continuer avec Nexus AI",
     signupTitle: "Créez votre compte gratuit",
     signupSub: "20 crédits gratuits par jour — sans carte bancaire",
     name: "Nom complet",
@@ -586,7 +586,7 @@ const fr: Dict = {
     forgot: "Mot de passe oublié ?",
     resetSent: "Lien de réinitialisation envoyé ✉️",
     brandLine: "Une IA qui vous comprend",
-    brandSub: "En darija, arabe ou français — Nexus AI v8.4 est avec vous dans toutes vos tâches.",
+    brandSub: "En darija, arabe ou français — Nexus AI est avec vous dans toutes vos tâches.",
     brandPoints: [
       "Chat intelligent illimité",
       "10 outils contenu, commerce & études",
@@ -633,8 +633,8 @@ const fr: Dict = {
     stop: "Arrêter",
     remainingToday: "énergie restante",
     jumpToEnd: "Aller au dernier message",
-    thinking: "Nexus AI v8.4 réfléchit",
-    disclaimer: "Nexus AI v8.4 peut se tromper — vérifiez les informations importantes.",
+    thinking: "Nexus AI réfléchit",
+    disclaimer: "Nexus AI peut se tromper — vérifiez les informations importantes.",
     quotaTitle: "Énergie gratuite épuisée",
     quotaSub: "L'énergie gratuite (2 h d'usage continu) revient 2 h après être tombée à 0 %, ou passez Pro sans limite de temps.",
     quotaBtn: "Passer à Pro",
@@ -658,7 +658,7 @@ const fr: Dict = {
     chatsTab: "Conversations",
     runsTab: "Résultats d'outils",
     viewChat: "Ouvrir",
-    upgradeTitle: "Passez à Nexus AI v8.4 Pro",
+    upgradeTitle: "Passez à Nexus AI Pro",
     upgradeSub: "Crédits quasi illimités, vitesse accrue et fonctions exclusives.",
     currentPlan: "Votre plan actuel",
     activeUntil: "Valable jusqu'au",
@@ -669,7 +669,7 @@ const fr: Dict = {
     redeemTitle: "Un code d'activation ?",
     redeemPh: "Entrez le code",
     redeemBtn: "Activer",
-    redeemOk: "Félicitations ! Nexus AI v8.4 Pro activé 🎉",
+    redeemOk: "Félicitations ! Nexus AI Pro activé 🎉",
     redeemBad: "Code invalide ou déjà utilisé",
     monthPlan: "Plan mensuel",
     yearPlan: "Plan annuel",
@@ -700,8 +700,8 @@ const fr: Dict = {
 /* ------------------------------------------------------------------ */
 const en: Dict = {
   common: {
-    appName: "Nexus AI v8.4",
-    appTag: "Nexus AI v8.4",
+    appName: "Nexus AI",
+    appTag: "Nexus AI",
     loading: "Loading…",
     error: "Something went wrong, try again",
     retry: "Retry",
@@ -710,7 +710,7 @@ const en: Dict = {
     copied: "Copied",
     close: "Close",
     soon: "Soon",
-    generating: "Nexus AI v8.4 is writing…",
+    generating: "Nexus AI is writing…",
     free: "Free",
     pro: "Pro",
     new: "New",
@@ -736,7 +736,7 @@ const en: Dict = {
     titleA: "One AI,",
     titleB: "a thousand tasks done",
     titleC: "",
-    sub: "Nexus AI v8.4 is your all-in-one smart assistant in Arabic, Darija and French: smart chat, content writing, translation, CVs, study help and ready-made tools for Algerian sellers and entrepreneurs.",
+    sub: "Nexus AI is your all-in-one smart assistant in Arabic, Darija and French: smart chat, content writing, translation, CVs, study help and ready-made tools for Algerian sellers and entrepreneurs.",
     cta1: "Try it free now",
     cta2: "Explore the tools",
     note: "No credit card • 20 free credits every day",
@@ -762,7 +762,7 @@ const en: Dict = {
   ],
   stats: {
     users: "users",
-    usersLabel: "trust Nexus AI v8.4",
+    usersLabel: "trust Nexus AI",
     gens: "texts generated",
     gensLabel: "by artificial intelligence",
     tools: "AI tools",
@@ -771,10 +771,10 @@ const en: Dict = {
     langsLabel: "Arabic, Darija, French, English",
   },
   features: {
-    kicker: "Why Nexus AI v8.4?",
+    kicker: "Why Nexus AI?",
     title: "Everything you need,",
     highlight: "in one platform",
-    sub: "Nexus AI v8.4 is your daily companion: student, seller, content creator or employee.",
+    sub: "Nexus AI is your daily companion: student, seller, content creator or employee.",
     items: [
       {
         t: "Understands Darija",
@@ -806,7 +806,7 @@ const en: Dict = {
     kicker: "Toolbox",
     title: "10 AI tools",
     highlight: "at your service",
-    sub: "Professional ready-made tools — fill the fields, Nexus AI v8.4 does the rest.",
+    sub: "Professional ready-made tools — fill the fields, Nexus AI does the rest.",
     open: "Use tool",
     all: "All tools",
   },
@@ -835,7 +835,7 @@ const en: Dict = {
       cta: "Start for free",
     },
     pro: {
-      name: "Nexus AI v8.4 Pro",
+      name: "Nexus AI Pro",
       desc: "For pros, sellers and serious students",
       price: "990",
       priceYear: "9,900",
@@ -857,7 +857,7 @@ const en: Dict = {
     highlight: "We've got answers",
     items: [
       {
-        q: "Is Nexus AI v8.4 really free?",
+        q: "Is Nexus AI really free?",
         a: "Yes! 20 free credits renewed every day, no card needed. Each message or tool run costs 1 credit.",
       },
       {
@@ -870,7 +870,7 @@ const en: Dict = {
       },
       {
         q: "Do I need to install an app?",
-        a: "No. Nexus AI v8.4 is a PWA: open it in the browser, tap 'Install app' and it lives on your home screen, super light.",
+        a: "No. Nexus AI is a PWA: open it in the browser, tap 'Install app' and it lives on your home screen, super light.",
       },
       {
         q: "What about my privacy?",
@@ -884,7 +884,7 @@ const en: Dict = {
   },
   cta: {
     title: "Ready to win back your time?",
-    sub: "Join thousands of Algerians using Nexus AI v8.4 every day — for free.",
+    sub: "Join thousands of Algerians using Nexus AI every day — for free.",
     btn: "Create my free account",
     note: "30 seconds to start",
   },
@@ -905,7 +905,7 @@ const en: Dict = {
   },
   auth: {
     loginTitle: "Welcome back",
-    loginSub: "Sign in to continue with Nexus AI v8.4",
+    loginSub: "Sign in to continue with Nexus AI",
     signupTitle: "Create your free account",
     signupSub: "20 free credits every day — no card needed",
     name: "Full name",
@@ -921,7 +921,7 @@ const en: Dict = {
     forgot: "Forgot password?",
     resetSent: "Reset link sent to your inbox ✉️",
     brandLine: "An AI that understands you",
-    brandSub: "In Darija, Arabic or French — Nexus AI v8.4 is with you in every task.",
+    brandSub: "In Darija, Arabic or French — Nexus AI is with you in every task.",
     brandPoints: [
       "Unlimited smart chat",
       "10 tools for content, commerce & study",
@@ -968,8 +968,8 @@ const en: Dict = {
     stop: "Stop",
     remainingToday: "energy left",
     jumpToEnd: "Jump to latest",
-    thinking: "Nexus AI v8.4 is thinking",
-    disclaimer: "Nexus AI v8.4 can make mistakes — double-check important info.",
+    thinking: "Nexus AI is thinking",
+    disclaimer: "Nexus AI can make mistakes — double-check important info.",
     quotaTitle: "Free energy used up",
     quotaSub: "Free energy (2 hours of continuous use) refills 2 hours after it hits 0% — or go Pro with no time limit.",
     quotaBtn: "Upgrade to Pro",
@@ -993,7 +993,7 @@ const en: Dict = {
     chatsTab: "Conversations",
     runsTab: "Tool results",
     viewChat: "Open",
-    upgradeTitle: "Upgrade to Nexus AI v8.4 Pro",
+    upgradeTitle: "Upgrade to Nexus AI Pro",
     upgradeSub: "Near-unlimited credits, higher speed and exclusive features.",
     currentPlan: "Current plan",
     activeUntil: "Valid until",
@@ -1004,7 +1004,7 @@ const en: Dict = {
     redeemTitle: "Have an activation code?",
     redeemPh: "Enter your code",
     redeemBtn: "Activate",
-    redeemOk: "Congrats! Nexus AI v8.4 Pro activated 🎉",
+    redeemOk: "Congrats! Nexus AI Pro activated 🎉",
     redeemBad: "Invalid or already used code",
     monthPlan: "Monthly plan",
     yearPlan: "Yearly plan",

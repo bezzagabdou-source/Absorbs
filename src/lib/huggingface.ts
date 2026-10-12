@@ -68,11 +68,15 @@ export async function streamHuggingFace(o: {
 }): Promise<ReadableStream<string>> {
   const found = findHuggingFaceKey();
   if (!found) throw new ProviderStreamError("NO_KEY", "huggingface", "HF_TOKEN is not configured.");
+  /* v18: the model the user actually picked leads the ladder; the defaults stay
+     behind it as automatic failover (a busy / cold endpoint must never block). */
+  const requested = (o.model ?? "").trim();
+  const ladder = requested ? [requested, ...huggingFaceModels()] : huggingFaceModels();
   return streamOpenAICompat({
     provider: "huggingface",
     url: HF_URL,
     key: found.value,
-    models: huggingFaceModels(),
+    models: Array.from(new Set(ladder)),
     system: o.system,
     messages: o.messages,
     maxTokens: o.maxTokens,

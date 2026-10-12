@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Brain,
   Palette,
+  Sparkles,
 } from "lucide-react";
 import { Row } from "@/components/settings-ui";
 import { motion } from "framer-motion";
@@ -24,12 +25,25 @@ import { useCredits, UserAvatar, meterLabel } from "@/components/app/app-shell";
 import { InstallButton } from "@/components/pwa";
 import { ThemeCard } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
+import { ACCENTS, useAppearanceSafe, type DensityId } from "@/lib/appearance";
+
+const DENSITY_LABELS: Record<DensityId, string> = { compact: "مدمج", default: "عادي", cozy: "مريح" };
+
+function AppearancePill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="nx-card px-4 py-3">
+      <p className="text-[11px] font-bold text-[var(--nx-muted)]">{label}</p>
+      <p className="mt-0.5 text-[13.5px] font-black text-[var(--nx-text)]">{value}</p>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { t, locale } = useI18n();
   const { user, signOut } = useAuth();
   const { profile } = useCredits();
   const router = useRouter();
+  const { ap } = useAppearanceSafe();
 
   const isPro = profile?.plan === "pro";
 
@@ -76,7 +90,7 @@ export default function SettingsPage() {
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-lg font-black text-white">
-                {profile?.user.displayName ?? user?.displayName ?? "Nexus AI v8.4"}
+                {profile?.user.displayName ?? user?.displayName ?? "Nexus AI"}
               </p>
               <p
                 className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-slate-400"
@@ -104,13 +118,25 @@ export default function SettingsPage() {
             <Palette className="h-4.5 w-4.5 text-brand-300" />
             المظهر
           </h2>
-          <ThemeCard />
+          <div className="space-y-3">
+            <Row
+              icon={Sparkles}
+              title="المظهر والتصميم — ATLAS"
+              desc="لون الهوية، الوضع الليلي، الكثافة، حجم الخط والشاشة العريضة"
+              href="/app/settings/appearance"
+            />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <AppearancePill label="لون الهوية" value={ACCENTS.find((a) => a.id === ap.accent)?.label ?? "نيلي"} />
+              <AppearancePill label="الكثافة" value={DENSITY_LABELS[ap.density]} />
+              <AppearancePill label="المساحة" value={ap.wide ? "عريضة" : "عادية"} />
+            </div>
+          </div>
         </motion.section>
 
         {/* sections — each opens its own page */}
         <section className="space-y-3">
           <Row icon={Globe} title={t.common.language} desc={LOCALE_NAMES[locale]} href="/app/settings/language" />
-          <Row icon={Brain} title="ذاكرة Nexus AI v8.4" desc="ما يتذكره Nexus AI v8.4 عنك في كل محادثة" href="/app/settings/memory" />
+          <Row icon={Brain} title="ذاكرة Nexus AI" desc="ما يتذكره Nexus AI عنك في كل محادثة" href="/app/settings/memory" />
           <Row icon={ShieldCheck} title="مركز الأمان" desc="تفعيل البريد، كلمة المرور، سجل الدخول" href="/app/settings/security" />
           <Row icon={ShieldCheck} title="الخصوصية" desc="حذف المحادثات والسياسات" href="/app/settings/privacy" />
           <Row icon={Bell} title="الإشعارات" desc="تذكيرات وعروض" href="/app/settings/notifications" />

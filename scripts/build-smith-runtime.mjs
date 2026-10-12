@@ -29,6 +29,10 @@ const ORDER = [
   "bp-maze.js",
   "bp-merge.js",
   "bp-memory.js",
+  "bp-flappy.js",
+  "bp-pong.js",
+  "bp-stack.js",
+  "bp-quiz.js",
   "boot.js",
 ];
 
@@ -57,7 +61,7 @@ const header = `/**
  * Regenerate with: node scripts/build-smith-runtime.mjs
  *
  * The whole engine (core loop, input, procedural audio, particles, HUD, screens
- * and the 8 blueprints) is one plain-JS IIFE with no imports and no network. It
+ * and the 12 blueprints) is one plain-JS IIFE with no imports and no network. It
  * is embedded as a string so a generated game is a single downloadable file and
  * the serverless bundle never needs \`fs\` at runtime.
  *

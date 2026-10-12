@@ -36,6 +36,7 @@ import {
   BrainCircuit,
   Anvil,
   Trophy,
+  Palette,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
@@ -235,6 +236,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: "/app/settings/privacy", label: "الخصوصية", icon: ShieldCheck },
     { href: "/app/settings/storage", label: "التخزين", icon: Database },
     { href: "/app/mastery", label: "مسار الإتقان والشارات", icon: Trophy },
+    { href: "/app/settings/appearance", label: "المظهر والتصميم", icon: Palette },
   ];
 
   const isActive = (href: string, exact: boolean) =>
@@ -257,7 +259,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="app-frame flex flex-col overflow-hidden lg:ps-72"
       >
         {/* ---------------- desktop sidebar ---------------- */}
-        <aside className="fixed inset-y-0 start-0 z-40 hidden w-72 flex-col border-e border-white/6 bg-ink-950/90 p-5 lg:flex">
+        <aside className="fixed inset-y-0 start-0 z-40 hidden w-[17.5rem] flex-col border-e border-[var(--nx-line)] bg-[var(--nx-surface)] p-4 backdrop-blur-2xl xl:w-72 lg:flex">
           <div className="mb-7 flex items-center justify-between gap-2 px-1">
             <Link href="/" className="flex items-center gap-2.5">
               <Logo size={38} />
@@ -268,33 +270,25 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link
             href="/app"
             onClick={() => window.dispatchEvent(new Event("barq:new-chat"))}
-            className="btn-primary mb-6 w-full py-3 text-sm"
+            className="nx-btn nx-btn-primary mb-5 w-full"
           >
             <SquarePen className="h-4.5 w-4.5" />
             {t.app.newChat}
           </Link>
 
-          <nav className="flex flex-col gap-1.5">
+          <nav className="nx-shell flex flex-col gap-1">
+            <p className="nx-section-title mb-1 px-2">التطبيق</p>
             {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition",
-                  isActive(item.href, item.exact)
-                    ? "bg-gradient-to-l from-brand-500/35 to-brand-500/5 text-[#fff] ring-1 ring-brand-400/30"
-                    : "text-slate-400 hover:bg-brand-500/10 hover:text-[#fff]"
-                )}
+                className="nx-nav-item"
+                data-active={isActive(item.href, item.exact) ? "1" : "0"}
               >
-                <item.icon
-                  className={cn(
-                    "h-5 w-5",
-                    isActive(item.href, item.exact) && "text-gold-400"
-                  )}
-                />
+                <item.icon className="h-[18px] w-[18px] flex-none" />
                 {item.label}
                 {item.href === "/app/upgrade" && profile?.plan !== "pro" && (
-                  <span className="ms-auto rounded-md bg-gradient-to-b from-gold-200 to-gold-500 px-1.5 py-0.5 text-[9px] font-black text-[#2a1700]">
+                  <span className="nx-chip nx-chip-gold ms-auto !px-2 !py-0.5 !text-[9px]">
                     PRO
                   </span>
                 )}
@@ -304,9 +298,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="mt-auto space-y-3.5">
             {/* credits card */}
-            <div className="glass rounded-2xl p-4">
+            <div className="nx-card p-4">
               <div className="mb-2 flex items-center justify-between text-xs font-bold">
-                <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="flex items-center gap-1.5 text-[var(--nx-text-soft)]">
                   <Coins className="h-3.5 w-3.5 text-aqua-400" />
                   {profile?.plan === "pro"
                     ? t.app.unlimited
@@ -323,16 +317,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {profile?.trial ? "تجربة 7 أيام" : profile?.plan === "pro" ? t.app.proBadge : t.app.freePlanTag}
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+              <div className="h-1.5 overflow-hidden rounded-full bg-[var(--nx-surface-sunken)]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-brand-500 via-aqua-400 to-gold-400 transition-all duration-500"
-                  style={{ width: `${creditsPct}%` }}
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${creditsPct}%`,
+                    background: "linear-gradient(90deg,var(--nx-accent),var(--nx-accent-2))",
+                  }}
                 />
               </div>
               {profile?.plan !== "pro" && (
                 <Link
                   href="/app/upgrade"
-                  className="btn-gold mt-3 w-full gap-1.5 !rounded-xl !py-2 text-xs"
+                  className="nx-btn nx-btn-primary mt-3 w-full gap-1.5 !py-2 text-xs"
                 >
                   <Crown className="h-3.5 w-3.5" />
                   {t.app.upgradeNow}
@@ -341,16 +338,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
 
             {/* user row */}
-            <div className="flex items-center gap-2.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
+            <div className="flex items-center gap-2.5 rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface-2)] p-2.5">
               <UserAvatar
                 name={profile?.user.displayName ?? user.displayName}
                 photo={profile?.user.photoUrl ?? user.photoURL}
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-black text-white">
-                  {profile?.user.displayName ?? user.displayName ?? "Nexus AI v8.4"}
+                <p className="truncate text-xs font-black text-[var(--nx-text)]">
+                  {profile?.user.displayName ?? user.displayName ?? "Nexus AI"}
                 </p>
-                <p className="truncate text-[11px] text-slate-500" dir="ltr">
+                <p className="truncate text-[11px] text-[var(--nx-muted)]" dir="ltr">
                   {user.email}
                 </p>
               </div>
@@ -363,7 +360,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   router.replace("/");
                 }}
                 title={t.app.signOut}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[var(--nx-muted)] transition hover:bg-rose-500/10 hover:text-rose-400"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -422,17 +419,13 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-bold transition",
-                        isActive(item.href, item.exact)
-                          ? "bg-brand-500/12 text-brand-600 ring-1 ring-brand-400/30"
-                          : "text-slate-300 hover:bg-black/[0.04]"
-                      )}
+                      className="nx-nav-item"
+                      data-active={isActive(item.href, item.exact) ? "1" : "0"}
                     >
                       <item.icon className="h-[18px] w-[18px]" />
                       {item.label}
                       {item.href === "/app/upgrade" && profile?.plan !== "pro" && (
-                        <span className="ms-auto rounded-md bg-gradient-to-b from-gold-200 to-gold-500 px-1.5 py-0.5 text-[9px] font-black text-[#2a1700]">
+                        <span className="nx-chip nx-chip-gold ms-auto !px-2 !py-0.5 !text-[9px]">
                           PRO
                         </span>
                       )}
@@ -446,17 +439,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <Link
                       key={q.href}
                       href={q.href}
-                      className="flex items-center gap-2 rounded-xl border border-black/8 bg-black/[0.02] px-2.5 py-2.5 text-[12.5px] font-bold text-slate-300 transition hover:bg-black/[0.05]"
+                      className="flex items-center gap-2 rounded-xl border border-[var(--nx-line)] bg-[var(--nx-surface-sunken)] px-2.5 py-2.5 text-[12.5px] font-bold text-[var(--nx-text-soft)] transition hover:bg-[var(--nx-accent-soft)]"
                     >
-                      <q.icon className="h-4 w-4 shrink-0 text-brand-400" />
+                      <q.icon className="h-4 w-4 shrink-0 text-[var(--nx-accent)]" />
                       <span className="truncate">{q.label}</span>
                     </Link>
                   ))}
                 </nav>
 
-                <div className="glass rounded-2xl p-3.5">
+                <div className="nx-card p-3.5">
                   <div className="mb-2 flex items-center justify-between text-xs font-bold">
-                    <span className="flex items-center gap-1.5 text-slate-300">
+                    <span className="flex items-center gap-1.5 text-[var(--nx-text-soft)]">
                       <Coins className="h-3.5 w-3.5 text-aqua-400" />
                       {profile?.plan === "pro" ? t.app.unlimited : meterLabel(profile)}
                     </span>
@@ -471,14 +464,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                       {profile?.trial ? "تجربة 7 أيام" : profile?.plan === "pro" ? t.app.proBadge : t.app.freePlanTag}
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-black/8">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-[var(--nx-surface-sunken)]">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-brand-500 via-aqua-400 to-gold-400 transition-all duration-500"
-                      style={{ width: `${creditsPct}%` }}
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${creditsPct}%`,
+                        background: "linear-gradient(90deg,var(--nx-accent),var(--nx-accent-2))",
+                      }}
                     />
                   </div>
                   {profile?.plan !== "pro" && (
-                    <Link href="/app/upgrade" className="btn-gold mt-3 w-full gap-1.5 !rounded-xl !py-2 text-xs">
+                    <Link href="/app/upgrade" className="nx-btn nx-btn-primary mt-3 w-full gap-1.5 !py-2 text-xs">
                       <Crown className="h-3.5 w-3.5" />
                       {t.app.upgradeNow}
                     </Link>
@@ -526,18 +522,23 @@ export function AppShell({ children }: { children: ReactNode }) {
               else router.replace("/app");
             }}
             aria-label="رجوع"
-            className="fixed start-[3.6rem] top-[max(0.5rem,env(safe-area-inset-top))] z-40 grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-ink-950/80 text-slate-200 shadow-lg backdrop-blur transition active:scale-90 lg:hidden"
+            className="fixed start-[3.6rem] top-[max(0.5rem,env(safe-area-inset-top))] z-40 grid h-9 w-9 place-items-center rounded-full border border-[var(--nx-line)] bg-[var(--nx-surface)] text-[var(--nx-text)] shadow-lg backdrop-blur transition active:scale-90 lg:hidden"
           >
             <ChevronRight className="h-5 w-5 rtl:rotate-0 ltr:rotate-180" />
           </button>
         )}
 
-        {/* ---------------- content ---------------- */}
+        {/* ---------------- content ----------------
+            v18: one wide, organised column. Sub-pages get a readable measure
+            instead of a stretched wall of text, and the shell is capped by the
+            "wide" preference (up to 1800px). */}
         <main className="scroll-y min-h-0 min-w-0 flex-1">
-          <VerifyEmailBanner />
-          <SafeBoundary resetKey={pathname} label="صار خلل في هذه الصفحة">
-            {children}
-          </SafeBoundary>
+          <div className="nx-shell flex min-h-0 flex-1 flex-col">
+            <VerifyEmailBanner />
+            <SafeBoundary resetKey={pathname} label="صار خلل في هذه الصفحة">
+              {children}
+            </SafeBoundary>
+          </div>
         </main>
 
         {/* v15: the hub dock is gone — the chat owns the full height. */}

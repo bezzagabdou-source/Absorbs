@@ -16,6 +16,7 @@ import {
   Monitor,
   Package,
   RotateCcw,
+  ShieldCheck,
   Smartphone,
   Tablet,
   Wand2,
@@ -378,6 +379,7 @@ export function GamePreview({
     setFlash(m);
     setTimeout(() => setFlash(""), 1800);
   };
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(liveHtml);
@@ -558,6 +560,9 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
   const [view, setView] = useState<"preview" | "code">("preview");
   const [device, setDevice] = useState<"phone" | "tablet" | "desktop">("desktop");
   const [flash, setFlash] = useState("");
+  /* v18 GUARDIAN: an AI review of the artefact, on demand from the toolbar */
+  const [guardian, setGuardian] = useState<{ score: number; verdict: string; summary: string } | null>(null);
+  const [guardianBusy, setGuardianBusy] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const title = useMemo(() => (liveHtml.match(/<title>([^<]{1,60})<\/title>/i)?.[1] ?? "معاينة Nexus AI").trim(), [liveHtml]);
   const widths = { phone: 390, tablet: 768, desktop: 0 } as const;
@@ -585,6 +590,33 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
     setFlash(m);
     setTimeout(() => setFlash(""), 1800);
   };
+
+  /** NEXUS GUARDIAN — ask the AI to review the build before we ship it. */
+  const runGuardian = async () => {
+    setGuardianBusy(true);
+    setGuardian(null);
+    try {
+      const res = await authFetch("/api/ai/guardian", {
+        method: "POST",
+        body: JSON.stringify({ code: liveHtml, kind: "game", repair: true, review: true }),
+      });
+      const d = (await res.json().catch(() => null)) as {
+        score?: number; verdict?: string; summary?: string; code?: string | null;
+      } | null;
+      if (!res.ok || !d) {
+        say(res.status === 429 ? "الحارس مشغول — عاود بعد دقيقة" : "تعذّر الفحص");
+        return;
+      }
+      if (typeof d.code === "string" && d.code) setFixedHtml(d.code);
+      setGuardian({ score: d.score ?? 0, verdict: d.verdict ?? "", summary: d.summary ?? "" });
+      say(d.summary ?? "تم الفحص");
+    } catch {
+      say("تعذّر الفحص");
+    } finally {
+      setGuardianBusy(false);
+    }
+  };
+
   const ib =
     "grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.06] text-slate-200 transition active:scale-90 hover:border-brand-400/50 hover:text-white";
 
@@ -608,6 +640,16 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
           <p className="truncate text-[10.5px] font-bold text-brand-300">
             معاينة حيّة · شاشة كاملة{fixedHtml ? " · نسخة مُصلحة" : ""}
           </p>
+          {guardian && (
+            <p
+              className={cn(
+                "mt-0.5 truncate text-[10.5px] font-black",
+                guardian.verdict === "issues" ? "text-rose-300" : "text-emerald-300"
+              )}
+            >
+              🛡️ {guardian.summary}
+            </p>
+          )}
         </div>
         <div className="flex min-w-0 shrink flex-wrap items-center justify-end gap-1.5">
           <button type="button" aria-label="إعادة تشغيل" onClick={() => { clear(); setFixedHtml(null); setRun((n) => n + 1); }} className={ib}>
@@ -628,6 +670,24 @@ export function FullPreview({ html, onClose }: { html: string; onClose: () => vo
             className={ib}
           >
             {device === "phone" ? <Smartphone className="h-[18px] w-[18px]" /> : device === "tablet" ? <Tablet className="h-[18px] w-[18px]" /> : <Monitor className="h-[18px] w-[18px]" />}
+          </button>
+          <button
+            type="button"
+            aria-label="فحص الحارس قبل التسليم"
+            title="فحص الحارس: AI يراجع الملف ويصلح الأخطاء"
+            onClick={() => void runGuardian()}
+            disabled={guardianBusy}
+            className={cn(
+              ib,
+              "disabled:opacity-50",
+              guardian?.verdict === "issues"
+                ? "border-rose-300/50 text-rose-200"
+                : guardian
+                  ? "border-emerald-300/50 text-emerald-200"
+                  : "border-sky-300/40 text-sky-200"
+            )}
+          >
+            {guardianBusy ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <ShieldCheck className="h-[18px] w-[18px]" />}
           </button>
           <button type="button" aria-label="تحميل ZIP" onClick={() => downloadBlob(createZip(splitHtml(liveHtml)), "nexus-project.zip")} className={cn(ib, "border-amber-300/40 text-amber-200")}>
             <Package className="h-[18px] w-[18px]" />

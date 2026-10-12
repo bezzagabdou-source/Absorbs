@@ -7,7 +7,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-[100dvh]">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-5 sm:px-6">
-        <Link href="/" aria-label="Nexus AI v8.4">
+        <Link href="/" aria-label="Nexus AI">
           <Logo />
         </Link>
         <nav className="flex items-center gap-2">

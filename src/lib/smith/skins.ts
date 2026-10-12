@@ -118,6 +118,55 @@ export const SMITH_THEMES: SmithTheme[] = [
     btn0: "#ff7a45", btn1: "#c2410c", btnText: "#2b0d05",
     text: "#fff4e6", dim: "#d3a58a", edge: "rgba(255,214,180,0.2)",
   },
+  /* ---- v18 ATLAS: four new skins ---- */
+  {
+    id: "aurora",
+    name: { ar: "شفق", fr: "Aurore", en: "Aurora" },
+    page: "linear-gradient(160deg,#030b1f,#0d2b4d 52%,#123f5c)",
+    sky0: "#04122b", sky1: "#0b2a4a", sky2: "#123b57",
+    glow: "rgba(56,189,248,0.45)", star: "#dff3ff", starAlpha: 0.7,
+    hill0: "#0c2c44", hill1: "#0a2338", hill2: "#071a2a", mote: "#8ee6ff",
+    accent: "#38bdf8", aqua: "#34d399", gold: "#fde68a", rose: "#fb7185",
+    hero0: "#a5f3fc", hero1: "#2563eb", brick0: "#123a55", brick1: "#1d5f80",
+    btn0: "#38bdf8", btn1: "#0ea5e9", btnText: "#04202e",
+    text: "#eef9ff", dim: "#93b8cf", edge: "rgba(224,247,255,0.2)",
+  },
+  {
+    id: "ember",
+    name: { ar: "جمر", fr: "Braises", en: "Ember" },
+    page: "linear-gradient(160deg,#180406,#4a0d12 52%,#7c1d13)",
+    sky0: "#1d0508", sky1: "#4d1015", sky2: "#7a2119",
+    glow: "rgba(251,113,133,0.45)", star: "#ffe0d6", starAlpha: 0.5,
+    hill0: "#5c1418", hill1: "#470f13", hill2: "#300a0d", mote: "#ffb59b",
+    accent: "#fb7185", aqua: "#f59e0b", gold: "#fde68a", rose: "#ef4444",
+    hero0: "#ffd9c2", hero1: "#e11d48", brick0: "#6b1a1f", brick1: "#932a2a",
+    btn0: "#f43f5e", btn1: "#b91c1c", btnText: "#fff5f4",
+    text: "#fff1ee", dim: "#e0ae9f", edge: "rgba(255,228,220,0.2)",
+  },
+  {
+    id: "mint",
+    name: { ar: "نعناع", fr: "Menthe", en: "Mint" },
+    page: "linear-gradient(160deg,#02150f,#07402f 52%,#0b5c43)",
+    sky0: "#03170f", sky1: "#06412e", sky2: "#0a5b41",
+    glow: "rgba(52,211,153,0.45)", star: "#d9fff0", starAlpha: 0.6,
+    hill0: "#083b2a", hill1: "#062e21", hill2: "#04211a", mote: "#9df5d0",
+    accent: "#34d399", aqua: "#22d3ee", gold: "#fcd34d", rose: "#fb7185",
+    hero0: "#b8f7dc", hero1: "#059669", brick0: "#0b4a36", brick1: "#116b4c",
+    btn0: "#34d399", btn1: "#0d9488", btnText: "#02231a",
+    text: "#eafff7", dim: "#93cfb9", edge: "rgba(214,255,238,0.2)",
+  },
+  {
+    id: "royal",
+    name: { ar: "ملكي", fr: "Royal", en: "Royal" },
+    page: "linear-gradient(160deg,#0b0716,#241546 52%,#3b1d5e)",
+    sky0: "#0d0820", sky1: "#241546", sky2: "#3a1a63",
+    glow: "rgba(167,139,250,0.45)", star: "#f0e6ff", starAlpha: 0.75,
+    hill0: "#2a1850", hill1: "#1f123c", hill2: "#150c28", mote: "#e0cffd",
+    accent: "#a78bfa", aqua: "#f0abfc", gold: "#fcd34d", rose: "#fb7185",
+    hero0: "#e9d8ff", hero1: "#7c3aed", brick0: "#3d2470", brick1: "#5b3399",
+    btn0: "#a78bfa", btn1: "#7c3aed", btnText: "#150a26",
+    text: "#f7f2ff", dim: "#b8a8d6", edge: "rgba(238,228,255,0.2)",
+  },
 ];
 
 export const THEME_MAP: Record<string, SmithTheme> = Object.fromEntries(
@@ -190,6 +239,30 @@ const HELP_AR = {
     "في البداية تُكشف البطاقات لثوانٍ — احفظها",
     "الوقت محسوب: السرعة تعني نقاطًا أكثر",
   ],
+  flappy: [
+    "اضغط مسافة أو الشاشة لترفرف — الجاذبية تسحبك للأسفل",
+    "مرّ من الفراغ بين الأنابيب — كل 8 بوابات = مرحلة",
+    "العملات الذهبية داخل البوابة تعطي 25 نقطة وأحيانًا درعًا",
+    "الدرع ◈ يحميك من ارتطام واحد",
+  ],
+  pong: [
+    "حرّك مضربك بـ ↑ ↓ أو بسحب الإصبع",
+    "ارتداد الكرة على طرف المضرب يعطيها زاوية ودورانًا",
+    "القوتان: إبطاء ◷ و تسريع » تظهران أثناء اللعب",
+    "أول من يصل إلى الهدف يفوز — كل 3 نقاط مرحلة جديدة",
+  ],
+  stack: [
+    "اضغط مسافة أو الشاشة لإسقاط الكتلة",
+    "محاذاة شبه مثالية = PERFECT وتضاعف النقاط",
+    "3 محاذاة مثالية متتالية تمنحك درعًا ◈",
+    "الكتلة تتقلّص كل ما خرجت عن الحافة — دقّق أكثر",
+  ],
+  quiz: [
+    "اختر الجواب باللمس أو بأرقام 1 إلى 4",
+    "الإجابة السريعة تعطي نقاطًا أكثر — الوقت مرئي أعلى الشاشة",
+    "التوالي الصحيح يبني كومبو يضاعف النقاط",
+    "3 أخطاء وتنتهي اللعبة",
+  ],
 };
 
 const HELP_FR = {
@@ -241,6 +314,30 @@ const HELP_FR = {
     "Les cartes sont montrées quelques secondes au départ",
     "Le temps compte : la vitesse rapporte des points",
   ],
+  flappy: [
+    "Espace ou touchez l'écran pour battre des ailes",
+    "Passez entre les tuyaux — un palier tous les 8 passages",
+    "Les pièces dorées valent 25 points et parfois un bouclier",
+    "Le bouclier ◈ absorbe un impact",
+  ],
+  pong: [
+    "Bougez la raquette avec ↑ ↓ ou le doigt",
+    "Le bord de la raquette donne de l'angle et de l'effet",
+    "Bonus : ralenti ◷ et turbo » pendant la partie",
+    "Le premier au score gagne — palier tous les 3 points",
+  ],
+  stack: [
+    "Espace ou touchez pour lâcher le bloc",
+    "Un alignement presque parfait = PERFECT et multiplie les points",
+    "3 PERFECT d'affilée donnent un bouclier ◈",
+    "Le bloc rétrécit à chaque débordement — soyez précis",
+  ],
+  quiz: [
+    "Choisissez en touchant ou avec les touches 1 à 4",
+    "Répondre vite rapporte plus — le chrono est en haut",
+    "Les bonnes réponses consécutives construisent un combo",
+    "3 erreurs et la partie est terminée",
+  ],
 };
 
 const HELP_EN = {
@@ -291,6 +388,30 @@ const HELP_EN = {
     "Consecutive matches build a combo",
     "All cards are shown for a few seconds at the start",
     "Time is counted: speed earns more points",
+  ],
+  flappy: [
+    "Tap or press space to flap — gravity pulls you down",
+    "Fly through the gaps — a new level every 8 gates",
+    "Gold coins inside a gate are worth 25 points, sometimes a shield",
+    "The shield ◈ absorbs one crash",
+  ],
+  pong: [
+    "Move the paddle with ↑ ↓ or drag your finger",
+    "Hitting with the paddle edge adds angle and spin",
+    "Power-ups: slow-mo ◷ and boost » appear during play",
+    "First to the target wins — a new level every 3 points",
+  ],
+  stack: [
+    "Tap or press space to drop the block",
+    "A near-perfect align is PERFECT and multiplies the score",
+    "3 PERFECTs in a row grant a shield ◈",
+    "The block shrinks each time you overhang — be precise",
+  ],
+  quiz: [
+    "Pick an answer by tapping or pressing 1 to 4",
+    "Faster answers score more — the timer is at the top",
+    "Consecutive correct answers build a combo",
+    "3 mistakes and the run is over",
   ],
 };
 

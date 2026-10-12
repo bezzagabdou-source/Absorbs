@@ -202,6 +202,25 @@ create table if not exists barq.mind_events (
 create index if not exists mind_user_idx on barq.mind_events (user_id, created_at);
 create index if not exists mind_kind_idx on barq.mind_events (kind, created_at);
 
+
+/* ── v18 ATLAS — one-time codes ──────────────────────────────────────────────── */
+
+create table if not exists barq.otp_codes (
+  id uuid primary key default gen_random_uuid(),
+  email text not null,
+  user_id text,
+  purpose text not null default 'verify_email',
+  code_hash text not null,
+  attempts integer not null default 0,
+  max_attempts integer not null default 5,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
+  ip text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists otp_email_idx on barq.otp_codes (email, purpose);
+create index if not exists otp_expiry_idx on barq.otp_codes (expires_at);
+
 `;
 
 const g = globalThis as typeof globalThis & {

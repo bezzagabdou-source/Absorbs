@@ -8,7 +8,11 @@
     climber: bpClimber,
     maze: bpMaze,
     merge: bpMerge,
-    memory: bpMemory
+    memory: bpMemory,
+    flappy: bpFlappy,
+    pong: bpPong,
+    stack: bpStack,
+    quiz: bpQuiz
   };
 
   function boot() {
@@ -84,7 +88,7 @@
 
   /* expose a tiny debug handle (never used by the game itself) */
   window.NexusSmith = {
-    version: 17,
+    version: 18,
     config: CFG,
     start: startRun,
     pause: togglePause,

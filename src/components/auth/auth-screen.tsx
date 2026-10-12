@@ -21,6 +21,45 @@ import { useI18n } from "@/lib/i18n";
 import { Logo } from "@/components/logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { cn } from "@/lib/utils";
+import { OtpPanel } from "@/components/ui/otp-input";
+
+
+/* v18 — copy for the verification step, inline so it ships with this screen. */
+const OTP_COPY = {
+  ar: {
+    title: "أدخل رمز التفعيل",
+    sub: "أرسلنا رمزاً من 6 أرقام إلى بريدك. أدخله لتأكيد الحساب.",
+    verify: "تأكيد الرمز",
+    bad: "الرمز غير صحيح أو منتهي الصلاحية",
+    sent: "أعدنا إرسال الرمز",
+    mailOff: "خدمة البريد غير مضبوطة — يمكنك المتابعة وتفعيل بريدك لاحقاً من الإعدادات.",
+    preview: "رمز التجربة (وضع التطوير)",
+    skip: "تخطّي الآن",
+    verified: "تم تأكيد بريدك ✅",
+  },
+  fr: {
+    title: "Entrez le code",
+    sub: "Nous avons envoyé un code à 6 chiffres à votre email.",
+    verify: "Confirmer",
+    bad: "Code incorrect ou expiré",
+    sent: "Code renvoyé",
+    mailOff: "Service email non configuré — vous pouvez continuer et vérifier plus tard.",
+    preview: "Code de test (développement)",
+    skip: "Passer",
+    verified: "Email vérifié ✅",
+  },
+  en: {
+    title: "Enter the code",
+    sub: "We sent a 6-digit code to your email.",
+    verify: "Confirm code",
+    bad: "Wrong or expired code",
+    sent: "Code resent",
+    mailOff: "Email service is not configured — you can continue and verify later.",
+    preview: "Test code (development)",
+    skip: "Skip for now",
+    verified: "Email verified ✅",
+  },
+} as const;
 
 function GoogleMark() {
   return (
@@ -46,8 +85,9 @@ function GoogleMark() {
 }
 
 export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const { user, loading, signInEmail, signUpEmail, signInGoogle, sendReset } = useAuth();
+  const c = OTP_COPY[locale] ?? OTP_COPY.ar;
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -57,6 +97,10 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   const [busy, setBusy] = useState<"form" | "google" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /* v18: after a signup we ask for the 6-digit email code (skippable). */
+  const [step, setStep] = useState<"form" | "otp">("form");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [previewCode, setPreviewCode] = useState<string | null>(null);
 
   const isSignup = mode === "signup";
 
@@ -96,8 +140,17 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
     setError(null);
     setBusy("form");
     try {
-      if (isSignup) await signUpEmail(name, email.trim(), password);
-      else await signInEmail(email.trim(), password);
+      if (isSignup) {
+        await signUpEmail(name, email.trim(), password);
+        // v18: verify the email with a 6-digit code — but never block entry
+        setOtpEmail(email.trim());
+        setPreviewCode(null);
+        void requestOtp(email.trim());
+        setStep("otp");
+        setBusy(null);
+        return;
+      }
+      await signInEmail(email.trim(), password);
       router.replace("/app");
     } catch (err) {
       const code = (err as { code?: string }).code ?? "";
@@ -120,6 +173,93 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
       setError(t.auth.errors[authErrorKey(code) as keyof typeof t.auth.errors]);
     }
   };
+
+  /* ---- v18: one-time code over email ---- */
+  const requestOtp = async (to: string) => {
+    try {
+      const res = await fetch("/api/auth/otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: to, purpose: "verify_email" }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { previewCode?: string };
+      setPreviewCode(typeof d.previewCode === "string" ? d.previewCode : null);
+      if (!res.ok && res.status !== 429) setNotice(c.mailOff);
+    } catch {
+      setNotice(c.mailOff);
+    }
+  };
+
+  const verifyOtp = async (code: string) => {
+    try {
+      const res = await fetch("/api/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: otpEmail, code, purpose: "verify_email" }),
+      });
+      if (res.ok) {
+        setNotice(c.verified);
+        router.replace("/app");
+        return { ok: true };
+      }
+      return { ok: false, error: c.bad };
+    } catch {
+      return { ok: false, error: c.bad };
+    }
+  };
+
+  /* the OTP step replaces the form panel — the brand panel stays */
+  if (step === "otp") {
+    return (
+      <div className="relative grid min-h-[var(--app-h,100dvh)] lg:grid-cols-2" dir={dir}>
+        <div className="lattice relative hidden overflow-hidden bg-brand-700 lg:flex lg:flex-col lg:justify-between lg:p-12">
+          <div className="relative flex items-center justify-between">
+            <Link href="/">
+              <Logo size={40} />
+            </Link>
+            <LanguageSwitcher compact />
+          </div>
+          <div className="relative">
+            <h2 className="text-5xl font-bold leading-tight text-white">{t.auth.brandLine}.</h2>
+            <p className="mt-4 max-w-md text-lg text-slate-300">{t.auth.brandSub}</p>
+          </div>
+          <div className="relative flex items-center gap-2 text-sm font-bold text-slate-400">
+            <ShieldCheck className="h-4 w-4 text-emerald-300" />
+            Firebase Auth • Google Security
+          </div>
+        </div>
+        <div className="relative flex flex-col px-4 py-6 sm:px-8">
+          <div className="flex items-center justify-between lg:hidden">
+            <Link href="/">
+              <Logo size={32} />
+            </Link>
+            <LanguageSwitcher compact />
+          </div>
+          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10">
+            <OtpPanel
+              email={otpEmail}
+              title={c.title}
+              subtitle={c.sub}
+              onVerify={verifyOtp}
+              onResend={async () => {
+                await requestOtp(otpEmail);
+                return { ok: true };
+              }}
+              onCancel={() => router.replace("/app")}
+            />
+            {previewCode && (
+              <p className="mt-5 rounded-2xl border border-brand-400/30 bg-brand-500/10 px-4 py-3 text-center text-[13px] font-bold text-brand-200">
+                {c.preview}: <span className="font-mono text-lg tracking-[0.3em]">{previewCode}</span>
+              </p>
+            )}
+            {notice && notice !== c.verified && (
+              <p className="mt-4 text-center text-[12.5px] font-semibold text-slate-500">{notice}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative grid min-h-[var(--app-h,100dvh)] lg:grid-cols-2" dir={dir}>

@@ -32,6 +32,7 @@ import { streamOpenRouter, getOpenRouterKey, OPENROUTER_DEFAULT_MODEL } from "@/
 import { streamHuggingFace, findHuggingFaceKey, huggingFaceModels } from "@/lib/huggingface";
 import { ProviderStreamError, envModel, findEnvKey, streamOpenAICompat } from "@/lib/openai-stream";
 import { classifyTask } from "@/lib/task-router";
+import { personaForSelection } from "@/lib/models-v12";
 
 const env = (n: string, d: string): string => (process.env[n] ?? "").trim() || d;
 
@@ -63,6 +64,29 @@ export const FUSED_MODELS: Record<string, { lead: () => string; backups: () => s
       "\n\n[Nexus Kimi Code] You are the coding specialist. Write complete, runnable code in as few files as possible, with no omissions and no TODOs. " +
       "Prefer a single self-contained file for games and small apps, and test edge cases mentally before replying.",
   },
+  /* ---- v18 ATLAS: Astra (multimodal realtime flagship) + Kimi 3 (deep) ---- */
+  "nexus/astra": {
+    lead: () => env("OPENROUTER_ASTRA_MODEL", "google/gemini-2.5-pro"),
+    backups: () => [
+      env("OPENROUTER_ASTRA_BACKUP", "google/gemini-2.5-flash"),
+      env("OPENROUTER_ASTRA_BACKUP2", "openai/gpt-4o"),
+    ],
+    addon:
+      "\n\n[Nexus Astra] You are the realtime multimodal flagship. When media is attached, describe exactly what you SEE before interpreting it — " +
+      "never guess at content you cannot see. Reproduce shown interfaces as clean, responsive, accessible code. For builds: one self-contained file, " +
+      "no placeholders, no external assets, every id / tag / function reference re-checked before you finish.",
+  },
+  "nexus/kimi-3": {
+    lead: () => env("OPENROUTER_KIMI3_MODEL", "moonshotai/kimi-k2-thinking"),
+    backups: () => [
+      env("OPENROUTER_KIMI3_BACKUP", "moonshotai/kimi-k2"),
+      env("OPENROUTER_KIMI3_BACKUP2", "qwen/qwen3-coder"),
+    ],
+    addon:
+      "\n\n[Nexus Kimi 3] You are the long-horizon deep-thinking engineer. Think in systems and files, never snippets. " +
+      "Identify the ROOT CAUSE of every defect, state your approach in one line, justify it, then deliver the complete implementation and list the edge cases you handled. " +
+      "Never stop halfway, never emit a stub, and finish every function body.",
+  },
 };
 
 export async function streamSelectedModel(o: {
@@ -90,16 +114,21 @@ export async function streamSelectedModel(o: {
       ...common,
       model: fused.lead(),
       alsoTry: fused.backups(),
-      system: o.system + fused.addon,
+      system: o.system + fused.addon + personaForSelection(o.selection),
     });
   }
+  /* v18 ATLAS: every explicit model choice also carries its own operating
+     contract (persona), so GPT / Astra / Kimi / Claude / Grok all behave the
+     way their card in the picker promises. */
+  const persona = personaForSelection(o.selection);
+  const withPersona = persona ? { ...common, system: o.system + persona } : common;
   switch (o.selection.provider) {
     case "grok":
-      return streamGrok(common);
+      return streamGrok(withPersona);
     case "openrouter":
-      return streamOpenRouter(common);
+      return streamOpenRouter(withPersona);
     case "huggingface":
-      return streamHuggingFace(common);
+      return streamHuggingFace(withPersona);
     default:
       throw new Error("gemini is handled by the chat route");
   }

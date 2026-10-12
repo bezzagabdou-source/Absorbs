@@ -18,6 +18,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { OtpInput, type OtpState } from "@/components/ui/otp-input";
 import { cn } from "@/lib/utils";
 
 interface Login {
@@ -53,6 +54,56 @@ export default function SecurityPage() {
   const [justVerified, setJustVerified] = useState(false);
   const verified = Boolean(user?.emailVerified) || justVerified;
   const [logins, setLogins] = useState<Login[]>([]);
+
+  /* v18 — verify the email with a 6-digit code instead of hunting for a link */
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpState, setOtpState] = useState<OtpState>("idle");
+  const [otpErr, setOtpErr] = useState<string | null>(null);
+  const [otpPreview, setOtpPreview] = useState<string | null>(null);
+
+  const sendOtp = async () => {
+    setOtpErr(null);
+    setOtpCode("");
+    setOtpState("idle");
+    try {
+      const res = await fetch("/api/auth/otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user?.email ?? "", purpose: "verify_email" }),
+      });
+      const d = (await res.json().catch(() => ({}))) as { previewCode?: string };
+      setOtpPreview(typeof d.previewCode === "string" ? d.previewCode : null);
+      if (!res.ok && res.status !== 429) setOtpErr("خدمة البريد غير مضبوطة — استعمل رابط التفعيل.");
+    } catch {
+      setOtpErr("تعذّر الإرسال، حاول مرة أخرى.");
+    }
+  };
+
+  const checkOtp = async (code: string) => {
+    setOtpState("checking");
+    setOtpErr(null);
+    try {
+      const res = await fetch("/api/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user?.email ?? "", code, purpose: "verify_email" }),
+      });
+      if (res.ok) {
+        setOtpState("done");
+        setJustVerified(true);
+        setOtpOpen(false);
+        setMsg({ kind: "ok", text: "تفعّل الحساب بالرمز ✅" });
+        return;
+      }
+      setOtpState("error");
+      setOtpErr("الرمز غير صحيح أو منتهي الصلاحية");
+      setOtpCode("");
+    } catch {
+      setOtpState("error");
+      setOtpErr("تعذّر التحقق، حاول مرة أخرى");
+    }
+  };
 
   const emailUser = user?.providerData?.[0]?.providerId === "password";
 
@@ -149,6 +200,59 @@ export default function SecurityPage() {
               </span>
               {busy === "send" && <Loader2 className="h-4 w-4 flex-none animate-spin" />}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOtpOpen((o) => !o);
+                if (!otpOpen) void sendOtp();
+              }}
+              className="v12-row w-full"
+            >
+              <KeyRound className="v12-row-ico" />
+              <span className="v12-row-label">
+                فعّل برمز من 6 أرقام
+                <span className="v12-row-sub">ندخلو الرمز اللي وصل للبريد — بلا رابط</span>
+              </span>
+              <span className="v12-chip flex-none !text-[10px]">v18</span>
+            </button>
+            {otpOpen && (
+              <div className="v12-card p-4">
+                <OtpInput
+                  length={6}
+                  value={otpCode}
+                  state={otpState}
+                  error={otpErr}
+                  hint={otpPreview ? `رمز التجربة: ${otpPreview}` : "أدخل الرمز المكوّن من 6 أرقام"}
+                  autoFocus
+                  onChange={(v) => {
+                    setOtpCode(v);
+                    if (otpErr) {
+                      setOtpErr(null);
+                      setOtpState("idle");
+                    }
+                  }}
+                  onComplete={(v) => void checkOtp(v)}
+                />
+                <div className="mt-4 flex items-center justify-center gap-4 text-[12.5px]">
+                  <button
+                    type="button"
+                    onClick={() => void checkOtp(otpCode)}
+                    disabled={otpCode.length !== 6 || otpState === "checking"}
+                    className="font-black text-brand-300 disabled:opacity-40"
+                  >
+                    تأكيد الرمز
+                  </button>
+                  <span className="text-slate-600">·</span>
+                  <button
+                    type="button"
+                    onClick={() => void sendOtp()}
+                    className="font-bold text-slate-400 hover:text-slate-200"
+                  >
+                    أعد الإرسال
+                  </button>
+                </div>
+              </div>
+            )}
             <button
               type="button"
               disabled={busy === "chk"}

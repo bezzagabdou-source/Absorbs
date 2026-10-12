@@ -7,6 +7,8 @@ import {
   type LucideIcon,
   Anvil,
   Trophy,
+  Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
 import { applyTheme } from "@/lib/theme";
@@ -69,7 +71,7 @@ export function CommandPalette() {
     return [
       {
         id: "voice",
-        label: "مكالمة صوتية مع Nexus AI v8.4",
+        label: "مكالمة صوتية مع Nexus AI",
         hint: "تكلّم فيرد بصوته",
         icon: Headphones,
         run: () => {
@@ -90,6 +92,9 @@ export function CommandPalette() {
       { id: "smith", label: "صانع الألعاب الفوري", hint: "لعبة كاملة في ثانية", icon: Anvil, run: go("/app/smith") },
       { id: "mastery", label: "مسار الإتقان", hint: "XP · شارات · لوحة الشرف", icon: Trophy, run: go("/app/mastery") },
       { id: "history", label: "السجل", icon: History, run: go("/app/history") },
+      // v18 — the appearance studio and the automatic build review
+      { id: "appearance", label: "المظهر والتصميم", hint: "لون · كثافة · خط · شاشة عريضة", icon: Sparkles, run: go("/app/settings/appearance") },
+      { id: "guardian", label: "فحص الحارس", hint: "AI يراجع لعبتك/موقعك ويصلحه", icon: ShieldCheck, run: go("/app/smith") },
       { id: "upgrade", label: "V8 PRO GOLD", hint: "الترقية", icon: Crown, run: go("/app/upgrade") },
       { id: "settings", label: "الإعدادات", icon: Settings, run: go("/app/settings") },
       {

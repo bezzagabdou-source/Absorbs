@@ -393,7 +393,7 @@ function fallbackProviders(): Compat[] {
         "anthropic/claude-opus-4.5",
         "anthropic/claude-haiku-4.5",
       ]),
-      headers: { "X-Title": "Nexus AI v8.4" },
+      headers: { "X-Title": "Nexus AI" },
     });
   }
   const dKey = clean(env.DEEPSEEK_API_KEY);
@@ -438,7 +438,7 @@ function fallbackProviders(): Compat[] {
         "nvidia/nemotron-3-super-120b-a12b:free",
         "google/gemma-4-31b-it:free",
       ]),
-      headers: { "X-Title": "Nexus AI v8.4" },
+      headers: { "X-Title": "Nexus AI" },
     });
   }
   const gKey = clean(env.GROQ_API_KEY);
@@ -723,7 +723,7 @@ export async function streamGemini(opts: {
             key: orForced,
             // chosen model first, the auto-router is the safety net
             models: Array.from(new Set([opts.freeModel, "openrouter/free"])),
-            headers: { "X-Title": "Nexus AI v8.4" },
+            headers: { "X-Title": "Nexus AI" },
           },
         ],
       }

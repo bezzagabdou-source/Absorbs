@@ -1,4 +1,4 @@
-# Nexus AI v11.0 — LEGEND
+# Nexus AI v18.0 — ATLAS
 
 مساعد للسوق الجزائري والعربي: محادثة بالدارجة والعربية والفرنسية، 10 أدوات جاهزة، نظام نقاط يومي، وترقية Pro بالدينار (v8: أدوات الكود، صانع الألعاب، رفع الملفات، أحدث النماذج).
 تطبيق **PWA** — Next.js 16 · Firebase Auth · فريق AI موحّد (Claude + Gemini + DeepSeek + Grok + OpenRouter + Groq) · PostgreSQL (Drizzle) · Chargily Pay.
@@ -20,6 +20,25 @@
 
 ---
 
+## ✨ v18 — ATLAS · الحارس · 32 نموذجًا · 12 قالب لعبة
+
+| الميزة | وين | شنو دير |
+|---|---|---|
+| 🎨 **نظام تصميم ATLAS** | `src/lib/appearance.tsx` · `/app/settings/appearance` | لون هوية واحد يقود كل الأزرار والبطاقات، وضع ليلي، كثافة، حجم خط، شاشة عريضة حتى 1800px — كله يُحفظ ويُطبَّق قبل أول رسم |
+| 🧠 **برومبت لكل نموذج** | `src/lib/personas-v18.ts` | 32 نموذجًا، كل واحد عندو عقد تشغيل طويل (شخصية + 10 قواعد ATLAS + `GAME_SPEC`/`UI_SPEC` للألعاب والمواقع) |
+| 🛡️ **الحارس (GUARDIAN)** | `src/lib/guardian.ts` · `/api/ai/guardian` · زر 🛡️ في المعاينة | فحص ثابت + مراجعة AI معادية + إصلاح جراحي: ملفك يُفحص ويُصلح قبل ما يوصلك، وأي إصلاح يُرفض إلا إذا قلّل الأخطاء فعلًا |
+| 🔢 **رمز تحقق بالبريد** | `src/lib/otp.ts` · `src/components/ui/otp-input.tsx` | 6 أرقام بخانات كبيرة وواضحة، لصق تلقائي، عدّاد، إعادة إرسال — محفوظ بـ SHA-256 + فلفل، 10 دقائق، استعمال واحد |
+| 🎮 **4 محرّكات ألعاب** | `scripts/smith-src/bp-flappy/pong/stack/quiz.js` | طائر شجاع · كرة طاولة · برج توازن · تحدّي معلومات (54 سؤال بثلاث لغات) ⇒ **12 قالب × 12 هوية × 3 لغات** |
+| 🪶 **نماذج خفيفة جدًا** | منتقي النماذج → «الخفيفة فقط» | `ultralight` و`light` للجوال: Qwen3 30B · Gemma 3 27B · Llama 4 Scout · Mistral Small 24B · GPT-5 Mini · Grok 2 |
+| ⭐ **Astra + Kimi 3** | `src/lib/model-router.ts` | نموذجان مدمجان بقيادة واحتياط تلقائي، مع برومبتات أسطورية خاصة |
+
+التفاصيل الكاملة في [`UPGRADE-V18-ATLAS.md`](./UPGRADE-V18-ATLAS.md).
+
+**الفحص قبل النشر:** `npx tsc --noEmit` · `npx next build` · `npm run smoke:smith`
+(36 توليفة لعبة تُبنى وتُشغَّل فعليًا بلا متصفح).
+
+---
+
 ## 🚀 النشر على Vercel
 
 1. ارفع المشروع إلى GitHub ثم **Import** في Vercel.
@@ -33,6 +52,7 @@
 | `ADMIN_SECRET` | موصى به | كلمة سرّ (12+ حرفًا) لإنشاء أكواد Pro بدون SQL |
 | `CHARGILY_SECRET_KEY` | اختياري | الدفع عبر EDAHABIA / CIB |
 | `CHARGILY_MODE` | اختياري | `live` (افتراضي) أو `test` |
+| `RESEND_API_KEY` | موصى به | إرسال رمز التحقق بالبريد (بدونه الرمز يُتخطّى) |
 
 3. **Deploy**، ثم **Redeploy** كلما غيّرت المتغيرات.
 
@@ -86,7 +106,9 @@ src/
 │  │  ├─ admin/promo        إنشاء أكواد Pro
 │  │  └─ user · history · conversations · health
 │  ├─ sitemap.ts · robots.ts
-├─ components/              app/ · auth/ · landing/ + عناصر مشتركة
+├─ components/
+│  ├─ ui/otp-input.tsx    حقل الرمز الكبير + لوحة التحقق
+│  ├─ app/ · auth/ · landing/ · chat/ · studio/ + عناصر مشتركة
 ├─ db/                      schema.ts · index.ts (اتصال كسول) · ensure-schema.ts
 └─ lib/
    ├─ gemini.ts             عميل Gemini (بث + احتياطي بين النماذج)

@@ -11,7 +11,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 
-/** Dedicated Postgres schema: Nexus AI v8.4 never touches tables of other apps sharing this database. */
+/** Dedicated Postgres schema: Nexus AI never touches tables of other apps sharing this database. */
 export const barq = pgSchema("barq");
 
 /** Firebase-authenticated users (id = Firebase uid) */
@@ -315,6 +315,32 @@ export const mindEvents = barq.table(
   (t) => [
     index("mind_user_idx").on(t.userId, t.createdAt),
     index("mind_kind_idx").on(t.kind, t.createdAt),
+  ]
+);
+
+/** v18 ATLAS — one-time codes (email verification, login by code, Pro activation). */
+export const otpCodes = barq.table(
+  "otp_codes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** lower-cased email the code was sent to */
+    email: text("email").notNull(),
+    /** firebase uid when the user already exists */
+    userId: text("user_id"),
+    /** verify_email · login · pro · security */
+    purpose: text("purpose").notNull().default("verify_email"),
+    /** sha256(code + pepper) — the plain code is never stored */
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(5),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    ip: text("ip").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("otp_email_idx").on(t.email, t.purpose),
+    index("otp_expiry_idx").on(t.expiresAt),
   ]
 );
 

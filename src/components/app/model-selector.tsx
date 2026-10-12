@@ -8,12 +8,13 @@
  * informed instead of a guess.
  */
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Crown, Lock, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Crown, Feather, Lock, Sparkles } from "lucide-react";
 import type { ModelOption, ModelSelection } from "@/lib/model-access";
 import {
   FREE_MODELS_V12,
   PRO_MODELS_V12,
   SPEED_META,
+  WEIGHT_META,
   fromSelection,
   saveModelKey,
   toSelection,
@@ -81,7 +82,13 @@ function Row({
           <span className="truncate text-[13.5px] font-semibold text-[var(--v12-text)]">
             {m.label}
           </span>
+          <span className="flex-none rounded-md bg-[var(--nx-surface-sunken)] px-1.5 py-px text-[9px] font-black text-[var(--v12-faint)]">
+            {m.family}
+          </span>
           {m.flagship && <Sparkles className="h-3 w-3 flex-none text-[var(--v12-gold)]" />}
+          {(m.weight === "ultralight" || m.weight === "light") && (
+            <Feather className="h-3 w-3 flex-none text-emerald-400" aria-label="نموذج خفيف" />
+          )}
         </span>
         <span className="mt-0.5 block truncate text-[11.5px] leading-snug text-[var(--v12-faint)]">
           {m.blurb}
@@ -91,6 +98,9 @@ function Row({
             {meta.label}
           </span>
           <span className="text-[10px] text-[var(--v12-faint)]">· {m.ctxK}k سياق</span>
+          <span className="text-[10px] font-bold" style={{ color: WEIGHT_META[m.weight].tone }}>
+            · {WEIGHT_META[m.weight].label}
+          </span>
         </span>
       </span>
 
@@ -113,6 +123,7 @@ export function ModelSelector({
   onLocked: (o: ModelOption) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [lightOnly, setLightOnly] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -167,12 +178,24 @@ export function ModelSelector({
           aria-label="اختيار النموذج"
           className="v12-card v12-in fixed inset-x-3 bottom-3 z-[999] mx-auto max-h-[70dvh] w-auto max-w-[420px] overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)] sm:absolute sm:inset-x-auto sm:bottom-full sm:mb-2 sm:w-[340px] sm:start-0"
         >
-          <div className="sticky top-0 z-10 bg-[var(--v12-sheet)] px-3.5 py-2.5 backdrop-blur">
+          <div className="sticky top-0 z-10 flex items-center gap-2 bg-[var(--v12-sheet)] px-3.5 py-2.5 backdrop-blur">
             <p className="text-[11px] font-bold tracking-wide text-[var(--v12-faint)]">
               مجاني — {FREE_MODELS_V12.length} نماذج
             </p>
+            <button
+              type="button"
+              onClick={() => setLightOnly((v) => !v)}
+              aria-pressed={lightOnly}
+              className={
+                "ms-auto flex items-center gap-1 rounded-full px-2 py-0.5 text-[9.5px] font-black transition " +
+                (lightOnly ? "bg-emerald-500/20 text-emerald-300" : "text-[var(--v12-faint)]")
+              }
+            >
+              <Feather className="h-3 w-3" />
+              الخفيفة فقط
+            </button>
           </div>
-          {FREE_MODELS_V12.map((m) => (
+          {FREE_MODELS_V12.filter((m) => !lightOnly || m.weight === "ultralight" || m.weight === "light").map((m) => (
             <Row
               key={m.key}
               m={m}
@@ -191,7 +214,7 @@ export function ModelSelector({
               <span className="v12-chip v12-chip-pro ms-auto !px-2 !py-0.5 !text-[9.5px]">مقفولة</span>
             )}
           </div>
-          {PRO_MODELS_V12.map((m) => (
+          {PRO_MODELS_V12.filter((m) => !lightOnly || m.weight === "ultralight" || m.weight === "light").map((m) => (
             <Row
               key={m.key}
               m={m}

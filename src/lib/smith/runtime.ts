@@ -5,7 +5,7 @@
  * Regenerate with: node scripts/build-smith-runtime.mjs
  *
  * The whole engine (core loop, input, procedural audio, particles, HUD, screens
- * and the 8 blueprints) is one plain-JS IIFE with no imports and no network. It
+ * and the 12 blueprints) is one plain-JS IIFE with no imports and no network. It
  * is embedded as a string so a generated game is a single downloadable file and
  * the serverless bundle never needs `fs` at runtime.
  *
@@ -2306,6 +2306,817 @@ export const SMITH_RUNTIME = String.raw`/* ════════════�
   }
 
 
+  /* ══ BLUEPRINT 9 — FLAPPY: one-button flight through shifting gates ═══ */
+  function bpFlappy() {
+    var birdY, birdV, gapY, gateW, gateGap, pipes, spawnT, passed, groundY, flapT, dead, bob;
+    function reset() {
+      groundY = H * 0.86;
+      birdY = H * 0.42; birdV = 0; flapT = 0; bob = 0;
+      maxHealth = 100; health = 100; lives = 1;
+      gateW = clamp(W * 0.17, 52, 86);
+      gateGap = clamp(H * 0.30 - (CFG.difficulty === "insane" ? 26 : CFG.difficulty === "hard" ? 14 : 0), 96, 260);
+      pipes = []; spawnT = 0.9; passed = 0; dead = false;
+      for (var i = 0; i < 3; i++) spawnPipe(W + 120 + i * gateW * 3.1);
+    }
+    function spawnPipe(x) {
+      var margin = H * 0.12;
+      var top = rnd(margin + 30, H - margin - gateGap - 30);
+      pipes.push({ x: x, top: top, scored: false, coin: CFG.powerups && R() < 0.5 ? { got: false, t: 0 } : null });
+    }
+    function flap() {
+      birdV = -clamp(360 + (CFG.difficulty === "easy" ? 40 : 0), 300, 520) * 1;
+      flapT = 0.22;
+      SFX.jump();
+      burst(W * 0.28, birdY + 8, 6, THEME.aqua, 90, 0.3);
+    }
+    function update(dt) {
+      runTime += dt;
+      if (jumpPressed()) flap();
+      birdV += 1180 * dt * (power === "slow" ? 0.62 : 1);
+      birdY += birdV * dt;
+      flapT = Math.max(0, flapT - dt);
+      bob += dt;
+      var speed = (168 + level * 9) * CFG.speedMul * (power === "slow" ? 0.66 : 1);
+
+      for (var i = pipes.length - 1; i >= 0; i--) {
+        var p = pipes[i];
+        p.x -= speed * dt;
+        if (p.coin) p.coin.t += dt;
+        var bx = W * 0.28, by = birdY, r = clamp(W * 0.026, 11, 16);
+        if (!p.scored && p.x + gateW < bx) {
+          p.scored = true; passed++;
+          addCombo();
+          addScore(10, bx, by - 40);
+          if (passed % 8 === 0) { bumpLevel(1); }
+        }
+        /* circle vs two rects */
+        var hitTop = bx + r > p.x && bx - r < p.x + gateW && by - r < p.top;
+        var hitBot = bx + r > p.x && bx - r < p.x + gateW && by + r > p.top + gateGap;
+        if (hitTop || hitBot) { die(); return; }
+        if (p.coin && !p.coin.got) {
+          var ccx = p.x + gateW / 2, ccy = p.top + gateGap / 2;
+          var dx = ccx - bx, dy = ccy - by;
+          if (dx * dx + dy * dy < (r + 16) * (r + 16)) {
+            p.coin.got = true;
+            coins++; addScore(25, ccx, ccy, "");
+            SFX.coin(); burst(ccx, ccy, 12, THEME.gold, 170, 0.5);
+            if (R() < 0.22) { power = "shield"; powerTimer = 8; SFX.power(); floatText(ccx, ccy, STR.powers.shield, THEME.aqua); }
+            paintHud();
+          }
+        }
+        if (p.x + gateW < -30) pipes.splice(i, 1);
+      }
+      spawnT -= dt;
+      if (spawnT <= 0) {
+        spawnPipe(W + 40);
+        spawnT = clamp((gateW * 3.0) / speed, 0.55, 2.2) * (CFG.difficulty === "insane" ? 0.78 : 1);
+      }
+      if (birdY > groundY) { birdY = groundY; die(); return; }
+      if (birdY < 0) { birdY = 0; birdV = 60; }
+      if (powerTimer > 0) { powerTimer -= dt; if (powerTimer <= 0) { power = null; paintHud(); } }
+      if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) resetCombo(); }
+      addScore(dt * 4);
+      paintHud();
+    }
+    function die() {
+      if (dead) return;
+      if (power === "shield") {
+        power = null; powerTimer = 0; birdV = -300; birdY -= 30;
+        SFX.power(); floatText(W * 0.28, birdY, STR.powers.shield, THEME.aqua);
+        paintHud(); return;
+      }
+      dead = true;
+      shake = 1; flash = 0.8; SFX.boom();
+      burst(W * 0.28, birdY, 34, THEME.rose, 250, 0.8);
+      health = 0; lives = 0; paintHud();
+      setState("GAMEOVER");
+    }
+    function drawBird(x, y, t) {
+      var r = clamp(W * 0.026, 11, 16);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(clamp(birdV / 900, -0.5, 1.1));
+      ctx.shadowColor = THEME.glow; ctx.shadowBlur = 18;
+      var g = ctx.createLinearGradient(0, -r, 0, r);
+      g.addColorStop(0, THEME.hero0); g.addColorStop(1, THEME.hero1);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
+      ctx.shadowBlur = 0;
+      /* wing */
+      var wing = Math.sin((t + flapT) * 26) * (flapT > 0 ? 1 : 0.35);
+      ctx.fillStyle = THEME.aqua;
+      ctx.save();
+      ctx.translate(-r * 0.2, r * 0.1);
+      ctx.rotate(wing * 0.7);
+      roundRect(-r * 0.7, -r * 0.28, r * 1.2, r * 0.55, r * 0.3);
+      ctx.fill();
+      ctx.restore();
+      /* eye + beak */
+      ctx.fillStyle = THEME.text;
+      ctx.beginPath(); ctx.arc(r * 0.32, -r * 0.28, r * 0.16, 0, TAU); ctx.fill();
+      ctx.fillStyle = THEME.gold;
+      ctx.beginPath();
+      ctx.moveTo(r * 0.85, 0); ctx.lineTo(r * 1.55, r * 0.22); ctx.lineTo(r * 0.85, r * 0.45);
+      ctx.closePath(); ctx.fill();
+      if (power === "shield") {
+        ctx.strokeStyle = THEME.aqua; ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * 8);
+        ctx.beginPath(); ctx.arc(0, 0, r * 1.8, 0, TAU); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    function draw(t) {
+      groundY = H * 0.86;
+      /* pipes */
+      for (var i = 0; i < pipes.length; i++) {
+        var p = pipes[i];
+        var grd = ctx.createLinearGradient(p.x, 0, p.x + gateW, 0);
+        grd.addColorStop(0, THEME.brick0); grd.addColorStop(0.5, THEME.brick1); grd.addColorStop(1, THEME.brick0);
+        ctx.fillStyle = grd;
+        roundRect(p.x, -10, gateW, p.top + 10, 8); ctx.fill();
+        roundRect(p.x, p.top + gateGap, gateW, H - (p.top + gateGap) + 10, 8); ctx.fill();
+        ctx.strokeStyle = THEME.edge; ctx.lineWidth = 1.5;
+        roundRect(p.x, -10, gateW, p.top + 10, 8); ctx.stroke();
+        roundRect(p.x, p.top + gateGap, gateW, H - (p.top + gateGap) + 10, 8); ctx.stroke();
+        /* gate glow */
+        ctx.save();
+        ctx.globalAlpha = 0.22 + 0.1 * Math.sin(t * 3 + i);
+        ctx.fillStyle = THEME.accent;
+        ctx.fillRect(p.x + gateW * 0.42, p.top, gateW * 0.16, gateGap);
+        ctx.restore();
+        if (p.coin && !p.coin.got) {
+          ctx.save();
+          ctx.translate(p.x + gateW / 2, p.top + gateGap / 2 + Math.sin(t * 4 + p.coin.t) * 5);
+          ctx.fillStyle = THEME.gold; ctx.shadowColor = THEME.gold; ctx.shadowBlur = 14;
+          ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
+          ctx.restore();
+        }
+      }
+      /* ground */
+      var gg = ctx.createLinearGradient(0, groundY, 0, H);
+      gg.addColorStop(0, THEME.hill2); gg.addColorStop(1, THEME.sky2);
+      ctx.fillStyle = gg; ctx.fillRect(0, groundY, W, H - groundY);
+      ctx.strokeStyle = THEME.accent; ctx.lineWidth = 2; ctx.globalAlpha = 0.7;
+      ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
+      ctx.globalAlpha = 1;
+      drawBird(W * 0.28, birdY, t);
+    }
+    function drawIdle(t) {
+      for (var i = 0; i < 3; i++) {
+        var px = W * (0.28 + i * 0.26) + Math.sin(t * 2 - i) * 8;
+        var py = H * 0.42 + Math.sin(t * 3 - i * 0.8) * 26;
+        var grd = ctx.createLinearGradient(px, py - 90, px + 40, py + 90);
+        grd.addColorStop(0, THEME.brick0); grd.addColorStop(1, THEME.brick1);
+        ctx.fillStyle = grd;
+        roundRect(px, py - 110, 34, 96, 8); ctx.fill();
+        roundRect(px, py + 22, 34, 96, 8); ctx.fill();
+      }
+      drawBird(W * 0.28, H * 0.42 + Math.sin(t * 3) * 16, t);
+    }
+    function help() { return STR.help.flappy; }
+    function starScore() { return 40; }
+    return { reset: reset, update: update, draw: draw, drawIdle: drawIdle, help: help, starScore: starScore };
+  }
+
+
+  /* ══ BLUEPRINT 10 — PONG: first to N, curved returns, power-ups ═══════ */
+  function bpPong() {
+    var padH, padW, myY, aiY, ball, ballV, serveT, myScore, aiScore, target, trail, flashT;
+    function reset() {
+      maxHealth = 100; health = 100; lives = 1;
+      padW = clamp(W * 0.028, 9, 14);
+      padH = clamp(H * 0.13, 60, 110);
+      myY = H * 0.5; aiY = H * 0.5;
+      myScore = 0; aiScore = 0;
+      target = clamp(CFG.levels || 7, 3, 21);
+      ball = { x: W * 0.5, y: H * 0.5, r: clamp(W * 0.016, 6, 10), spin: 0 };
+      ballV = { x: 0, y: 0 };
+      serveT = 0.9;
+      trail = [];
+      flashT = 0;
+    }
+    function serve(dir) {
+      ball.x = W * 0.5; ball.y = H * 0.5;
+      var sp = (300 + level * 18) * CFG.speedMul;
+      var ang = rnd(-0.42, 0.42);
+      ballV.x = Math.cos(ang) * sp * dir;
+      ballV.y = Math.sin(ang) * sp;
+      ball.spin = 0;
+      SFX.click();
+    }
+    function update(dt) {
+      runTime += dt;
+      flashT = Math.max(0, flashT - dt);
+      var sp = (300 + level * 18) * CFG.speedMul * (power === "slow" ? 0.62 : 1);
+      /* paddles */
+      var mySpeed = H * 1.25;
+      if (upHeld()) myY -= mySpeed * dt;
+      if (downHeld()) myY += mySpeed * dt;
+      if (touch.active) myY = lerp(myY, clamp(touch.y, padH / 2, H - padH / 2), clamp(dt * 16, 0, 1));
+      myY = clamp(myY, padH / 2, H - padH / 2);
+
+      var aiErr = CFG.difficulty === "easy" ? 150 : CFG.difficulty === "normal" ? 78 : CFG.difficulty === "hard" ? 40 : 18;
+      var aiTarget = clamp(ball.y + rnd(-aiErr, aiErr), padH / 2, H - padH / 2);
+      var aiSpeed = H * (CFG.difficulty === "insane" ? 1.5 : 1.05);
+      aiY += clamp(aiTarget - aiY, -aiSpeed * dt, aiSpeed * dt);
+      aiY = clamp(aiY, padH / 2, H - padH / 2);
+
+      /* serve pause */
+      if (serveT > 0) {
+        serveT -= dt;
+        if (serveT <= 0) serve(ballV.x >= 0 ? 1 : -1);
+        paintHud();
+        return;
+      }
+
+      var steps = 3, sdt = dt / steps;
+      for (var s = 0; s < steps; s++) {
+        ball.x += ballV.x * sdt;
+        ball.y += ballV.y * sdt + ball.spin * sdt;
+        ball.spin *= 0.985;
+        if (ball.y - ball.r < 0) { ball.y = ball.r; ballV.y = Math.abs(ballV.y); SFX.tick(); burst(ball.x, ball.y, 5, THEME.dim, 90, 0.25); }
+        if (ball.y + ball.r > H) { ball.y = H - ball.r; ballV.y = -Math.abs(ballV.y); SFX.tick(); burst(ball.x, ball.y, 5, THEME.dim, 90, 0.25); }
+
+        /* my paddle (left) */
+        if (ballV.x < 0 && ball.x - ball.r < W * 0.06 + padW && ball.x + ball.r > W * 0.06) {
+          if (Math.abs(ball.y - myY) < padH / 2 + ball.r) {
+            var rel = clamp((ball.y - myY) / (padH / 2), -1, 1);
+            var mag = Math.max(Math.abs(ballV.x), Math.abs(ballV.y)) * 1.045;
+            var ang2 = rel * 0.9;
+            ballV.x = Math.cos(ang2) * mag;
+            ballV.y = Math.sin(ang2) * mag;
+            ball.spin = rel * 130;
+            ball.x = W * 0.06 + padW + ball.r + 1;
+            addCombo();
+            SFX.jump();
+            burst(ball.x, ball.y, 8, THEME.aqua, 140, 0.35);
+            if (power === "boost") { ballV.x *= 1.35; ballV.y *= 1.2; }
+          }
+        }
+        /* ai paddle (right) */
+        if (ballV.x > 0 && ball.x + ball.r > W * 0.94 - padW && ball.x - ball.r < W * 0.94) {
+          if (Math.abs(ball.y - aiY) < padH / 2 + ball.r) {
+            var rel2 = clamp((ball.y - aiY) / (padH / 2), -1, 1);
+            var mag2 = Math.max(Math.abs(ballV.x), Math.abs(ballV.y)) * 1.03;
+            var ang3 = rel2 * 0.85;
+            ballV.x = -Math.cos(ang3) * mag2;
+            ballV.y = Math.sin(ang3) * mag2;
+            ball.spin = rel2 * 110;
+            ball.x = W * 0.94 - padW - ball.r - 1;
+            SFX.tick();
+            burst(ball.x, ball.y, 6, THEME.rose, 120, 0.3);
+          }
+        }
+        /* clamp speed */
+        var vmax = 1500;
+        var vm = Math.sqrt(ballV.x * ballV.x + ballV.y * ballV.y) || 1;
+        if (vm > vmax) { ballV.x = ballV.x / vm * vmax; ballV.y = ballV.y / vm * vmax; }
+        if (Math.abs(ballV.x) < sp * 0.55) ballV.x = (ballV.x < 0 ? -1 : 1) * sp * 0.55;
+      }
+
+      /* scoring */
+      if (ball.x < -20) {
+        aiScore++;
+        flashT = 0.4; SFX.boom(); shake = 0.6;
+        if (aiScore >= target) { lose(); return; }
+        ballV.x = 1; serveT = 0.7; resetCombo();
+        burst(0, ball.y, 20, THEME.rose, 200, 0.6);
+      } else if (ball.x > W + 20) {
+        myScore++;
+        addScore(120, W * 0.5, H * 0.3, "");
+        coins++;
+        flashT = 0.4; SFX.level();
+        if (myScore >= target) { win(); return; }
+        if (myScore % 3 === 0) bumpLevel(1);
+        ballV.x = -1; serveT = 0.7;
+        burst(W, ball.y, 20, THEME.gold, 200, 0.6);
+      }
+      /* power-ups on the centre line */
+      if (CFG.powerups && R() < dt * 0.16) {
+        power = R() < 0.5 ? "slow" : "boost";
+        powerTimer = 4.5;
+        SFX.power();
+        floatText(W * 0.5, H * 0.42, STR.powers[power] || power, THEME.aqua);
+      }
+      if (powerTimer > 0) { powerTimer -= dt; if (powerTimer <= 0) { power = null; } }
+      if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) resetCombo(); }
+      trail.push({ x: ball.x, y: ball.y });
+      if (trail.length > 14) trail.shift();
+      paintHud();
+    }
+    function lose() {
+      health = 0; lives = 0; paintHud();
+      shake = 0.9; flash = 0.7; SFX.over();
+      setState("GAMEOVER");
+    }
+    function win() {
+      addScore(600, W * 0.5, H * 0.4, "");
+      SFX.level();
+      flash = 0.9;
+      if (CFG.endless) { myScore = 0; aiScore = 0; level++; serveT = 0.8; return; }
+      setState("GAMEOVER");
+    }
+    function drawPaddle(x, y, color) {
+      ctx.save();
+      ctx.shadowColor = color; ctx.shadowBlur = 16;
+      var g = ctx.createLinearGradient(x - padW / 2, y - padH / 2, x + padW / 2, y + padH / 2);
+      g.addColorStop(0, color); g.addColorStop(1, THEME.hero1);
+      ctx.fillStyle = g;
+      roundRect(x - padW / 2, y - padH / 2, padW, padH, padW / 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    function draw(t) {
+      /* net */
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = THEME.dim;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 14]);
+      ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+      ctx.restore();
+      /* trail */
+      for (var i = 0; i < trail.length; i++) {
+        ctx.globalAlpha = (i / trail.length) * 0.3;
+        ctx.fillStyle = THEME.accent;
+        ctx.beginPath(); ctx.arc(trail[i].x, trail[i].y, ball.r * (i / trail.length), 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      drawPaddle(W * 0.06, myY, THEME.aqua);
+      drawPaddle(W * 0.94, aiY, THEME.rose);
+      /* ball */
+      ctx.save();
+      ctx.shadowColor = THEME.gold; ctx.shadowBlur = 22;
+      ctx.fillStyle = THEME.gold;
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, TAU); ctx.fill();
+      ctx.restore();
+      /* scoreboard */
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = "900 " + Math.round(clamp(W * 0.11, 34, 62)) + "px " + FONT;
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = THEME.aqua;
+      ctx.fillText(String(myScore), W * 0.34, H * 0.14);
+      ctx.fillStyle = THEME.rose;
+      ctx.fillText(String(aiScore), W * 0.66, H * 0.14);
+      ctx.globalAlpha = 1;
+      ctx.font = "700 " + Math.round(clamp(W * 0.028, 11, 16)) + "px " + FONT;
+      ctx.fillStyle = THEME.dim;
+      ctx.fillText("— " + target + " —", W / 2, H * 0.14);
+      if (serveT > 0) {
+        ctx.fillStyle = THEME.text;
+        ctx.font = "800 " + Math.round(clamp(W * 0.04, 14, 22)) + "px " + FONT;
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 10);
+        ctx.fillText(Math.ceil(serveT * 10) / 10 > 0 ? "●" : "", W / 2, H * 0.62);
+        ctx.globalAlpha = 1;
+      }
+      if (flashT > 0) {
+        ctx.globalAlpha = flashT * 0.5;
+        ctx.fillStyle = THEME.rose;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+      }
+    }
+    function drawIdle(t) {
+      drawPaddle(W * 0.06, H * 0.5 + Math.sin(t * 2) * H * 0.1, THEME.aqua);
+      drawPaddle(W * 0.94, H * 0.5 + Math.sin(t * 2 + 1.6) * H * 0.1, THEME.rose);
+      ctx.save();
+      ctx.shadowColor = THEME.gold; ctx.shadowBlur = 20;
+      ctx.fillStyle = THEME.gold;
+      ctx.beginPath();
+      ctx.arc(W * 0.5 + Math.sin(t * 2.4) * W * 0.24, H * 0.5 + Math.cos(t * 3.1) * H * 0.08, ballR(), 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+    function ballR() { return clamp(W * 0.016, 6, 10); }
+    function help() { return STR.help.pong; }
+    function starScore() { return 700; }
+    return { reset: reset, update: update, draw: draw, drawIdle: drawIdle, help: help, starScore: starScore };
+  }
+
+
+  /* ══ BLUEPRINT 11 — STACK: drop, align, build the tower to the sky ════ */
+  function bpStack() {
+    var bw, bh, blocks, cur, dir, speed, camY, perfect, dropT, started, bestH;
+    function reset() {
+      maxHealth = 100; health = 100; lives = 3;
+      bw = clamp(W * 0.42, 96, 190);
+      bh = clamp(H * 0.045, 22, 40);
+      camY = 0;
+      perfect = 0; dropT = 0; started = false; bestH = 0;
+      blocks = [{ x: W / 2 - bw / 2, w: bw, y: H * 0.78 }];
+      spawnBlock();
+    }
+    function top() { return blocks[blocks.length - 1]; }
+    function spawnBlock() {
+      var t = top();
+      var fromLeft = blocks.length % 2 === 0;
+      cur = {
+        x: fromLeft ? -bw - 20 : W + 20,
+        y: t.y - bh,
+        w: t.w,
+        dir: fromLeft ? 1 : -1,
+      };
+      speed = (150 + blocks.length * 7) * CFG.speedMul;
+      speed = Math.min(speed, 460);
+    }
+    function place() {
+      var t = top();
+      var over = Math.min(cur.x + cur.w, t.x + t.w) - Math.max(cur.x, t.x);
+      if (over <= 0) {
+        /* missed completely: lose a life */
+        if (hurt(34)) {
+          blocks.push({ x: cur.x, w: cur.w, y: cur.y });
+          shake = 0.6; SFX.boom();
+          burst(cur.x + cur.w / 2, cur.y, 18, THEME.rose, 180, 0.5);
+          resetCombo();
+          if (lives <= 0 && health <= 0) { setState("GAMEOVER"); return; }
+          /* the block is lost: shrink the tower width slightly so the run is recoverable */
+          cur.w = Math.max(bw * 0.45, cur.w * 0.92);
+        }
+      } else {
+        var dx = cur.x - t.x;
+        var absDx = Math.abs(dx);
+        blocks.push({ x: cur.x, w: over, y: cur.y });
+        if (absDx < 5) {
+          perfect++;
+          addCombo();
+          addScore(60 + perfect * 12, cur.x + cur.w / 2, cur.y - 20, STR.powers.coin ? "" : "");
+          floatText(W / 2, cur.y - 46, "PERFECT x" + perfect, THEME.gold);
+          SFX.power();
+          flash = 0.35;
+        } else {
+          perfect = 0;
+          addScore(20 + Math.round(over / 8), cur.x + cur.w / 2, cur.y - 18);
+          SFX.coin();
+        }
+        bestH = Math.max(bestH, blocks.length);
+        if (blocks.length % 10 === 0) { bumpLevel(1); speed = Math.min(speed * 1.06, 520); }
+        if (CFG.powerups && perfect >= 3) {
+          power = "shield"; powerTimer = 10;
+          SFX.power();
+          floatText(W / 2, cur.y - 70, STR.powers.shield, THEME.aqua);
+        }
+      }
+      spawnBlock();
+      paintHud();
+    }
+    function update(dt) {
+      runTime += dt;
+      if (!started) {
+        if (jumpPressed() || touch.tap) { started = true; SFX.click(); }
+        paintHud();
+        return;
+      }
+      cur.x += cur.dir * speed * dt;
+      var limit = W + bw + 40;
+      if (cur.x > limit || cur.x + cur.w < -40) {
+        /* bounced off the edge: for endless towers it wraps, otherwise it hurts */
+        if (CFG.endless) {
+          cur.dir *= -1;
+          SFX.swap();
+        } else {
+          if (hurt(20)) {
+            resetCombo();
+            spawnBlock();
+            if (lives <= 0 && health <= 0) { setState("GAMEOVER"); return; }
+          }
+        }
+      }
+      if (jumpPressed() || touch.tap || tapPad("act")) place();
+      /* camera follows the tower */
+      var targetCam = Math.max(0, top().y - H * 0.62);
+      camY = lerp(camY, targetCam, clamp(dt * 6, 0, 1));
+      if (powerTimer > 0) { powerTimer -= dt; if (powerTimer <= 0) { power = null; paintHud(); } }
+      if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) resetCombo(); }
+      addScore(dt * 3);
+      paintHud();
+    }
+    function drawBlock(b, i, t) {
+      var y = b.y - camY;
+      if (y < -80 || y > H + 80) return;
+      var hue = (i * 7) % 360;
+      ctx.save();
+      var g = ctx.createLinearGradient(b.x, y, b.x + b.w, y + bh);
+      g.addColorStop(0, i % 2 === 0 ? THEME.hero0 : THEME.accent);
+      g.addColorStop(1, i % 2 === 0 ? THEME.hero1 : THEME.brick1);
+      ctx.fillStyle = g;
+      ctx.shadowColor = THEME.glow; ctx.shadowBlur = i === blocks.length - 1 ? 16 : 6;
+      roundRect(b.x, y, b.w, bh, 6);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(255,255,255,0.28)"; ctx.lineWidth = 1.2;
+      roundRect(b.x, y, b.w, bh, 6); ctx.stroke();
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = THEME.text;
+      ctx.fillRect(b.x + 4, y + 3, b.w - 8, 2);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      void hue; void t;
+    }
+    function draw(t) {
+      var baseY = H * 0.78 - camY;
+      /* base pillar */
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = THEME.brick0;
+      ctx.fillRect(blocks[0].x + blocks[0].w / 2 - 6, baseY, 12, H);
+      ctx.restore();
+      for (var i = 0; i < blocks.length; i++) drawBlock(blocks[i], i, t);
+      /* moving block */
+      if (cur) {
+        var cy = cur.y - camY;
+        ctx.save();
+        ctx.shadowColor = THEME.gold; ctx.shadowBlur = 18;
+        var g2 = ctx.createLinearGradient(cur.x, cy, cur.x + cur.w, cy + bh);
+        g2.addColorStop(0, THEME.gold); g2.addColorStop(1, THEME.aqua);
+        ctx.fillStyle = g2;
+        roundRect(cur.x, cy, cur.w, bh, 6);
+        ctx.fill();
+        ctx.restore();
+        /* drop guide */
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = THEME.accent;
+        ctx.setLineDash([6, 8]);
+        ctx.beginPath();
+        ctx.moveTo(cur.x + cur.w / 2, cy + bh);
+        ctx.lineTo(cur.x + cur.w / 2, H);
+        ctx.stroke();
+        ctx.restore();
+      }
+      /* height meter */
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = "900 " + Math.round(clamp(W * 0.09, 26, 48)) + "px " + FONT;
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = THEME.text;
+      ctx.fillText(String(blocks.length - 1), W / 2, H * 0.3);
+      ctx.globalAlpha = 1;
+      if (!started) {
+        ctx.font = "800 " + Math.round(clamp(W * 0.04, 14, 22)) + "px " + FONT;
+        ctx.fillStyle = THEME.gold;
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 6);
+        ctx.fillText(STR.tapLaunch, W / 2, H * 0.42);
+        ctx.globalAlpha = 1;
+      }
+      if (perfect > 1) {
+        ctx.font = "900 " + Math.round(clamp(W * 0.05, 15, 24)) + "px " + FONT;
+        ctx.fillStyle = THEME.gold;
+        ctx.fillText("PERFECT x" + perfect, W / 2, H * 0.2);
+      }
+    }
+    function drawIdle(t) {
+      for (var i = 0; i < 5; i++) {
+        var y = H * 0.78 - i * (bh + 2);
+        var w = bw * (1 - i * 0.06);
+        var x = W / 2 - w / 2 + Math.sin(t * 2 + i * 0.7) * 8;
+        ctx.fillStyle = i % 2 === 0 ? THEME.hero0 : THEME.accent;
+        roundRect(x, y, w, bh, 6); ctx.fill();
+      }
+    }
+    function revive() { spawnBlock(); }
+    function help() { return STR.help.stack; }
+    function starScore() { return 30; }
+    return { reset: reset, update: update, draw: draw, drawIdle: drawIdle, help: help, starScore: starScore, revive: revive };
+  }
+
+
+  /* ══ BLUEPRINT 12 — QUIZ: fast general knowledge, 4 answers, combo ═══ */
+  function bpQuiz() {
+    /* self-contained question bank (no network, no external data) */
+    var BANK = {
+      ar: [
+        ["ما هي عاصمة الجزائر؟", ["وهران", "الجزائر العاصمة", "قسنطينة", "عنابة"], 1],
+        ["كم عدد أيام السنة الكبيسة؟", ["365", "366", "364", "367"], 1],
+        ["ما هو أكبر كوكب في المجموعة الشمسية؟", ["الأرض", "المشتري", "زحل", "المريخ"], 1],
+        ["من اخترع المصباح الكهربائي؟", ["نيوتن", "أديسون", "غاليليو", "تسلا"], 1],
+        ["ما هي العملة الرسمية للجزائر؟", ["الدينار", "الدرهم", "اليورو", "الريال"], 0],
+        ["كم عدد قارات العالم؟", ["5", "6", "7", "8"], 2],
+        ["ما هو أطول نهر في العالم؟", ["النيل", "الأمازون", "السين", "دانوب"], 1],
+        ["في أي سنة استقلت الجزائر؟", ["1954", "1962", "1958", "1972"], 1],
+        ["ما هو الحيوان الأسرع على الأرض؟", ["الحصان", "الفهد", "الغزال", "الكلب"], 1],
+        ["كم عدد ألوان قوس قزح؟", ["5", "6", "7", "8"], 2],
+        ["ما هو أكبر محيط في العالم؟", ["الأطلسي", "الهادئ", "الهندي", "المتجمد"], 1],
+        ["ما هي اللغة الأكثر تحدثاً في العالم؟", ["الإنجليزية", "الصينية", "الإسبانية", "العربية"], 1],
+        ["كم درجة هي الزاوية القائمة؟", ["45", "60", "90", "180"], 2],
+        ["ما هو العنصر الكيميائي للرمز O؟", ["الأكسجين", "الذهب", "الأوزون", "الحديد"], 0],
+        ["كم عدد لاعبي فريق كرة القدم؟", ["9", "10", "11", "12"], 2],
+        ["ما هي أصغر دولة في العالم؟", ["موناكو", "الفاتيكان", "سان مارينو", "ليختنشتاين"], 1],
+        ["من كتب رواية البؤساء؟", ["دوستويفسكي", "فيكتور هوغو", "بلزاك", "موباسان"], 1],
+        ["كم عدد أسنان الإنسان البالغ؟", ["28", "30", "32", "34"], 2]
+      ],
+      fr: [
+        ["Quelle est la capitale de l'Algérie ?", ["Oran", "Alger", "Constantine", "Annaba"], 1],
+        ["Combien de jours compte une année bissextile ?", ["365", "366", "364", "367"], 1],
+        ["Quelle est la plus grande planète du système solaire ?", ["Terre", "Jupiter", "Saturne", "Mars"], 1],
+        ["Qui a inventé l'ampoule électrique ?", ["Newton", "Edison", "Galilée", "Tesla"], 1],
+        ["Combien de continents compte la Terre ?", ["5", "6", "7", "8"], 2],
+        ["Quel est le plus long fleuve du monde ?", ["Nil", "Amazone", "Seine", "Danube"], 1],
+        ["Combien de couleurs compte l'arc-en-ciel ?", ["5", "6", "7", "8"], 2],
+        ["Quel est le plus grand océan ?", ["Atlantique", "Pacifique", "Indien", "Arctique"], 1],
+        ["Combien mesure un angle droit ?", ["45", "60", "90", "180"], 2],
+        ["Quel animal est le plus rapide ?", ["Cheval", "Guépard", "Gazelle", "Chien"], 1],
+        ["Combien de joueurs dans une équipe de foot ?", ["9", "10", "11", "12"], 2],
+        ["Quel est le plus petit pays du monde ?", ["Monaco", "Vatican", "Saint-Marin", "Liechtenstein"], 1],
+        ["Qui a écrit Les Misérables ?", ["Dostoïevski", "Victor Hugo", "Balzac", "Maupassant"], 1],
+        ["Combien de dents a un adulte ?", ["28", "30", "32", "34"], 2],
+        ["Quelle est la monnaie de l'Algérie ?", ["Dinar", "Dirham", "Euro", "Riyal"], 0],
+        ["En quelle année l'Algérie a-t-elle été indépendante ?", ["1954", "1962", "1958", "1972"], 1],
+        ["Que représente le symbole chimique O ?", ["Oxygène", "Or", "Ozone", "Osmium"], 0],
+        ["Combien de pays compte le Maghreb ?", ["3", "4", "5", "6"], 2]
+      ],
+      en: [
+        ["What is the capital of Algeria?", ["Oran", "Algiers", "Constantine", "Annaba"], 1],
+        ["How many days in a leap year?", ["365", "366", "364", "367"], 1],
+        ["What is the largest planet?", ["Earth", "Jupiter", "Saturn", "Mars"], 1],
+        ["Who invented the light bulb?", ["Newton", "Edison", "Galileo", "Tesla"], 1],
+        ["How many continents are there?", ["5", "6", "7", "8"], 2],
+        ["What is the longest river?", ["Nile", "Amazon", "Seine", "Danube"], 1],
+        ["How many colours in a rainbow?", ["5", "6", "7", "8"], 2],
+        ["Which is the largest ocean?", ["Atlantic", "Pacific", "Indian", "Arctic"], 1],
+        ["How many degrees in a right angle?", ["45", "60", "90", "180"], 2],
+        ["What is the fastest land animal?", ["Horse", "Cheetah", "Gazelle", "Dog"], 1],
+        ["How many players in a football team?", ["9", "10", "11", "12"], 2],
+        ["What is the smallest country?", ["Monaco", "Vatican", "San Marino", "Liechtenstein"], 1],
+        ["Who wrote Les Misérables?", ["Dostoevsky", "Victor Hugo", "Balzac", "Maupassant"], 1],
+        ["How many teeth does an adult have?", ["28", "30", "32", "34"], 2],
+        ["What is the currency of Algeria?", ["Dinar", "Dirham", "Euro", "Riyal"], 0],
+        ["In which year did Algeria gain independence?", ["1954", "1962", "1958", "1972"], 1],
+        ["What does the chemical symbol O stand for?", ["Oxygen", "Gold", "Ozone", "Iron"], 0],
+        ["How many planets are in the solar system?", ["7", "8", "9", "10"], 1]
+      ]
+    };
+    var QZ = {
+      ar: { right: "صحيح!", wrong: "خطأ", of: "من", time: "الوقت", tap: "اضغط على الجواب" },
+      fr: { right: "Correct !", wrong: "Faux", of: "sur", time: "Temps", tap: "Touchez la réponse" },
+      en: { right: "Correct!", wrong: "Wrong", of: "of", time: "Time", tap: "Tap the answer" }
+    };
+
+    var q, order, picked, asked, total, right, timeLeft, locked, flashOk, flashBad, boxes, qText;
+    function L() { return QZ[CFG.lang] || QZ.ar; }
+
+    function reset() {
+      maxHealth = 100; health = 100; lives = 3;
+      total = clamp(CFG.levels || 10, 3, 30);
+      asked = 0; right = 0; picked = -1; locked = false;
+      flashOk = 0; flashBad = 0;
+      timeLeft = CFG.timed ? (CFG.difficulty === "easy" ? 22 : CFG.difficulty === "hard" ? 11 : CFG.difficulty === "insane" ? 8 : 15) : 0;
+      boxes = [];
+      nextQuestion();
+    }
+    function nextQuestion() {
+      var bank = BANK[CFG.lang] || BANK.ar;
+      q = bank[rint(0, bank.length - 1)];
+      order = [0, 1, 2, 3];
+      for (var i = order.length - 1; i > 0; i--) {
+        var j = rint(0, i);
+        var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+      }
+      picked = -1; locked = false;
+      qText = q[0];
+      if (CFG.timed) timeLeft = CFG.difficulty === "easy" ? 22 : CFG.difficulty === "hard" ? 11 : CFG.difficulty === "insane" ? 8 : 15;
+    }
+    function answer(i) {
+      if (locked || i < 0 || i > 3) return;
+      locked = true;
+      picked = i;
+      var correct = order[i] === q[2];
+      if (correct) {
+        right++;
+        addCombo();
+        var bonus = Math.round(60 + Math.max(0, timeLeft) * 6);
+        addScore(bonus, W / 2, H * 0.42, "");
+        coins++;
+        flashOk = 0.5;
+        SFX.coin();
+        burst(W / 2, H * 0.5, 18, THEME.gold, 200, 0.6);
+        floatText(W / 2, H * 0.4, L().right, THEME.gold);
+      } else {
+        flashBad = 0.5;
+        resetCombo();
+        hurt(26);
+        SFX.hit();
+        shake = 0.5;
+        floatText(W / 2, H * 0.4, L().wrong, THEME.rose);
+      }
+      asked++;
+      paintHud();
+      setTimeout(function () {
+        if (asked >= total || health <= 0) { setState("GAMEOVER"); return; }
+        nextQuestion();
+      }, correct ? 520 : 900);
+    }
+    function update(dt) {
+      runTime += dt;
+      flashOk = Math.max(0, flashOk - dt);
+      flashBad = Math.max(0, flashBad - dt);
+      if (CFG.timed && !locked) {
+        timeLeft -= dt;
+        if (timeLeft <= 0) { timeLeft = 0; answer(-1); }
+      }
+      if (touch.tap) {
+        var p = { x: touch.x, y: touch.y };
+        for (var i = 0; i < boxes.length; i++) {
+          var b = boxes[i];
+          if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { answer(i); break; }
+        }
+      }
+      for (var k = 1; k <= 4; k++) if (pressed[k.toString()]) answer(k - 1);
+      if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) resetCombo(); }
+      paintHud();
+    }
+    function draw(t) {
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      /* progress */
+      var pw = W * 0.84, px = W * 0.08, py = H * 0.13;
+      roundRect(px, py, pw, 8, 4);
+      ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill();
+      roundRect(px, py, pw * clamp(asked / total, 0, 1), 8, 4);
+      ctx.fillStyle = THEME.accent; ctx.fill();
+      ctx.font = "800 " + Math.round(clamp(W * 0.03, 11, 15)) + "px " + FONT;
+      ctx.fillStyle = THEME.dim;
+      ctx.fillText(asked + " " + L().of + " " + total + "  ·  " + right + " ✓", W / 2, py + 22);
+      if (CFG.timed) {
+        var tw = pw * clamp(timeLeft / 20, 0, 1);
+        roundRect(px, py + 14, tw, 4, 2);
+        ctx.fillStyle = timeLeft < 5 ? THEME.rose : THEME.gold;
+        ctx.fill();
+      }
+      /* question */
+      ctx.font = "900 " + Math.round(clamp(W * 0.055, 17, 27)) + "px " + FONT;
+      ctx.fillStyle = THEME.text;
+      wrapText(qText, W / 2, H * 0.3, W * 0.86, clamp(H * 0.038, 24, 34));
+      /* answers */
+      boxes = [];
+      var bw = W * 0.84, bh = clamp(H * 0.085, 50, 74);
+      var bx = W * 0.08, by = H * 0.44;
+      for (var i = 0; i < 4; i++) {
+        var y = by + i * (bh + 10);
+        var isPicked = picked === i;
+        var isRight = locked && order[i] === q[2];
+        var col = isRight ? THEME.aqua : isPicked ? THEME.rose : THEME.brick0;
+        ctx.save();
+        if (isPicked || isRight) { ctx.shadowColor = col; ctx.shadowBlur = 20; }
+        var g = ctx.createLinearGradient(bx, y, bx + bw, y + bh);
+        g.addColorStop(0, col);
+        g.addColorStop(1, THEME.brick1);
+        ctx.fillStyle = g;
+        roundRect(bx, y, bw, bh, 14); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = isPicked || isRight ? THEME.text : THEME.edge;
+        ctx.lineWidth = 1.4;
+        roundRect(bx, y, bw, bh, 14); ctx.stroke();
+        ctx.restore();
+        ctx.font = "800 " + Math.round(clamp(W * 0.036, 13, 19)) + "px " + FONT;
+        ctx.fillStyle = THEME.text;
+        ctx.fillText(q[1][order[i]], bx + bw / 2, y + bh / 2);
+        ctx.font = "900 " + Math.round(clamp(W * 0.03, 11, 15)) + "px " + FONT;
+        ctx.fillStyle = "rgba(255,255,255,0.45)";
+        ctx.textAlign = CFG.lang === "ar" ? "right" : "left";
+        ctx.fillText(String(i + 1), CFG.lang === "ar" ? bx + bw - 14 : bx + 14, y + bh / 2);
+        ctx.textAlign = "center";
+        boxes.push({ x: bx, y: y, w: bw, h: bh });
+      }
+      if (flashOk > 0) {
+        ctx.globalAlpha = flashOk * 0.35; ctx.fillStyle = THEME.gold; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+      }
+      if (flashBad > 0) {
+        ctx.globalAlpha = flashBad * 0.35; ctx.fillStyle = THEME.rose; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+      }
+      void t;
+    }
+    function wrapText(txt, cx, cy, maxW, lh) {
+      var words = String(txt).split(" ");
+      var lines = [], line = "";
+      for (var i = 0; i < words.length; i++) {
+        var test = line ? line + " " + words[i] : words[i];
+        if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = words[i]; }
+        else line = test;
+      }
+      if (line) lines.push(line);
+      var start = cy - ((lines.length - 1) * lh) / 2;
+      for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], cx, start + j * lh);
+    }
+    function drawIdle(t) {
+      for (var i = 0; i < 4; i++) {
+        var y = H * 0.44 + i * (clamp(H * 0.085, 50, 74) + 10);
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = i === Math.floor((t * 0.8) % 4) ? THEME.accent : THEME.brick0;
+        roundRect(W * 0.08, y, W * 0.84, clamp(H * 0.085, 50, 74), 14);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = "900 " + Math.round(clamp(W * 0.05, 16, 24)) + "px " + FONT;
+      ctx.fillStyle = THEME.gold;
+      ctx.fillText("?", W / 2, H * 0.26);
+    }
+    function help() { return STR.help.quiz; }
+    function starScore() { return Math.max(120, total * 40); }
+    return { reset: reset, update: update, draw: draw, drawIdle: drawIdle, help: help, starScore: starScore };
+  }
+
+
   /* ══ boot & main loop ══════════════════════════════════════════════════ */
   var BLUEPRINTS = {
     runner: bpRunner,
@@ -2315,7 +3126,11 @@ export const SMITH_RUNTIME = String.raw`/* ════════════�
     climber: bpClimber,
     maze: bpMaze,
     merge: bpMerge,
-    memory: bpMemory
+    memory: bpMemory,
+    flappy: bpFlappy,
+    pong: bpPong,
+    stack: bpStack,
+    quiz: bpQuiz
   };
 
   function boot() {
@@ -2391,7 +3206,7 @@ export const SMITH_RUNTIME = String.raw`/* ════════════�
 
   /* expose a tiny debug handle (never used by the game itself) */
   window.NexusSmith = {
-    version: 17,
+    version: 18,
     config: CFG,
     start: startRun,
     pause: togglePause,

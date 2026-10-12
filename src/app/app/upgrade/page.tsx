@@ -215,7 +215,7 @@ function UpgradeInner() {
           className="btn-gold mb-8 w-full py-3.5"
         >
           <Sparkles className="h-5 w-5" />
-          {L("استعرض ميزات Nexus AI v8.4 Pro وجرّبها", "Découvrir et essayer Nexus AI v8.4 Pro", "Explore and try Nexus AI v8.4 Pro")}
+          {L("استعرض ميزات Nexus AI Pro وجرّبها", "Découvrir et essayer Nexus AI Pro", "Explore and try Nexus AI Pro")}
         </button>
       )}
 
@@ -349,11 +349,13 @@ function UpgradeInner() {
           {t.app.redeemTitle}
         </h3>
         <div className="mt-4 flex min-w-0 gap-3">
+          {/* v18: a big, unmistakable code field — big digits, wide tracking,
+              centred, impossible to miss on a phone. */}
           <input
             type="text"
             value={code}
             onChange={(e) => {
-              setCode(e.target.value.toUpperCase());
+              setCode(e.target.value.toUpperCase().replace(/\s/g, ""));
               setRedeemMsg(null);
             }}
             onKeyDown={(e) => e.key === "Enter" && void redeem()}
@@ -364,7 +366,8 @@ function UpgradeInner() {
             autoCorrect="off"
             spellCheck={false}
             enterKeyHint="done"
-            className="input-base min-w-0 flex-1 font-display tracking-widest"
+            aria-label={t.app.redeemTitle}
+            className="input-base min-w-0 flex-1 rounded-2xl py-4 text-center font-mono text-xl font-black uppercase tracking-[0.28em] placeholder:tracking-normal placeholder:text-base placeholder:font-bold"
           />
           <button
             type="button"

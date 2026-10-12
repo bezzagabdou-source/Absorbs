@@ -17,6 +17,7 @@ import {
   Anvil, Blocks, Bot, Coins, Copy, Download, Dumbbell, Gamepad2, Gauge, Grid3x3,
   Layers, Maximize2, Compass, Mountain, PartyPopper, PersonStanding, Play, RefreshCw,
   Rocket, Share2, ShieldCheck, Sparkles, Trash2, Trophy, Wand2, Waypoints, X,
+  Bird, TabletSmartphone, GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCredits } from "@/components/app/app-shell";
@@ -46,8 +47,11 @@ interface BoardRow { handle: string; score: number; level: number; at: string }
 
 interface XpToast { amount: number; level: number; badges: string[] }
 
+/* lucide icon name → component. Unknown names fall back to Gamepad2. */
 const BLUEPRINT_ICON: Record<string, unknown> = {
   PersonStanding, Blocks, Waypoints, Rocket, Mountain, Compass, Grid3x3, Layers,
+  /* v18 ATLAS engines */
+  Bird, TabletSmartphone, GraduationCap,
 };
 
 const KNOB_LABEL_AR: Record<string, string> = {

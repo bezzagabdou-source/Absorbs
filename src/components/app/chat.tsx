@@ -1983,7 +1983,7 @@ export function ChatPage() {
                 {isPro && (
                   <Link
                     href="/app/settings/memory"
-                    aria-label="ذاكرة Nexus AI v8.4"
+                    aria-label="ذاكرة Nexus AI"
                     className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-amber-200"
                   >
                     <Brain className="h-4 w-4" />

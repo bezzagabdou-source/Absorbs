@@ -357,7 +357,7 @@ async function callOpenAICompat(
   const cfg = OPENAI_COMPAT[provider];
   const headers: Record<string, string> = { Authorization: `Bearer ${key}` };
   if (provider === "openrouter") {
-    headers["X-Title"] = "Nexus AI v8.4";
+    headers["X-Title"] = "Nexus AI";
     const site = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL);
     if (/^https?:\/\//i.test(site)) headers["HTTP-Referer"] = site;
   }

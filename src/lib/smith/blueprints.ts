@@ -21,7 +21,12 @@ export type BlueprintId =
   | "climber"
   | "maze"
   | "merge"
-  | "memory";
+  | "memory"
+  /* v18 ATLAS: four new engines */
+  | "flappy"
+  | "pong"
+  | "stack"
+  | "quiz";
 
 export type L = { ar: string; fr: string; en: string };
 
@@ -226,6 +231,71 @@ export const BLUEPRINTS: BlueprintDef[] = [
     knobs: ["difficulty", "levels", "endless", "timed"],
     defaults: { levels: 10, timed: true },
     starTarget: 900,
+  },
+  /* ---- v18 ATLAS: four new engines ---- */
+  {
+    id: "flappy",
+    emoji: "🕊️",
+    icon: "Bird",
+    name: { ar: "الطائر الشجاع", fr: "Oiseau courageux", en: "Brave bird" },
+    desc: {
+      ar: "طِر بين البوابات المتحرّكة بضغطة واحدة — كل 8 بوابات مرحلة وسرعة أعلى",
+      fr: "Volez entre les portes mouvantes d'une seule tape — palier tous les 8 passages",
+      en: "Flap through shifting gates with one button — a new level every 8 gates",
+    },
+    controls: { ar: "مسافة / لمس = رفرفة", fr: "Espace / toucher = battement", en: "Space / tap = flap" },
+    accent: "#38bdf8",
+    knobs: ["difficulty", "speed", "endless", "powerups"],
+    defaults: { endless: true, powerups: true },
+    starTarget: 40,
+  },
+  {
+    id: "pong",
+    emoji: "🏓",
+    icon: "TabletSmartphone",
+    name: { ar: "كرة الطاولة", fr: "Pong", en: "Neon pong" },
+    desc: {
+      ar: "أول من يصل للهدف يفوز — ارتدادات مدوّرة، دوران الكرة وقوى تبطئ أو تسرّع",
+      fr: "Le premier atteint la cible gagne — effets, rebonds courbes et bonus",
+      en: "First to the target wins — curved returns, spin and speed power-ups",
+    },
+    controls: { ar: "↑ ↓ أو اسحب بإصبعك", fr: "↑ ↓ ou glissez le doigt", en: "↑ ↓ or drag your finger" },
+    accent: "#22d3ee",
+    knobs: ["difficulty", "speed", "levels", "powerups"],
+    defaults: { levels: 7, powerups: true },
+    starTarget: 700,
+  },
+  {
+    id: "stack",
+    emoji: "🏗️",
+    icon: "Layers",
+    name: { ar: "برج التوازن", fr: "Tour d'équilibre", en: "Tower stack" },
+    desc: {
+      ar: "أسقط الكتل فوق بعضها بدقة — المحاذاة المثالية تضاعف النقاط وتمنح درعًا",
+      fr: "Empilez les blocs avec précision — l'alignement parfait multiplie les points",
+      en: "Drop blocks with precision — a perfect align multiplies the score",
+    },
+    controls: { ar: "مسافة / لمس = إسقاط", fr: "Espace / toucher = lâcher", en: "Space / tap = drop" },
+    accent: "#a78bfa",
+    knobs: ["difficulty", "speed", "endless", "powerups"],
+    defaults: { endless: true, powerups: true },
+    starTarget: 30,
+  },
+  {
+    id: "quiz",
+    emoji: "🧠",
+    icon: "GraduationCap",
+    name: { ar: "تحدّي المعلومات", fr: "Quiz rapide", en: "Knowledge rush" },
+    desc: {
+      ar: "أسئلة ثقافة عامة بثلاث لغات — كومبو للسرعة ووقت محدود حسب الصعوبة",
+      fr: "Culture générale en trois langues — combo de vitesse et chrono",
+      en: "General knowledge in three languages — speed combos and a timer",
+    },
+    controls: { ar: "لمس الجواب أو 1–4", fr: "Touchez la réponse ou 1–4", en: "Tap the answer or press 1–4" },
+    accent: "#f59e0b",
+    knobs: ["difficulty", "levels", "timed"],
+    defaults: { levels: 10, timed: true },
+    starTarget: 400,
   },
 ];
 
