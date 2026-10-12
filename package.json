@@ -8,7 +8,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "smoke:smith": "node --experimental-strip-types --import ./scripts/smith-smoke/register.mjs ./scripts/smith-smoke/run.mjs",
-    "build:smith": "node scripts/build-smith-runtime.mjs"
+    "build:smith": "node scripts/build-smith-runtime.mjs",
+    "smoke:apex": "node --import ./scripts/ts-register.mjs scripts/apex-qa-smoke.mjs",
+    "smoke:apex:full": "npm run typecheck && npm run smoke:apex"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",

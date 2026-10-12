@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
       { source: `/arcade`, destination: "/app/arcade", permanent: false },
       { source: `/studio`, destination: "/app/studio", permanent: false },
       { source: `/upgrade`, destination: "/app/upgrade", permanent: false },
+      // v19 APEX — الاستوديو الجديد (واجهة أُعيد بناؤها من الصفر)
+      { source: `/v19`, destination: "/apex", permanent: false },
+      { source: `/studio-apex`, destination: "/apex", permanent: false },
     ];
   },
   // optional: serve Firebase's auth handler from our own domain (see firebase-config.ts)

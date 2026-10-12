@@ -31,15 +31,23 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "next.config.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "cv",
+    "Absorbs-main",
+    "absorbs-v19",
+    "Nexus",
     "nexus-rag",
-    "__MACOSX"
+    "scripts",
+    "__MACOSX",
+    "**/cv",
+    "**/Absorbs-main",
+    "**/absorbs-v19"
   ]
 }
