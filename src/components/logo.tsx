@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
@@ -10,7 +11,9 @@ import { useI18n } from "@/lib/i18n";
  * identically on the home screen, the tab bar and in-app.
  */
 export function NexusMark({ size = 36, className }: { size?: number; className?: string }) {
-  const id = "nx";
+  // unique per instance: a shared id made every mark reference the first (possibly hidden) gradient
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const id = `nx${uid}`;
   return (
     <svg
       width={size}

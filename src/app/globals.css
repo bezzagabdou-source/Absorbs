@@ -225,6 +225,10 @@ body:has([data-app-shell])::before { opacity: 0.5; }
   outline: none;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
+/* the shorthand padding above used to beat the ps-11 / pe-11 utilities (unlayered CSS wins over
+   Tailwind layers), so the leading icon sat on top of the first letters. Higher specificity fixes it. */
+.input-base.ps-11 { padding-inline-start: 2.75rem; }
+.input-base.pe-11 { padding-inline-end: 2.75rem; }
 .input-base::placeholder { color: #8b887b; }
 .input-base:focus {
   border-color: var(--color-brand-400);
