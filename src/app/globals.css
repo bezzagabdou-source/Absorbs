@@ -2472,3 +2472,47 @@ html[dir="rtl"] [data-theme="lumen"] .nx-drawer,
 
 /* never a white flash/blank: the page behind the app frame always has the theme colour */
 html { background-color: #f7f8fc; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v18 · SMOOTH SCREEN — no glitching while the screen moves
+   · StableViewport adds `html.is-moving` during scroll / touch drag / keyboard
+     / rotation. Every ambient animation pauses for those ~180 ms, so the
+     compositor stops repainting the full-screen aurora + grid layers mid-scroll.
+   · On touch screens the big blurred aurora blobs stay as a static, cheap
+     gradient (no per-frame drift), which removes the jitter on phones.
+   ═══════════════════════════════════════════════════════════════════════ */
+html.is-moving *,
+html.is-moving *::before,
+html.is-moving *::after {
+  animation-play-state: paused !important;
+}
+
+/* keep the fixed background layers on their own GPU layer (no flicker when content scrolls over them) */
+.aurora,
+.aurora i,
+body::before,
+body::after {
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+@media (pointer: coarse) {
+  .aurora i,
+  .v8-aurora,
+  .v8-grid,
+  .v11-aurora::after,
+  .v12-aurora,
+  .v12-aurora::after {
+    animation: none !important;
+  }
+  .aurora i {
+    filter: blur(60px);
+  }
+}
+
+/* keyboard-friendly focus ring everywhere (accessibility + clearer state on dark glass) */
+:where(button, a, [role="button"], [role="radio"], [role="tab"]):focus-visible {
+  outline: 2px solid rgba(251, 191, 36, 0.85);
+  outline-offset: 2px;
+  border-radius: inherit;
+}

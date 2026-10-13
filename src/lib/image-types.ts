@@ -42,6 +42,18 @@ export const IMAGE_ASPECTS: { id: ImageAspect; label: string }[] = [
   { id: "3:4", label: "3:4" },
 ];
 
+/** Which image engine the user picked. "auto" keeps the full fallback chain (Gemini → OpenRouter → HF → Pollinations). */
+export type ImageEngine = "auto" | "gemini" | "openrouter" | "huggingface";
+export const IMAGE_ENGINES: { id: ImageEngine; label: string; hint: string }[] = [
+  { id: "auto", label: "تلقائي", hint: "أفضل محرك متاح، مع احتياط تلقائي" },
+  { id: "gemini", label: "Gemini", hint: "صور Google، تقرأ العربية والصور المرجعية" },
+  { id: "openrouter", label: "OpenRouter", hint: "نماذج صور من OpenRouter" },
+  { id: "huggingface", label: "Hugging Face", hint: "FLUX من Hugging Face" },
+];
+export function isImageEngine(v: unknown): v is ImageEngine {
+  return IMAGE_ENGINES.some((e) => e.id === v);
+}
+
 export const IMAGE_PROMPT_MAX = 1200;
 
 /** Reference image ("generate according to my picture"): downscaled in the browser, validated on the server. */

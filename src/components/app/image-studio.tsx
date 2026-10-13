@@ -11,6 +11,7 @@ import {
   IMAGE_ASPECTS,
   IMAGE_PROMPT_MAX,
   IMAGE_STYLES,
+  IMAGE_ENGINES,
   IMAGE_TIER_COUNT,
   IMAGE_TIER_HINT,
   IMAGE_TIER_LABEL,
@@ -19,6 +20,7 @@ import {
   type ImageAspect,
   type ImageEditAction,
   type ImageEditPoint,
+  type ImageEngine,
   type ImageReference,
   type ImageStyle,
   type ImageTier,
@@ -318,6 +320,7 @@ export function ImageStudio({ open, onClose, tier, initialPrompt, autoStart = 0 
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<ImageStyle>("photo");
   const [aspect, setAspect] = useState<ImageAspect>("1:1");
+  const [engine, setEngine] = useState<ImageEngine>("auto");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [ref, setRef] = useState<ImageReference | null>(null);
   const [refErr, setRefErr] = useState(false);
@@ -350,7 +353,9 @@ export function ImageStudio({ open, onClose, tier, initialPrompt, autoStart = 0 
     if (text.length < 3 || busy) return;
     const run = ++runRef.current;
     const count = IMAGE_TIER_COUNT[tier];
-    trackEvent("image_generate", { tier, style, aspect, has_ref: !!ref });
+    // Hugging Face cannot read a reference picture: with one attached, the request goes through "auto"
+    const engineToUse: ImageEngine = ref && engine === "huggingface" ? "auto" : engine;
+    trackEvent("image_generate", { tier, style, aspect, engine: engineToUse, has_ref: !!ref });
     setSlots(Array.from({ length: count }, (_, i): Slot => ({ id: i, status: "loading" })));
 
     const setSlot = (slot: Slot): void => {
@@ -363,7 +368,7 @@ export function ImageStudio({ open, onClose, tier, initialPrompt, autoStart = 0 
         try {
           const res = await authFetch("/api/ai/image", {
             method: "POST",
-            body: JSON.stringify({ prompt: text, tier, aspect, style, ...(ref ? { reference: ref } : {}) }),
+            body: JSON.stringify({ prompt: text, tier, aspect, style, engine: engineToUse, ...(ref ? { reference: ref } : {}) }),
           });
           if (!res.ok) {
             let code = "FAILED";
@@ -390,7 +395,7 @@ export function ImageStudio({ open, onClose, tier, initialPrompt, autoStart = 0 
         }
       })
     );
-  }, [prompt, busy, tier, aspect, style, ref, authFetch]);
+  }, [prompt, busy, tier, aspect, style, engine, ref, authFetch]);
 
   useEffect(() => {
     if (!open || autoStart <= 0 || autoStart === lastAuto.current || !initialPrompt || initialPrompt.trim().length < 3) return;
@@ -570,6 +575,36 @@ export function ImageStudio({ open, onClose, tier, initialPrompt, autoStart = 0 
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-sm font-bold text-slate-200">المحرك</p>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="المحرك">
+              {IMAGE_ENGINES.map((en) => {
+                // Hugging Face (FLUX) cannot read a reference picture
+                const blocked = !!ref && en.id === "huggingface";
+                return (
+                  <button
+                    key={en.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={engine === en.id}
+                    disabled={blocked}
+                    title={blocked ? "المرجع يعمل مع Gemini وOpenRouter فقط" : en.hint}
+                    onClick={() => setEngine(en.id)}
+                    className={cn(
+                      "min-h-10 rounded-full border px-3.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
+                      engine === en.id
+                        ? "border-brand-500 bg-brand-500/15 text-brand-300"
+                        : "border-white/10 bg-ink-800 text-slate-300 hover:border-white/25"
+                    )}
+                  >
+                    {en.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-xs text-slate-400">{IMAGE_ENGINES.find((en) => en.id === engine)?.hint}</p>
           </div>
 
           <div>

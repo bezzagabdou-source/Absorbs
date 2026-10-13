@@ -42,6 +42,21 @@ export function StableViewport() {
       if (!raf) raf = requestAnimationFrame(apply);
     };
 
+    // Pause the ambient background animations while the screen is moving (scroll, touch drag,
+    // keyboard opening / rotation). Animated full-screen layers repainted on every frame during a
+    // scroll — that is the "screen glitch" people saw. They resume ~180 ms after the movement stops.
+    let moveTimer = 0;
+    const markMoving = () => {
+      if (!root.classList.contains("is-moving")) root.classList.add("is-moving");
+      window.clearTimeout(moveTimer);
+      moveTimer = window.setTimeout(() => root.classList.remove("is-moving"), 180);
+    };
+    const movingOpts: AddEventListenerOptions = { passive: true, capture: true };
+    window.addEventListener("scroll", markMoving, movingOpts);
+    window.addEventListener("touchmove", markMoving, movingOpts);
+    window.addEventListener("wheel", markMoving, movingOpts);
+    window.addEventListener("resize", markMoving);
+
     apply();
     vv?.addEventListener("resize", schedule);
     vv?.addEventListener("scroll", schedule);
@@ -55,6 +70,12 @@ export function StableViewport() {
       vv?.removeEventListener("resize", schedule);
       vv?.removeEventListener("scroll", schedule);
       window.removeEventListener("orientationchange", schedule);
+      window.removeEventListener("scroll", markMoving, movingOpts);
+      window.removeEventListener("touchmove", markMoving, movingOpts);
+      window.removeEventListener("wheel", markMoving, movingOpts);
+      window.removeEventListener("resize", markMoving);
+      window.clearTimeout(moveTimer);
+      root.classList.remove("is-moving");
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);

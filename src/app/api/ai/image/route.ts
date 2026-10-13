@@ -9,11 +9,13 @@ import {
   IMAGE_REF_MIMES,
   isImageAspect,
   isImageEditAction,
+  isImageEngine,
   isImageStyle,
   isImageTier,
   type ImageAspect,
   type ImageEditAction,
   type ImageEditPoint,
+  type ImageEngine,
   type ImageReference,
   type ImageStyle,
   type ImageTier,
@@ -28,7 +30,7 @@ export async function POST(req: Request): Promise<Response> {
   const user = await verifyRequest(req);
   if (!user) return json(401, { code: "UNAUTHENTICATED" });
 
-  let body: { prompt?: unknown; tier?: unknown; aspect?: unknown; style?: unknown; reference?: unknown; edit?: unknown };
+  let body: { prompt?: unknown; tier?: unknown; aspect?: unknown; style?: unknown; engine?: unknown; reference?: unknown; edit?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -57,6 +59,8 @@ export async function POST(req: Request): Promise<Response> {
   const requestedTier: ImageTier = isImageTier(body.tier) ? body.tier : "v5";
   const aspect: ImageAspect = isImageAspect(body.aspect) ? body.aspect : "1:1";
   const style: ImageStyle = isImageStyle(body.style) ? body.style : "photo";
+  // the user's engine choice (auto = full fallback chain); unknown values fall back to auto
+  const engine: ImageEngine = isImageEngine(body.engine) ? body.engine : "auto";
 
   let reference: ImageReference | undefined;
   if (body.reference && typeof body.reference === "object") {
@@ -78,7 +82,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!rl.ok) return json(429, { code: "RATE" }, { "Retry-After": String(rl.retryAfter) });
 
   try {
-    const image = await generateImage({ prompt, tier, aspect, style, reference, edit });
+    const image = await generateImage({ prompt, tier, aspect, style, engine, reference, edit });
     return json(200, { image });
   } catch (e) {
     if (e instanceof ImageError) {

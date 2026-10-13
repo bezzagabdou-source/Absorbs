@@ -1,7 +1,7 @@
 import { findGeminiKey } from "@/lib/gemini";
 import { findHuggingFaceKey } from "@/lib/huggingface";
 import { findEnvKey } from "@/lib/openai-stream";
-import type { ImageAspect, ImageEditAction, ImageEditPoint, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
+import type { ImageAspect, ImageEditAction, ImageEditPoint, ImageEngine, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
 import { planArabicImage, ARABIC_NEGATIVE } from "@/lib/arabic-vision";
 import { ensureEnglishPrompt, translateArabicPrompt, hasArabicChars } from "@/lib/arabic-image-lexicon";
 
@@ -252,11 +252,14 @@ async function viaGemini(model: string, key: string, prompt: string, timeoutMs: 
   }
 }
 
+/** Hugging Face image model (override with HF_IMAGE_MODEL=org/model). */
+const HF_IMAGE_MODEL = (process.env.HF_IMAGE_MODEL ?? "").trim() || "black-forest-labs/FLUX.1-schnell";
+
 async function viaHuggingFace(token: string, prompt: string, aspect: ImageAspect, timeoutMs: number): Promise<RawImage> {
   const { w, h } = DIMENSIONS[aspect];
   const t = withTimeout(timeoutMs);
   try {
-    const res = await fetch("https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell", {
+    const res = await fetch(`https://router.huggingface.co/hf-inference/models/${HF_IMAGE_MODEL}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "image/png" },
       body: JSON.stringify({ inputs: prompt, parameters: { width: w, height: h } }),
@@ -375,8 +378,9 @@ export async function generateImage(opts: {
   tier: ImageTier;
   aspect: ImageAspect;
   style: ImageStyle;
-  /** optional reference picture: only the Gemini image models can follow it */
   reference?: ImageReference;
+  /** which engine the user picked; "auto" (default) keeps the full chain */
+  engine?: ImageEngine;
   /** edit mode: `reference` is the picture to edit and `prompt` is the instruction */
   edit?: { action: ImageEditAction; point?: ImageEditPoint };
 }): Promise<GeneratedImage> {
@@ -410,6 +414,7 @@ export async function generateImage(opts: {
     return fluxPrompt;
   };
   const hf = findHuggingFaceKey();
+  const orKey = findEnvKey(["OPENROUTER_API_KEY"]);
   const fast = opts.tier === "v5" || opts.tier === "v6";
   const perTry = fast ? 28_000 : 50_000;
   const deadline = started + 105_000;
@@ -419,53 +424,83 @@ export async function generateImage(opts: {
     const out = await compact(raw);
     return { mime: out.mime, data: out.bytes.toString("base64"), model, ms: Date.now() - started };
   };
+  const timeLeft = (): boolean => Date.now() < deadline - 8_000;
 
-  if (gem) {
+  // Each engine is one step. A step that fails hands over to the next one; BLOCKED stops everything.
+  const runGemini = async (): Promise<GeneratedImage> => {
+    if (!gem) throw new ImageError("NO_PROVIDER", "gemini: no key");
+    let err = "gemini: no model";
     for (const model of geminiModels(opts.tier, needsArabicText)) {
-      if (Date.now() > deadline - 8_000) break;
+      if (!timeLeft()) break;
       try {
         return await finish(await viaGemini(model, gem.value, full, perTry, opts.reference), model);
       } catch (e) {
         if (e instanceof ImageError && e.code === "BLOCKED") throw e;
-        lastError = e instanceof Error ? e.message : String(e);
+        err = e instanceof Error ? e.message : String(e);
       }
     }
-  }
-  const orKey = findEnvKey(["OPENROUTER_API_KEY"]);
-  if (orKey) {
+    throw new ImageError("FAILED", err);
+  };
+  const runOpenRouter = async (): Promise<GeneratedImage> => {
+    if (!orKey) throw new ImageError("NO_PROVIDER", "openrouter: no key");
+    let err = "openrouter: no model";
     for (const model of OPENROUTER_IMAGE_MODELS) {
-      if (Date.now() > deadline - 8_000) break;
+      if (!timeLeft()) break;
       try {
         return await finish(await viaOpenRouterImage(model, orKey, full, perTry, opts.reference), `openrouter:${model}`);
       } catch (e) {
         if (e instanceof ImageError && e.code === "BLOCKED") throw e;
-        lastError = e instanceof Error ? e.message : String(e);
+        err = e instanceof Error ? e.message : String(e);
       }
     }
-  }
-  // engines below cannot read a reference picture: with one attached, fail honestly instead of ignoring it
-  if (opts.reference) throw new ImageError(gem ? "FAILED" : "NO_PROVIDER", lastError);
-  if (hf && Date.now() < deadline - 8_000) {
+    throw new ImageError("FAILED", err);
+  };
+  const runHuggingFace = async (): Promise<GeneratedImage> => {
+    if (!hf) throw new ImageError("NO_PROVIDER", "huggingface: no token");
+    return finish(await viaHuggingFace(hf.value, await getFluxPrompt(), opts.aspect, perTry), HF_IMAGE_MODEL);
+  };
+  const runPollinations = async (): Promise<GeneratedImage> => {
+    let err = "pollinations: failed";
+    for (const engine of ["flux", "turbo"] as const) {
+      if (!timeLeft()) break;
+      try {
+        return await finish(
+          await viaPollinations(await getFluxPrompt(), opts.aspect, Math.min(perTry, deadline - Date.now()), engine),
+          engine === "flux" ? "flux-pollinations" : "turbo-pollinations"
+        );
+      } catch (e) {
+        err = e instanceof Error ? e.message : String(e);
+      }
+    }
+    throw new ImageError("FAILED", err);
+  };
+
+  type Step = { run: () => Promise<GeneratedImage>; canRef: boolean };
+  const all: Record<"gemini" | "openrouter" | "huggingface" | "pollinations", Step> = {
+    gemini: { run: runGemini, canRef: true },
+    openrouter: { run: runOpenRouter, canRef: true },
+    huggingface: { run: runHuggingFace, canRef: false },
+    pollinations: { run: runPollinations, canRef: false },
+  };
+  const AUTO = ["gemini", "openrouter", "huggingface", "pollinations"] as const;
+  const preferred = opts.engine && opts.engine !== "auto" ? opts.engine : null;
+  // the chosen engine goes first; the rest stay as the safety net (the reply always says which model drew the picture)
+  const order: (keyof typeof all)[] = preferred
+    ? [preferred, ...AUTO.filter((e) => e !== preferred)]
+    : [...AUTO];
+  // engines that cannot read a reference picture are skipped when one is attached
+  const steps = order.map((k) => all[k]).filter((st) => !opts.reference || st.canRef);
+  if (opts.reference && steps.length === 0) throw new ImageError("NO_PROVIDER", "reference: no engine can read it");
+
+  for (const st of steps) {
+    if (!timeLeft()) break;
     try {
-      return await finish(await viaHuggingFace(hf.value, await getFluxPrompt(), opts.aspect, perTry), "flux-schnell");
+      return await st.run();
     } catch (e) {
+      if (e instanceof ImageError && e.code === "BLOCKED") throw e;
       lastError = e instanceof Error ? e.message : String(e);
     }
   }
-  if (Date.now() < deadline - 8_000) {
-    try {
-      return await finish(await viaPollinations(await getFluxPrompt(), opts.aspect, Math.min(perTry, deadline - Date.now())), "flux-pollinations");
-    } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
-    }
-  }
-  // last resort: a second, different Pollinations engine
-  if (Date.now() < deadline - 8_000) {
-    try {
-      return await finish(await viaPollinations(await getFluxPrompt(), opts.aspect, Math.min(perTry, deadline - Date.now()), "turbo"), "turbo-pollinations");
-    } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
-    }
-  }
-  throw new ImageError(gem || hf ? "FAILED" : "NO_PROVIDER", lastError);
+  // at least one keyed engine existed and failed → FAILED; none configured → NO_PROVIDER
+  throw new ImageError(gem || hf || orKey ? "FAILED" : "NO_PROVIDER", lastError);
 }
