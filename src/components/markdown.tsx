@@ -1,94 +1,82 @@
 "use client";
 
-import { isValidElement, type ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import { memo, useMemo, useState, type ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
-import "katex/dist/katex.min.css";
-import { CodeBlock } from "@/components/code-block";
-import { PromptDraft } from "@/components/prompt-draft";
-import { defaultUrlTransform } from "react-markdown";
+import { Check, Copy, Terminal } from "lucide-react";
 
-function textOf(node: ReactNode): string {
-  if (typeof node === "string") return node;
-  if (typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(textOf).join("");
-  if (isValidElement(node)) {
-    return textOf((node.props as { children?: ReactNode }).children);
+function extractText(node: ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return extractText((node as { props: { children?: ReactNode } }).props.children);
   }
   return "";
 }
 
-// single "$" is NOT math, so prices like "$5 and $10" stay plain text
-const MATH_OPTS = { singleDollarTextMath: false };
-const KATEX_OPTS = { throwOnError: false, strict: false, output: "htmlAndMathml" as const };
-const HL_OPTS = { detect: false, ignoreMissing: true };
+function CodeBlock({ language, children }: { language: string; children: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const raw = useMemo(() => extractText(children).replace(/\n$/, ""), [children]);
 
-/** `pro` unlocks live preview / artifacts on code blocks. */
-export function Markdown({
-  children,
-  pro = false,
-  plainCode = false,
-}: {
-  children: string;
-  pro?: boolean;
-  /** true while streaming: skip toolbar + highlighting so half-written code doesn't flicker */
-  plainCode?: boolean;
-}) {
-  const components: Components = {
-    pre({ children: c }) {
-      const el = Array.isArray(c) ? c[0] : c;
-      if (!plainCode && isValidElement(el)) {
-        const props = el.props as { className?: string; children?: ReactNode };
-        const lang = /language-([\w+-]+)/.exec(props.className ?? "")?.[1] ?? "";
-        const code = textOf(props.children).replace(/\n$/, "");
-        if (lang === "prompt") return <PromptDraft text={code} />;
-        return (
-          <CodeBlock lang={lang} code={code} pro={pro}>
-            {props.children}
-          </CodeBlock>
-        );
-      }
-      return <pre>{c}</pre>;
-    },
-    img({ src, alt }) {
-      const url = typeof src === "string" ? src : "";
-      if (!url) return null;
-      return (
-        <span className="chat-img">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={url} alt={alt ?? ""} loading="lazy" />
-          <a href={url} download="nexus-image.png" className="chat-img-dl">تنزيل</a>
-        </span>
-      );
-    },
-    table({ children: c }) {
-      return (
-        <div className="md-table">
-          <table>{c}</table>
-        </div>
-      );
-    },
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(raw);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = raw;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
   };
+
   return (
-    <div dir="auto" className="md-body">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, [remarkMath, MATH_OPTS]]}
-        rehypePlugins={
-          plainCode
-            ? [[rehypeKatex, KATEX_OPTS]]
-            : [
-                [rehypeKatex, KATEX_OPTS],
-                [rehypeHighlight, HL_OPTS],
-              ]
-        }
-        components={components}
-        urlTransform={(u) => (u.startsWith("blob:") ? u : defaultUrlTransform(u))}
-      >
+    <div className="codeblock" dir="ltr">
+      <div className="flex items-center justify-between border-b border-(--code-line) bg-white/[0.03] px-4 py-2">
+        <span className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-wider text-[#93a1d8] uppercase">
+          <Terminal className="size-3.5 text-(--accent)" />
+          {language || "code"}
+        </span>
+        <button
+          onClick={copy}
+          className="press flex cursor-pointer items-center gap-1.5 rounded-lg border border-(--code-line) bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-[#b6c2ef] transition-colors hover:bg-white/[0.09] hover:text-white"
+        >
+          {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre dir="ltr" className="scroll-slim text-left">
         {children}
-      </ReactMarkdown>
+      </pre>
     </div>
   );
 }
+
+export const Markdown = memo(function Markdown({ text, dir }: { text: string; dir?: string }) {
+  return (
+    <div className="md" dir={dir ?? "auto"}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          pre: ({ children }) => {
+            const child = Array.isArray(children) ? children[0] : children;
+            const cls =
+              (child as { props?: { className?: string } } | undefined)?.props?.className ?? "";
+            const lang = /language-([\w-]+)/.exec(cls)?.[1] ?? "";
+            const codeChildren = (child as { props?: { children?: ReactNode } } | undefined)?.props
+              ?.children;
+            return <CodeBlock language={lang}><code className={cls}>{codeChildren}</code></CodeBlock>;
+          },
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+});

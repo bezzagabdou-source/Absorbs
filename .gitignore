@@ -20,8 +20,5 @@ next-env.d.ts
 *.tsbuildinfo
 .vercel
 
-# never publish the activation codes list
-PRO-CODES-V*.txt
-.v11-build/
-.v13-build/
-.v14-build/
+# activation codes — never publish
+PRO-CODES-*.txt
