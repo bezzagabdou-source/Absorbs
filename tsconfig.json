@@ -37,9 +37,6 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "cv",
-    "nexus-rag",
-    "__MACOSX"
+    "node_modules"
   ]
 }

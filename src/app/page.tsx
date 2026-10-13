@@ -1,29 +1,16 @@
-"use client";
+import { AuthProvider } from "@/lib/auth-context";
+import { AuthGate } from "@/components/auth-gate";
+import { NexusProvider } from "@/lib/store";
+import { AppShell } from "@/components/app-shell";
 
-import { Navbar } from "@/components/landing/navbar";
-import { Hero } from "@/components/landing/hero";
-import {
-  Features,
-  Marquee,
-  ToolsShowcase,
-} from "@/components/landing/sections";
-import { Pricing } from "@/components/landing/pricing";
-import { CtaBand, Faq, Footer } from "@/components/landing/faq-footer";
-
-export default function LandingPage() {
+export default function Home() {
   return (
-    <div className="relative min-h-[100dvh]">
-      <Navbar />
-      <main>
-        <Hero />
-        <Marquee />
-        <Features />
-        <ToolsShowcase />
-        <Pricing />
-        <Faq />
-        <CtaBand />
-      </main>
-      <Footer />
-    </div>
+    <AuthProvider>
+      <AuthGate>
+        <NexusProvider>
+          <AppShell />
+        </NexusProvider>
+      </AuthGate>
+    </AuthProvider>
   );
 }

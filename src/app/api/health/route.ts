@@ -1,61 +1,38 @@
-import { db, findDatabaseUrl } from "@/db";
-import { ensureSchema } from "@/db/ensure-schema";
-import { findGeminiKey } from "@/lib/gemini";
-import { safeDetail } from "@/lib/http";
+import { db } from "@/db";
+import { findDatabaseUrl } from "@/db";
 import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
 
-/** Quick self-check: open /api/health after deploying. Never returns secrets. */
+/** Model providers that have a key on this deployment (names only — never the keys). */
+const PROVIDER_KEYS = [
+  "GEMINI_API_KEY",
+  "GOOGLE_API_KEY",
+  "OPENROUTER_API_KEY",
+  "GROQ_API_KEY",
+  "CEREBRAS_API_KEY",
+] as const;
+
+/** Small diagnostic endpoint: is the database reachable, and which providers are wired? */
 export async function GET() {
-  const key = findGeminiKey();
-  const hasDbUrl = Boolean(findDatabaseUrl());
-  let database: { ok: boolean; error?: string } = { ok: false };
-  if (!hasDbUrl) {
-    database = { ok: false, error: "No DATABASE_URL (or POSTGRES_URL) variable found" };
-  } else {
-    try {
-      await ensureSchema();
-      await db.execute(sql`select 1`);
-      database = { ok: true };
-    } catch (e) {
-      database = { ok: false, error: safeDetail(e) };
-    }
+  const providers = PROVIDER_KEYS.filter((k) => (process.env[k] ?? "").trim().length > 0);
+  const dbConfigured = Boolean(findDatabaseUrl());
+
+  try {
+    await db.execute(sql`select 1`);
+    return Response.json({ ok: true, db: "reachable", providers });
+  } catch {
+    // No raw driver message here — it can contain the host/user of the connection string.
+    return Response.json(
+      {
+        ok: false,
+        db: dbConfigured ? "unreachable" : "not-configured",
+        hint: dbConfigured
+          ? "DATABASE_URL is set but the database did not answer — check the URL, the password, or the provider status."
+          : "DATABASE_URL is missing — add it in your host's Environment Variables, then redeploy.",
+        providers,
+      },
+      { status: 500 },
+    );
   }
-  // which AI engines have a key (names only, never values)
-  const has = (...names: string[]) => names.some((n) => (process.env[n] ?? "").trim().length > 0);
-  const engines = {
-    gemini: Boolean(key),
-    grok: has("GROK_API_KEY", "XAI_API_KEY"),
-    openrouter: has("OPENROUTER_API_KEY"),
-    huggingface: has("HF_TOKEN", "HUGGINGFACE_API_KEY"),
-    claude: has("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"),
-    openai: has("OPENAI_API_KEY"),
-    deepseek: has("DEEPSEEK_API_KEY"),
-    groq: has("GROQ_API_KEY"),
-  };
-  // v19: vector memory / RAG backend diagnostics (names only, never secrets)
-  const memory = {
-    pinecone: has("PINECONE_API_KEY", "PINECONE_KEY"),
-    index: Boolean((process.env.PINECONE_INDEX ?? "").trim() || (process.env.PINECONE_INDEX_NAME ?? "").trim()),
-    embedProvider: (process.env.RAG_EMBED_PROVIDER ?? "auto").trim() || "auto",
-  };
-  // the app itself is healthy even when an optional engine key is missing:
-  // the UI degrades gracefully and the deploy / healthcheck must not fail for it.
-  const ok = true;
-  const ready = database.ok && Boolean(key);
-  return Response.json(
-    {
-      ok,
-      ready,
-      version: "19.0.0-unified",
-      database,
-      engines,
-      memory,
-      enginesOn: Object.values(engines).filter(Boolean).length,
-      gemini: key ? { ok: true, variable: key.name } : { ok: false, error: "No GEMINI_API_KEY variable found" },
-    },
-    { status: 200 }
-  );
 }
