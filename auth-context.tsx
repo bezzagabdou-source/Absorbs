@@ -97,4 +97,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
-
