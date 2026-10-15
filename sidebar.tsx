@@ -13,6 +13,11 @@ import {
   SquarePen,
   Trash2,
   X,
+  Phone,
+  Image as ImageIcon,
+  Globe,
+  Network,
+  Sparkles,
 } from "lucide-react";
 import { cn, timeLabel } from "@/lib/utils";
 import { useNexus, type Conversation } from "@/lib/store";
@@ -130,7 +135,7 @@ function ConversationItem({
                     },
                   },
                   {
-                    label: "حذف المحادثة",
+                    label: "حذف",
                     icon: <Trash2 className="size-3.5" />,
                     danger: true,
                     onSelect: () => void deleteConversation(conv.id),
@@ -147,44 +152,20 @@ function ConversationItem({
 
 /* ── sidebar ────────────────────────────────────────────────── */
 
-export function Sidebar({ onOpenSettings, onOpenUpgrade }: { onOpenSettings: () => void; onOpenUpgrade: () => void }) {
-  const {
-    conversations,
-    loadingList,
-    activeId,
-    selectConversation,
-    newChat,
-    sidebarOpen,
-    setSidebarOpen,
-  } = useNexus();
+export function Sidebar() {
+  const { conversations, loadingList, activeId, selectConversation, newChat, sidebarOpen, setSidebarOpen } =
+    useNexus();
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
-    const q = query.trim();
+    const q = query.trim().toLowerCase();
     if (!q) return conversations;
-    return conversations.filter((c) => c.title.includes(q));
+    return conversations.filter((c) => c.title.toLowerCase().includes(q));
   }, [conversations, query]);
-
-  const groups = useMemo(() => {
-    const day = 86_400_000;
-    const now = Date.now();
-    const buckets: { label: string; items: Conversation[] }[] = [
-      { label: "اليوم", items: [] },
-      { label: "هذا الأسبوع", items: [] },
-      { label: "الأرشيف", items: [] },
-    ];
-    for (const c of filtered) {
-      const age = now - new Date(c.updatedAt).getTime();
-      if (age < day) buckets[0].items.push(c);
-      else if (age < 7 * day) buckets[1].items.push(c);
-      else buckets[2].items.push(c);
-    }
-    return buckets.filter((b) => b.items.length);
-  }, [filtered]);
 
   return (
     <>
-      {/* mobile backdrop */}
+      {/* scrim */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -197,127 +178,115 @@ export function Sidebar({ onOpenSettings, onOpenUpgrade }: { onOpenSettings: () 
         )}
       </AnimatePresence>
 
-      <aside
+      <motion.aside
+        initial={false}
+        animate={{ x: sidebarOpen ? 0 : "100%" }}
+        transition={{ type: "spring", stiffness: 380, damping: 36 }}
         className={cn(
-          "fixed inset-y-0 start-0 z-50 flex w-[290px] flex-col p-3 transition-transform duration-300 ease-[var(--ease-fluid)] lg:static lg:translate-x-0!",
-          !sidebarOpen && "max-lg:-translate-x-full max-lg:rtl:translate-x-full",
+          "fixed inset-y-0 end-0 z-50 flex w-72 flex-col border-e border-(--line)",
+          "bg-(--panel-solid)/95 backdrop-blur-2xl lg:static lg:z-auto lg:translate-x-0 lg:bg-transparent lg:backdrop-blur-none",
         )}
       >
-        <div className="glass hairline flex h-full min-h-0 flex-col overflow-hidden rounded-3xl">
-          {/* header */}
-          <div className="flex items-center justify-between px-4 pt-4 pb-3">
-            <Logo />
-            <button
-              onClick={() => setSidebarOpen(false)}
-              aria-label="إغلاق القائمة"
-              className="press grid size-8 cursor-pointer place-items-center rounded-xl text-(--ink-3) hover:bg-(--glass-hi) hover:text-(--ink) lg:hidden"
-            >
-              <X className="size-4.5" />
+        {/* brand + actions */}
+        <div className="flex items-center gap-2 px-4 pb-2 pt-4">
+          <Logo size={28} />
+          <span className="flex-1 text-[15px] font-extrabold tracking-tight">Nexus AI</span>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="press grid size-8 cursor-pointer place-items-center rounded-lg text-(--ink-3) hover:bg-(--glass-hi) hover:text-(--ink) lg:hidden"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* new chat */}
+        <div className="px-3 pb-2">
+          <button
+            onClick={newChat}
+            className="press btn-primary flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-[13.5px] font-bold text-white"
+          >
+            <SquarePen className="size-4" />
+            محادثة جديدة
+          </button>
+        </div>
+
+        {/* أدوات سريعة */}
+        <div className="px-3 py-2">
+          <div className="text-[10.5px] font-bold uppercase tracking-wider text-(--ink-3) px-2 pb-2">
+            الأدوات السريعة
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button className="press flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/20 transition">
+              <Phone className="size-3.5" />
+              مكالمة
             </button>
-          </div>
-
-          {/* new chat */}
-          <div className="px-3 pb-3">
-            <button
-              onClick={newChat}
-              className="btn-primary flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[14px] font-bold"
-            >
-              <SquarePen className="size-4.5" />
-              محادثة جديدة
+            <button className="press flex items-center gap-2 rounded-xl bg-purple-500/10 border border-purple-500/20 px-3 py-2 text-[11px] font-semibold text-purple-400 hover:bg-purple-500/20 transition">
+              <ImageIcon className="size-3.5" />
+              صور
             </button>
-          </div>
-
-          {/* search */}
-          <div className="px-3 pb-2">
-            <div className="glass flex items-center gap-2 rounded-xl px-3 py-2">
-              <Search className="size-3.5 shrink-0 text-(--ink-3)" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="ابحث في المحادثات…"
-                className="min-w-0 flex-1 bg-transparent text-[12.5px] text-(--ink) outline-none placeholder:text-(--ink-3)"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  aria-label="مسح البحث"
-                  className="press grid size-4.5 cursor-pointer place-items-center rounded-md text-(--ink-3) hover:text-(--ink)"
-                >
-                  <X className="size-3" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* list */}
-          <div className="scroll-slim min-h-0 flex-1 overflow-y-auto px-3 py-2">
-            {loadingList ? (
-              <div className="flex flex-col gap-2 px-1 pt-2">
-                {[80, 65, 90, 55, 72].map((w, i) => (
-                  <div key={i} className="skeleton-shimmer h-9 rounded-xl" style={{ width: `${w}%` }} />
-                ))}
-              </div>
-            ) : groups.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 px-4 pt-14 text-center">
-                <MessageSquareText className="size-8 text-(--ink-3)/50" />
-                <p className="text-[12.5px] leading-relaxed text-(--ink-3)">
-                  {query ? "لا توجد نتائج مطابقة" : "لا محادثات بعد — ابدأ واحدة جديدة"}
-                </p>
-              </div>
-            ) : (
-              groups.map((g) => (
-                <div key={g.label} className="mb-3">
-                  <div className="px-3 pt-2 pb-1.5 text-[10px] font-bold tracking-[0.16em] text-(--ink-3) uppercase">
-                    {g.label}
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <AnimatePresence initial={false}>
-                      {g.items.map((c) => (
-                        <ConversationItem
-                          key={c.id}
-                          conv={c}
-                          active={c.id === activeId}
-                          onSelect={() => selectConversation(c.id)}
-                        />
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* footer: pro card + settings */}
-          <div className="border-t border-(--line) p-3">
-            <button
-              onClick={onOpenUpgrade}
-              className="group mb-2 flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border border-(--gold)/25 bg-gradient-to-l from-(--gold)/12 to-transparent p-3 text-start transition-all hover:border-(--gold)/45 hover:from-(--gold)/18"
-            >
-              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-(--gold)/15 text-(--gold)">
-                <Crown className="size-4.5" />
-              </span>
-              <span className="min-w-0 flex-1 leading-tight">
-                <span className="block text-[13px] font-bold text-(--ink)" dir="ltr">
-                  Nexus <span className="text-(--gold)">Pro</span>
-                </span>
-                <span className="block truncate text-[11px] text-(--ink-3)">
-                  محرّكات أعمق + حدود بلا قيود
-                </span>
-              </span>
+            <button className="press flex items-center gap-2 rounded-xl bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-[11px] font-semibold text-blue-400 hover:bg-blue-500/20 transition">
+              <Globe className="size-3.5" />
+              مواقع
             </button>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onOpenSettings}
-                className="glass hover-lift press flex flex-1 cursor-pointer items-center gap-2.5 rounded-2xl px-3 py-2.5 text-[13px] font-semibold text-(--ink-2) hover:text-(--ink)"
-              >
-                <Settings className="size-4" />
-                الإعدادات
-              </button>
-              <ThemeToggle />
-            </div>
+            <button className="press flex items-center gap-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 px-3 py-2 text-[11px] font-semibold text-indigo-400 hover:bg-indigo-500/20 transition">
+              <Network className="size-3.5" />
+              توزيع
+            </button>
           </div>
         </div>
-      </aside>
+
+        {/* search */}
+        <div className="px-3 py-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-(--ink-3)" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="بحث في المحادثات..."
+              className="w-full rounded-xl border border-(--line) bg-(--panel) py-2 ps-9 pe-3 text-[13px] text-(--ink) outline-none backdrop-blur-xl placeholder:text-(--ink-3) focus:border-(--accent)/40"
+            />
+          </div>
+        </div>
+
+        {/* list */}
+        <div className="flex-1 overflow-y-auto px-3 pb-3">
+          <div className="text-[10.5px] font-bold uppercase tracking-wider text-(--ink-3) px-2 pb-2 pt-1">
+            المحادثات
+          </div>
+          {loadingList ? (
+            <div className="space-y-2 px-1">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-10 animate-pulse rounded-xl bg-(--glass-hi)" style={{ opacity: 1 - i * 0.12 }} />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="px-2 py-6 text-center text-[12px] text-(--ink-3)">
+              {query ? "لا توجد نتائج مطابقة" : "لا محادثات بعد — ابدأ واحدة!"}
+            </p>
+          ) : (
+            <div className="space-y-0.5">
+              <AnimatePresence initial={false}>
+                {filtered.map((c) => (
+                  <ConversationItem
+                    key={c.id}
+                    conv={c}
+                    active={c.id === activeId}
+                    onSelect={() => selectConversation(c.id)}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {/* footer */}
+        <div className="border-t border-(--line) p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-(--ink-3)">Nexus AI v2.0</span>
+            <ThemeToggle />
+          </div>
+        </div>
+      </motion.aside>
     </>
   );
 }
