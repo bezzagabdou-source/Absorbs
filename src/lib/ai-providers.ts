@@ -20,10 +20,10 @@
 /* Public types                                                        */
 /* ------------------------------------------------------------------ */
 
-export type AITask = "code" | "fast" | "grok" | "reasoning";
+export type AITask = "code" | "fast" | "grok" | "reasoning" | "ultra";
 export type ProviderId = "gemini" | "openrouter" | "groq" | "cerebras";
 
-export const AI_TASKS: readonly AITask[] = ["code", "fast", "grok", "reasoning"];
+export const AI_TASKS: readonly AITask[] = ["code", "fast", "grok", "reasoning", "ultra"];
 
 /** Runtime guard — use it on task names coming from a request body. */
 export function isAITask(value: unknown): value is AITask {
@@ -200,6 +200,7 @@ export function openRouterModels(): { grok: string; claude: string; deepseek: st
  *
  *   code       → Cerebras (fast code/debug) → Gemini Pro → DeepSeek → Groq
  *   fast       → Groq → Cerebras → Gemini Flash
+ *   ultra      → Cerebras (1800 tok/s!) → Groq (300 w/s!) → Gemini Flash
  *   grok       → Grok via OpenRouter → Gemini Flash → Groq
  *   reasoning  → Gemini Pro → DeepSeek R1 → Claude → Gemini Flash → Groq
  */
@@ -227,6 +228,13 @@ export function buildPlan(task: AITask): Target[] {
         { provider: "groq", model: groq },
         { provider: "openrouter", model: or.fast },
         ...cb(),
+        { provider: "gemini", model: gemFlash },
+      ];
+    case "ultra":
+      // الأسرع: Cerebras أولاً (1800 توكن/ثانية)، ثم Groq (300 كلمة/ثانية)
+      return [
+        ...cb(),
+        { provider: "groq", model: groq },
         { provider: "gemini", model: gemFlash },
       ];
     case "grok":
@@ -357,7 +365,7 @@ async function callOpenAICompat(
   const cfg = OPENAI_COMPAT[provider];
   const headers: Record<string, string> = { Authorization: `Bearer ${key}` };
   if (provider === "openrouter") {
-    headers["X-Title"] = "Nexus AI v8.4";
+    headers["X-Title"] = "Nexus AI";
     const site = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL);
     if (/^https?:\/\//i.test(site)) headers["HTTP-Referer"] = site;
   }
