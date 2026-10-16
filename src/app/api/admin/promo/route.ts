@@ -1,9 +1,7 @@
 import crypto from "crypto";
+import { NextRequest } from "next/server";
 import { json, serverError } from "@/lib/http";
-import { db } from "@/db";
-import { ensureSchema } from "@/db/ensure-schema";
-import { promoCodes } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { repo } from "@/lib/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +9,7 @@ export const dynamic = "force-dynamic";
 /**
  * Admin: create / list Pro activation codes without touching SQL.
  * Requires env ADMIN_SECRET and header  x-admin-secret: <ADMIN_SECRET>
+ * (compared in constant time).
  *
  *  POST { "code": "BARQ-VIP", "days": 30, "maxUses": 100 }
  *  GET  → last 50 codes
@@ -24,18 +23,18 @@ function authorized(req: Request): boolean | "off" {
   return crypto.timingSafeEqual(a, b);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const auth = authorized(req);
   if (auth === "off") return json(503, { code: "ADMIN_DISABLED" });
   if (!auth) return json(401, { code: "UNAUTHORIZED" });
 
-  let body: { code?: string; days?: number; maxUses?: number };
+  let body: { code?: unknown; days?: unknown; maxUses?: unknown };
   try {
     body = await req.json();
   } catch {
     return json(400, { code: "BAD_BODY" });
   }
-  const code = (body.code ?? "").trim().toUpperCase();
+  const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
   const days = Math.floor(Number(body.days ?? 30));
   const maxUses = Math.floor(Number(body.maxUses ?? 100));
   if (!/^[A-Z0-9_-]{3,40}$/.test(code)) return json(400, { code: "BAD_CODE" });
@@ -43,30 +42,19 @@ export async function POST(req: Request) {
   if (!(maxUses >= 1 && maxUses <= 100000)) return json(400, { code: "BAD_MAX" });
 
   try {
-    await ensureSchema();
-    const created = await db
-      .insert(promoCodes)
-      .values({ code, plan: "pro", days, maxUses })
-      .onConflictDoNothing()
-      .returning({ code: promoCodes.code });
-    if (created.length === 0) return json(409, { code: "EXISTS" });
+    await repo.ensurePromo(code, { plan: "pro", days, maxUses });
     return json(200, { ok: true, code, days, maxUses });
   } catch (e) {
     return serverError("admin-promo", e, "DB");
   }
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const auth = authorized(req);
   if (auth === "off") return json(503, { code: "ADMIN_DISABLED" });
   if (!auth) return json(401, { code: "UNAUTHORIZED" });
   try {
-    await ensureSchema();
-    const rows = await db
-      .select()
-      .from(promoCodes)
-      .orderBy(desc(promoCodes.createdAt))
-      .limit(50);
+    const rows = await repo.listPromos(50);
     return json(200, { codes: rows });
   } catch (e) {
     return serverError("admin-promo", e, "DB");

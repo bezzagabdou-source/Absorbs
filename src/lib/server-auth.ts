@@ -1,20 +1,25 @@
 /**
- * Verifies Firebase ID tokens server-side without the Admin SDK.
+ * Verifies the caller on EVERY request. Two accepted credentials:
  *
- * Official method: check the RS256 signature against Google's public keys
- * (securetoken JWKS) and validate the standard claims (exp, aud, iss, sub).
- * Uses only Node's built-in `crypto` — no extra dependency.
+ *   1. Local session cookie `nexus_session` (preferred — HttpOnly, server-issued)
+ *   2. Firebase ID token in `Authorization: Bearer …` (Google sign-in)
+ *
+ * Firebase path: official RS256 check against Google's securetoken JWKS using
+ * Node's built-in crypto. Local path: SHA-256(token) looked up in barq.sessions
+ * (the raw token is never stored). Both results are cached in memory.
  */
 import crypto from "crypto";
 import { firebaseConfig } from "@/lib/firebase-config";
 import { ensureSchema } from "@/db/ensure-schema";
+import { readSessionToken, sha256hex } from "@/lib/auth-local";
+import { repo } from "@/lib/repo";
 
 export type VerifiedUser = {
   uid: string;
   email?: string;
   name?: string;
   picture?: string;
-  /** from the signed token, never from the client */
+  /** from the signed token / row, never from the client */
   emailVerified?: boolean;
   provider?: string;
 };
@@ -26,13 +31,15 @@ const JWKS_URL =
 
 type Jwk = crypto.JsonWebKey & { kid?: string };
 type JwkCache = { keys: Map<string, Jwk>; fetchedAt: number };
+type Cached = { user: VerifiedUser; expiry: number };
 
 const g = globalThis as typeof globalThis & {
   __barqJwks?: JwkCache;
-  __barqTokenCache?: Map<string, { user: VerifiedUser; expiry: number }>;
+  __barqTokenCache?: Map<string, Cached>;
+  __barqSessionCache?: Map<string, Cached>;
 };
-const tokenCache =
-  g.__barqTokenCache ?? (g.__barqTokenCache = new Map());
+const tokenCache = g.__barqTokenCache ?? (g.__barqTokenCache = new Map());
+const sessionCache = g.__barqSessionCache ?? (g.__barqSessionCache = new Map());
 
 async function loadJwks(force = false): Promise<Map<string, Jwk>> {
   const c = g.__barqJwks;
@@ -115,11 +122,34 @@ export function verifyIdTokenWithKeys(
   };
 }
 
-export async function verifyRequest(req: Request): Promise<VerifiedUser | null> {
-  const header = req.headers.get("authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (!token || token.length < 100 || token.length > 4096) return null;
+async function verifyLocal(req: Request): Promise<VerifiedUser | null> {
+  const token = readSessionToken(req);
+  if (!token || token.length !== 64) return null;
+  const hash = sha256hex(token);
 
+  const hit = sessionCache.get(hash);
+  if (hit && hit.expiry > Date.now() + 30_000) return hit.user;
+
+  try {
+    const row = await repo.verifySession(hash);
+    if (!row) return null;
+    const user: VerifiedUser = {
+      uid: row.id,
+      email: row.email || undefined,
+      name: row.displayName ?? undefined,
+      picture: row.photoUrl ?? undefined,
+      emailVerified: row.emailVerified,
+      provider: "password",
+    };
+    if (sessionCache.size > 2000) sessionCache.clear();
+    sessionCache.set(hash, { user, expiry: Date.now() + 300_000 });
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyFirebase(token: string): Promise<VerifiedUser | null> {
   const hit = tokenCache.get(token);
   if (hit && hit.expiry > Date.now() + 15_000) return hit.user;
 
@@ -149,4 +179,15 @@ export async function verifyRequest(req: Request): Promise<VerifiedUser | null> 
     console.error("[auth] verification error:", e);
     return null;
   }
+}
+
+/** Resolves the signed-in user (local cookie first, then Firebase bearer token). */
+export async function verifyRequest(req: Request): Promise<VerifiedUser | null> {
+  const local = await verifyLocal(req);
+  if (local) return local;
+
+  const header = req.headers.get("authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!token || token.length < 100 || token.length > 4096) return null;
+  return verifyFirebase(token);
 }

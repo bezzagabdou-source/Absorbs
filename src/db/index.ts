@@ -78,7 +78,9 @@ function buildPool(): Pool {
     // Neon / Supabase / Vercel Postgres all require TLS; their chains are valid
     // but pooler hostnames sometimes aren't, so we don't verify the hostname.
     ssl: local ? undefined : { rejectUnauthorized: false },
-    max: 3, // serverless: keep the footprint small
+    // serverless: each instance keeps a small pool. Raise DB_POOL_MAX (≤ 20) only if your
+    // database has room; for thousands of concurrent users use a pooled URL (Neon / Supabase pooler).
+    max: Math.min(20, Math.max(1, Number(process.env.DB_POOL_MAX) || 5)),
     idleTimeoutMillis: 20_000,
     connectionTimeoutMillis: 10_000,
   });

@@ -20,10 +20,10 @@
 /* Public types                                                        */
 /* ------------------------------------------------------------------ */
 
-export type AITask = "code" | "fast" | "grok" | "reasoning";
+export type AITask = "code" | "fast" | "grok" | "reasoning" | "ultra";
 export type ProviderId = "gemini" | "openrouter" | "groq" | "cerebras";
 
-export const AI_TASKS: readonly AITask[] = ["code", "fast", "grok", "reasoning"];
+export const AI_TASKS: readonly AITask[] = ["code", "fast", "grok", "reasoning", "ultra"];
 
 /** Runtime guard — use it on task names coming from a request body. */
 export function isAITask(value: unknown): value is AITask {
@@ -109,7 +109,7 @@ const KEY_ENV: Record<ProviderId, readonly string[]> = {
   cerebras: ["CEREBRAS_API_KEY"],
 };
 
-const PROVIDER_LABEL: Record<ProviderId, string> = {
+export const PROVIDER_LABEL: Record<ProviderId, string> = {
   gemini: "Google Gemini",
   openrouter: "OpenRouter",
   groq: "Groq",
@@ -200,6 +200,7 @@ export function openRouterModels(): { grok: string; claude: string; deepseek: st
  *
  *   code       → Cerebras (fast code/debug) → Gemini Pro → DeepSeek → Groq
  *   fast       → Groq → Cerebras → Gemini Flash
+ *   ultra      → Cerebras (1800 tok/s!) → Groq (300 w/s!) → Gemini Flash
  *   grok       → Grok via OpenRouter → Gemini Flash → Groq
  *   reasoning  → Gemini Pro → DeepSeek R1 → Claude → Gemini Flash → Groq
  */
@@ -227,6 +228,13 @@ export function buildPlan(task: AITask): Target[] {
         { provider: "groq", model: groq },
         { provider: "openrouter", model: or.fast },
         ...cb(),
+        { provider: "gemini", model: gemFlash },
+      ];
+    case "ultra":
+      // الأسرع: Cerebras أولاً (1800 توكن/ثانية)، ثم Groq (300 كلمة/ثانية)
+      return [
+        ...cb(),
+        { provider: "groq", model: groq },
         { provider: "gemini", model: gemFlash },
       ];
     case "grok":
@@ -357,7 +365,7 @@ async function callOpenAICompat(
   const cfg = OPENAI_COMPAT[provider];
   const headers: Record<string, string> = { Authorization: `Bearer ${key}` };
   if (provider === "openrouter") {
-    headers["X-Title"] = "Nexus AI v8.4";
+    headers["X-Title"] = "Nexus AI";
     const site = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL);
     if (/^https?:\/\//i.test(site)) headers["HTTP-Referer"] = site;
   }
@@ -616,4 +624,272 @@ export async function generateWithTarget(target: Target, prompt: string, options
   } catch (e) {
     throw toProviderError(e, target);
   }
+}
+
+/* ================================================================== */
+/* STREAMING — real token-by-token output (perceived speed = instant)  */
+/* ================================================================== */
+
+export interface StreamMetaEvent {
+  type: "meta";
+  provider: ProviderId;
+  model: string;
+}
+export interface StreamDeltaEvent {
+  type: "delta";
+  text: string;
+}
+export interface StreamDoneEvent {
+  type: "done";
+  provider: ProviderId;
+  model: string;
+  failed: AttemptLog[];
+  /** true when the provider died mid-answer and we kept the partial text */
+  truncated?: boolean;
+}
+export type StreamEvent = StreamMetaEvent | StreamDeltaEvent | StreamDoneEvent;
+
+/** POST that returns the live Response (for SSE bodies) or a classified AIProviderError. */
+async function postStream(
+  provider: ProviderId,
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+  req: Req
+): Promise<Response> {
+  const signal = req.signal
+    ? AbortSignal.any([AbortSignal.timeout(req.timeoutMs), req.signal])
+    : AbortSignal.timeout(req.timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal,
+    });
+  } catch (e) {
+    const name = e instanceof Error ? e.name : "";
+    if (req.signal?.aborted) throw new AIProviderError("UPSTREAM", "Request aborted by the caller.", { provider });
+    if (name === "TimeoutError" || name === "AbortError")
+      throw new AIProviderError("TIMEOUT", `${PROVIDER_LABEL[provider]} timed out after ${req.timeoutMs}ms.`, { provider });
+    throw new AIProviderError("UPSTREAM", `${PROVIDER_LABEL[provider]} network error: ${redact(String(e))}`, { provider });
+  }
+  if (res.status < 200 || res.status >= 300) {
+    const raw = await res.text().catch(() => "");
+    let json: unknown = null;
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch {
+      json = null;
+    }
+    const msg = redact(errorMessageOf(json, raw));
+    throw new AIProviderError(classify(res.status, msg), `${PROVIDER_LABEL[provider]} ${res.status}: ${msg}`, {
+      provider,
+      status: res.status,
+    });
+  }
+  if (!res.body) throw new AIProviderError("UPSTREAM", `${PROVIDER_LABEL[provider]} returned an empty stream.`, { provider });
+  return res;
+}
+
+/** Yields each `data:` payload of an SSE body (Gemini/OpenAI/Groq/Cerebras all speak this). */
+async function* sseData(res: Response): AsyncGenerator<string> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf("\n")) !== -1) {
+      const line = buf.slice(0, idx).replace(/\r$/, "");
+      buf = buf.slice(idx + 1);
+      if (line.startsWith("data:")) yield line.slice(5).trim();
+    }
+  }
+}
+
+async function* streamOpenAICompat(
+  provider: Exclude<ProviderId, "gemini">,
+  model: string,
+  key: string,
+  req: Req
+): AsyncGenerator<string> {
+  const cfg = OPENAI_COMPAT[provider];
+  const headers: Record<string, string> = { Authorization: `Bearer ${key}` };
+  if (provider === "openrouter") {
+    headers["X-Title"] = "Nexus AI";
+    const site = cleanEnv(process.env.NEXT_PUBLIC_SITE_URL);
+    if (/^https?:\/\//i.test(site)) headers["HTTP-Referer"] = site;
+  }
+  const messages: { role: "system" | "user"; content: string }[] = [];
+  if (req.system) messages.push({ role: "system", content: req.system });
+  messages.push({ role: "user", content: req.prompt });
+
+  const res = await postStream(
+    provider,
+    cfg.url,
+    headers,
+    {
+      model,
+      messages,
+      temperature: req.temperature,
+      max_tokens: Math.min(req.maxTokens, cfg.maxCap),
+      stream: true,
+    },
+    req
+  );
+
+  for await (const data of sseData(res)) {
+    if (data === "[DONE]") return;
+    let json: unknown;
+    try {
+      json = JSON.parse(data);
+    } catch {
+      continue;
+    }
+    if (isRecord(json) && json.error !== undefined) {
+      throw new AIProviderError("UPSTREAM", redact(errorMessageOf(json, data)), { provider, status: 200 });
+    }
+    if (isRecord(json) && Array.isArray(json.choices)) {
+      const c0: unknown = json.choices[0];
+      if (isRecord(c0) && isRecord(c0.delta)) {
+        const t = c0.delta.content;
+        if (typeof t === "string" && t) yield t;
+      }
+    }
+  }
+}
+
+async function* streamGemini(model: string, key: string, req: Req): AsyncGenerator<string> {
+  const budget = geminiThinkingBudget(model, req.task);
+  const maxOutputTokens = Math.min(req.maxTokens + (budget ?? 0), 65536);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+
+  const build = (withThinking: boolean) => ({
+    ...(req.system ? { systemInstruction: { parts: [{ text: req.system }] } } : {}),
+    contents: [{ role: "user", parts: [{ text: req.prompt }] }],
+    generationConfig: {
+      temperature: Math.min(req.temperature, 2),
+      maxOutputTokens,
+      topP: 0.95,
+      ...(withThinking && budget !== undefined ? { thinkingConfig: { thinkingBudget: budget } } : {}),
+    },
+  });
+
+  const headers = { "x-goog-api-key": key };
+  let res: Response;
+  try {
+    res = await postStream("gemini", url, headers, build(true), req);
+  } catch (e) {
+    // some models reject thinkingConfig with a 400 → retry without it
+    if (e instanceof AIProviderError && e.status === 400 && /thinking/i.test(e.message) && !req.signal?.aborted) {
+      res = await postStream("gemini", url, headers, build(false), req);
+    } else {
+      throw e;
+    }
+  }
+
+  for await (const data of sseData(res)) {
+    let json: unknown;
+    try {
+      json = JSON.parse(data);
+    } catch {
+      continue;
+    }
+    if (!isRecord(json)) continue;
+    const block = isRecord(json.promptFeedback) ? json.promptFeedback.blockReason : undefined;
+    const cand: unknown = Array.isArray(json.candidates) ? json.candidates[0] : undefined;
+    if (isRecord(cand) && isRecord(cand.content) && Array.isArray(cand.content.parts)) {
+      for (const p of cand.content.parts as GeminiPart[]) {
+        if (isRecord(p) && p.thought !== true && typeof p.text === "string" && p.text) yield p.text;
+      }
+    }
+    if (typeof block === "string") throw new AIProviderError("BAD_REQUEST", `Gemini blocked the prompt (${block}).`, { provider: "gemini" });
+    if (isRecord(cand) && cand.finishReason === "SAFETY") break;
+  }
+}
+
+async function* streamTarget(target: Target, key: string, req: Req): AsyncGenerator<string> {
+  const inner =
+    target.provider === "gemini"
+      ? streamGemini(target.model, key, req)
+      : streamOpenAICompat(target.provider, target.model, key, req);
+  let any = false;
+  for await (const d of inner) {
+    any = true;
+    yield d;
+  }
+  if (!any) throw new AIProviderError("EMPTY", `${PROVIDER_LABEL[target.provider]} streamed no text.`, { provider: target.provider });
+}
+
+/**
+ * Streaming version of generateAIResult: same fallback chain, but deltas are
+ * yielded the moment the provider emits them. If a provider fails BEFORE any
+ * token, the chain moves on; after partial output, the partial answer is kept.
+ */
+export async function* streamAIResult(task: AITask, prompt: string, options: AIOptions = {}): AsyncGenerator<StreamEvent> {
+  const req = normalise(task, prompt, options);
+  const plan = buildPlan(req.task);
+  const failed: AttemptLog[] = [];
+  const dead = new Set<ProviderId>();
+  let anyKey = false;
+
+  for (const target of plan) {
+    if (req.signal?.aborted) throw new AIProviderError("UPSTREAM", "Request aborted by the caller.", { attempts: failed });
+    if (dead.has(target.provider)) continue;
+
+    let key: string;
+    try {
+      key = resolveKey(target.provider);
+    } catch (e) {
+      const err = toProviderError(e, target);
+      failed.push({ provider: target.provider, model: target.model, code: err.code, message: err.message });
+      dead.add(target.provider);
+      continue;
+    }
+    anyKey = true;
+
+    const maxTries = req.task === "reasoning" ? 1 : 2; // one retry on transient 5xx/timeout
+    for (let attempt = 0; attempt < maxTries; attempt++) {
+      let yielded = 0;
+      try {
+        yield { type: "meta", provider: target.provider, model: target.model };
+        for await (const delta of streamTarget(target, key, req)) {
+          yielded += delta.length;
+          yield { type: "delta", text: delta };
+        }
+        yield { type: "done", provider: target.provider, model: target.model, failed };
+        return;
+      } catch (e) {
+        const err = toProviderError(e, target);
+        if (err.code === "INVALID_KEY") dead.add(target.provider);
+        if (yielded > 0) {
+          // keep what the model already said — better than nothing
+          yield { type: "done", provider: target.provider, model: target.model, failed, truncated: true };
+          return;
+        }
+        failed.push({ provider: target.provider, model: target.model, code: err.code, message: err.message });
+        if (RETRYABLE.has(err.code) && attempt < maxTries - 1 && !req.signal?.aborted) {
+          await sleep(400);
+          continue;
+        }
+        console.error(`[ai:stream] ${target.provider}/${target.model} → ${err.code}: ${err.message}`);
+        break;
+      }
+    }
+  }
+
+  if (!anyKey) {
+    throw new AIProviderError(
+      "NO_KEY",
+      'No usable API key. Set GEMINI_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY or OPENROUTER_API_KEY (without keys the local engine answers).',
+      { attempts: failed }
+    );
+  }
+  const summary = failed.map((a) => `${a.provider}/${a.model}: ${a.code}`).join(" | ");
+  throw new AIProviderError("ALL_FAILED", `All providers failed for task "${req.task}" — ${summary}`, { attempts: failed });
 }
