@@ -5,6 +5,66 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { Check, Copy, Terminal } from "lucide-react";
+import js from "highlight.js/lib/languages/javascript";
+import ts from "highlight.js/lib/languages/typescript";
+import python from "highlight.js/lib/languages/python";
+import bash from "highlight.js/lib/languages/bash";
+import json from "highlight.js/lib/languages/json";
+import xml from "highlight.js/lib/languages/xml";
+import css from "highlight.js/lib/languages/css";
+import sql from "highlight.js/lib/languages/sql";
+import java from "highlight.js/lib/languages/java";
+import c from "highlight.js/lib/languages/c";
+import cpp from "highlight.js/lib/languages/cpp";
+import cs from "highlight.js/lib/languages/csharp";
+import go from "highlight.js/lib/languages/go";
+import rust from "highlight.js/lib/languages/rust";
+import php from "highlight.js/lib/languages/php";
+import ruby from "highlight.js/lib/languages/ruby";
+import swift from "highlight.js/lib/languages/swift";
+import kotlin from "highlight.js/lib/languages/kotlin";
+import md from "highlight.js/lib/languages/markdown";
+import plaintext from "highlight.js/lib/languages/plaintext";
+import yaml from "highlight.js/lib/languages/yaml";
+import dockerfile from "highlight.js/lib/languages/dockerfile";
+
+/* Only the languages AI answers actually use — the default plugin bundles ALL
+   of highlight.js (~1MB) which slowed down first load. */
+const LANGS: Record<string, unknown> = {
+  javascript: js,
+  jsx: js,
+  typescript: ts,
+  tsx: ts,
+  python: python,
+  bash: bash,
+  sh: bash,
+  shell: bash,
+  zsh: bash,
+  json: json,
+  xml: xml,
+  html: xml,
+  css: css,
+  sql: sql,
+  java: java,
+  c: c,
+  cpp: cpp,
+  "c++": cpp,
+  csharp: cs,
+  "c#": cs,
+  go: go,
+  rust: rust,
+  php: php,
+  ruby: ruby,
+  swift: swift,
+  kotlin: kotlin,
+  markdown: md,
+  text: plaintext,
+  plain: plaintext,
+  plaintext,
+  yaml: yaml,
+  yml: yaml,
+  dockerfile,
+};
 
 function extractText(node: ReactNode): string {
   if (node == null || typeof node === "boolean") return "";
@@ -62,7 +122,7 @@ export const Markdown = memo(function Markdown({ text, dir }: { text: string; di
     <div className="md" dir={dir ?? "auto"}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        rehypePlugins={[[rehypeHighlight, { languages: LANGS as never, ignoreMissing: true }]]}
         components={{
           pre: ({ children }) => {
             const child = Array.isArray(children) ? children[0] : children;

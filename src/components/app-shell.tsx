@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Crown, Menu, Moon, ShieldCheck, Sparkles, Sun, Trash2, Zap } from "lucide-react";
+import { Check, Crown, Menu, Moon, ShieldCheck, Sparkles, Sun, Trash2, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNexus } from "@/lib/store";
 import { modelById } from "@/lib/models";
@@ -336,18 +336,19 @@ function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => void })
 /* ── header ─────────────────────────────────────────────────── */
 
 function Header({ onOpenUpgrade }: { onOpenUpgrade: () => void }) {
-  const { setSidebarOpen, activeId, conversations, model } = useNexus();
+  const { sidebarOpen, setSidebarOpen, activeId, conversations, model } = useNexus();
   const active = conversations.find((c) => c.id === activeId);
   const m = modelById(model);
 
   return (
     <header className="relative z-30 flex h-15 shrink-0 items-center gap-2 px-3 sm:px-5">
       <button
-        onClick={() => setSidebarOpen(true)}
-        aria-label="فتح القائمة"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label={sidebarOpen ? "إغلاق القائمة" : "فتح القائمة"}
+        aria-expanded={sidebarOpen}
         className="glass hover-lift press grid size-10 cursor-pointer place-items-center rounded-xl text-(--ink-2) hover:text-(--ink) lg:hidden"
       >
-        <Menu className="size-[18px]" />
+        {sidebarOpen ? <X className="size-[18px]" /> : <Menu className="size-[18px]" />}
       </button>
 
       <div className="flex min-w-0 flex-1 items-center gap-2.5">

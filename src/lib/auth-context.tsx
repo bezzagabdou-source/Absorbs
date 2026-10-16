@@ -1,13 +1,29 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut as fbSignOut,
-  type User as FirebaseUser,
-} from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import type { User as FirebaseUser, Auth, AuthProvider, UserCredential, Unsubscribe } from "firebase/auth";
+
+/* Firebase (Google sign-in) is OPTIONAL and heavy (~400KB) — it is loaded lazily
+   in the background, so the first paint and local accounts never wait for it. */
+type FirebaseMod = {
+  auth: Auth;
+  googleProvider: AuthProvider;
+  onAuthStateChanged: (a: Auth, cb: (u: FirebaseUser | null) => void) => Unsubscribe;
+  signInWithPopup: (a: Auth, p: AuthProvider) => Promise<UserCredential>;
+  signOut: (a: Auth) => Promise<void>;
+};
+function loadFirebase(): Promise<FirebaseMod> {
+  return (async () => {
+    const [authMod, fb] = await Promise.all([import("firebase/auth"), import("@/lib/firebase")]);
+    return {
+      auth: fb.auth,
+      googleProvider: fb.googleProvider,
+      onAuthStateChanged: authMod.onAuthStateChanged,
+      signInWithPopup: authMod.signInWithPopup,
+      signOut: authMod.signOut,
+    };
+  })();
+}
 
 /* ------------------------------------------------------------------ types */
 
@@ -99,12 +115,13 @@ function fbToNexus(u: FirebaseUser): NexusUser {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [localUser, setLocalUser] = useState<NexusUser | null>(null);
   const [fbUser, setFbUser] = useState<FirebaseUser | null>(null);
-  const [fbChecked, setFbChecked] = useState(false);
   const [localChecked, setLocalChecked] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const user = localUser ?? (fbUser ? fbToNexus(fbUser) : null);
-  const ready = localChecked && fbChecked;
+  /* ready = local session resolved. Firebase (optional Google session) is checked
+     in the background and never blocks the UI. */
+  const ready = localChecked;
 
   /* 1 — local session cookie (primary identity) */
   useEffect(() => {
@@ -125,16 +142,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  /* 2 — Firebase (Google) identity, if present on this device */
-  useEffect(
-    () =>
-      onAuthStateChanged(auth, (u) => {
-        setFbUser(u);
-        setFbChecked(true);
-        if (!u) return;
-      }),
-    [],
-  );
+  /* 2 — Firebase (Google) identity, if present on this device — background, lazy */
+  useEffect(() => {
+    let cancelled = false;
+    let unsub: (() => void) | undefined;
+    void loadFirebase()
+      .then((fb) => {
+        if (cancelled) return;
+        unsub = fb.onAuthStateChanged(fb.auth, (u) => {
+          if (!cancelled) setFbUser(u);
+        });
+      })
+      .catch(() => undefined); /* Firebase optional — local accounts unaffected */
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
+  }, []);
 
   /* profile (plan / trial / account info) for the active identity */
   const refreshProfile = useCallback(async () => {
@@ -154,10 +178,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /* keep exactly ONE identity active: taking over revokes the other */
   const takeover = useCallback(async (newUser: NexusUser) => {
     if (newUser.provider === "password") {
-      try {
-        if (fbUser) await fbSignOut(auth);
-      } catch {
-        /* best effort */
+      if (fbUser) {
+        try {
+          const fb = await loadFirebase();
+          await fb.signOut(fb.auth);
+        } catch {
+          /* best effort */
+        }
       }
       setLocalUser(newUser);
     } else {
@@ -190,7 +217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void refreshProfile();
       },
       signInGoogle: async () => {
-        const cred = await signInWithPopup(auth, googleProvider);
+        const fb = await loadFirebase();
+        const cred = await fb.signInWithPopup(fb.auth, fb.googleProvider);
         const u = fbToNexus(cred.user);
         await takeover(u);
         void refreshProfile();
@@ -202,11 +230,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           /* best effort */
         }
         setLocalUser(null);
-        try {
-          await fbSignOut(auth); // safe even when no Firebase user is active
-        } catch {
-          /* best effort */
-        }
+        void loadFirebase()
+          .then((fb) => fb.signOut(fb.auth)) // safe even when no Firebase user is active
+          .catch(() => undefined);
         setProfile(null);
       },
       updateProfile: async (patch) => {

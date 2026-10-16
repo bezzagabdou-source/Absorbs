@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
@@ -152,6 +152,19 @@ function ConversationItem({
 
 /* ── sidebar ────────────────────────────────────────────────── */
 
+/** true on desktop (lg+) — the sidebar is a static column there, an overlay drawer on mobile */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return isDesktop;
+}
+
 export type ToolId = "voice" | "image" | "web" | "orch";
 
 const QUICK_TOOLS: { id: ToolId; label: string; icon: typeof Phone; cls: string }[] = [
@@ -173,6 +186,12 @@ export function Sidebar({
   const { conversations, loadingList, activeId, selectConversation, newChat, sidebarOpen, setSidebarOpen } =
     useNexus();
   const [query, setQuery] = useState("");
+  const isDesktop = useIsDesktop();
+
+  /* RTL: the drawer is anchored to the LEFT edge (end-0) — it must slide LEFT to hide.
+     (The old `x: "100%"` slid it right, i.e. into the middle of the screen, so it
+       looked stuck-open and never closed on phones.) */
+  const closedX = "-100%";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -197,11 +216,19 @@ export function Sidebar({
 
       <motion.aside
         initial={false}
-        animate={{ x: sidebarOpen ? 0 : "100%" }}
-        transition={{ type: "spring", stiffness: 380, damping: 36 }}
+        animate={
+          isDesktop
+            ? { x: 0, visibility: "visible" }
+            : { x: sidebarOpen ? 0 : closedX, visibility: sidebarOpen ? "visible" : "hidden" }
+        }
+        transition={{
+          x: isDesktop ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 36 },
+          /* hide only after the slide-out finishes (and show instantly on open) */
+          visibility: { duration: 0, delay: isDesktop || sidebarOpen ? 0 : 0.3 },
+        }}
         className={cn(
           "fixed inset-y-0 end-0 z-50 flex w-72 flex-col border-e border-(--line)",
-          "bg-(--panel-solid)/95 backdrop-blur-2xl lg:static lg:z-auto lg:translate-x-0 lg:bg-transparent lg:backdrop-blur-none",
+          "bg-(--panel-solid)/95 backdrop-blur-2xl lg:static lg:z-auto lg:bg-transparent lg:backdrop-blur-none",
         )}
       >
         {/* brand + actions */}
