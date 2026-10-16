@@ -2782,3 +2782,147 @@ html { background-color: #f7f8fc; }
 [data-theme="noctis"] html, html[data-theme="noctis"] { background-color: #141311; }
 html[data-theme="midnight"] { background-color: #000; }
 html[data-theme="aurora"] { background-color: #100f1a; }
+/* ══════════════════════════════════════════════════════════════════════════
+   v18 NEXUS APEX — the "aurora" layer.
+   One place for the new motion language: the thinking indicator, the project
+   card, the code studio shell and the call screen share these primitives so the
+   whole product feels like one thing. Everything is GPU-only (transform/opacity),
+   respects prefers-reduced-motion, and adds no network request.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@property --nx-ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+@keyframes nxSpin { to { --nx-ang: 360deg; transform: rotate(360deg); } }
+@keyframes nxBreath { 0%, 100% { transform: scale(1); opacity: .55; } 50% { transform: scale(1.18); opacity: .15; } }
+@keyframes nxWave { 0%, 100% { transform: scaleY(.28); } 50% { transform: scaleY(1); } }
+@keyframes nxShimmer { from { background-position: 140% 0; } to { background-position: -140% 0; } }
+@keyframes nxRise { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes nxFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes nxPing { 0% { transform: scale(.75); opacity: .7; } 100% { transform: scale(1.9); opacity: 0; } }
+
+/* ── thinking indicator ───────────────────────────────────────────────── */
+.nx-think { display: inline-flex; align-items: center; gap: 12px; padding: 4px 0; }
+.nx-think-orb {
+  position: relative; width: 36px; height: 36px; flex: none; border-radius: 999px;
+  background: conic-gradient(from var(--nx-ang), #d97757, #f4b183, #7dd3fc, #a78bfa, #d97757);
+  animation: nxSpin 2.4s linear infinite;
+  box-shadow: 0 10px 28px -10px rgba(217, 119, 87, .7), inset 0 0 14px rgba(255, 255, 255, .35);
+}
+.nx-think-orb::before {
+  content: ""; position: absolute; inset: 3.5px; border-radius: inherit;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .85), rgba(255, 255, 255, .12) 42%, transparent 62%), var(--nx-orb-core, #13141c);
+}
+.nx-think-orb::after {
+  content: ""; position: absolute; inset: -6px; border-radius: inherit; border: 1px solid rgba(217, 119, 87, .45);
+  animation: nxPing 2.4s ease-out infinite;
+}
+.nx-think-ring {
+  position: absolute; inset: 7px; border-radius: inherit; border: 1.5px solid rgba(255, 255, 255, .5);
+  animation: nxBreath 2s ease-in-out infinite;
+}
+.nx-think-ring.nx-r2 { inset: 11px; animation-delay: .5s; border-color: rgba(167, 139, 250, .6); }
+.nx-think-col { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.nx-think-text {
+  font-size: 13.5px; font-weight: 800; letter-spacing: .01em; line-height: 1.2;
+  background: linear-gradient(100deg, #cbd5e1 20%, #fff 42%, #f4b183 55%, #cbd5e1 76%);
+  background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: nxShimmer 2.6s linear infinite;
+}
+.nx-think-wave { display: inline-flex; align-items: flex-end; gap: 3px; height: 12px; }
+.nx-think-wave i {
+  display: block; width: 3px; height: 12px; border-radius: 3px; transform-origin: bottom;
+  background: linear-gradient(180deg, #d97757, #f4b183);
+  animation: nxWave 1.05s ease-in-out infinite;
+}
+.nx-think-wave i:nth-child(2n) { background: linear-gradient(180deg, #7dd3fc, #a78bfa); }
+.nx-think-wave i:nth-child(3n) { background: linear-gradient(180deg, #facc15, #f97316); }
+
+/* ── project card (chat) ──────────────────────────────────────────────── */
+.nx-card {
+  position: relative; overflow: hidden; border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, .1); background:
+    radial-gradient(120% 120% at 0% 0%, rgba(217, 119, 87, .12), transparent 55%),
+    radial-gradient(120% 120% at 100% 0%, rgba(125, 211, 252, .1), transparent 55%),
+    linear-gradient(180deg, rgba(20, 21, 28, .96), rgba(12, 13, 18, .98));
+  box-shadow: 0 24px 60px -30px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .05);
+  animation: nxRise .34s cubic-bezier(.2, .7, .3, 1) both;
+}
+.nx-card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, .07) 50%, transparent 58%);
+  background-size: 260% 100%; animation: nxShimmer 6.5s linear infinite;
+}
+.nx-stat { border-radius: 14px; border: 1px solid rgba(255, 255, 255, .08); background: rgba(0, 0, 0, .3); padding: 7px 9px; }
+.nx-stat b { display: block; font-size: 15px; font-weight: 900; color: #fff; line-height: 1.15; }
+.nx-stat span { font-size: 10.5px; font-weight: 700; color: #94a3b8; }
+.nx-check { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; }
+.nx-check-ok { color: #6ee7b7; }
+.nx-check-no { color: #fca5a5; }
+
+/* ── studio shell ─────────────────────────────────────────────────────── */
+.nx-panel {
+  border-radius: 24px; border: 1px solid rgba(255, 255, 255, .09);
+  background: linear-gradient(180deg, rgba(18, 19, 26, .92), rgba(11, 12, 17, .96));
+  box-shadow: 0 20px 50px -34px rgba(0, 0, 0, .95);
+}
+.nx-glow { position: relative; }
+.nx-glow::before {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(140deg, rgba(217, 119, 87, .55), transparent 40%, rgba(125, 211, 252, .45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude; opacity: .8;
+}
+.nx-monitor { position: relative; border-radius: 20px; overflow: hidden; background: #08090d; border: 1px solid rgba(255, 255, 255, .1); }
+.nx-monitor iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.nx-chip {
+  display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 11px;
+  font-size: 11.5px; font-weight: 800; border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(255, 255, 255, .04); color: #cbd5e1; transition: transform .15s, border-color .15s, color .15s;
+}
+.nx-chip:hover { transform: translateY(-1px); border-color: rgba(217, 119, 87, .5); color: #fff; }
+.nx-live-dot { width: 7px; height: 7px; border-radius: 999px; background: #34d399; box-shadow: 0 0 0 0 rgba(52, 211, 153, .7); animation: nxPing 1.8s ease-out infinite; }
+
+/* ── call screen ──────────────────────────────────────────────────────── */
+.nx-call {
+  position: relative; overflow: hidden; border-radius: 34px;
+  background: radial-gradient(140% 100% at 50% 0%, #1c1e2a 0%, #0b0c12 58%, #05060a 100%);
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, .95), inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+.nx-call-glow { position: absolute; inset: -30% -20% auto; height: 70%; filter: blur(60px); opacity: .5; pointer-events: none; }
+.nx-call-avatar {
+  position: relative; width: 132px; height: 132px; border-radius: 999px; display: grid; place-items: center;
+  background: conic-gradient(from var(--nx-ang), #d97757, #f4b183, #7dd3fc, #a78bfa, #d97757);
+  animation: nxSpin 7s linear infinite;
+}
+.nx-call-avatar::before {
+  content: ""; position: absolute; inset: 4px; border-radius: inherit;
+  background: radial-gradient(circle at 34% 26%, rgba(255, 255, 255, .22), transparent 55%), #12131a;
+}
+.nx-call-avatar > * { position: relative; z-index: 1; }
+.nx-call-halo { position: absolute; inset: -18px; border-radius: 999px; border: 1px solid rgba(217, 119, 87, .35); animation: nxPing 3.2s ease-out infinite; }
+.nx-call-halo.nx-h2 { inset: -34px; animation-delay: 1.1s; border-color: rgba(125, 211, 252, .28); }
+.nx-call-ctrl {
+  display: grid; place-items: center; gap: 5px; width: 74px; height: 74px; border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: #e2e8f0;
+  font-size: 10.5px; font-weight: 800; transition: transform .16s, background .16s, border-color .16s;
+}
+.nx-call-ctrl:hover { transform: translateY(-2px); background: rgba(255, 255, 255, .1); }
+.nx-call-ctrl-on { border-color: rgba(217, 119, 87, .7); background: rgba(217, 119, 87, .18); color: #fff; }
+.nx-call-hangup {
+  width: 84px; height: 84px; border-radius: 999px; display: grid; place-items: center;
+  background: linear-gradient(160deg, #ff5f57, #d32f2f); color: #fff;
+  box-shadow: 0 18px 40px -14px rgba(255, 60, 60, .75); transition: transform .16s;
+}
+.nx-call-hangup:hover { transform: scale(1.05); }
+.nx-bubble { border-radius: 18px; padding: 9px 13px; font-size: 15px; line-height: 1.7; animation: nxRise .28s ease both; }
+.nx-bubble-ai { background: rgba(255, 255, 255, .07); color: #e8eaf2; border: 1px solid rgba(255, 255, 255, .08); }
+.nx-bubble-me { background: linear-gradient(140deg, rgba(217, 119, 87, .9), rgba(217, 119, 87, .7)); color: #fff; }
+.nx-bubble-live { border-style: dashed; border-color: rgba(244, 177, 131, .5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-think-orb, .nx-think-orb::after, .nx-think-ring, .nx-think-text, .nx-think-wave i,
+  .nx-card::after, .nx-live-dot, .nx-call-avatar, .nx-call-halo, .nx-bubble { animation: none !important; }
+  .nx-think-text { color: #e2e8f0; background: none; -webkit-text-fill-color: currentColor; }
+}

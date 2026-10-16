@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Braces,
   ChevronRight,
   Crown,
   History,
@@ -219,6 +220,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: "/app/research", label: "البحث", icon: Telescope, exact: true },
     { href: "/app/tools", label: t.app.tools, icon: LayoutGrid, exact: false },
     { href: "/app/studio", label: "الاستوديو", icon: Wand2, exact: true },
+    // v18 — NEXUS CODE: the massive-project studio (build, standalone repair, publish)
+    { href: "/app/code", label: "نكسس كود", icon: Braces, exact: true },
     // v17 — the two new destinations: the instant game factory and the XP path
     { href: "/app/smith", label: "صانع الألعاب", icon: Anvil, exact: false },
     { href: "/app/mastery", label: "مسار الإتقان", icon: Crown, exact: false },

@@ -255,6 +255,36 @@ create table if not exists barq.atlas_voice (
 );
 create index if not exists atlas_voice_user_idx on barq.atlas_voice (user_id, created_at);
 
+
+create table if not exists barq.apex_projects (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  slug text not null,
+  title text not null default '',
+  tagline text not null default '',
+  blueprint text not null,
+  kind text not null default 'app',
+  palette text not null default 'midnight',
+  lang text not null default 'ar',
+  scale text not null default 'large',
+  plan jsonb not null default '{}'::jsonb,
+  manifest jsonb not null default '[]'::jsonb,
+  html text not null,
+  modules integer not null default 0,
+  lines integer not null default 0,
+  files integer not null default 0,
+  bytes integer not null default 0,
+  score integer not null default 0,
+  data_rows integer not null default 0,
+  build_ms integer not null default 0,
+  visibility text not null default 'private',
+  views integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists apex_projects_slug_uq on barq.apex_projects (slug);
+create index if not exists apex_projects_user_idx on barq.apex_projects (user_id, updated_at);
+create index if not exists apex_projects_public_idx on barq.apex_projects (visibility, views);
 `;
 
 const g = globalThis as typeof globalThis & {
