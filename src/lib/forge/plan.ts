@@ -268,7 +268,7 @@ export function normalizePlan(plan: ForgePlan, scale: ForgeScale): ForgePlan {
  * A scale is a promise: if the architect planned too few modules the build would
  * come out small, so the Forge adds real, spec'd modules until the minimum is met.
  */
-function padModules(mods: ForgeModule[], meta: (typeof SCALE_META)[ForgeScale], plan: ForgePlan): ForgeModule[] {
+export function padModules(mods: ForgeModule[], meta: (typeof SCALE_META)[ForgeScale], plan: ForgePlan): ForgeModule[] {
   const out = [...mods];
   const isGame = plan.kind === "game";
   const isSystem = plan.kind === "system";

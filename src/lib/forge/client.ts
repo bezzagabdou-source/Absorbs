@@ -26,6 +26,17 @@ export type UiStage = { stage: string; label: string; pct: number; state: "worki
 
 export type UiModel = { model: string; key: string; role: string; state: string; path?: string; note?: string; lines?: number; ms?: number; at: number };
 
+/**
+ * v20 — one engine's real reasoning, streamed as it arrives.
+ * `text` only ever contains what the model itself emitted inside its
+ * <think>/<thinking>/<reasoning> block; an engine that sent none has an
+ * empty block and the UI shows nothing (never a fabricated thought).
+ */
+export type UiThink = { key: string; model: string; role: string; text: string; done: boolean; at: number; ms: number };
+
+/** v20 — the DUO fast path announces its two engines up front. */
+export type UiDuo = { a: { key: string; label: string }; b: { key: string; label: string }; planMs: number; modules: number; target: number };
+
 export type ForgeUi = {
   phase: "idle" | "running" | "done" | "error";
   scale: ForgeScale | "";
@@ -48,6 +59,8 @@ export type ForgeUi = {
   meta: ForgeMeta | null;
   stats: ForgeStats | null;
   net: { images: number; audio: number; source: string } | null;
+  think: UiThink[];
+  duo: UiDuo | null;
   error: string | null;
   startedAt: number;
   endedAt: number;
@@ -55,6 +68,7 @@ export type ForgeUi = {
 };
 
 export const MAX_LOGS = 260;
+export const MAX_THINK = 24;
 export const MAX_STAGES = 400;
 export const MAX_MODELS = 400;
 
@@ -81,6 +95,8 @@ export function initialForgeUi(): ForgeUi {
     meta: null,
     stats: null,
     net: null,
+    think: [],
+    duo: null,
     error: null,
     startedAt: 0,
     endedAt: 0,
@@ -121,6 +137,39 @@ export function applyEvent(s: ForgeUi, e: ForgeEvent): ForgeUi {
 
     case "log":
       return { ...s, logs: push(s.logs, e.text, MAX_LOGS) };
+
+    case "think": {
+      const i = s.think.findIndex((t) => t.key === e.key && t.role === e.role && !t.done);
+      if (i < 0) {
+        if (!e.d && e.done) return s;
+        return {
+          ...s,
+          think: push(
+            s.think,
+            { key: e.key, model: e.model, role: e.role, text: e.d, done: !!e.done, at: now, ms: 0 },
+            MAX_THINK
+          ),
+        };
+      }
+      const prev = s.think[i];
+      const next: UiThink = {
+        ...prev,
+        text: (prev.text + e.d).slice(-24_000),
+        done: prev.done || !!e.done,
+        ms: now - prev.at,
+      };
+      const think = [...s.think];
+      think[i] = next;
+      return { ...s, think };
+    }
+
+    case "duo":
+      return {
+        ...s,
+        duo: { a: e.a, b: e.b, planMs: e.planMs, modules: e.modules, target: e.target },
+        target: e.target || s.target,
+        logs: push(s.logs, `DUO: ${e.a.label} + ${e.b.label} · ${e.modules} وحدة · خطة في ${e.planMs}ms`, MAX_LOGS),
+      };
 
     case "net":
       return { ...s, net: { images: e.images, audio: e.audio, source: e.source }, logs: push(s.logs, `الإنترنت: ${e.images} صورة · ${e.audio} صوت (${e.source})`, MAX_LOGS) };

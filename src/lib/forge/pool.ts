@@ -22,7 +22,11 @@ import type { ModelSelection, PlanId } from "@/lib/model-access";
 export type { ForgeRole };
 
 /** Reads a stream to the end, cancelling it if the caller aborts. */
-async function readAllWithSignal(stream: ReadableStream<string>, signal?: AbortSignal): Promise<string> {
+async function readAllWithSignal(
+  stream: ReadableStream<string>,
+  signal?: AbortSignal,
+  onChunk?: (d: string) => void
+): Promise<string> {
   const r = stream.getReader();
   let out = "";
   const onAbort = () => r.cancel().catch(() => undefined);
@@ -33,6 +37,7 @@ async function readAllWithSignal(stream: ReadableStream<string>, signal?: AbortS
       const { done, value } = await r.read();
       if (done) break;
       out += value;
+      if (value && onChunk) onChunk(value);
     }
   } finally {
     signal?.removeEventListener("abort", onAbort);
@@ -60,6 +65,12 @@ export type ForgeModel = {
   lowThink?: boolean;
   /** rough priority inside a role (higher first) */
   rank: number;
+  /** v20 — open-weight / open-source engine (shown honestly in the UI) */
+  open?: boolean;
+  /** v20 — free-tier endpoint: usable without a Pro plan and without extra cost */
+  free?: boolean;
+  /** v20 — fastest first token in the line-up (used by the DUO fast path) */
+  quick?: boolean;
 };
 
 const hasGemini = () => Boolean(findGeminiKey());
@@ -69,36 +80,40 @@ const hasHf = () => Boolean(findHuggingFaceKey());
 
 /** The full line-up. `plan` gating is applied by `forgePool()`. */
 const LINEUP: (ForgeModel & { pro?: boolean })[] = [
+  /* ── native engine (the backbone: long output, deep thinking) ── */
   {
-    key: "gemini-titan",
-    label: "Gemini Titan",
+    key: "titan",
+    label: "Nexus Titan",
     selection: { provider: "gemini", model: "auto" },
-    roles: ["architect", "builder", "reviewer", "repair"],
+    roles: ["architect", "builder", "reviewer", "repair", "designer"],
     maxTokens: 32_000,
     epic: true,
     rank: 96,
   },
   {
-    key: "gemini-fast",
-    label: "Gemini Flash",
+    key: "swift",
+    label: "Nexus Swift",
     selection: { provider: "gemini", model: "auto" },
-    roles: ["builder", "repair"],
+    roles: ["builder", "repair", "designer"],
     maxTokens: 16_000,
     lowThink: true,
-    rank: 78,
+    quick: true,
+    rank: 90,
   },
+
+  /* ── routed heavyweights (Pro) ── */
   {
-    key: "nexus-claude",
-    label: "Nexus Claude 5.1",
+    key: "sage",
+    label: "Nexus Sage",
     selection: { provider: "openrouter", model: "nexus/claude-5.1" },
-    roles: ["architect", "builder", "reviewer", "repair"],
+    roles: ["architect", "builder", "reviewer", "repair", "designer"],
     maxTokens: 24_000,
     rank: 98,
     pro: true,
   },
   {
-    key: "nexus-kimi",
-    label: "Nexus Kimi Code",
+    key: "code-forge",
+    label: "Nexus CodeForge",
     selection: { provider: "openrouter", model: "nexus/kimi-code" },
     roles: ["builder", "repair"],
     maxTokens: 24_000,
@@ -106,8 +121,8 @@ const LINEUP: (ForgeModel & { pro?: boolean })[] = [
     pro: true,
   },
   {
-    key: "sonnet-45",
-    label: "Claude Sonnet 4.5",
+    key: "architect",
+    label: "Nexus Architect",
     selection: { provider: "openrouter", model: "anthropic/claude-sonnet-4.5" },
     roles: ["architect", "builder", "reviewer"],
     maxTokens: 20_000,
@@ -115,8 +130,8 @@ const LINEUP: (ForgeModel & { pro?: boolean })[] = [
     pro: true,
   },
   {
-    key: "deepseek-v31",
-    label: "DeepSeek V3.1",
+    key: "deep-code",
+    label: "Nexus DeepCode",
     selection: { provider: "openrouter", model: "deepseek/deepseek-chat-v3.1" },
     roles: ["builder", "reviewer", "repair"],
     maxTokens: 20_000,
@@ -124,46 +139,116 @@ const LINEUP: (ForgeModel & { pro?: boolean })[] = [
     pro: true,
   },
   {
-    key: "grok-4",
-    label: "Grok 4",
+    key: "vector",
+    label: "Nexus Vector",
     selection: { provider: "grok", model: "grok-4" },
     roles: ["architect", "reviewer", "builder"],
     maxTokens: 16_000,
-    rank: 90,
+    rank: 89,
     pro: true,
   },
   {
-    key: "gpt-4o",
-    label: "GPT-4o",
+    key: "general",
+    label: "Nexus General",
     selection: { provider: "openrouter", model: "openai/gpt-4o" },
     roles: ["builder", "reviewer"],
     maxTokens: 14_000,
     rank: 84,
     pro: true,
   },
+
+  /* ── open-weight engines (Hugging Face inference) ── */
   {
-    key: "qwen-coder",
-    label: "Qwen3 Coder 480B",
+    key: "open-coder",
+    label: "Nexus OpenCoder",
     selection: { provider: "huggingface", model: "Qwen/Qwen3-Coder-480B-A35B-Instruct" },
     roles: ["builder", "repair"],
     maxTokens: 14_000,
-    rank: 80,
+    rank: 82,
+    open: true,
   },
   {
-    key: "deepseek-open",
-    label: "DeepSeek V3.1 (open)",
+    key: "open-deep",
+    label: "Nexus Open Deep",
     selection: { provider: "huggingface", model: "deepseek-ai/DeepSeek-V3.1" },
     roles: ["builder", "reviewer"],
     maxTokens: 12_000,
-    rank: 74,
+    rank: 76,
+    open: true,
   },
   {
-    key: "qwen-235b",
-    label: "Qwen3 235B",
+    key: "open-235",
+    label: "Nexus Open 235",
     selection: { provider: "huggingface", model: "Qwen/Qwen3-235B-A22B-Instruct-2507" },
     roles: ["builder"],
     maxTokens: 12_000,
-    rank: 70,
+    rank: 72,
+    open: true,
+  },
+
+  /* ── v20: open-source FREE tier (OpenRouter :free) — a real multi-engine
+        forge even on a free account with no paid key beyond the router ── */
+  {
+    key: "free-q3",
+    label: "Nexus Open Q3",
+    selection: { provider: "openrouter", model: "qwen/qwen3.8-27b:free" },
+    roles: ["builder", "repair"],
+    maxTokens: 12_000,
+    rank: 68,
+    open: true,
+    free: true,
+  },
+  {
+    key: "free-code-mini",
+    label: "Nexus OpenCode Mini",
+    selection: { provider: "openrouter", model: "cohere/north-mini-code:free" },
+    roles: ["builder", "repair"],
+    maxTokens: 12_000,
+    rank: 66,
+    open: true,
+    free: true,
+    quick: true,
+  },
+  {
+    key: "free-think",
+    label: "Nexus Open Think",
+    selection: { provider: "openrouter", model: "thinkingmachines/inkling:free" },
+    roles: ["architect", "reviewer"],
+    maxTokens: 10_000,
+    rank: 64,
+    open: true,
+    free: true,
+  },
+  {
+    key: "free-31b",
+    label: "Nexus Open 31B",
+    selection: { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
+    roles: ["builder"],
+    maxTokens: 10_000,
+    rank: 60,
+    open: true,
+    free: true,
+  },
+  {
+    key: "free-120b",
+    label: "Nexus Open 120B",
+    selection: { provider: "openrouter", model: "nvidia/nemotron-3-super-120b-a12b:free" },
+    roles: ["builder", "reviewer"],
+    maxTokens: 12_000,
+    rank: 62,
+    open: true,
+    free: true,
+  },
+  {
+    key: "free-lite",
+    label: "Nexus Open Lite",
+    selection: { provider: "openrouter", model: "liquid/lfm-2.5-2.6b:free" },
+    roles: ["repair"],
+    maxTokens: 8_000,
+    rank: 48,
+    open: true,
+    free: true,
+    quick: true,
   },
 ];
 
@@ -222,7 +307,7 @@ export type ForgeAsk = {
  */
 export async function askForgeModel(
   m: ForgeModel,
-  o: { system: string; prompt: string; maxTokens?: number; signal?: AbortSignal; temperature?: number }
+  o: { system: string; prompt: string; maxTokens?: number; signal?: AbortSignal; temperature?: number; onChunk?: (d: string) => void }
 ): Promise<ForgeAsk> {
   const t0 = Date.now();
   const messages: ChatTurn[] = [{ role: "user", text: o.prompt }];
@@ -246,7 +331,7 @@ export async function askForgeModel(
       onModel,
       onDone: () => {},
     });
-    const text = await readAllWithSignal(stream, o.signal);
+    const text = await readAllWithSignal(stream, o.signal, o.onChunk);
     return { text, model: realModel, key: m.key, ms: Date.now() - t0 };
   }
 
@@ -259,8 +344,22 @@ export async function askForgeModel(
     onModel,
     onDone: () => {},
   });
-  const text = await readAllWithSignal(stream, o.signal);
+  const text = await readAllWithSignal(stream, o.signal, o.onChunk);
   return { text, model: realModel, key: m.key, ms: Date.now() - t0 };
+}
+
+/* ------------------------------------------------------------------ *
+ * v20 — real reasoning ("thinking") extraction + DUO choice
+ * Pure helpers live in ./think (client-safe, unit-tested); re-exported here so
+ * every existing server import keeps working unchanged.
+ * ------------------------------------------------------------------ */
+export { splitThink, thinkTap, hasThink, pickDuo } from "@/lib/forge/think";
+import { pickDuo } from "@/lib/forge/think";
+
+/** The two fastest reachable engines — the DUO fast path writes with exactly these. */
+export function duoEngines(plan: PlanId = "free"): ForgeModel[] {
+  const pool = forgePool(plan).filter((m) => m.roles.includes("builder"));
+  return pickDuo(pool);
 }
 
 /**
@@ -279,6 +378,8 @@ export async function askRole(
     /** engines already used for this job — they go last */
     avoid?: string[];
     onTry?: (m: ForgeModel, state: "start" | "fail" | "done", note?: string) => void;
+    /** v20 — live tokens (used to surface the engine's real reasoning) */
+    onChunk?: (m: ForgeModel, d: string) => void;
   }
 ): Promise<ForgeAsk | null> {
   const avoid = new Set(o.avoid ?? []);
@@ -289,7 +390,13 @@ export async function askRole(
     if (o.signal?.aborted) return last;
     o.onTry?.(m, "start");
     try {
-      const r = await askForgeModel(m, { system: o.system, prompt: o.prompt, maxTokens: o.maxTokens, signal: o.signal });
+      const r = await askForgeModel(m, {
+        system: o.system,
+        prompt: o.prompt,
+        maxTokens: o.maxTokens,
+        signal: o.signal,
+        onChunk: o.onChunk ? (d) => o.onChunk?.(m, d) : undefined,
+      });
       if (!r.text || r.text.trim().length < 20) {
         o.onTry?.(m, "fail", "empty");
         continue;

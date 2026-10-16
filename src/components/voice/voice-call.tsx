@@ -7,14 +7,18 @@ import { useAuth } from "@/lib/auth-context";
 import { useCredits } from "@/components/app/app-shell";
 import { VoiceSettings } from "@/components/chat/voice-recorder";
 import {
+  browserVoiceName,
   createRecognizer,
   createSpeechQueue,
   isRecognitionSupported,
+  isSynthesisSupported,
+  isMeaningful,
   plainForSpeech,
   setCloudVoice,
   type Recognizer,
   type SpeechQueue,
 } from "@/lib/voice";
+import { PhoneFrame } from "@/components/voice/phone-frame";
 import { HANGUP_RE, VOICE_PERSONAS, personaById } from "@/lib/voice-call";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +40,16 @@ const LANGS = [
   { id: "fr-FR", label: "Français" },
   { id: "en-US", label: "English" },
 ] as const;
+
+/** Short real label for the Dynamic Island (the long one stays on screen). */
+const PHASE_SHORT: Record<Phase, string> = {
+  idle: "تحضير",
+  listening: "أسمعك",
+  thinking: "نفكّر",
+  speaking: "يتكلّم",
+  paused: "موقوف",
+  error: "مشكل",
+};
 
 const PHASE_LABEL: Record<Phase, string> = {
   idle: "نجهّز المكالمة…",
@@ -118,7 +132,9 @@ const ORB_COLOR: Record<Phase, [number, number, number]> = {
 function Orb({ phase, energyRef }: { phase: Phase; energyRef: { current: number } }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<Phase>(phase);
-  phaseRef.current = phase;
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   useEffect(() => {
     const cv = ref.current;
@@ -242,6 +258,11 @@ export function VoiceCall({
   const [lang, setLang] = useState<string>("ar-DZ");
   const [sttOk, setSttOk] = useState(true);
   const [ttsOk, setTtsOk] = useState(true);
+  /** v20 — real values, reported by the server / measured in the browser.
+   *  Nothing here is guessed: when a value is unknown it is simply not shown. */
+  const [engine, setEngine] = useState("");
+  const [latency, setLatency] = useState<number | null>(null);
+  const [voiceName, setVoiceName] = useState("");
 
   // clear cloud voice (ElevenLabs / Gemini TTS) — falls back to the browser voice by itself
   useEffect(() => {
@@ -319,6 +340,10 @@ export function VoiceCall({
     const id = recIdRef.current;
     const rec = createRecognizer({
       lang: langRef.current,
+      // v20 — continuous recognition keeps long sentences in one transcript
+      // instead of cutting them at the first breath, so Nexus hears the whole
+      // idea (this is the single biggest comprehension win on Darija).
+      continuous: true,
       onText: (txt) => {
         if (id !== recIdRef.current) return;
         heardRef.current = txt;
@@ -332,7 +357,8 @@ export function VoiceCall({
         const said = heardRef.current.trim();
         heardRef.current = "";
         setHeard("");
-        if (said) {
+        // noise, a single letter or pure punctuation is never sent to the model
+        if (isMeaningful(said)) {
           silenceRef.current = 0;
           void sendTurn(said);
           return;
@@ -383,6 +409,8 @@ export function VoiceCall({
     if (prev && prev.role === "user") histRef.current.push({ role: "assistant", content: spokenRef.current.trim() || "…" });
     const myTurn = ++turnRef.current;
     const live = () => activeRef.current && turnRef.current === myTurn;
+    const sentAt = performance.now();
+    setLatency(null);
     setPh("thinking");
     setUserLine(text);
     setReply("");
@@ -394,11 +422,19 @@ export function VoiceCall({
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     const q = createSpeechQueue({
-      onStart: () => live() && setPh("speaking"),
+      lang: langRef.current,
+      voiceLabel: PERSONA_VOICE[personaRef.current] ?? "",
+      onStart: () => {
+        if (!live()) return;
+        // the real answer delay: from "you stopped talking" to "first audio"
+        setLatency(Math.round(performance.now() - sentAt));
+        setPh("speaking");
+      },
+      onVoice: (_src, label) => live() && setVoiceName(label),
       onIdle: () =>
         setTimeout(() => {
           if (live() && phaseRef.current !== "error") listen();
-        }, 180),
+        }, 140),
     });
     queueRef.current = q;
 
@@ -438,6 +474,9 @@ export function VoiceCall({
       applyHeaders(res);
       const cid = res.headers.get("x-conversation-id");
       if (cid) convRef.current = cid;
+      // the server tells us which engine really answered — we show exactly that
+      const eng = res.headers.get("x-engine");
+      if (eng) setEngine(eng === "team" ? "فريق الموديلات" : eng === "voice" ? "مسار الصوت" : eng === "fast" ? "مسار سريع" : eng);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -535,6 +574,7 @@ export function VoiceCall({
     convRef.current = null;
     turnRef.current = 0;
     silenceRef.current = 0;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the call when the dialog opens
     setSeconds(0);
     setHeard("");
     setUserLine("");
@@ -544,7 +584,10 @@ export function VoiceCall({
     mutedRef.current = false;
     setTyping(false);
     setSttOk(isRecognitionSupported());
-    setTtsOk(true);
+    setTtsOk(isSynthesisSupported());
+    setEngine("");
+    setLatency(null);
+    setVoiceName("");
 
     let p = "friend";
     let l = locale === "fr" ? "fr-FR" : locale === "en" ? "en-US" : "ar-DZ";
@@ -564,8 +607,11 @@ export function VoiceCall({
     // greeting (also unlocks audio playback: we are inside the click that opened the call)
     setPh("speaking");
     const q = createSpeechQueue({
+      lang: langRef.current,
+      voiceLabel: PERSONA_VOICE[personaRef.current] ?? "",
       onStart: () => undefined,
-      onIdle: () => setTimeout(() => activeRef.current && phaseRef.current === "speaking" && listen(), 300),
+      onVoice: (_src, label) => setVoiceName(label),
+      onIdle: () => setTimeout(() => activeRef.current && phaseRef.current === "speaking" && listen(), 220),
     });
     queueRef.current = q;
     q.enqueue(personaById(p).greeting);
@@ -643,15 +689,36 @@ export function VoiceCall({
           role="dialog"
           aria-modal="true"
           aria-label="مكالمة صوتية مع Nexus AI v8.4"
-          className="fixed inset-0 z-[95] flex flex-col bg-ink-950/95 text-white backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          className="fixed inset-0 z-[95] flex flex-col items-center justify-center bg-ink-950/92 text-white backdrop-blur-xl"
         >
-          {/* header */}
+        <PhoneFrame
+          live={phase === "listening" || phase === "speaking"}
+          seconds={seconds}
+          label={PHASE_SHORT[phase]}
+          engine={engine || undefined}
+          latency={latency}
+          sttOk={sttOk}
+          ttsOk={ttsOk}
+          voiceName={voiceName || undefined}
+          className="w-full"
+        >
+          {/* header — the state dot follows the real phase, no decorative pulse */}
           <div className="flex items-center justify-between gap-3 px-4">
             <div className="flex items-center gap-2 text-xs font-black">
-              <span className={cn("h-2.5 w-2.5 rounded-full", phase === "error" ? "bg-rose-400" : "animate-pulse bg-emerald-400")} />
-              <span dir="ltr" className="tabular-nums text-slate-300">
-                {mmss(seconds)}
-              </span>
+              <span
+                className={cn(
+                  "h-2.5 w-2.5 rounded-full",
+                  phase === "error"
+                    ? "bg-rose-400"
+                    : phase === "speaking"
+                      ? "bg-orange-400"
+                      : phase === "listening"
+                        ? "bg-sky-400"
+                        : phase === "thinking"
+                          ? "bg-amber-300"
+                          : "bg-slate-500"
+                )}
+              />
               <span className="rounded-full bg-white/8 px-2 py-0.5 text-[11px] text-slate-300">
                 {active.emoji} {active.label}
               </span>
@@ -799,6 +866,7 @@ export function VoiceCall({
               <Hand className="size-6" />
             </button>
           </div>
+        </PhoneFrame>
         </motion.div>
       )}
     </AnimatePresence>

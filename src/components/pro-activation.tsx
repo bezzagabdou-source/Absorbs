@@ -56,7 +56,7 @@ export const V8_FEATURES: Feature[] = [
     hot: true,
     title: { ar: "فريق ذكاء اصطناعي في كل مهمة صعبة", fr: "Équipe d'IA sur chaque tâche difficile", en: "An AI team on every hard task" },
     desc: {
-      ar: "Claude وGemini وDeepSeek وGrok يحلّون معًا ثم تُدمج أقوى إجابة — للبرمجة والتعديل والتقارير وليس للألعاب فقط.",
+      ar: "عدة محرّكات من Nexus تحلّ المسألة معًا ثم تُدمج أقوى إجابة — للبرمجة والتعديل والتقارير وليس للألعاب فقط.",
       fr: "Plusieurs IA travaillent ensemble puis fusionnent la meilleure réponse.",
       en: "Several AIs work together, then the best answer is merged.",
     },

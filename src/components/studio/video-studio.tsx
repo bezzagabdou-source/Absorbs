@@ -247,7 +247,7 @@ export function VideoStudio() {
                     aria-pressed={provider === p}
                     className={cn("neo-chip rounded-xl px-2 py-2.5 text-xs font-black disabled:opacity-35", provider === p && "neo-chip-on")}
                   >
-                    {p === "auto" ? "تلقائي" : p === "replicate" ? "Replicate" : "Gemini Veo"}
+                    {p === "auto" ? "تلقائي" : p === "replicate" ? "محرّك الفيديو الخارجي" : "محرّك Nexus للفيديو"}
                   </button>
                 );
               })}

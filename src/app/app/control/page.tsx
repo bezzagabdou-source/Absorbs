@@ -167,14 +167,14 @@ export default function ControlCenterPage() {
 
         {tab === "voice" && (
           <>
-            <ControlSection icon={<Mic2 className="size-5" />} title="صوت المكالمة" desc={`${VOICE_CATALOG.length} صوتًا بشريًا واقعيًا من محرك Gemini + أصوات المتصفح كاحتياطي.`}>
+            <ControlSection icon={<Mic2 className="size-5" />} title="صوت المكالمة" desc={`${VOICE_CATALOG.length} صوتًا بشريًا واقعيًا من محرّك Nexus الصوتي + أصوات المتصفح كاحتياطي.`}>
               <SelectRow
                 label="المحرك"
                 value={p.voice.engine}
                 onChange={(v) => setGroup("voice", { engine: v })}
                 options={[
                   { id: "auto", label: "تلقائي (الأسرع المتاح)" },
-                  { id: "gemini", label: "Gemini TTS (واقعي)" },
+                  { id: "gemini", label: "محرّك Nexus الصوتي (واقعي)" },
                   { id: "eleven", label: "ElevenLabs (إن وُجد المفتاح)" },
                   { id: "browser", label: "صوت المتصفح (بلا إنترنت)" },
                 ]}

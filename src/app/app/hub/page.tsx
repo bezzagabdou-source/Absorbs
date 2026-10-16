@@ -180,7 +180,7 @@ export default function HubPage() {
             <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--v12-faint)]">
               {isPro
                 ? "8 مجانية + 8 Pro. بلا قوائم طويلة، بلا نماذج ميتة."
-                : "8 نماذج مجانية. رقّي لـ Pro باش تفتح 8 زيادة فيهم Claude وGrok."}
+                : "8 محرّكات مجانية. رقّي لـ Pro باش تفتح كل محرّكات Nexus الثقيلة."}
             </p>
           </div>
           <Link href="/app/upgrade" className="v12-btn v12-btn-quiet flex-none !px-4 !py-2 !text-[13px]">

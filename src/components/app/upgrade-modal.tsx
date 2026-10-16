@@ -9,19 +9,19 @@ type Lang = "ar" | "fr" | "en";
 const TXT: Record<Lang, { title: string; body: (model: string) => string; cta: string; later: string }> = {
   en: {
     title: "Unlock Pro models",
-    body: (m) => `${m} is part of the Pro plan. Upgrade to use Grok and OpenRouter models (Claude, GPT-4o and more).`,
+    body: (m) => `${m} is part of the Pro plan. Upgrade to unlock every heavy Nexus engine.`,
     cta: "Upgrade to Pro",
     later: "Maybe later",
   },
   fr: {
     title: "Débloquez les modèles Pro",
-    body: (m) => `${m} fait partie du plan Pro. Passez à Pro pour utiliser Grok et les modèles OpenRouter (Claude, GPT-4o et plus).`,
+    body: (m) => `${m} fait partie du plan Pro. Passez à Pro pour débloquer tous les moteurs Nexus lourds.`,
     cta: "Passer à Pro",
     later: "Plus tard",
   },
   ar: {
     title: "افتح نماذج Pro",
-    body: (m) => `${m} متاح في خطة Pro. رقِّ حسابك لاستخدام Grok ونماذج OpenRouter (Claude وGPT-4o وغيرها).`,
+    body: (m) => `${m} متاح في خطة Pro. رقِّ حسابك لفتح كل محرّكات Nexus الثقيلة.`,
     cta: "الترقية إلى Pro",
     later: "لاحقًا",
   },

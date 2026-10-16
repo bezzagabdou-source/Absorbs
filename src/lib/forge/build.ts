@@ -25,14 +25,16 @@ import {
   type ForgePlanDto,
   type ForgeQa,
   type ForgeRequest,
+  type ForgeRole,
   type ForgeScale,
   type ForgeStats,
   type ModelRef,
 } from "@/lib/forge/types";
 import { defaultPlan, guessKind, guessLanguage, guessScale, normalizePlan, parseForgePlan, planUserPrompt } from "@/lib/forge/plan";
-import { askForgeModel, askRole, forgeConcurrency, forgePool, type ForgeModel } from "@/lib/forge/pool";
+import { askForgeModel, askRole, duoEngines, forgeConcurrency, forgePool, thinkTap, type ForgeModel } from "@/lib/forge/pool";
 import { assembleSingleFile, assembleTree, stripFence, type Assembled } from "@/lib/forge/assemble";
 import { architectSystem, builderSystem } from "@/lib/forge/contract";
+import { patternBlock, patternsFor } from "@/lib/forge/patterns";
 import { qaModule, qaProject, repairBrief } from "@/lib/forge/qa";
 import { forgeNetHint } from "@/lib/forge/net";
 import type { PlanId } from "@/lib/model-access";
@@ -139,6 +141,10 @@ function modulePrompt(o: {
 
   parts.push(`\n═══ YOUR MODULE ═══\nid: ${mod.id}\nfile: ${mod.path}\ntype: ${mod.kind}\ntitle: ${mod.title}\nTARGET SIZE: ${mod.lines} lines of real working code (this is a floor, not a wish)`);
   parts.push(`SPEC — implement ALL of it:\n${mod.spec.slice(0, 5000)}`);
+
+  // v20 — the local recipe database: only the entries that match this module
+  const recipes = patternBlock(patternsFor({ kind: plan.kind, spec: mod.spec, title: mod.title, path: mod.path }));
+  if (recipes) parts.push(recipes);
   if (mod.needs.length) parts.push(`DEPENDS ON: ${mod.needs.join(", ")} (their digest is above)`);
   if (o.extra) parts.push(`EXTRA REQUIREMENTS FROM THE USER:\n${o.extra.slice(0, 2500)}`);
   if (o.netHint) parts.push(o.netHint.slice(0, 4000));
@@ -194,6 +200,36 @@ type Ctx = {
   repairs: number;
 };
 
+/**
+ * v20 — streams the reasoning an engine actually emitted.
+ * The tap only forwards text that arrived inside <think>/<thinking>/<reasoning>,
+ * so nothing here is invented: no reasoning in the answer ⇒ no thinking block.
+ */
+function thinkEmitter(c: Ctx, role: ForgeRole) {
+  const q = c.q;
+  const buf = new Map<string, { model: string; text: string; last: number }>();
+  return (m: ForgeModel, d: string) => {
+    const tap = thinkTap((piece) => {
+      const b = buf.get(m.key) ?? { model: m.label, text: "", last: 0 };
+      b.text += piece;
+      const now = Date.now();
+      // flush at most ~8×/second per engine, and always flush a long buffer
+      if (b.text.length >= 220 || now - b.last > 120) {
+        q.push({ t: "think", key: m.key, model: m.label, role, d: b.text });
+        b.text = "";
+        b.last = now;
+      }
+      buf.set(m.key, b);
+    });
+    tap(d);
+  };
+}
+
+/** Flushes whatever reasoning is still buffered and marks the block finished. */
+function thinkDone(c: Ctx, m: ForgeModel | null, role: ForgeRole) {
+  if (m) c.q.push({ t: "think", key: m.key, model: m.label, role, d: "", done: true });
+}
+
 async function pipeline(c: Ctx) {
   const { q, req } = c;
   const scale = c.scale;
@@ -216,42 +252,75 @@ async function pipeline(c: Ctx) {
     }
   }
 
-  /* ---------- 1. ARCHITECT ---------- */
-  q.push({ t: "stage", stage: "architect", label: "المهندس المعماري يرسم خطة المشروع", pct: 4, state: "working" });
+  /* ---------- 1. PLAN ---------- */
   const tArch = Date.now();
   let plan: ForgePlan | null = null;
-  const arch = await askRole("architect", {
-    plan: c.plan,
-    system: architectSystem({ kind, scale }),
-    prompt: planUserPrompt({ prompt: req.prompt, kind, scale, language, extra: req.extra }),
-    maxTokens: 8_000,
-    signal: c.signal,
-    accept: (r) => Boolean(parseForgePlan(r.text, { prompt: req.prompt, kind, scale })),
-    onTry: (m, state, note) => {
-      c.calls++;
-      q.push({ t: "model", model: m.label, key: m.key, role: "architect", state: state === "start" ? "start" : state === "done" ? "done" : "fail", note });
-    },
-  });
-  if (arch) {
-    plan = parseForgePlan(arch.text, { prompt: req.prompt, kind, scale });
-    c.models.push({ key: arch.key, label: arch.model, role: "architect", ms: arch.ms });
+  const duo = req.duo === true;
+  const onThink = req.thinking === false ? undefined : thinkEmitter(c, "architect");
+
+  if (duo) {
+    /* DUO fast path: the plan is computed locally (deterministic, exact module
+       and line targets) so the two engines start writing immediately — no
+       architect round-trip, no JSON parsing, no waiting. */
+    plan = normalizePlan(defaultPlan(req.prompt, kind, scale, language), scale);
+    const pair = duoEngines(c.plan);
+    q.push({
+      t: "duo",
+      a: { key: pair[0]?.key ?? "titan", label: pair[0]?.label ?? "Nexus Titan" },
+      b: { key: pair[1]?.key ?? pair[0]?.key ?? "titan", label: pair[1]?.label ?? pair[0]?.label ?? "Nexus Titan" },
+      planMs: Date.now() - tArch,
+      modules: plan.modules.length,
+      target: plan.modules.reduce((n, m) => n + m.lines, 0),
+    });
+    q.push({
+      t: "log",
+      text: `وضع DUO السريع: محرّكان (${pair.map((m) => m.label).join(" + ")}) وخطة محلية دقيقة — ${plan.modules.length} وحدة · الهدف ${plan.modules
+        .reduce((n, m) => n + m.lines, 0)
+        .toLocaleString("en")} سطر`,
+    });
+    q.push({ t: "stage", stage: "contract", label: "الخطة المحلية جاهزة (بلا انتظار المهندس)", pct: 6, state: "done" });
+  } else {
+    q.push({ t: "stage", stage: "architect", label: "المهندس المعماري يرسم خطة المشروع", pct: 4, state: "working" });
+    let archModel: ForgeModel | null = null;
+    const arch = await askRole("architect", {
+      plan: c.plan,
+      system: architectSystem({ kind, scale }),
+      prompt: planUserPrompt({ prompt: req.prompt, kind, scale, language, extra: req.extra }),
+      maxTokens: 8_000,
+      signal: c.signal,
+      accept: (r) => Boolean(parseForgePlan(r.text, { prompt: req.prompt, kind, scale })),
+      onChunk: onThink,
+      onTry: (m, state, note) => {
+        c.calls++;
+        archModel = m;
+        q.push({ t: "model", model: m.label, key: m.key, role: "architect", state: state === "start" ? "start" : state === "done" ? "done" : "fail", note });
+        if (state === "done" || state === "fail") thinkDone(c, m, "architect");
+      },
+    });
+    thinkDone(c, archModel, "architect");
+    if (arch) {
+      plan = parseForgePlan(arch.text, { prompt: req.prompt, kind, scale });
+      c.models.push({ key: arch.key, label: arch.model, role: "architect", ms: arch.ms });
+    }
+    if (!plan) {
+      plan = defaultPlan(req.prompt, kind, scale, language);
+      q.push({ t: "log", text: "الخطة الاحتياطية الدقيقة استُعملت (المهندس لم يُرجع JSON صالحًا) — البناء مستمر بنفس الحجم" });
+    }
   }
-  if (!plan) {
-    plan = defaultPlan(req.prompt, kind, scale, language);
-    q.push({ t: "log", text: "الخطة الاحتياطية الدقيقة استُعملت (المهندس لم يُرجع JSON صالحًا) — البناء مستمر بنفس الحجم" });
-  }
-  plan = normalizePlan(plan, scale);
-  const modules = plan.modules.slice(0, FORGE_MAX_MODULES);
-  plan.modules = modules;
+  const finalPlan: ForgePlan = duo ? (plan as ForgePlan) : normalizePlan(plan as ForgePlan, scale);
+  const modules = finalPlan.modules.slice(0, FORGE_MAX_MODULES);
+  finalPlan.modules = modules;
 
   q.push({ t: "stage", stage: "contract", label: "العقد الموحّد بين النماذج جاهز", pct: 8, state: "done" });
   q.push({ t: "plan", plan: planDto(plan), ms: Date.now() - tArch });
 
   /* ---------- 2. BUILD WAVES ---------- */
   const waves = Array.from(new Set(modules.map((m) => m.wave))).sort((a, b) => a - b);
-  const rotation = new Rotation(forgePool(c.plan).filter((m) => m.roles.includes("builder")));
+  /* DUO writes with exactly the two engines announced in the `duo` event. */
+  const builders = duo ? duoEngines(c.plan) : forgePool(c.plan).filter((m) => m.roles.includes("builder"));
+  const rotation = new Rotation(builders.length ? builders : forgePool(c.plan));
   const sys = builderSystem({ kind: plan.kind, scale, language: plan.language });
-  const concurrency = forgeConcurrency(c.plan, scale);
+  const concurrency = duo ? Math.min(2, builders.length || 1) : forgeConcurrency(c.plan, scale);
 
   for (const w of waves) {
     const batch = modules.filter((m) => m.wave === w);
@@ -448,8 +517,15 @@ async function buildModule(c: Ctx, plan: ForgePlan, mod: ForgeModule, rotation: 
           });
 
     try {
-      const r = await askForgeModel(m, { system: sys, prompt, maxTokens: Math.min(Math.max(8_000, Math.round(mod.lines * 40)), 32_000), signal: guard.signal });
+      const r = await askForgeModel(m, {
+        system: sys,
+        prompt,
+        maxTokens: Math.min(Math.max(8_000, Math.round(mod.lines * 40)), 32_000),
+        signal: guard.signal,
+        onChunk: c.req.thinking === false ? undefined : thinkEmitter(c, "builder").bind(null, m),
+      });
       guard.clear();
+      thinkDone(c, m, "builder");
       c.calls++;
       c.models.push({ key: m.key, label: r.model, role: "builder", module: mod.path, ms: r.ms });
 

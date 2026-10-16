@@ -30,6 +30,9 @@ const SRC = path.join(ROOT, "src").replace(/\\/g, "/");
 
 const FILES = [
   "src/lib/forge/types.ts",
+  "src/lib/forge/think.ts",
+  "src/lib/forge/patterns.ts",
+  "src/lib/voice.ts",
   "src/lib/forge/contract.ts",
   "src/lib/forge/plan.ts",
   "src/lib/forge/assemble.ts",
@@ -89,6 +92,9 @@ const plan = await load("lib/forge/plan.js");
 const asm = await load("lib/forge/assemble.js");
 const qa = await load("lib/forge/qa.js");
 const pack = await load("lib/live-pack.js");
+const think = await load("lib/forge/think.js");
+const pats = await load("lib/forge/patterns.js");
+const voice = await load("lib/voice.js");
 
 /* ---------- 4. checks ---------- */
 const results = [];
@@ -232,6 +238,97 @@ check("portable: الضغط فعال (<40%)", packed.length / Buffer.byteLength(
 const href = pack.portableHref("https://nexus.example", bigHtml, "متجر");
 check("portable: الرابط فيه #d=", href.url.startsWith("https://nexus.example/live/portable#d=") && href.url.includes("&t="));
 check("fileSlug: اسم ملف آمن", pack.fileSlug("متجر/الأندلس؟") === "متجر_الأندلس");
+
+/* --- v20: real thinking extraction (nothing invented) --- */
+{
+  const a = think.splitThink("<think>أفكر في البنية</think>\n<h1>سلام</h1>");
+  check("splitThink: يستخرج التفكير", a.think === "أفكر في البنية", JSON.stringify(a.think));
+  check("splitThink: يحذفه من الجواب", !a.body.includes("<think>") && a.body.includes("<h1>سلام</h1>"), a.body);
+
+  const b = think.splitThink("<reasoning>step 1</reasoning> code <thinking>step 2</thinking>");
+  check("splitThink: كتلتان ⇒ سطران", b.think === "step 1\nstep 2", JSON.stringify(b.think));
+  check("splitThink: الأنواع المختلفة", think.hasThink("<THINKING>x</THINKING>") && think.hasThink("<thoughts>y</thoughts>"));
+
+  const c = think.splitThink("<h1>بلا تفكير</h1>");
+  check("splitThink: بلا تفكير ⇒ نص فارغ (ما نخترعوش)", c.think === "" && c.body === "<h1>بلا تفكير</h1>", JSON.stringify(c));
+  check("hasThink: false بلا وسم", think.hasThink("نص عادي") === false);
+
+  // live streaming: reasoning arrives in tiny chunks, sometimes mid-tag
+  let got = "";
+  const tap = think.thinkTap((d) => (got += d));
+  for (const d of ["<thi", "nk>أنا ", "نفكّر في ", "الوحدات</th", "ink><p>الجواب</p>"]) tap(d);
+  check("thinkTap: يجمع التفكير من دفعات مقطوعة", got.replace(/\s+/g, "") === "أنانفكّرفيالوحدات", JSON.stringify(got));
+  check("thinkTap: الجواب ما يتسرّبش للتفكير", !got.includes("الجواب") && !got.includes("<p>"), JSON.stringify(got));
+
+  let none = "";
+  const tap2 = think.thinkTap((d) => (none += d));
+  for (const d of ["<h1>", "عنوان", "</h1><p>نص طويل بلا أي وسم تفكير هنا</p>"]) tap2(d);
+  check("thinkTap: بلا وسم ⇒ ما يظهر حتى تفكير", none === "", JSON.stringify(none));
+}
+
+/* --- v20: DUO — exactly two engines, the fastest first --- */
+{
+  const pool = [
+    { key: "slow-genius", rank: 99 },
+    { key: "quick-a", rank: 40, quick: true },
+    { key: "quick-open", rank: 30, quick: true, open: true },
+    { key: "mid", rank: 60 },
+  ];
+  const duo = think.pickDuo(pool);
+  check("pickDuo: يرجّع محرّكين بجوج", duo.length === 2, String(duo.length));
+  check("pickDuo: السريع هو الأول", duo[0]?.key === "quick-a", duo[0]?.key);
+  check("pickDuo: الثاني مختلف (open + quick)", duo[1]?.key === "quick-open", duo[1]?.key);
+  check("pickDuo: العادي ما يدخلش قبل السريع", !duo.some((m) => m.key === "slow-genius" || m.key === "mid"));
+  const one = think.pickDuo([{ key: "only", rank: 5 }]);
+  check("pickDuo: محرّك وحيد ⇒ يتكرر بلا كسر", one.length === 2 && one[0].key === "only" && one[1].key === "only");
+  check("pickDuo: بحيرة فارغة ⇒ []", think.pickDuo([]).length === 0);
+}
+
+/* --- v20: transcript cleanup (what makes the call understand Darija) --- */
+{
+  check("normalizeHeard: الهمزة والتاء المربوطة", voice.normalizeHeard("أنا بغيت صفحة هبوط جميلة", "ar-DZ") === "انا بغيت صفحه هبوط جميله", voice.normalizeHeard("أنا بغيت صفحة هبوط جميلة", "ar-DZ"));
+  check("normalizeHeard: يحذف الحشو", !voice.normalizeHeard("يعني انا بغيت موقع", "ar-DZ").startsWith("يعني"), voice.normalizeHeard("يعني انا بغيت موقع", "ar-DZ"));
+  check("normalizeHeard: يطيح التكرار", voice.normalizeHeard("انا انا بغيت لعبة", "ar-DZ") === "انا بغيت لعبه", voice.normalizeHeard("انا انا بغيت لعبة", "ar-DZ"));
+  check("normalizeHeard: دارجة بالحرف اللاتيني ⇒ عربي", voice.normalizeHeard("bghit site mzyan", "ar-DZ").includes("بغيت") && voice.normalizeHeard("bghit site mzyan", "ar-DZ").includes("مزيان"), voice.normalizeHeard("bghit site mzyan", "ar-DZ"));
+  check("normalizeHeard: فرنسي — يحذف euh", !voice.normalizeHeard("euh je veux un site", "fr-FR").includes("euh"), voice.normalizeHeard("euh je veux un site", "fr-FR"));
+  check("normalizeHeard: إنجليزي — يحذف um", voice.normalizeHeard("um build me a game", "en-US").startsWith("build"), voice.normalizeHeard("um build me a game", "en-US"));
+  check("normalizeHeard: فضاءات زائدة وعلامات", voice.normalizeHeard("موقع ،،  لمطعم", "ar-DZ") === "موقع، لمطعم", JSON.stringify(voice.normalizeHeard("موقع ،،  لمطعم", "ar-DZ")));
+  check("normalizeHeard: فارغ ⇒ فارغ", voice.normalizeHeard("   ", "ar-DZ") === "");
+
+  check("isMeaningful: نص حقيقي", voice.isMeaningful("صايب لي لعبة") === true);
+  check("isMeaningful: حرف واحد ⇒ false", voice.isMeaningful("ا") === false);
+  check("isMeaningful: علامات فقط ⇒ false", voice.isMeaningful("؟،.") === false);
+  check("isMeaningful: فارغ ⇒ false", voice.isMeaningful("") === false && voice.isMeaningful("   ") === false);
+}
+
+/* --- v20: the local recipe database injected into every builder prompt --- */
+{
+  check("patterns: قاعدة الأنماط فيها ≥20 وصفة", pats.PATTERN_COUNT >= 20, String(pats.PATTERN_COUNT));
+  check("patterns: ≥6000 حرف من الكود الحقيقي", pats.PATTERN_CHARS >= 6000, String(pats.PATTERN_CHARS));
+  const g = pats.patternsFor({ kind: "game", spec: "canvas game loop with enemies, collision, touch controls and sound" });
+  check("patterns: لعبة ⇒ game-loop", g.some((p) => p.id === "game-loop"), g.map((p) => p.id).join(","));
+  check("patterns: لعبة ⇒ تصادم أو لمس", g.some((p) => p.id === "aabb-collision" || p.id === "touch-keys"));
+  const sys = pats.patternsFor({ kind: "system", spec: "قاعدة بيانات IndexedDB مع جدول إضافة وتعديل وحذف وبحث وترقيم صفحات" });
+  check("patterns: نظام ⇒ indexeddb", sys.some((p) => p.id === "indexeddb-store"), sys.map((p) => p.id).join(","));
+  check("patterns: نظام ⇒ crud أو بحث", sys.some((p) => p.id === "crud-table" || p.id === "search-filter-page"));
+  const land = pats.patternsFor({ kind: "landing", spec: "صفحة هبوط فيها نموذج اتصال وحركات عند التمرير" });
+  check("patterns: هبوط ⇒ تحقق من النموذج", land.some((p) => p.id === "form-validate"), land.map((p) => p.id).join(","));
+  check("patterns: الحد الأقصى محترم", pats.patternsFor({ kind: "app", spec: "كل شيء canvas audio db cart drag chart", max: 3 }).length <= 3);
+  const none = pats.patternsFor({ kind: "tool", spec: "حاسبة" });
+  check("patterns: بلا مطابقة ⇒ وصفات أساسية (ما يرجعش فارغ)", none.length >= 1, String(none.length));
+  const block = pats.patternBlock(pats.patternsFor({ kind: "game", spec: "canvas loop" }));
+  check("patterns: البلوك فيه عنوان وكود", block.includes("PROVEN RECIPES") && block.includes("requestAnimationFrame"));
+  check("patterns: البلوك محدود الحجم", block.length <= 5600, String(block.length));
+  check("patterns: block فارغ ⇒ نص فارغ", pats.patternBlock([]) === "");
+  // every recipe must be syntactically valid JS on its own terms
+  let bad = "";
+  for (const pt of pats.PATTERNS) {
+    if (pt.lang !== "js") continue;                       // CSS recipes are not JS
+    try { new Function(pt.code); } catch { bad += pt.id + " "; }
+  }
+  check("patterns: كل وصفات JS صالحة (Function parse)", bad === "", bad.trim());
+  check("patterns: فيه وصفات CSS معلّمة", pats.PATTERNS.some((p) => p.lang === "css"));
+}
 
 /* ---------- 5. report ---------- */
 const summary = {

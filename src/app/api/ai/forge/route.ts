@@ -20,6 +20,7 @@ import { forgeBuild } from "@/lib/forge/build";
 import { forgeLineup, forgePool } from "@/lib/forge/pool";
 import { publishSite } from "@/lib/live";
 import { SCALES, SCALE_META, type ForgeEvent, type ForgeKind, type ForgeRequest, type ForgeScale, type ModelRef } from "@/lib/forge/types";
+import { PATTERN_CHARS, PATTERN_COUNT } from "@/lib/forge/patterns";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -49,7 +50,13 @@ export async function GET(req: Request): Promise<Response> {
       lineup: pool.map((m) => ({ key: m.key, label: m.label, roles: m.roles, maxTokens: m.maxTokens })),
       scales: SCALES,
       kinds: KINDS,
-      version: "v19-forge",
+      duo: true,
+      thinking: true,
+      openEngines: pool.filter((m) => m.open).length,
+      freeEngines: pool.filter((m) => m.free).length,
+      recipes: PATTERN_COUNT,
+      recipeChars: PATTERN_CHARS,
+      version: "v20-forge",
     });
   }
 
@@ -61,6 +68,8 @@ export async function GET(req: Request): Promise<Response> {
     engines: forgePool(plan).length,
     lineup: forgeLineup(plan),
     scales: SCALES.map((s) => ({ id: s, ...SCALE_META[s] })),
+    /** the local recipe database every builder prompt is fed from (real counts) */
+    recipes: PATTERN_COUNT,
     kinds: KINDS,
   });
 }
@@ -100,6 +109,10 @@ export async function POST(req: Request): Promise<Response> {
     extra: str(body.extra, MAX_EXTRA).trim(),
     internet: body.internet !== false,
     publish,
+    /* v20 — DUO: two engines + a locally computed plan (fastest first token),
+       and `thinking`: stream the engines' real reasoning to the workspace. */
+    duo: body.duo === true,
+    thinking: body.thinking !== false,
     userId: user.uid,
   };
 

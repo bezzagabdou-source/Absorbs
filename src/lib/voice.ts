@@ -7,14 +7,17 @@
 
 interface RecResultItem {
   transcript: string;
+  confidence?: number;
 }
 interface RecEvent {
-  results: ArrayLike<ArrayLike<RecResultItem> & { isFinal: boolean }>;
+  results: ArrayLike<ArrayLike<RecResultItem> & { isFinal: boolean; length: number }>;
+  resultIndex?: number;
 }
 interface RecInstance {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
+  maxAlternatives?: number;
   onresult: ((e: RecEvent) => void) | null;
   onend: (() => void) | null;
   onerror: ((e: { error?: string }) => void) | null;
@@ -102,8 +105,75 @@ let speakToken = 0;
 
 let activeAudio: HTMLAudioElement | null = null;
 
+/* ---------- long-audio health (v20) ----------
+ * Chrome pauses `speechSynthesis` after ~15 s of continuous speech and some
+ * mobile browsers drop the `<audio>` element when the tab loses focus. Both
+ * made long answers sound "cut in half". A light keepalive fixes it: while a
+ * queue is running we nudge the engine every 8 s and resume the audio element
+ * if the browser paused it without our asking.
+ */
+let keepAlive: ReturnType<typeof setInterval> | null = null;
+
+function startKeepAlive(): void {
+  if (keepAlive || typeof window === "undefined") return;
+  keepAlive = setInterval(() => {
+    try {
+      const sy = window.speechSynthesis;
+      if (sy && sy.speaking && !sy.paused) {
+        sy.pause();
+        sy.resume();
+      }
+    } catch {
+      /* unsupported */
+    }
+    try {
+      const a = activeAudio;
+      // paused mid-file with time left and no error ⇒ the browser froze it
+      if (a && !a.paused) return;
+      if (a && a.paused && a.currentTime > 0 && !a.ended && a.readyState >= 2 && a.src) {
+        void a.play().catch(() => undefined);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, 8_000);
+}
+
+function stopKeepAlive(): void {
+  if (keepAlive) {
+    clearInterval(keepAlive);
+    keepAlive = null;
+  }
+}
+
+/** Resume playback when the user comes back to the tab (phones suspend it). */
+function bindVisibility(): void {
+  if (typeof document === "undefined") return;
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const sy = window.speechSynthesis;
+        if (sy && sy.speaking && sy.paused) sy.resume();
+      } catch {
+        /* unsupported */
+      }
+      try {
+        const a = activeAudio;
+        if (a && a.paused && a.currentTime > 0 && !a.ended && a.src) void a.play().catch(() => undefined);
+      } catch {
+        /* ignore */
+      }
+    },
+    { passive: true }
+  );
+}
+if (typeof document !== "undefined") bindVisibility();
+
 export function stopSpeaking(): void {
   speakToken++;
+  stopKeepAlive();
   try {
     activeAudio?.pause();
   } catch {
@@ -148,6 +218,16 @@ function voiceScore(v: SpeechSynthesisVoice, lang: string): number {
   if (!v.localService) n += 3;
   if (/espeak|compact|mbrola/.test(name)) n -= 8;
   return n;
+}
+
+/** Name of the browser voice that would be used for `lang` — "" when none is installed. */
+export function browserVoiceName(lang: string, uri?: string): string {
+  if (!isSynthesisSupported()) return "";
+  try {
+    return pickVoice(lang, uri ?? loadVoicePrefs().voiceURI)?.name ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function pickVoice(lang: string, uri: string): SpeechSynthesisVoice | undefined {
@@ -205,13 +285,118 @@ export function speak(text: string, onEnd?: () => void, opts: SpeakOptions = {})
   return true;
 }
 
+/* ---------- transcript cleanup (v20) ---------- */
+
+/**
+ * Speech engines transcribe Darija with Modern-Standard-Arabric spelling, split
+ * one word in two, duplicate stutters and drop hamzas inconsistently. Cleaning
+ * the transcript before it reaches the model is what makes the call "understand
+ * well": the same audio now produces a sentence the model can actually parse.
+ * Pure string work — no network, no guessing, nothing invented.
+ */
+
+/** Arabic letter equivalents that STT engines swap at random. */
+const AR_FOLD: Record<string, string> = {
+  "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا", "ى": "ي", "ة": "ه", "ؤ": "و", "ئ": "ي",
+};
+
+/** Stutters ("انا انا بغيت") and hesitation fillers that carry no meaning. */
+const FILLERS_AR = ["يعني", "يعني", "واش", "ها", "اه", "إي", "مم", "آآ", "هو", "هي", "بصح", "صاح"];
+const FILLERS_FR = ["euh", "bah", "ben", "voila", "voilà", "donc", "du coup", "en fait"];
+const FILLERS_EN = ["um", "uh", "like", "you know", "so", "well", "i mean"];
+
+/** Common Darija words the engine writes in French letters — mapped to Arabic. */
+const DARIJA_LATIN: Record<string, string> = {
+  "saha": "صحة", "sahit": "صحيت", "wakha": "واخا", "waxa": "واخا", "bghit": "بغيت",
+  "baghi": "باغي", "chhal": "شحال", "chno": "شنو", "wach": "واش", "kifach": "كيفاش",
+  "3lach": "علاش", "3lash": "علاش", "7ta": "حتى", "mnin": "منين", "daba": "دابا",
+  "bezaf": "بزاف", "mzyan": "مزيان", "khdam": "خدام", "3labali": "على بالي",
+  "smahli": "سمح لي", "baraka": "باركا", "yallah": "يالله", "salam": "سلام",
+};
+
+function foldArabic(t: string): string {
+  let out = "";
+  for (const ch of t) out += AR_FOLD[ch] ?? ch;
+  return out;
+}
+
+/**
+ * Collapses immediate stutters ("انا انا بغيت" → "انا بغيت").
+ * `\b` only knows ASCII word characters, so a backreference version silently
+ * does nothing on Arabic — this walks the words instead and works on any script.
+ */
+function dedupeWords(t: string): string {
+  const parts = t.split(/(\s+)/);
+  const out: string[] = [];
+  let prev = "";
+  for (const p of parts) {
+    if (p === "" || /^\s+$/.test(p)) {
+      out.push(p);
+      continue;
+    }
+    const key = p.toLowerCase().replace(/[.,!?؛،:…\u0640]/g, "");
+    if (key && key === prev) continue; // duplicate of the previous word
+    prev = key;
+    out.push(p);
+  }
+  return out.join("").replace(/\s{2,}/g, " ").trim();
+}
+
+function dropFillers(t: string, list: string[]): string {
+  let out = t;
+  for (const f of list) {
+    const re = new RegExp(`(^|\\s)${f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`, "gi");
+    out = out.replace(re, " ");
+  }
+  return out.replace(/\s{2,}/g, " ").trim();
+}
+
+/**
+ * Clean one recognized utterance.
+ * @param lang BCP-47 tag used by the recognizer ("ar-DZ", "fr-FR", "en-US")
+ */
+export function normalizeHeard(raw: string, lang = "ar-DZ"): string {
+  let t = (raw || "").replace(/\u200b/g, "").trim();
+  if (!t) return "";
+
+  // digits the engine spelled as words stay as they are; punctuation is tidied
+  t = t.replace(/[,،]{2,}/g, "،").replace(/\s+([،.,!?؛])/g, "$1").replace(/\.{2,}/g, "…");
+
+  const base = lang.toLowerCase();
+  if (base.startsWith("ar")) {
+    t = t.replace(/\b([a-zA-Z]{2,})\b/g, (m) => DARIJA_LATIN[m.toLowerCase()] ?? m);
+    t = foldArabic(t);
+    t = dropFillers(t, FILLERS_AR);
+    t = t.replace(/\bاللي\b/g, "لي").replace(/\bماشي\b/g, "ماشي");
+  } else if (base.startsWith("fr")) {
+    t = dropFillers(t, FILLERS_FR);
+    t = t.replace(/\b([a-zA-Z\u0621-\u064A]{2,})\b/g, (m) => DARIJA_LATIN[m.toLowerCase()] ?? m);
+  } else {
+    t = dropFillers(t, FILLERS_EN);
+  }
+
+  t = dedupeWords(t);
+  // a single stray letter is never a real word — the engine emitted noise
+  t = t.replace(/(^|\s)[a-zA-Z\u0621-\u064A](?=\s|$)/g, " ").replace(/\s{2,}/g, " ").trim();
+  return t;
+}
+
+/** True when the transcript is worth sending to the model at all. */
+export function isMeaningful(text: string): boolean {
+  const t = (text || "").trim();
+  if (!t) return false;
+  if (t.length < 2) return false;
+  // only punctuation / only latin noise
+  return /[\p{L}\p{N}]/u.test(t);
+}
+
 /* ---------- Speech-to-Text ---------- */
 
 export type RecognizerOptions = {
   lang: string;
   continuous?: boolean;
-  /** Called on every update with the full transcript so far. */
-  onText: (text: string, isFinal: boolean) => void;
+  /** Called on every update with the full transcript so far (already cleaned). */
+  onText: (text: string, isFinal: boolean, confidence?: number) => void;
   onEnd?: () => void;
   /** e.g. "not-allowed", "no-speech", "network" */
   onError?: (code: string) => void;
@@ -226,14 +411,30 @@ export function createRecognizer(o: RecognizerOptions): Recognizer | null {
   r.lang = o.lang;
   r.interimResults = true;
   r.continuous = !!o.continuous;
+  // v20 — the engine returns several guesses per segment; we keep the most
+  // confident one instead of blindly taking the first. This is what makes the
+  // call understand Darija/French mixes far better.
+  try {
+    r.maxAlternatives = 3;
+  } catch {
+    /* some engines reject it */
+  }
   r.onresult = (e) => {
     let txt = "";
     let final = true;
+    let conf = 0;
     for (let i = 0; i < e.results.length; i++) {
-      txt += e.results[i][0].transcript;
-      if (!e.results[i].isFinal) final = false;
+      const seg = e.results[i];
+      let best = seg[0];
+      for (let a = 1; a < seg.length; a++) {
+        const alt = seg[a];
+        if (alt && (alt.confidence ?? 0) > (best.confidence ?? 0)) best = alt;
+      }
+      txt += best?.transcript ?? "";
+      conf = Math.max(conf, best?.confidence ?? 0);
+      if (!seg.isFinal) final = false;
     }
-    o.onText(txt, final);
+    o.onText(normalizeHeard(txt, o.lang), final, conf);
   };
   r.onend = () => o.onEnd?.();
   r.onerror = (e) => o.onError?.(e.error ?? "error");
@@ -306,12 +507,20 @@ function splitForVoice(clean: string, first: boolean): string[] {
   return out.flatMap((x) => (x.length > 320 ? (x.match(/[^،,]{1,260}[،,]?/g) ?? [x]).map((y) => y.trim()).filter(Boolean) : [x]));
 }
 
-type Job = { text: string; lang: string; blob: Promise<Blob | null> };
+type Job = { text: string; lang: string; blob: Promise<Blob | null>; voice: string };
 
 export function createSpeechQueue(o: {
   lang?: string;
+  /** label of the neural voice the cloud fetcher asks for (shown as-is) */
+  voiceLabel?: string;
   onStart?: () => void;
   onIdle?: () => void;
+  /**
+   * Reports the voice that is REALLY producing sound:
+   * "cloud" for the streamed neural voice, otherwise the installed browser
+   * voice's own label. The UI shows this verbatim — never an invented name.
+   */
+  onVoice?: (source: "cloud" | "browser", label: string) => void;
 }): SpeechQueue {
   let inputDone = false;
   let started = false;
@@ -334,12 +543,14 @@ export function createSpeechQueue(o: {
   const maybeIdle = () => {
     if (!alive() || idleFired || !inputDone || running || jobs.length > 0) return;
     idleFired = true;
+    stopKeepAlive();
     o.onIdle?.();
   };
 
   const markStart = () => {
     if (!alive() || started) return;
     started = true;
+    startKeepAlive();
     o.onStart?.();
   };
 
@@ -349,6 +560,7 @@ export function createSpeechQueue(o: {
       if (!isSynthesisSupported() || !alive()) return resolve();
       const prefs = loadVoicePrefs();
       const voice = pickVoice(job.lang, prefs.voiceURI);
+      o.onVoice?.("browser", voice?.name ?? browserVoiceName(job.lang) ?? "صوت المتصفح");
       const u = new SpeechSynthesisUtterance(job.text);
       u.lang = voice?.lang ?? job.lang;
       if (voice) u.voice = voice;
@@ -417,6 +629,7 @@ export function createSpeechQueue(o: {
         const blob = await job.blob;
         if (!alive()) break;
         if (blob) {
+          o.onVoice?.("cloud", job.voice || "صوت عصبي");
           const ok = await playBlob(blob);
           if (!alive()) break;
           if (ok) continue;
@@ -432,6 +645,7 @@ export function createSpeechQueue(o: {
   const request = (text: string): Promise<Blob | null> => {
     if (!cloudFetcher || cloudFails >= 12) return Promise.resolve(null);
     return cloudFetcher(text, ctrl.signal)
+      .then((b) => (b ? b : cloudFetcher && cloudFails < 12 ? cloudFetcher(text, ctrl.signal) : null))
       .then((b) => {
         if (b) cloudFails = 0;
         else cloudFails++;
@@ -452,7 +666,7 @@ export function createSpeechQueue(o: {
       firstBatch = false;
       for (const part of parts) {
         const lang = o.lang ?? detectLang(part);
-        jobs.push({ text: part, lang, blob: request(part) });
+        jobs.push({ text: part, lang, blob: request(part), voice: o.voiceLabel ?? "" });
       }
       void run();
     },
@@ -465,6 +679,7 @@ export function createSpeechQueue(o: {
       dead = true;
       jobs.length = 0;
       ctrl.abort();
+      stopKeepAlive();
       if (token === speakToken) {
         try {
           window.speechSynthesis?.cancel();

@@ -146,6 +146,14 @@ export type ForgeRequest = {
   internet?: boolean;
   /** publish a live link at the end */
   publish?: boolean;
+  /**
+   * v20 DUO — the fast path: exactly two engines write the project and the plan
+   * is computed locally (no architect round-trip), so the first line of code
+   * arrives in seconds instead of half a minute.
+   */
+  duo?: boolean;
+  /** v20 — stream the engines' real reasoning (`<think>` blocks) to the UI */
+  thinking?: boolean;
   userId?: string;
 };
 
@@ -169,6 +177,10 @@ export type ForgeEvent =
   | { t: "start"; scale: ForgeScale; kind: ForgeKind; language: string; target: number; engines: number; plan: "free" | "pro" }
   | { t: "stage"; stage: ForgeStage; label: string; pct: number; state: "working" | "done"; model?: string; path?: string }
   | { t: "log"; text: string }
+  /** v20 — real reasoning emitted by the engine itself (never invented) */
+  | { t: "think"; key: string; model: string; role: ForgeRole; d: string; done?: boolean }
+  /** v20 — the two engines that will write this build in DUO mode */
+  | { t: "duo"; a: { key: string; label: string }; b: { key: string; label: string }; planMs: number; modules: number; target: number }
   | { t: "net"; images: number; audio: number; source: string }
   | { t: "plan"; plan: ForgePlanDto; ms: number }
   | { t: "wave"; wave: number; total: number; modules: string[] }
