@@ -3,7 +3,7 @@
 /**
  * NEXUS CODE — ورشة FORGE v19
  * ---------------------------------------------------------------------------
- * Claude-Code-style workspace: describe the project → watch a team of models
+ * Coding-agent-style workspace: describe the project → watch a team of models
  * write it in parallel, module by module → inspect every file → run the live
  * preview → publish it to a permanent public link.
  */

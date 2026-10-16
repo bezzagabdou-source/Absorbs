@@ -22,7 +22,7 @@ import { PhoneFrame } from "@/components/voice/phone-frame";
 import { HANGUP_RE, VOICE_PERSONAS, personaById } from "@/lib/voice-call";
 import { cn } from "@/lib/utils";
 
-/** Gemini voice per persona */
+/** Neural voice assigned to each persona */
 const PERSONA_VOICE: Record<string, string> = {
   friend: "Zephyr",
   coach: "Puck",
@@ -264,10 +264,10 @@ export function VoiceCall({
   const [latency, setLatency] = useState<number | null>(null);
   const [voiceName, setVoiceName] = useState("");
 
-  // clear cloud voice (ElevenLabs / Gemini TTS) — falls back to the browser voice by itself
+  // register the cloud voice fetcher — falls back to the browser voice by itself
   useEffect(() => {
     setCloudVoice(async (text, signal) => {
-      // Gemini voice is the only voice: retry a few times before giving up
+      // the neural voice is the only cloud voice: retry a few times before giving up
       const voice = PERSONA_VOICE[personaRef.current] ?? "Zephyr";
       for (let attempt = 0; attempt < 3; attempt++) {
         if (signal.aborted) return null;
