@@ -15,6 +15,10 @@ import {
   ShieldCheck,
   Brain,
   Palette,
+  SlidersHorizontal,
+  Mic2,
+  FolderOpen,
+  Database,
 } from "lucide-react";
 import { Row } from "@/components/settings-ui";
 import { motion } from "framer-motion";
@@ -107,8 +111,31 @@ export default function SettingsPage() {
           <ThemeCard />
         </motion.section>
 
+        {/* v18 ATLAS — مركز التحكم والقدرات الجديدة */}
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.11 }}
+          className="glass rounded-3xl p-6"
+        >
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-black text-slate-300">
+            <SlidersHorizontal className="h-4.5 w-4.5 text-brand-300" />
+            مركز التحكم ATLAS
+          </h2>
+          <p className="mb-4 text-xs leading-relaxed text-slate-400">
+            كل مقابض التطبيق في شاشة واحدة: المظهر والألوان، الصوت والمكالمة، طريقة تفكير الذكاء، الإنترنت،
+            الملفات، الخصوصية، الوصولية والمختبر.
+          </p>
+          <Link href="/app/control" className="btn-primary inline-flex w-full items-center justify-center gap-2 !rounded-2xl">
+            <SlidersHorizontal className="h-4 w-4" /> افتح مركز التحكم
+          </Link>
+        </motion.section>
+
         {/* sections — each opens its own page */}
         <section className="space-y-3">
+          <Row icon={Mic2} title="المكالمة الصوتية" desc="تغيير الصوت، السرعة، المشاعر، المقاطعة" href="/app/control" />
+          <Row icon={Database} title="قاعدة المعرفة ATLAS" desc="موسوعة مدمجة يبحث فيها قبل أي جواب" href="/app/knowledge" />
+          <Row icon={FolderOpen} title="خزنة الملفات" desc="معاينة وتنزيل وZIP ورابط لكل مخرَج" href="/app/files" />
           <Row icon={Globe} title={t.common.language} desc={LOCALE_NAMES[locale]} href="/app/settings/language" />
           <Row icon={Brain} title="ذاكرة Nexus AI v8.4" desc="ما يتذكره Nexus AI v8.4 عنك في كل محادثة" href="/app/settings/memory" />
           <Row icon={ShieldCheck} title="مركز الأمان" desc="تفعيل البريد، كلمة المرور، سجل الدخول" href="/app/settings/security" />

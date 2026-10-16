@@ -20,6 +20,12 @@ import {
   Smartphone,
   LayoutTemplate,
   PenTool,
+  Database,
+  Globe,
+  Image as ImageIcon,
+  DownloadCloud,
+  Save,
+  Music,
   type LucideIcon,
 } from "lucide-react";
 import type { Locale } from "@/lib/i18n";
@@ -966,6 +972,118 @@ export const AGENT_TOOL_SCHEMAS: AgentToolMeta[] = [
       parameters: { type: "object", properties: { timezone: { type: "string", default: "Africa/Algiers" } } },
     },
   },
+  /* ── v18 ATLAS tools: knowledge base · internet · files ─────────────────── */
+  {
+    id: "knowledge_search",
+    icon: Database,
+    name: { ar: "قاعدة المعرفة", en: "Knowledge base", fr: "Base de connaissances" },
+    desc: { ar: "يبحث في قاعدة معرفة ATLAS المدمجة (الجزائر، دراسة، أعمال، تقنية)", en: "Searches the built-in ATLAS knowledge base", fr: "Recherche dans la base ATLAS intégrée" },
+    schema: {
+      name: "knowledge_search",
+      description: "Search NEXUS ATLAS, the built-in verified knowledge base (Algerian administration & wilayas, ID/passport/birth certificates, CNAS/CASNOS, taxes, driving licence, BAC/BEM/LMD, scholarships, auto-entrepreneur & companies, online payment, import/export, cybersecurity, web/AI/Python/SQL, health, CV/interview/freelance, design, travel, law, science, and Nexus itself). Use it BEFORE the web for Algerian/administrative/school/tech questions: it is instant and verified.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Keywords in any language/dialect, e.g. \"بطاقة التعريف البيومترية\" or \"auto entrepreneur algerie\"" },
+          category: { type: "string", description: "Optional filter: algeria|education|business|money|legal|health|work|tech|ai|media|language|travel|life|science|islam|nexus" },
+          limit: { type: "number", default: 3 },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    id: "internet_fetch",
+    icon: Globe,
+    name: { ar: "قراءة من الإنترنت", en: "Fetch from internet", fr: "Lire depuis internet" },
+    desc: { ar: "يقرأ أي رابط: صفحة، JSON، CSV، أرشيف، صورة أو صوت", en: "Reads any public URL safely", fr: "Lit n'importe quelle URL publique" },
+    schema: {
+      name: "internet_fetch",
+      description: "Download and read ANY public URL from the internet: a web page (readable text + links), a JSON/CSV dataset (structure + first rows), an archive (file listing), or an image/audio/PDF file (size, type, extracted text). SSRF-protected, size and time capped. Use it to inspect real data instead of guessing.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "Absolute http(s) URL" },
+          textChars: { type: "number", default: 20000 },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    id: "find_media",
+    icon: ImageIcon,
+    name: { ar: "جلب صور وأصوات", en: "Find media online", fr: "Trouver des médias" },
+    desc: { ar: "يبحث في الإنترنت عن صور/أصوات/بيانات حرة ويعيد روابطها الحقيقية", en: "Finds openly-licensed images/audio/data online", fr: "Trouve des médias libres en ligne" },
+    schema: {
+      name: "find_media",
+      description: "Search the internet for real, openly-licensed media and return working URLs with credits: images (Openverse, Wikimedia Commons, Pixabay/Pexels when configured), audio (Openverse, Freesound, Internet Archive), datasets and documents. Use it when the user asks for photos, sounds, music, wallpapers, icons, datasets or documents to be fetched from the internet. NEVER invent a media URL — only return what this tool gives you.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "What to find, in English for best results" },
+          kind: { type: "string", enum: ["image", "audio", "data", "document"], default: "image" },
+          limit: { type: "number", default: 6 },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    id: "download_file",
+    icon: DownloadCloud,
+    name: { ar: "تنزيل ملف", en: "Download file", fr: "Télécharger un fichier" },
+    desc: { ar: "ينزّل ملفًا من الإنترنت ويخزنه في خزنة المستخدم", en: "Downloads a file into the user's vault", fr: "Télécharge un fichier dans le coffre" },
+    schema: {
+      name: "download_file",
+      description: "Download a file from the internet (image, audio, PDF, CSV, JSON, ZIP, text) and store its readable content in the user's ATLAS data vault so later turns can quote it. Returns the file type, size, extracted text and the vault id.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string" },
+          name: { type: "string", description: "File name to store it under" },
+          maxBytes: { type: "number", default: 12000000 },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    id: "save_file",
+    icon: Save,
+    name: { ar: "حفظ ملف", en: "Save file", fr: "Enregistrer un fichier" },
+    schema: {
+      name: "save_file",
+      description: "Save a deliverable you produced (HTML page/app/game, SVG, markdown document, JSON or CSV dataset, code file) into the user's ATLAS file factory so they get a preview card, a download button, a ZIP and a shareable link. Returns the file id and its URLs. Always use it after producing a file the user will want to keep.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Human title, in the user's language" },
+          content: { type: "string", description: "The complete file content" },
+          lang: { type: "string", description: "html | svg | md | json | csv | js | ts | py | txt" },
+          extras: { type: "array", items: { type: "object", properties: { path: { type: "string" }, data: { type: "string" } } }, description: "Extra files to pack in the same ZIP" },
+        },
+        required: ["title", "content", "lang"],
+      },
+    },
+    desc: { ar: "يحفظ مخرجاتك كملف قابل للمعاينة والتنزيل", en: "Stores a deliverable as a previewable file", fr: "Enregistre un livrable comme fichier" },
+  },
+  {
+    id: "vault_search",
+    icon: Music,
+    name: { ar: "البحث في الخزنة", en: "Search user vault", fr: "Chercher dans le coffre" },
+    desc: { ar: "يبحث في ملفات وبيانات المستخدم المرفوعة", en: "Searches the user's uploaded documents", fr: "Cherche dans les documents de l'utilisateur" },
+    schema: {
+      name: "vault_search",
+      description: "Search the user's own ATLAS data vault (uploaded PDFs/DOCX/CSV/JSON/text, saved web pages, downloaded datasets) and return the most relevant chunks with their [D#·#] references. Use it whenever the user mentions \"الملف الذي رفعته\", \"البيانات\", \"my document\", \"the dataset\", or asks a question their own files can answer.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string" }, limit: { type: "number", default: 6 } },
+        required: ["query"],
+      },
+    },
+  },
+
 ];
 
 /** Compact function-calling payload (schemas only) for the planner model. */

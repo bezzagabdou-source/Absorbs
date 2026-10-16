@@ -12,6 +12,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { chatPrefsPayload } from "@/lib/prefs";
 import {
   AlertTriangle,
   ArrowDown,
@@ -1458,6 +1459,8 @@ export function ChatPage() {
             ...(tier === "v6" ? { v6: true } : {}),
             ...(mode ? { mode } : {}),
             ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
+            /* v18 ATLAS — the control centre knobs travel with every turn */
+            ...chatPrefsPayload(),
           }),
           signal: controller.signal,
         });
@@ -1572,6 +1575,7 @@ export function ChatPage() {
                   v6: tier === "v6",
                   ...(mode ? { mode } : {}),
                   ...(tier === "v8" ? { v8: true, persona } : {}),
+                  ...chatPrefsPayload(),
                 }),
                 signal: controller.signal,
               });

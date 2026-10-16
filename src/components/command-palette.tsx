@@ -7,6 +7,11 @@ import {
   type LucideIcon,
   Anvil,
   Trophy,
+  Moon,
+  Database,
+  Globe2,
+  FolderOpen,
+  SlidersHorizontal,
 } from "lucide-react";
 import { MAX_ENGINE_CONFIG } from "@/lib/max-engine";
 import { applyTheme } from "@/lib/theme";
@@ -92,12 +97,20 @@ export function CommandPalette() {
       { id: "history", label: "السجل", icon: History, run: go("/app/history") },
       { id: "upgrade", label: "V8 PRO GOLD", hint: "الترقية", icon: Crown, run: go("/app/upgrade") },
       { id: "settings", label: "الإعدادات", icon: Settings, run: go("/app/settings") },
+      // v18 ATLAS — الوجهات الجديدة
+      { id: "control", label: "مركز التحكم", hint: "كل المقابض في مكان واحد", icon: SlidersHorizontal, run: go("/app/control") },
+      { id: "knowledge", label: "قاعدة المعرفة ATLAS", hint: "إدارات، دراسة، أعمال", icon: Database, run: go("/app/knowledge") },
+      { id: "files-hub", label: "خزنة الملفات", hint: "معاينة وتنزيل ومشاركة", icon: FolderOpen, run: go("/app/files") },
+      { id: "media", label: "باحث الوسائط", hint: "صور وأصوات حرة من الإنترنت", icon: Globe2, run: go("/app/media") },
       {
         id: "theme",
         label: "مظهر Lumen الفاتح",
         icon: Sun,
         run: () => applyTheme("lumen"),
       },
+      { id: "theme-noctis", label: "مظهر Noctis الداكن", icon: Moon, run: () => applyTheme("noctis") },
+      { id: "theme-midnight", label: "مظهر Midnight الأسود", icon: Moon, run: () => applyTheme("midnight") },
+      { id: "theme-aurora", label: "مظهر Aurora المتحرك", icon: Palette, run: () => applyTheme("aurora") },
       ...MAX_ENGINE_CONFIG.starters.map((s) => ({
         id: `max-${s.label}`,
         label: `MAX · ${s.label}`,

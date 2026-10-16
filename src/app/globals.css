@@ -2472,3 +2472,313 @@ html[dir="rtl"] [data-theme="lumen"] .nx-drawer,
 
 /* never a white flash/blank: the page behind the app frame always has the theme colour */
 html { background-color: #f7f8fc; }
+
+/* ==========================================================================
+   NEXUS ATLAS v18 — accent system · extra looks · density · a11y · new surfaces
+   Everything below is additive: Lumen stays the default and is untouched unless
+   the user picks an accent or one of the dark looks from /app/control.
+   ========================================================================== */
+:root {
+  --nx-accent-from: #d97757;
+  --nx-accent-to: #d4bf98;
+  --nx-accent-ring: #e8946f;
+  --nx-accent-soft: rgba(217, 119, 87, 0.16);
+  --nx-radius: 1.1rem;
+}
+
+/* ---------- density (rem-based app: scaling the root font scales the UI) ---------- */
+[data-density="compact"] { font-size: 15px; }
+[data-density="comfortable"] { font-size: 16px; }
+[data-density="cozy"] { font-size: 17px; }
+
+/* ---------- Noctis — warm dark, inherits the base (v8.4 Electric Gold) palette ---------- */
+[data-theme="noctis"] {
+  color-scheme: dark;
+  --color-white: #ffffff;
+  --primary: 24 95% 53%;
+  --primary-foreground: 20 14% 10%;
+  --ring: 24 95% 53%;
+  --border: 30 13% 20%;
+  --input: 30 13% 20%;
+  --background: 30 8% 8%;
+  --foreground: 40 12% 92%;
+  --card: 30 8% 11%;
+  --card-foreground: 40 12% 92%;
+  --popover: 30 8% 11%;
+  --popover-foreground: 40 12% 92%;
+  --muted: 30 8% 16%;
+  --muted-foreground: 35 8% 66%;
+  --accent: 30 10% 18%;
+  --accent-foreground: 30 90% 78%;
+  --color-brand-300: var(--nx-accent-ring);
+  --color-brand-400: var(--nx-accent-from);
+  --color-brand-500: var(--nx-accent-from);
+  --color-brand-600: var(--nx-accent-to);
+  --color-brand-700: var(--nx-accent-to);
+  background-color: #141311;
+}
+[data-theme="noctis"] body {
+  color: #f3f3ee;
+  background:
+    radial-gradient(60% 45% at 12% -6%, var(--nx-accent-soft), transparent 68%),
+    radial-gradient(45% 35% at 100% 10%, rgba(255, 255, 255, 0.05), transparent 70%),
+    linear-gradient(180deg, #17161400, #100f0e 70%), #141311;
+}
+[data-theme="noctis"] ::selection { background: color-mix(in srgb, var(--nx-accent-from) 45%, transparent); color: #fff; }
+[data-theme="noctis"] :focus-visible { outline-color: var(--nx-accent-ring); }
+[data-theme="noctis"] .glass,
+[data-theme="noctis"] .glass-deep {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--nx-accent-from) 12%, transparent), rgba(20, 19, 17, 0.82) 62%);
+  border-color: color-mix(in srgb, var(--nx-accent-from) 26%, transparent);
+  box-shadow: 0 24px 60px -34px rgba(0, 0, 0, 0.95);
+}
+[data-theme="noctis"] .text-gradient {
+  background-image: linear-gradient(100deg, #ffffff 0%, var(--nx-accent-from) 50%, var(--nx-accent-to) 100%);
+}
+[data-theme="noctis"] .btn-primary {
+  background: linear-gradient(120deg, var(--nx-accent-from), var(--nx-accent-to));
+  color: #fff;
+  box-shadow: 0 12px 30px -12px color-mix(in srgb, var(--nx-accent-from) 75%, transparent);
+}
+[data-theme="noctis"] .btn-ghost {
+  border-color: color-mix(in srgb, var(--nx-accent-from) 34%, transparent);
+  background: color-mix(in srgb, var(--nx-accent-from) 8%, transparent);
+  color: #f3f3ee;
+}
+[data-theme="noctis"] .input-base {
+  background: rgba(12, 11, 10, 0.72);
+  border-color: color-mix(in srgb, var(--nx-accent-from) 26%, transparent);
+  color: #f3f3ee;
+}
+[data-theme="noctis"] .input-base:focus {
+  border-color: var(--nx-accent-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-accent-from) 22%, transparent);
+}
+[data-theme="noctis"] select.input-base option { background: #1b1a18; color: #f3f3ee; }
+[data-theme="noctis"] .ring-brand {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nx-accent-from) 55%, transparent),
+    0 0 30px -10px color-mix(in srgb, var(--nx-accent-from) 60%, transparent);
+}
+[data-theme="noctis"] .aurora i:nth-child(1) { background: radial-gradient(circle, var(--nx-accent-from) 0%, transparent 66%); opacity: 0.3; }
+[data-theme="noctis"] .aurora i:nth-child(2) { background: radial-gradient(circle, var(--nx-accent-to) 0%, transparent 66%); opacity: 0.2; }
+[data-theme="noctis"] .aurora i:nth-child(3) { background: radial-gradient(circle, var(--nx-accent-ring) 0%, transparent 66%); opacity: 0.18; }
+[data-theme="noctis"] dialog,
+[data-theme="noctis"] [role="dialog"] { color-scheme: dark; }
+
+/* ---------- Midnight — pure black OLED ---------- */
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --color-white: #ffffff;
+  --color-ink-950: #000000;
+  --color-ink-900: #07070a;
+  --color-ink-800: #0d0d12;
+  --color-ink-700: #16161d;
+  --color-slate-50: #f4f4f6;
+  --color-slate-100: #e9e9ee;
+  --color-slate-200: #d6d6de;
+  --color-slate-300: #b9b9c6;
+  --color-slate-400: #94949f;
+  --color-slate-500: #72727c;
+  --color-slate-600: #54545c;
+  --color-slate-700: #33333a;
+  --color-slate-800: #1d1d23;
+  --color-slate-900: #121216;
+  --color-slate-950: #07070a;
+  --color-brand-300: var(--nx-accent-ring);
+  --color-brand-400: var(--nx-accent-from);
+  --color-brand-500: var(--nx-accent-from);
+  --color-brand-600: var(--nx-accent-to);
+  --color-brand-700: var(--nx-accent-to);
+  --background: 240 12% 3%;
+  --foreground: 240 12% 94%;
+  --card: 240 10% 6%;
+  --card-foreground: 240 12% 94%;
+  --popover: 240 10% 6%;
+  --popover-foreground: 240 12% 94%;
+  --primary: 265 90% 66%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 240 8% 12%;
+  --muted-foreground: 240 6% 62%;
+  --accent: 240 10% 14%;
+  --accent-foreground: 265 90% 82%;
+  --border: 240 8% 16%;
+  --input: 240 8% 16%;
+  --ring: 265 90% 66%;
+  background-color: #000;
+}
+[data-theme="midnight"] body {
+  color: #ececf1;
+  background: radial-gradient(70% 50% at 50% -10%, var(--nx-accent-soft), transparent 70%), #000;
+}
+[data-theme="midnight"] .glass,
+[data-theme="midnight"] .glass-deep {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.045), rgba(6, 6, 9, 0.86) 65%);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 26px 70px -40px #000;
+}
+[data-theme="midnight"] .btn-primary { background: linear-gradient(120deg, var(--nx-accent-from), var(--nx-accent-to)); color: #fff; }
+[data-theme="midnight"] .btn-ghost { border-color: rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); color: #ececf1; }
+[data-theme="midnight"] .input-base { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.12); color: #ececf1; }
+[data-theme="midnight"] .input-base:focus { border-color: var(--nx-accent-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-accent-from) 20%, transparent); }
+[data-theme="midnight"] select.input-base option { background: #0b0b0f; color: #ececf1; }
+[data-theme="midnight"] ::selection { background: color-mix(in srgb, var(--nx-accent-from) 45%, transparent); color: #fff; }
+[data-theme="midnight"] :focus-visible { outline-color: var(--nx-accent-ring); }
+[data-theme="midnight"] .text-gradient { background-image: linear-gradient(100deg, #fff, var(--nx-accent-from) 55%, var(--nx-accent-to)); }
+[data-theme="midnight"] .aurora i:nth-child(1) { background: radial-gradient(circle, var(--nx-accent-from) 0%, transparent 66%); opacity: 0.34; }
+[data-theme="midnight"] .aurora i:nth-child(2) { background: radial-gradient(circle, var(--nx-accent-to) 0%, transparent 66%); opacity: 0.22; }
+[data-theme="midnight"] dialog,
+[data-theme="midnight"] [role="dialog"] { color-scheme: dark; }
+
+/* ---------- Aurora — Noctis with a living animated sky ---------- */
+[data-theme="aurora"] { color-scheme: dark; }
+[data-theme="aurora"] body::before {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--nx-accent-from) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--nx-accent-from) 8%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+[data-theme="aurora"] body::after {
+  background:
+    radial-gradient(55% 38% at 15% -8%, color-mix(in srgb, var(--nx-accent-from) 34%, transparent), transparent 70%),
+    radial-gradient(45% 32% at 100% 8%, color-mix(in srgb, var(--nx-accent-to) 22%, transparent), transparent 70%),
+    radial-gradient(50% 36% at 85% 112%, color-mix(in srgb, var(--nx-accent-ring) 20%, transparent), transparent 70%);
+  animation: nx-sky 18s ease-in-out infinite alternate;
+}
+@keyframes nx-sky {
+  to { filter: hue-rotate(28deg) saturate(1.25); transform: scale(1.06); }
+}
+[data-theme="aurora"] .aurora i:nth-child(1) { background: radial-gradient(circle, var(--nx-accent-from) 0%, transparent 66%); opacity: 0.4; }
+[data-theme="aurora"] .aurora i:nth-child(2) { background: radial-gradient(circle, var(--nx-accent-to) 0%, transparent 66%); opacity: 0.3; }
+[data-theme="aurora"] .aurora i:nth-child(3) { background: radial-gradient(circle, var(--nx-accent-ring) 0%, transparent 66%); opacity: 0.26; }
+
+/* ---------- wallpapers ---------- */
+[data-wallpaper="none"] .aurora { display: none; }
+[data-wallpaper="stars"] body::before {
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, rgba(255, 255, 255, 0.5) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 68% 34%, rgba(255, 255, 255, 0.38) 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 38% 72%, rgba(255, 255, 255, 0.3) 50%, transparent 51%),
+    radial-gradient(1.1px 1.1px at 84% 82%, rgba(255, 255, 255, 0.34) 50%, transparent 51%);
+  background-size: 320px 320px;
+  -webkit-mask-image: none;
+  mask-image: none;
+  animation: nx-twinkle 6s ease-in-out infinite alternate;
+}
+[data-theme="lumen"][data-wallpaper="stars"] body::before {
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, rgba(120, 90, 60, 0.35) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 68% 34%, rgba(120, 90, 60, 0.28) 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 38% 72%, rgba(120, 90, 60, 0.22) 50%, transparent 51%);
+  background-size: 320px 320px;
+}
+@keyframes nx-twinkle { to { opacity: 0.55; } }
+[data-wallpaper="mesh"] body::after {
+  background:
+    conic-gradient(from 210deg at 20% 10%, color-mix(in srgb, var(--nx-accent-from) 26%, transparent), transparent 40%),
+    conic-gradient(from 30deg at 85% 25%, color-mix(in srgb, var(--nx-accent-to) 22%, transparent), transparent 42%),
+    conic-gradient(from 150deg at 50% 95%, color-mix(in srgb, var(--nx-accent-ring) 18%, transparent), transparent 45%);
+}
+
+/* ---------- Lumen accent tinting (the light look follows the chosen colour) ---------- */
+[data-theme="lumen"] body {
+  background:
+    radial-gradient(60% 42% at 10% -8%, color-mix(in srgb, var(--nx-accent-from) 16%, transparent), transparent 70%),
+    radial-gradient(45% 34% at 100% 6%, color-mix(in srgb, var(--nx-accent-to) 12%, transparent), transparent 70%),
+    linear-gradient(-45deg, #fffaf5, #fff7ef, #fff1e4, #ffffff);
+  background-size: auto, auto, 400% 400%;
+  animation: gradientShift 14s ease infinite;
+}
+[data-theme="lumen"] { --color-brand-500: var(--nx-accent-from); --color-brand-400: var(--nx-accent-to); --color-brand-300: var(--nx-accent-ring); }
+[data-theme="lumen"] .text-gradient { background-image: linear-gradient(100deg, #7c2d12 0%, var(--nx-accent-from) 55%, var(--nx-accent-to) 100%); }
+[data-theme="lumen"] ::selection { background: color-mix(in srgb, var(--nx-accent-from) 26%, transparent); color: #1f1611; }
+[data-theme="lumen"] :focus-visible { outline-color: var(--nx-accent-from); }
+[data-theme="lumen"] .aurora i:nth-child(1) { background: radial-gradient(circle, var(--nx-accent-from) 0%, transparent 66%); opacity: 0.24; }
+[data-theme="lumen"] .aurora i:nth-child(2) { background: radial-gradient(circle, var(--nx-accent-to) 0%, transparent 66%); opacity: 0.2; }
+[data-theme="lumen"] .aurora i:nth-child(3) { background: radial-gradient(circle, var(--nx-accent-ring) 0%, transparent 66%); opacity: 0.18; }
+
+/* ---------- effects switches from the control centre ---------- */
+.no-particles .aurora,
+.no-particles body::before,
+.no-particles body::after { display: none !important; }
+.no-glass .glass,
+.no-glass .glass-deep {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background: var(--color-card, #fff) !important;
+  border-color: color-mix(in srgb, var(--nx-accent-from) 20%, transparent) !important;
+  box-shadow: 0 14px 34px -26px rgba(0, 0, 0, 0.35) !important;
+}
+[data-theme="lumen"].no-glass .glass,
+[data-theme="lumen"].no-glass .glass-deep { background: #fffdfa !important; }
+.no-glow .ring-brand,
+.no-glow .btn-primary,
+.no-glow .atlas-file-card,
+.no-glow .neo-chip-on { box-shadow: none !important; }
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+.no-animations .aurora { display: none !important; }
+
+/* ---------- accessibility ---------- */
+.a11y-contrast { --nx-contrast: 1; }
+.a11y-contrast body { text-shadow: 0 0 0.4px currentColor; }
+.a11y-contrast .text-slate-400,
+.a11y-contrast .text-slate-500 { color: var(--color-slate-600) !important; }
+.a11y-contrast .glass,
+.a11y-contrast .glass-deep { border-color: color-mix(in srgb, var(--nx-accent-from) 55%, transparent) !important; }
+.a11y-large .btn-primary,
+.a11y-large .btn-ghost,
+.a11y-large button,
+.a11y-large .neo-chip { min-height: 2.75rem; }
+.a11y-large .input-base { padding-block: 0.95rem; }
+.a11y-dyslexic body,
+.a11y-dyslexic .md-body { letter-spacing: 0.035em; word-spacing: 0.12em; line-height: 1.9; }
+
+/* ---------- range slider ---------- */
+.nx-range { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--nx-accent-from) 22%, transparent); outline: none; }
+.nx-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--nx-accent-from), var(--nx-accent-to));
+  border: 2px solid #fff; box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.6); cursor: pointer;
+}
+.nx-range::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff;
+  background: linear-gradient(135deg, var(--nx-accent-from), var(--nx-accent-to)); cursor: pointer;
+}
+
+/* ---------- ATLAS file card ---------- */
+.atlas-file-card { position: relative; }
+.atlas-file-card::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(120deg, transparent 20%, color-mix(in srgb, var(--nx-accent-from) 16%, transparent) 45%, transparent 70%);
+  background-size: 260% 100%; opacity: 0; transition: opacity 0.3s;
+}
+.atlas-file-card:hover::before { opacity: 1; animation: nx-sweep 1.6s linear infinite; }
+@keyframes nx-sweep { to { background-position: -160% 0; } }
+.atlas-file-card button { transition: transform 0.14s ease, background 0.18s ease, border-color 0.18s ease; }
+.atlas-file-card button:active { transform: scale(0.94); }
+
+/* ---------- ATLAS section headers / cards ---------- */
+.atlas-hero {
+  position: relative; overflow: hidden; border-radius: 1.6rem;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--nx-accent-from) 22%, transparent), color-mix(in srgb, var(--nx-accent-to) 14%, transparent));
+}
+.atlas-hero::after {
+  content: ""; position: absolute; inset: -40% -10% auto auto; width: 46vmax; height: 46vmax; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--nx-accent-ring) 30%, transparent), transparent 65%);
+  filter: blur(30px); pointer-events: none;
+}
+.atlas-grid-item { transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease; }
+.atlas-grid-item:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--nx-accent-from) 45%, transparent); box-shadow: 0 22px 48px -30px color-mix(in srgb, var(--nx-accent-from) 60%, transparent); }
+.atlas-fade-up { animation: nx-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes nx-fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* keep the never-blank guarantee for every look */
+[data-theme="noctis"] html, html[data-theme="noctis"] { background-color: #141311; }
+html[data-theme="midnight"] { background-color: #000; }
+html[data-theme="aurora"] { background-color: #100f1a; }

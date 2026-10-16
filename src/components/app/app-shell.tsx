@@ -36,6 +36,9 @@ import {
   BrainCircuit,
   Anvil,
   Trophy,
+  SlidersHorizontal,
+  FolderOpen,
+  Globe2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
@@ -219,6 +222,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     // v17 — the two new destinations: the instant game factory and the XP path
     { href: "/app/smith", label: "صانع الألعاب", icon: Anvil, exact: false },
     { href: "/app/mastery", label: "مسار الإتقان", icon: Crown, exact: false },
+    // v18 ATLAS — مركز التحكم، قاعدة المعرفة، خزنة الملفات، باحث الوسائط
+    { href: "/app/control", label: "مركز التحكم", icon: SlidersHorizontal, exact: false },
+    { href: "/app/knowledge", label: "قاعدة المعرفة", icon: Database, exact: false },
+    { href: "/app/files", label: "خزنة الملفات", icon: FolderOpen, exact: false },
+    { href: "/app/media", label: "باحث الوسائط", icon: Globe2, exact: false },
     { href: "/app/history", label: t.app.history, icon: History, exact: true },
     { href: "/app/upgrade", label: t.app.upgrade, icon: Crown, exact: true },
     { href: "/app/settings", label: t.app.settings, icon: Settings, exact: true },
@@ -228,6 +236,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   void mobileNav;
 
   const quickSettings: { href: string; label: string; icon: typeof Crown }[] = [
+    { href: "/app/control", label: "مركز التحكم (كل المقابض)", icon: SlidersHorizontal },
     { href: "/app/settings", label: "الإعدادات العامة", icon: Settings },
     { href: "/app/settings/memory", label: "الذاكرة", icon: BrainCircuit },
     { href: "/app/settings/language", label: "اللغة", icon: Languages },

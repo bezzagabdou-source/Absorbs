@@ -202,6 +202,59 @@ create table if not exists barq.mind_events (
 create index if not exists mind_user_idx on barq.mind_events (user_id, created_at);
 create index if not exists mind_kind_idx on barq.mind_events (kind, created_at);
 
+/* ── v18 ATLAS: knowledge vault · file factory · preferences · voice log ───── */
+
+create table if not exists barq.atlas_docs (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  name text not null default 'document',
+  origin text not null default 'upload',
+  source text,
+  text text not null,
+  bytes integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists atlas_docs_user_idx on barq.atlas_docs (user_id, created_at);
+
+create table if not exists barq.atlas_files (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  conversation_id uuid,
+  title text not null default 'file',
+  kind text not null default 'html',
+  filename text not null default 'nexus-file',
+  mime text not null default 'text/html',
+  content text not null,
+  bytes integer not null default 0,
+  extras jsonb not null default '[]'::jsonb,
+  visibility text not null default 'private',
+  views integer not null default 0,
+  downloads integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists atlas_files_user_idx on barq.atlas_files (user_id, created_at);
+create index if not exists atlas_files_conv_idx on barq.atlas_files (conversation_id);
+
+create table if not exists barq.atlas_prefs (
+  user_id text primary key references barq.users(id) on delete cascade,
+  prefs jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists barq.atlas_voice (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  voice text not null default 'Zephyr',
+  persona text not null default 'friend',
+  lang text not null default 'ar',
+  turns integer not null default 0,
+  duration_ms integer not null default 0,
+  latency_ms integer not null default 0,
+  engine text not null default 'gemini',
+  created_at timestamptz not null default now()
+);
+create index if not exists atlas_voice_user_idx on barq.atlas_voice (user_id, created_at);
+
 `;
 
 const g = globalThis as typeof globalThis & {

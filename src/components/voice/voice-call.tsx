@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Hand, Keyboard, Mic, MicOff, PhoneOff } from "lucide-react";
+import { ArrowUp, Check, Gauge, Hand, Keyboard, Mic, MicOff, PhoneOff, Sparkles, Waves, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCredits } from "@/components/app/app-shell";
 import { VoiceSettings } from "@/components/chat/voice-recorder";
@@ -16,17 +16,32 @@ import {
   type SpeechQueue,
 } from "@/lib/voice";
 import { HANGUP_RE, VOICE_PERSONAS, personaById } from "@/lib/voice-call";
+import { EMOTION_PRESETS, PERSONA_VOICES, VOICE_CATALOG, recommendVoices, voiceById } from "@/lib/voice-catalog";
+import { usePrefs } from "@/lib/prefs-context";
 import { cn } from "@/lib/utils";
 
-/** Gemini voice per persona */
-const PERSONA_VOICE: Record<string, string> = {
-  friend: "Zephyr",
-  coach: "Puck",
-  teacher: "Kore",
-  storyteller: "Charon",
-  interpreter: "Aoede",
-  interviewer: "Orus",
-};
+/**
+ * v18 ATLAS — the voice is a first-class choice, not a hard-coded table.
+ * Every persona ships two curated Gemini voices (masculine / feminine); the
+ * user can override it with any of the 30 voices in the catalog and it is
+ * remembered across calls.
+ */
+const VOICE_KEY = "barq_call_voice_v18";
+
+function personaVoice(persona: string, stored?: string | null): string {
+  if (stored && VOICE_CATALOG.some((v) => v.id === stored)) return stored;
+  const pv = PERSONA_VOICES[persona];
+  return pv?.m ?? "Zephyr";
+}
+
+const MOODS: { id: "warm" | "energetic" | "calm" | "deep" | "playful" | "pro"; label: string }[] = [
+  { id: "warm", label: "ودّي" },
+  { id: "energetic", label: "حيوي" },
+  { id: "calm", label: "هادئ" },
+  { id: "deep", label: "عميق" },
+  { id: "playful", label: "مرح" },
+  { id: "pro", label: "رسمي" },
+];
 
 type Phase = "idle" | "listening" | "thinking" | "speaking" | "paused" | "error";
 type Turn = { role: "user" | "assistant"; content: string };
@@ -100,6 +115,12 @@ function sentenceCut(s: string, final: boolean): number {
     if (j > 40) cut = j + 1;
   }
   return cut;
+}
+
+/** 1-5 proficiency shown as dots inside the voice picker */
+function dots(n: number): string {
+  const k = Math.max(0, Math.min(5, Math.round(n)));
+  return "●".repeat(k) + "○".repeat(5 - k);
 }
 
 const mmss = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
@@ -228,6 +249,7 @@ export function VoiceCall({
 }) {
   const { authFetch } = useAuth();
   const { applyHeaders } = useCredits();
+  const { prefs, set: setPref } = usePrefs();
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [heard, setHeard] = useState("");
@@ -242,23 +264,45 @@ export function VoiceCall({
   const [lang, setLang] = useState<string>("ar-DZ");
   const [sttOk, setSttOk] = useState(true);
   const [ttsOk, setTtsOk] = useState(true);
+  /* v18 — switchable voice, mood, rate, emotion + measured latency */
+  const [voice, setVoice] = useState<string>("Zephyr");
+  const [mood, setMood] = useState<string>("warm");
+  const [rate, setRate] = useState<number>(1.05);
+  const [emotion, setEmotion] = useState<string>("neutral");
+  const [latency, setLatency] = useState<number | null>(null);
+  const [picker, setPicker] = useState(false);
+  const [gender, setGender] = useState<"any" | "m" | "f">("any");
 
   // clear cloud voice (ElevenLabs / Gemini TTS) — falls back to the browser voice by itself
   useEffect(() => {
     setCloudVoice(async (text, signal) => {
-      // Gemini voice is the only voice: retry a few times before giving up
-      const voice = PERSONA_VOICE[personaRef.current] ?? "Zephyr";
+      // Gemini voice is the primary engine: retry a few times before falling back to the browser voice
+      const started = performance.now();
       for (let attempt = 0; attempt < 3; attempt++) {
         if (signal.aborted) return null;
         try {
           const res = await authFetch("/api/voice/tts", {
             method: "POST",
-            body: JSON.stringify({ text, voice, lang: langRef.current.slice(0, 2) }),
+            body: JSON.stringify({
+              text,
+              voice: voiceRef.current,
+              lang: langRef.current.slice(0, 2),
+              mood: moodRef.current,
+              rate: rateRef.current,
+              emotion: emotionRef.current,
+              stream: true,
+            }),
             signal,
           });
           if (res.ok) {
             const b = await res.blob();
-            if (b.size > 500) return b;
+            const msHeader = Number(res.headers.get("x-barq-tts-ms") ?? "") || Math.round(performance.now() - started);
+            if (b.size > 500) {
+              setLatency(msHeader);
+              const engine = res.headers.get("x-barq-voice");
+              if (engine && engine !== "gemini") setTtsEngine(engine);
+              return b;
+            }
           }
         } catch {
           if (signal.aborted) return null;
@@ -287,10 +331,28 @@ export function VoiceCall({
   const silenceRef = useRef(0);
   const energyRef = useRef(0);
   const capRef = useRef<HTMLDivElement>(null);
+  const voiceRef = useRef("Zephyr");
+  const moodRef = useRef("warm");
+  const rateRef = useRef(1.05);
+  const emotionRef = useRef("neutral");
+  const [ttsEngine, setTtsEngine] = useState("gemini");
 
   langRef.current = lang;
   personaRef.current = persona;
   mutedRef.current = muted;
+  voiceRef.current = voice;
+  moodRef.current = mood;
+  rateRef.current = rate;
+  emotionRef.current = emotion;
+
+  /* adopt the saved ATLAS preferences (control centre) for this call */
+  useEffect(() => {
+    if (!prefs.voice) return;
+    setMood((m) => (m === "warm" && prefs.voice.style ? prefs.voice.style : m));
+    setRate((r) => (r === 1.05 ? prefs.voice.rate || r : r));
+    moodRef.current = prefs.voice.style || moodRef.current;
+    rateRef.current = prefs.voice.rate || rateRef.current;
+  }, [prefs.voice.style, prefs.voice.rate]);
 
   const setPh = (p: Phase) => {
     phaseRef.current = p;
@@ -560,6 +622,16 @@ export function VoiceCall({
     langRef.current = l;
     setPersona(p);
     setLang(l);
+    // v18 — restore the voice the user chose last time (or the persona default)
+    let storedVoice: string | null = null;
+    try {
+      storedVoice = localStorage.getItem(VOICE_KEY);
+    } catch {
+      /* private mode */
+    }
+    const v = personaVoice(p, storedVoice);
+    voiceRef.current = v;
+    setVoice(v);
 
     // greeting (also unlocks audio playback: we are inside the click that opened the call)
     setPh("speaking");
@@ -608,12 +680,48 @@ export function VoiceCall({
   const pickPersona = useCallback((id: string) => {
     setPersona(id);
     personaRef.current = id;
+    // the persona brings its own curated voice unless the user pinned one
+    let stored: string | null = null;
     try {
       localStorage.setItem("barq_call_persona", id);
+      stored = localStorage.getItem(VOICE_KEY);
     } catch {
       /* private mode */
     }
+    const pv = PERSONA_VOICES[id];
+    if (pv && !stored) {
+      voiceRef.current = pv.m;
+      setVoice(pv.m);
+    }
   }, []);
+
+  const pickVoice = useCallback((id: string) => {
+    setVoice(id);
+    voiceRef.current = id;
+    setPref({ voice: { voice: id } });
+    try {
+      localStorage.setItem(VOICE_KEY, id);
+    } catch {
+      /* private mode */
+    }
+  }, [setPref]);
+
+  const pickMood = useCallback((id: string) => {
+    setMood(id);
+    moodRef.current = id;
+    setPref({ voice: { style: id as never } });
+  }, [setPref]);
+
+  const pickEmotion = useCallback((id: string) => {
+    setEmotion(id);
+    emotionRef.current = id;
+  }, []);
+
+  const pickRate = useCallback((v: number) => {
+    setRate(v);
+    rateRef.current = v;
+    setPref({ voice: { rate: v } });
+  }, [setPref]);
 
   const pickLang = useCallback((id: string) => {
     setLang(id);
@@ -630,6 +738,14 @@ export function VoiceCall({
 
   const shownUser = phase === "listening" && heard ? heard : userLine;
   const active = personaById(persona);
+
+  /* the voice list: best matches for this language/gender/mood first, then the rest */
+  const voiceList = useMemo(() => {
+    const pool = gender === "any" ? VOICE_CATALOG : VOICE_CATALOG.filter((v) => v.gender === gender);
+    const top = recommendVoices({ lang: lang.slice(0, 2), gender, mood: mood as never, limit: 8 }).map((v) => v.id);
+    return [...pool].sort((a, b) => Number(top.includes(b.id)) - Number(top.includes(a.id)));
+  }, [gender, lang, mood]);
+  const currentVoice = voiceById(voice);
 
   return (
     <AnimatePresence>
@@ -655,8 +771,36 @@ export function VoiceCall({
               <span className="rounded-full bg-white/8 px-2 py-0.5 text-[11px] text-slate-300">
                 {active.emoji} {active.label}
               </span>
+              <span className="hidden rounded-full bg-white/8 px-2 py-0.5 text-[11px] text-slate-300 sm:inline-flex sm:items-center sm:gap-1">
+                <Waves className="size-3" /> {voiceById(voice).name.ar}
+              </span>
+              {latency !== null && (
+                <span
+                  className={cn(
+                    "hidden rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums sm:inline-flex sm:items-center sm:gap-1",
+                    latency < 900 ? "bg-emerald-500/18 text-emerald-300" : latency < 1800 ? "bg-amber-500/18 text-amber-300" : "bg-rose-500/18 text-rose-300"
+                  )}
+                  title="زمن توليد الصوت"
+                >
+                  <Gauge className="size-3" />
+                  <span dir="ltr">{(latency / 1000).toFixed(2)}s</span>
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPicker((v) => !v)}
+                aria-pressed={picker}
+                aria-label="غيّر الصوت"
+                title="غيّر الصوت والأسلوب"
+                className={cn(
+                  "grid size-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:text-white",
+                  picker && "ring-1 ring-brand-400/60 text-white"
+                )}
+              >
+                <Waves className="size-4" />
+              </button>
               <VoiceSettings />
               <button
                 type="button"
@@ -697,6 +841,124 @@ export function VoiceCall({
               {!shownUser && !reply && <p className="text-[13px] text-slate-500">كلامك وردّ Nexus AI v8.4 يظهرو هنا مباشرة</p>}
             </div>
           </div>
+
+          {/* v18 — voice studio: pick any voice, mood, emotion and speed during the call */}
+          <AnimatePresence>
+            {picker && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+                className="mx-3 mb-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.05] backdrop-blur-xl"
+              >
+                <div className="max-h-[42vh] overflow-y-auto p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Sparkles className="size-4 text-brand-300" />
+                    <h2 className="text-[13px] font-black text-white">استوديو الصوت — {VOICE_CATALOG.length} صوتًا</h2>
+                    <button type="button" onClick={() => setPicker(false)} aria-label="إغلاق" className="ms-auto grid size-7 place-items-center rounded-lg bg-white/8 text-slate-300 hover:text-white">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                    {(["any", "f", "m"] as const).map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGender(g)}
+                        className={cn(
+                          "h-7 rounded-full px-3 text-[11px] font-black transition",
+                          gender === g ? "bg-white/18 text-white" : "bg-white/[0.05] text-slate-400 hover:text-white"
+                        )}
+                      >
+                        {g === "any" ? "الكل" : g === "f" ? "نسائي" : "رجالي"}
+                      </button>
+                    ))}
+                    <span className="mx-1 h-5 w-px bg-white/10" />
+                    {MOODS.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => pickMood(m.id)}
+                        className={cn(
+                          "h-7 rounded-full px-3 text-[11px] font-black transition",
+                          mood === m.id ? "bg-brand-500/28 text-white ring-1 ring-brand-400/50" : "bg-white/[0.05] text-slate-400 hover:text-white"
+                        )}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto pb-1" role="radiogroup" aria-label="مشاعر الصوت">
+                    {EMOTION_PRESETS.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={emotion === e.id}
+                        onClick={() => pickEmotion(e.id)}
+                        className={cn(
+                          "h-7 shrink-0 rounded-full px-3 text-[11px] font-bold transition",
+                          emotion === e.id ? "bg-emerald-500/22 text-emerald-200 ring-1 ring-emerald-400/50" : "bg-white/[0.05] text-slate-400 hover:text-white"
+                        )}
+                      >
+                        {e.ar}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mb-2 flex items-center gap-2 rounded-2xl bg-white/[0.04] px-3 py-2">
+                    <span className="shrink-0 text-[11px] font-bold text-slate-300">السرعة</span>
+                    <input
+                      type="range"
+                      min={0.7}
+                      max={1.4}
+                      step={0.05}
+                      value={rate}
+                      onChange={(e) => pickRate(Number(e.target.value))}
+                      className="nx-range w-full"
+                      aria-label="سرعة الكلام"
+                    />
+                    <span dir="ltr" className="shrink-0 font-mono text-[11px] font-black text-brand-300">{rate.toFixed(2)}×</span>
+                  </div>
+
+                  <div className="grid max-h-44 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+                    {voiceList.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => pickVoice(v.id)}
+                          aria-pressed={voice === v.id}
+                          className={cn(
+                            "flex items-start gap-2 rounded-2xl border px-2.5 py-2 text-right transition active:scale-[0.98]",
+                            voice === v.id ? "border-transparent bg-gradient-to-l from-brand-500/35 to-brand-400/15 text-white" : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/25"
+                          )}
+                        >
+                          <span className="text-base leading-none" aria-hidden>{v.emoji}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[12px] font-black">{v.name.ar}</span>
+                            <span className="mt-0.5 block truncate text-[10px] text-slate-400">{v.best.ar}</span>
+                            <span className="mt-1 flex items-center gap-1.5 text-[9px] text-slate-500" dir="ltr">
+                              <span>AR {dots(v.arabic)}</span>
+                              <span>FR {dots(v.french)}</span>
+                              <span>EN {dots(v.english)}</span>
+                            </span>
+                          </span>
+                          {voice === v.id && <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-300" />}
+                        </button>
+                      ))}
+                  </div>
+
+                  <p className="mt-2 text-[10.5px] leading-relaxed text-slate-500">
+                    المحرك: <span className="font-bold text-slate-300">{ttsEngine}</span> · الصوت: <span className="font-bold text-slate-300">{currentVoice.name.ar}</span> — إن فشل السحاب يرجع تلقائيًا لصوت المتصفح.
+                    {latency !== null && <span dir="ltr"> · TTS {latency}ms</span>}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* persona + language: only while paused / before talking, so the call screen stays clean */}
           {(phase === "paused" || phase === "idle" || phase === "error") && (

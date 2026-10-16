@@ -321,3 +321,99 @@ export const mindEvents = barq.table(
 export type SmithGame = typeof smithGames.$inferSelect;
 export type SmithScore = typeof smithScores.$inferSelect;
 export type TitanProfile = typeof masteryProfiles.$inferSelect;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * v18 — ATLAS (قاعدة المعرفة الضخمة · الملفات · الصوت · الإعدادات)
+ *   atlas_docs        خزنة بيانات المستخدم: ملفات مرفوعة، صفحات مقروءة من
+ *                     الإنترنت، وملفات نزّلها الوكيل — تُفهرَس وتُقتبس في الجواب
+ *   atlas_files       كل مخرَج يولّده التطبيق (HTML/SVG/MD/JSON/ZIP/صور…) مع
+ *                     معاينة وتنزيل ورابط مشاركة عام
+ *   atlas_prefs       إعدادات المستخدم الضخمة (JSON) — تُزامَن بين الأجهزة
+ *   atlas_voice       سجل المكالمات الصوتية: الصوت المستعمل، المدة، الكمون
+ * Keep src/db/ensure-schema.ts in sync — that DDL is what creates them live.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+export const atlasDocs = barq.table(
+  "atlas_docs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default("document"),
+    /** upload · url · agent · manual */
+    origin: text("origin").notNull().default("upload"),
+    source: text("source"),
+    text: text("text").notNull(),
+    bytes: integer("bytes").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("atlas_docs_user_idx").on(t.userId, t.createdAt)]
+);
+
+export const atlasFiles = barq.table(
+  "atlas_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id"),
+    title: text("title").notNull().default("file"),
+    /** html · svg · markdown · json · csv · code · zip · image · audio · text */
+    kind: text("kind").notNull().default("html"),
+    /** filename offered on download */
+    filename: text("filename").notNull().default("nexus-file"),
+    mime: text("mime").notNull().default("text/html"),
+    content: text("content").notNull(),
+    bytes: integer("bytes").notNull().default(0),
+    /** extra files packed with it (multi-file projects) */
+    extras: jsonb("extras").notNull().default([]),
+    /** public link state: private · unlisted (anyone with the id) */
+    visibility: text("visibility").notNull().default("private"),
+    views: integer("views").notNull().default(0),
+    downloads: integer("downloads").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("atlas_files_user_idx").on(t.userId, t.createdAt),
+    index("atlas_files_conv_idx").on(t.conversationId),
+  ]
+);
+
+export const atlasPrefs = barq.table(
+  "atlas_prefs",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    prefs: jsonb("prefs").notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  }
+);
+
+export const atlasVoice = barq.table(
+  "atlas_voice",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Gemini voice name or ElevenLabs id */
+    voice: text("voice").notNull().default("Zephyr"),
+    persona: text("persona").notNull().default("friend"),
+    lang: text("lang").notNull().default("ar"),
+    turns: integer("turns").notNull().default(0),
+    durationMs: integer("duration_ms").notNull().default(0),
+    /** average time to first audio, ms */
+    latencyMs: integer("latency_ms").notNull().default(0),
+    engine: text("engine").notNull().default("gemini"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("atlas_voice_user_idx").on(t.userId, t.createdAt)]
+);
+
+export type AtlasDoc = typeof atlasDocs.$inferSelect;
+export type AtlasFile = typeof atlasFiles.$inferSelect;
+export type AtlasPrefs = typeof atlasPrefs.$inferSelect;
+export type AtlasVoice = typeof atlasVoice.$inferSelect;
