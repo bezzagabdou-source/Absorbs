@@ -24,6 +24,19 @@ import { AGENT_BUDGET_MS, AGENT_MAX_STEPS } from "@/lib/task-router";
 import { webSearch, readPages, type SearchHit } from "@/lib/websearch";
 import { rememberFact, semanticRecall } from "@/lib/memory";
 import type { ChatTurn } from "@/lib/gemini";
+/* ---- v18 ATLAS: knowledge base · internet engine · file factory ---- */
+import { kbSearch, kbIndex } from "@/lib/kb/engine";
+import type { KbCategory } from "@/lib/kb/types";
+import { KB_CATEGORIES } from "@/lib/kb/data";
+import { netFetch } from "@/lib/net/fetch";
+import { findMedia, attributionLine } from "@/lib/net/media";
+import { extractText } from "@/lib/net/extract";
+import { docsToEntries, buildVaultIndex } from "@/lib/kb/vault-index";
+import { vaultAdd, vaultCorpus } from "@/lib/kb/vault";
+import { invalidateVault } from "@/lib/atlas-context";
+import { buildFile } from "@/lib/atlas-files";
+import { pool } from "@/db";
+import { ensureSchema } from "@/db/ensure-schema";
 
 /* ──────────────────────────── trace events ──────────────────────────── */
 
@@ -193,6 +206,135 @@ export const AGENT_TOOL_EXECUTORS: Record<string, ToolExecutor> = {
       timeZone: tz,
     }).format(now)}`;
   },
+
+  /* ── v18 ATLAS: knowledge base ─────────────────────────────────────────── */
+  async knowledge_search(_ctx, args) {
+    const query = str(args.query, 300);
+    if (!query) return "missing query";
+    const catRaw = str(args.category, 24);
+    const category = KB_CATEGORIES.some((c) => c.id === catRaw) ? (catRaw as KbCategory) : "all";
+    const limit = typeof args.limit === "number" ? Math.min(8, Math.max(1, args.limit)) : 3;
+    const hits = kbSearch(query, { limit, category });
+    if (!hits.length) return "nothing in ATLAS for this query — use web_search instead";
+    return hits
+      .map((h) => `[${h.entry.id}] ${h.entry.title.ar} (relevance ${(h.score * 100).toFixed(0)}%)\n${h.entry.body.slice(0, 900)}`)
+      .join("\n\n---\n\n")
+      .slice(0, OBS_CAP);
+  },
+
+  async vault_search(ctx, args) {
+    if (!ctx.userId) return "vault unavailable (no user)";
+    const query = str(args.query, 300);
+    if (!query) return "missing query";
+    const limit = typeof args.limit === "number" ? Math.min(10, Math.max(1, args.limit)) : 6;
+    try {
+      await ensureSchema();
+      const docs = await vaultCorpus(ctx.userId, pool, 30);
+      if (!docs.length) return "the user's vault is empty";
+      const index = buildVaultIndex(docsToEntries(docs));
+      const hits = kbSearch(query, { index, limit, minScore: 0.05 });
+      if (!hits.length) return "no relevant chunk in the user's vault";
+      return hits.map((h) => `${h.entry.title.ar}\n${h.entry.body.slice(0, 700)}`).join("\n\n---\n\n").slice(0, OBS_CAP);
+    } catch (e) {
+      return `vault error: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}`;
+    }
+  },
+
+  /* ── v18 ATLAS: internet engine ────────────────────────────────────────── */
+  async internet_fetch(_ctx, args) {
+    const url = str(args.url, 1200);
+    if (!/^https?:\/\//i.test(url)) return "invalid url";
+    const chars = typeof args.textChars === "number" ? Math.min(60_000, Math.max(2000, args.textChars)) : 12_000;
+    const res = await netFetch(url, { textChars: chars, inline: false, maxBytes: 12_000_000 });
+    if (!res.ok) return `fetch failed: ${res.error ?? `HTTP ${res.status}`}`;
+    const head = `URL: ${res.finalUrl}\nTYPE: ${res.kind} (${res.mime || "?"}) · ${(res.bytes / 1024).toFixed(1)} KB · ${res.ms} ms`;
+    const extra = res.shape ? `\nSHAPE: ${res.shape}` : "";
+    const list = res.entries?.length ? `\nENTRIES: ${res.entries.slice(0, 20).join(" | ")}` : "";
+    return `${head}${extra}${list}\n\n${res.text.slice(0, chars)}`.slice(0, OBS_CAP);
+  },
+
+  async find_media(_ctx, args) {
+    const query = str(args.query, 200);
+    if (!query) return "missing query";
+    const kindRaw = str(args.kind, 12);
+    const kind = (["image", "audio", "data", "document"] as const).includes(kindRaw as "image")
+      ? (kindRaw as "image" | "audio" | "data" | "document")
+      : "image";
+    const limit = typeof args.limit === "number" ? Math.min(12, Math.max(1, args.limit)) : 6;
+    const found = await findMedia({ query, kind, limit });
+    if (!found.length) return `no openly-licensed ${kind} found for "${query}" — say so and offer an AI-generated alternative`;
+    return found
+      .map((a, i) => `${i + 1}. ${a.title}\n   url: ${a.url}\n   credit: ${attributionLine(a)}`)
+      .join("\n")
+      .slice(0, OBS_CAP);
+  },
+
+  async download_file(ctx, args) {
+    const url = str(args.url, 1200);
+    if (!/^https?:\/\//i.test(url)) return "invalid url";
+    const maxBytes = typeof args.maxBytes === "number" ? Math.min(25_000_000, Math.max(100_000, args.maxBytes)) : 12_000_000;
+    const res = await netFetch(url, { maxBytes, inline: true, textChars: 60_000 });
+    if (!res.ok) return `download failed: ${res.error ?? `HTTP ${res.status}`}`;
+    const name = str(args.name, 160) || decodeURIComponent(new URL(url).pathname.split("/").pop() || "file");
+    let text = res.text;
+    if ((!text || text.length < 40) && res.dataUrl) {
+      const buf = new Uint8Array(Buffer.from(res.dataUrl.split(",")[1] ?? "", "base64"));
+      const ex = extractText(name, res.mime, buf);
+      if (ex.ok) text = ex.text;
+    }
+    if (!ctx.userId) return `downloaded ${res.kind} ${(res.bytes / 1024).toFixed(1)} KB from ${res.finalUrl}\n${text.slice(0, 1200)}`;
+    try {
+      await ensureSchema();
+      if (text.trim().length > 40) {
+        const doc = await vaultAdd(ctx.userId, { name, text, origin: "agent", source: url }, pool);
+        invalidateVault(ctx.userId);
+        if (doc) return `downloaded and stored in the vault (id ${doc.id}) — ${res.kind}, ${(res.bytes / 1024).toFixed(1)} KB.\n${text.slice(0, 1200)}`;
+      }
+    } catch {
+      /* the download itself succeeded; storage is a bonus */
+    }
+    return `downloaded ${res.kind} ${(res.bytes / 1024).toFixed(1)} KB from ${res.finalUrl} (not stored: binary media).\n${text.slice(0, 800)}`;
+  },
+
+  /* ── v18 ATLAS: file factory ───────────────────────────────────────────── */
+  async save_file(ctx, args) {
+    if (!ctx.userId) return "cannot save files without a user";
+    const content = typeof args.content === "string" ? args.content : "";
+    if (!content.trim()) return "missing content";
+    if (content.length > 4_000_000) return "content too large (max 4M chars)";
+    const title = str(args.title, 140) || "ملف Nexus";
+    const lang = str(args.lang, 20);
+    const file = buildFile({ title, lang, code: content });
+    const extras = Array.isArray(args.extras)
+      ? (args.extras as { path?: unknown; data?: unknown }[])
+          .filter((e) => typeof e?.path === "string" && typeof e?.data === "string")
+          .slice(0, 20)
+          .map((e) => ({ path: String(e.path).slice(0, 200), data: String(e.data).slice(0, 2_000_000) }))
+      : [];
+    try {
+      await ensureSchema();
+      const r = await pool.query(
+        `insert into barq.atlas_files (user_id, title, kind, filename, mime, content, bytes, extras, visibility)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,'private')
+         returning id`,
+        [
+          ctx.userId,
+          file.title,
+          extras.length ? "zip" : file.kind,
+          extras.length ? `${file.filename.replace(/\.[^.]+$/, "")}.zip` : file.filename,
+          extras.length ? "application/zip" : file.mime,
+          content,
+          content.length + extras.reduce((n, e) => n + e.data.length, 0),
+          JSON.stringify(extras),
+        ]
+      );
+      const id = r.rows[0]?.id as string | undefined;
+      if (!id) return "save failed";
+      return `SAVED as ${file.filename} (${file.kind}, ${(content.length / 1024).toFixed(1)} KB).\nPreview: /api/files/deliver/${id}?mode=preview\nDownload: /api/files/deliver/${id}\nTell the user the file is ready in their الملفات tab.`;
+    } catch (e) {
+      return `save error: ${e instanceof Error ? e.message.slice(0, 140) : "unknown"}`;
+    }
+  },
 };
 
 /* ─────────────────────────── action parsing ─────────────────────────── */
@@ -267,6 +409,10 @@ RULES
 - Be frugal: at most one web_search + one read_page for a simple question; research goals may use up to 3 searches.
 - memory_recall / memory_save give you a durable, per-user long-term memory — use it for preferences, names, projects and goals. Save only DURABLE facts, never one-off requests.
 - Chain sensibly: search → read the 1-2 most promising pages → synthesise.
+- ATLAS FIRST: for Algerian administration, school, business, taxes, health, CV, design, tech or "how does Nexus work" questions, call knowledge_search BEFORE web_search — it is instant and verified. Only go to the web when ATLAS has nothing or the question is time-sensitive (prices today, news, a specific product).
+- INTERNET ENGINE: the user can ask you to fetch real files from the internet. find_media returns real openly-licensed image/audio/dataset/document URLs with credits; internet_fetch reads any public URL (page, JSON, CSV, ZIP listing, PDF); download_file stores it in the user's vault. NEVER invent a media or file URL — only use what a tool returned.
+- VAULT: when the user refers to "my document", "the file I uploaded", "the dataset", call vault_search and quote the returned [D#·#] references.
+- FILE FACTORY: whenever the goal's deliverable is a file (HTML page/app/game, SVG, markdown document, JSON/CSV dataset, script), produce the COMPLETE content and call save_file so the user gets a preview + download + ZIP + share link. Then finish with a short answer telling them what was saved.
 - The final answer must directly serve the ORIGINAL goal, written naturally in the user's language and dialect, with sources cited as (1) (2) … when you used web tools.
 
 AVAILABLE TOOLS

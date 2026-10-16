@@ -70,6 +70,7 @@ export type XpAction =
   | "mind_read"
   | "tool_run"
   | "chat_deep"
+  | "apex_build"
   | "daily_first";
 
 export const XP_AMOUNT: Record<XpAction, number> = {
@@ -82,6 +83,7 @@ export const XP_AMOUNT: Record<XpAction, number> = {
   mind_read: 4,
   tool_run: 12,
   chat_deep: 15,
+  apex_build: 90,
   daily_first: 30,
 };
 
@@ -95,6 +97,7 @@ export const XP_LABEL_AR: Record<XpAction, string> = {
   mind_read: "استعملت قوة الفهم",
   tool_run: "شغّلت أداة",
   chat_deep: "محادثة عميقة",
+  apex_build: "بنى مشروعًا ضخمًا بمحرّك APEX",
   daily_first: "أول نشاط اليوم",
 };
 

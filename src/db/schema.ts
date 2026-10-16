@@ -321,3 +321,199 @@ export const mindEvents = barq.table(
 export type SmithGame = typeof smithGames.$inferSelect;
 export type SmithScore = typeof smithScores.$inferSelect;
 export type TitanProfile = typeof masteryProfiles.$inferSelect;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * v18 — ATLAS (قاعدة المعرفة الضخمة · الملفات · الصوت · الإعدادات)
+ *   atlas_docs        خزنة بيانات المستخدم: ملفات مرفوعة، صفحات مقروءة من
+ *                     الإنترنت، وملفات نزّلها الوكيل — تُفهرَس وتُقتبس في الجواب
+ *   atlas_files       كل مخرَج يولّده التطبيق (HTML/SVG/MD/JSON/ZIP/صور…) مع
+ *                     معاينة وتنزيل ورابط مشاركة عام
+ *   atlas_prefs       إعدادات المستخدم الضخمة (JSON) — تُزامَن بين الأجهزة
+ *   atlas_voice       سجل المكالمات الصوتية: الصوت المستعمل، المدة، الكمون
+ * Keep src/db/ensure-schema.ts in sync — that DDL is what creates them live.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+export const atlasDocs = barq.table(
+  "atlas_docs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default("document"),
+    /** upload · url · agent · manual */
+    origin: text("origin").notNull().default("upload"),
+    source: text("source"),
+    text: text("text").notNull(),
+    bytes: integer("bytes").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("atlas_docs_user_idx").on(t.userId, t.createdAt)]
+);
+
+export const atlasFiles = barq.table(
+  "atlas_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id"),
+    title: text("title").notNull().default("file"),
+    /** html · svg · markdown · json · csv · code · zip · image · audio · text */
+    kind: text("kind").notNull().default("html"),
+    /** filename offered on download */
+    filename: text("filename").notNull().default("nexus-file"),
+    mime: text("mime").notNull().default("text/html"),
+    content: text("content").notNull(),
+    bytes: integer("bytes").notNull().default(0),
+    /** extra files packed with it (multi-file projects) */
+    extras: jsonb("extras").notNull().default([]),
+    /** public link state: private · unlisted (anyone with the id) */
+    visibility: text("visibility").notNull().default("private"),
+    views: integer("views").notNull().default(0),
+    downloads: integer("downloads").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("atlas_files_user_idx").on(t.userId, t.createdAt),
+    index("atlas_files_conv_idx").on(t.conversationId),
+  ]
+);
+
+export const atlasPrefs = barq.table(
+  "atlas_prefs",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    prefs: jsonb("prefs").notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  }
+);
+
+export const atlasVoice = barq.table(
+  "atlas_voice",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Gemini voice name or ElevenLabs id */
+    voice: text("voice").notNull().default("Zephyr"),
+    persona: text("persona").notNull().default("friend"),
+    lang: text("lang").notNull().default("ar"),
+    turns: integer("turns").notNull().default(0),
+    durationMs: integer("duration_ms").notNull().default(0),
+    /** average time to first audio, ms */
+    latencyMs: integer("latency_ms").notNull().default(0),
+    engine: text("engine").notNull().default("gemini"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("atlas_voice_user_idx").on(t.userId, t.createdAt)]
+);
+
+/**
+ * v19 FORGE — المواقع المنشورة بروابط حية (published live sites)
+ * One row = one self-contained project served at /live/:slug forever.
+ */
+export const atlasSites = barq.table(
+  "atlas_sites",
+  {
+    slug: text("slug").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("Nexus Site"),
+    /** game · site · system · app · tool · landing */
+    kind: text("kind").notNull().default("site"),
+    language: text("language").notNull().default("ar"),
+    /** the complete self-contained document served at /live/:slug */
+    html: text("html").notNull(),
+    /** the real project tree [{path,data}] for the ZIP / deploy */
+    files: jsonb("files").notNull().default([]),
+    bytes: integer("bytes").notNull().default(0),
+    lines: integer("lines").notNull().default(0),
+    /** which engines wrote it [{key,label,role,module}] */
+    models: jsonb("models").notNull().default([]),
+    /** public (listed) · unlisted (link only) · private (owner only) */
+    visibility: text("visibility").notNull().default("public"),
+    views: integer("views").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("atlas_sites_user_idx").on(t.userId, t.createdAt)]
+);
+
+/**
+ * v19 — حالة الأمان (verification codes, phone OTP, 2FA)
+ * The pending 6-digit code is stored as a SHA-256 hash with a 10-minute expiry.
+ */
+export const securityState = barq.table("security_state", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  phone: text("phone"),
+  phoneVerified: boolean("phone_verified").notNull().default(false),
+  codeHash: text("code_hash"),
+  codeExpiresAt: timestamp("code_expires_at", { withTimezone: true }),
+  codeSentAt: timestamp("code_sent_at", { withTimezone: true }),
+  codeAttempts: integer("code_attempts").notNull().default(0),
+  /** last successful verification (the account is "trusted" for 15 minutes) */
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  /** off · email · phone */
+  twoFactor: text("two_factor").notNull().default("off"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type AtlasDoc = typeof atlasDocs.$inferSelect;
+export type AtlasFile = typeof atlasFiles.$inferSelect;
+export type AtlasPrefs = typeof atlasPrefs.$inferSelect;
+export type AtlasVoice = typeof atlasVoice.$inferSelect;
+
+/** NEXUS APEX v18 — full generated projects (site / app / shop / game / dashboard). */
+export const apexProjects = barq.table(
+  "apex_projects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** public short id used in /p/[slug] — the live URL of the project */
+    slug: text("slug").notNull(),
+    title: text("title").notNull().default(""),
+    tagline: text("tagline").notNull().default(""),
+    /** ecommerce · saas-dashboard · arcade · school · lms · clinic · travel · realestate · finance · restaurant · crm · support · docs · admin · landing · portfolio · blog */
+    blueprint: text("blueprint").notNull(),
+    kind: text("kind").notNull().default("app"),
+    palette: text("palette").notNull().default("midnight"),
+    lang: text("lang").notNull().default("ar"),
+    scale: text("scale").notNull().default("large"),
+    /** the whole recipe: blueprint, palette, features, pages, seed, modules */
+    plan: jsonb("plan").notNull().default({}),
+    /** file tree metadata: [{path, lines, bytes, lang}] */
+    manifest: jsonb("manifest").notNull().default([]),
+    /** the runnable single-file build */
+    html: text("html").notNull(),
+    modules: integer("modules").notNull().default(0),
+    lines: integer("lines").notNull().default(0),
+    files: integer("files").notNull().default(0),
+    bytes: integer("bytes").notNull().default(0),
+    score: integer("score").notNull().default(0),
+    dataRows: integer("data_rows").notNull().default(0),
+    buildMs: integer("build_ms").notNull().default(0),
+    /** private (owner only) · unlisted (anyone with the link) · public (listed) */
+    visibility: text("visibility").notNull().default("private"),
+    views: integer("views").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("apex_projects_slug_uq").on(t.slug),
+    index("apex_projects_user_idx").on(t.userId, t.updatedAt),
+    index("apex_projects_public_idx").on(t.visibility, t.views),
+  ]
+);
+
+export type AtlasSite = typeof atlasSites.$inferSelect;
+export type SecurityState = typeof securityState.$inferSelect;

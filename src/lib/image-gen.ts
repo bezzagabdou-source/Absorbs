@@ -4,6 +4,7 @@ import { findEnvKey } from "@/lib/openai-stream";
 import type { ImageAspect, ImageEditAction, ImageEditPoint, ImageReference, ImageStyle, ImageTier } from "@/lib/image-types";
 import { planArabicImage, ARABIC_NEGATIVE } from "@/lib/arabic-vision";
 import { ensureEnglishPrompt, translateArabicPrompt, hasArabicChars } from "@/lib/arabic-image-lexicon";
+import { ATLAS_IMAGE_NEGATIVE, planScene, suggestFraming } from "@/lib/atlas-image";
 
 /**
  * Photorealistic image engine.
@@ -83,6 +84,11 @@ export function buildImagePrompt(
   // v11 ARABIC VISION: understand the Darija / Arabic intent, and protect any words that must
   // literally appear inside the picture so the engine cannot mangle or translate them.
   const plan = planArabicImage(subject);
+  // v18 ATLAS ART DIRECTION: recognise *what* is being asked for (poster, logo,
+  // food shot, Casbah at dusk…) and brief the model like a creative director.
+  const scene = planScene(subject);
+  const framing = suggestFraming(scene, aspect);
+  const ratio = scene.scene === "poster" && aspect === "1:1" ? "3:4 (portrait poster — taller than a square)" : aspect;
   const arabicText = plan.needsArabicTypography
     ? `TEXT IN THE IMAGE — render these strings EXACTLY and verbatim: ${plan.renderText
         .map((t) => `"${t}"`)
@@ -93,13 +99,19 @@ export function buildImagePrompt(
   // the user's subject comes first and is repeated as a hard requirement, so the style text can never replace it
   const parts = [
     `MAIN SUBJECT (draw exactly this, nothing else, no random substitutes): ${plan.prompt}.`,
+    `ART DIRECTION BRIEF — this is a ${scene.label} image: ${scene.direction}`,
     STYLE_TEXT[style],
     TIER_TEXT[tier],
     TIER_ART[tier] ?? "",
-    `Aspect ratio ${aspect}.`,
+    `Aspect ratio ${ratio}.${framing.note ? " " + framing.note : ""}`,
     arabicText,
+    scene.isDesign
+      ? "This is a GRAPHIC DESIGN deliverable, not a photograph: flat surfaces, precise geometry, real layout, printable quality."
+      : "",
     NEGATIVE,
-    plan.needsArabicTypography ? ARABIC_NEGATIVE : "",
+    `Also avoid: ${scene.avoid}.`,
+    plan.needsArabicTypography || scene.algerian ? ARABIC_NEGATIVE : "",
+    scene.algerian || plan.arabic ? ATLAS_IMAGE_NEGATIVE : "",
     `Every object, person, colour, place and text mentioned in the main subject must be clearly visible.`,
   ];
   return parts.filter((p) => p.length > 0).join(" ");

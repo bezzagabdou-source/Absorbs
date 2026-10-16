@@ -1,158 +1,165 @@
+import { after } from "next/server";
 import { verifyRequest } from "@/lib/server-auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { json } from "@/lib/http";
-import { getGeminiKey } from "@/lib/gemini";
+import { pool } from "@/db";
+import { ensureSchema } from "@/db/ensure-schema";
+import {
+  detectTtsLang,
+  geminiTts,
+  geminiTtsStream,
+  elevenTts,
+  sanitizeForSpeech,
+  ttsOrder,
+} from "@/lib/tts";
+import { VOICE_IDS, voiceById, emotionPrompt } from "@/lib/voice-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /**
- * Cloud voice for calls (clear, human, fast).
- *   1) ElevenLabs   — env ELEVENLABS_API_KEY (+ optional ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL)
- *   2) Gemini TTS   — uses the Gemini key you already set (optional GEMINI_TTS_VOICE, e.g. Kore / Puck / Aoede)
- * When neither works the client falls back to the browser voice by itself.
+ * v18 ATLAS — cloud voice for live calls and message read-aloud.
+ *
+ *   POST /api/voice/tts
+ *   { text, voice?, lang?, mood?, rate?, emotion?, stream? }
+ *
+ *   · `stream:true`  → chunked `audio/wav` (the browser starts playing while
+ *                      Gemini is still speaking) — this is what makes the call
+ *                      feel like a real human with ~0.5 s reaction time.
+ *   · default        → one complete `audio/wav` (or `audio/mpeg` via ElevenLabs).
+ *   · on failure     → JSON 501 `{code:"NO_TTS"}` and the client falls back to
+ *                      the browser voice by itself (unchanged behaviour).
+ *
+ * Voice list, style prompts and emotion presets live in `@/lib/voice-catalog`.
  */
 
-function cleanKey(v: string | undefined): string {
-  return (v ?? "").trim().replace(/^["'`]+|["'`]+$/g, "").trim();
-}
-
-/** Wraps raw 16-bit mono PCM in a WAV header so every browser can play it. */
-function pcmToWav(pcm: Buffer, rate = 24000): Buffer {
-  const h = Buffer.alloc(44);
-  h.write("RIFF", 0);
-  h.writeUInt32LE(36 + pcm.length, 4);
-  h.write("WAVE", 8);
-  h.write("fmt ", 12);
-  h.writeUInt32LE(16, 16);
-  h.writeUInt16LE(1, 20);
-  h.writeUInt16LE(1, 22);
-  h.writeUInt32LE(rate, 24);
-  h.writeUInt32LE(rate * 2, 28);
-  h.writeUInt16LE(2, 32);
-  h.writeUInt16LE(16, 34);
-  h.write("data", 36);
-  h.writeUInt32LE(pcm.length, 40);
-  return Buffer.concat([h, pcm]);
-}
-
-async function withTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal, cache: "no-store" });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function eleven(text: string): Promise<Response | null> {
-  const key = cleanKey(process.env.ELEVENLABS_API_KEY);
-  if (!key) return null;
-  const voice = cleanKey(process.env.ELEVENLABS_VOICE_ID) || "EXAVITQu4vr4xnSDxMaL";
-  const model = cleanKey(process.env.ELEVENLABS_MODEL) || "eleven_flash_v2_5";
-  try {
-    const r = await withTimeout(
-      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_64&optimize_streaming_latency=3`,
-      {
-        method: "POST",
-        headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
-        body: JSON.stringify({
-          text,
-          model_id: model,
-          voice_settings: { stability: 0.45, similarity_boost: 0.85, style: 0.25, use_speaker_boost: true },
-        }),
-      },
-      15_000
-    );
-    if (!r.ok) return null;
-    const buf = Buffer.from(await r.arrayBuffer());
-    if (buf.length < 500) return null;
-    return new Response(new Uint8Array(buf), {
-      headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store", "x-barq-voice": "eleven" },
-    });
-  } catch {
-    return null;
-  }
-}
-
-/** Gemini's own prebuilt voices (same family as Gemini Live). */
-const GEMINI_VOICES = ["Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"];
-
-const STYLE: Record<string, string> = {
-  ar: "Speak in a warm, friendly, natural Algerian-Arabic conversational tone, clear and relaxed, like a real person on a phone call. Read only this text, do not add anything",
-  fr: "Speak in warm, natural, clear conversational French, like a real person on a phone call. Read only this text, do not add anything",
-  en: "Speak in warm, natural, clear conversational English, like a real person on a phone call. Read only this text, do not add anything",
+type Body = {
+  text?: unknown;
+  voice?: unknown;
+  lang?: unknown;
+  mood?: unknown;
+  rate?: unknown;
+  emotion?: unknown;
+  stream?: unknown;
 };
 
-async function geminiTts(text: string, wanted: string, lang: string): Promise<Response | null> {
-  const key = getGeminiKey();
-  if (!key) return null;
-  const envVoice = cleanKey(process.env.GEMINI_TTS_VOICE);
-  const voiceName = GEMINI_VOICES.includes(wanted) ? wanted : GEMINI_VOICES.includes(envVoice) ? envVoice : "Zephyr";
-  const style = STYLE[lang] ?? STYLE.ar;
-  const models = [cleanKey(process.env.GEMINI_TTS_MODEL), "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"].filter(Boolean);
-  for (const model of models.flatMap((m) => [m, m])) {
-    try {
-      const r = await withTimeout(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `${style}: ${text}` }] }],
-            generationConfig: {
-              responseModalities: ["AUDIO"],
-              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
-            },
-          }),
-        },
-        20_000
-      );
-      if (!r.ok) {
-        if (r.status === 429 || r.status >= 500) await new Promise((res) => setTimeout(res, 500));
-        continue;
-      }
-      const j = (await r.json()) as {
-        candidates?: { content?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } }[];
-      };
-      const part = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-      const b64 = part?.inlineData?.data;
-      if (!b64) continue;
-      const rateMatch = /rate=(\d+)/.exec(part?.inlineData?.mimeType ?? "");
-      const wav = pcmToWav(Buffer.from(b64, "base64"), rateMatch ? Number(rateMatch[1]) : 24000);
-      return new Response(new Uint8Array(wav), {
-        headers: { "Content-Type": "audio/wav", "Cache-Control": "no-store", "x-barq-voice": "gemini" },
-      });
-    } catch {
-      /* try next model */
-    }
+function str(v: unknown, max = 40): string {
+  return typeof v === "string" ? v.trim().slice(0, max) : "";
+}
+
+async function logVoice(uid: string, voice: string, lang: string, ms: number, engine: string): Promise<void> {
+  try {
+    await ensureSchema();
+    await pool.query(
+      `insert into barq.atlas_voice (user_id, voice, lang, turns, duration_ms, latency_ms, engine)
+       values ($1,$2,$3,1,0,$4,$5)`,
+      [uid, voice, lang, ms, engine]
+    );
+  } catch {
+    /* telemetry must never break a call */
   }
-  return null;
 }
 
 export async function POST(req: Request) {
   const user = await verifyRequest(req);
   if (!user) return json(401, { code: "UNAUTHENTICATED" });
-  if (!rateLimit(`tts:${user.uid}`, 90, 60_000).ok) return json(429, { code: "RATE" });
+  if (!rateLimit(`tts:${user.uid}`, 240, 60_000).ok) return json(429, { code: "RATE" });
 
-  let body: { text?: unknown; voice?: unknown; lang?: unknown };
+  let body: Body;
   try {
-    body = (await req.json()) as { text?: unknown; voice?: unknown; lang?: unknown };
+    body = (await req.json()) as Body;
   } catch {
     return json(400, { code: "BAD_JSON" });
   }
-  const text = typeof body.text === "string" ? body.text.replace(/\s+/g, " ").trim().slice(0, 700) : "";
+
+  const text = sanitizeForSpeech(typeof body.text === "string" ? body.text : "", 900);
   if (!text) return json(400, { code: "EMPTY" });
 
-  const voice = typeof body.voice === "string" ? body.voice : "";
-  const lang = typeof body.lang === "string" ? body.lang.slice(0, 2).toLowerCase() : /[\u0600-\u06FF]/.test(text) ? "ar" : "en";
-  // Gemini voice first (your Google AI Studio key); ElevenLabs only as a backup (or first when BARQ_TTS_FIRST=eleven)
-  const elevenFirst = cleanKey(process.env.BARQ_TTS_FIRST).toLowerCase() === "eleven";
-  const out = elevenFirst
-    ? ((await eleven(text)) ?? (await geminiTts(text, voice, lang)))
-    : ((await geminiTts(text, voice, lang)) ?? (await eleven(text)));
-  if (out) return out;
+  const wanted = str(body.voice, 30);
+  const voice = VOICE_IDS.includes(wanted) ? wanted : voiceById(wanted || "Zephyr").id;
+  const lang = detectTtsLang(text, str(body.lang, 4));
+  const mood = str(body.mood, 20) || voiceById(voice).mood;
+  const rateRaw = typeof body.rate === "number" ? body.rate : Number(body.rate);
+  const rate = Number.isFinite(rateRaw) && rateRaw > 0 ? Math.min(1.5, Math.max(0.7, rateRaw)) : 1;
+  const emotionId = str(body.emotion, 24);
+  const emotion = emotionPrompt(emotionId) || emotionId;
+  const wantStream = body.stream === true || body.stream === "true";
+  const t0 = Date.now();
+
+  /* ── streaming path: first audio chunk out as early as possible ── */
+  if (wantStream && ttsOrder()[0] === "gemini") {
+    const ctl = new AbortController();
+    req.signal.addEventListener("abort", () => ctl.abort());
+    let produced = false;
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of geminiTtsStream({ text, voice, lang, mood, rate, emotion }, ctl.signal)) {
+            produced = true;
+            controller.enqueue(chunk);
+          }
+        } catch {
+          /* fall through to the buffered engines */
+        }
+        if (!produced) {
+          // streaming endpoint unavailable → fall back to the buffered engines
+          const one = await geminiTts({ text, voice, lang, mood, rate, emotion }, ctl.signal);
+          const two = one.ok ? one : await elevenTts({ text, voice, lang, mood, rate, emotion }, ctl.signal);
+          if (two.ok) controller.enqueue(Buffer.from(two.bytes));
+        }
+        controller.close();
+        after(() => void logVoice(user.uid, voice, lang, Date.now() - t0, produced ? "gemini-stream" : "fallback"));
+      },
+    });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "audio/wav",
+        "Cache-Control": "no-store",
+        "x-barq-voice": "gemini",
+        "x-barq-voice-name": voice,
+        "x-barq-stream": "1",
+        "Transfer-Encoding": "chunked",
+      },
+    });
+  }
+
+  /* ── buffered path: best available engine ── */
+  let out: Response | null = null;
+  let engine = "none";
+  for (const e of ttsOrder()) {
+    const r = e === "gemini" ? await geminiTts({ text, voice, lang, mood, rate, emotion }) : await elevenTts({ text, voice, lang, mood, rate, emotion });
+    if (r.ok) {
+      engine = r.engine;
+      out = new Response(Buffer.from(r.bytes), {
+        headers: {
+          "Content-Type": r.mime,
+          "Cache-Control": "no-store",
+          "x-barq-voice": r.engine,
+          "x-barq-voice-name": r.voice,
+          "x-barq-tts-ms": String(r.ms),
+        },
+      });
+      break;
+    }
+  }
+  if (out) {
+    after(() => void logVoice(user.uid, voice, lang, Date.now() - t0, engine));
+    return out;
+  }
   return json(501, { code: "NO_TTS" });
+}
+
+/** Lists the available voices + engine state so the UI can build the picker. */
+export async function GET(req: Request) {
+  const user = await verifyRequest(req);
+  if (!user) return json(401, { code: "UNAUTHENTICATED" });
+  const { ttsAvailable } = await import("@/lib/tts");
+  const { VOICE_CATALOG, EMOTION_PRESETS, PERSONA_VOICES } = await import("@/lib/voice-catalog");
+  return json(200, {
+    engines: ttsAvailable(),
+    voices: VOICE_CATALOG,
+    emotions: EMOTION_PRESETS,
+    personaVoices: PERSONA_VOICES,
+  });
 }

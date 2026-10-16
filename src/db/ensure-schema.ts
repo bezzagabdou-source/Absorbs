@@ -202,6 +202,119 @@ create table if not exists barq.mind_events (
 create index if not exists mind_user_idx on barq.mind_events (user_id, created_at);
 create index if not exists mind_kind_idx on barq.mind_events (kind, created_at);
 
+/* ── v18 ATLAS: knowledge vault · file factory · preferences · voice log ───── */
+
+create table if not exists barq.atlas_docs (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  name text not null default 'document',
+  origin text not null default 'upload',
+  source text,
+  text text not null,
+  bytes integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists atlas_docs_user_idx on barq.atlas_docs (user_id, created_at);
+
+create table if not exists barq.atlas_files (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  conversation_id uuid,
+  title text not null default 'file',
+  kind text not null default 'html',
+  filename text not null default 'nexus-file',
+  mime text not null default 'text/html',
+  content text not null,
+  bytes integer not null default 0,
+  extras jsonb not null default '[]'::jsonb,
+  visibility text not null default 'private',
+  views integer not null default 0,
+  downloads integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists atlas_files_user_idx on barq.atlas_files (user_id, created_at);
+create index if not exists atlas_files_conv_idx on barq.atlas_files (conversation_id);
+
+create table if not exists barq.atlas_prefs (
+  user_id text primary key references barq.users(id) on delete cascade,
+  prefs jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists barq.atlas_voice (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  voice text not null default 'Zephyr',
+  persona text not null default 'friend',
+  lang text not null default 'ar',
+  turns integer not null default 0,
+  duration_ms integer not null default 0,
+  latency_ms integer not null default 0,
+  engine text not null default 'gemini',
+  created_at timestamptz not null default now()
+);
+create index if not exists atlas_voice_user_idx on barq.atlas_voice (user_id, created_at);
+
+create table if not exists barq.atlas_sites (
+  slug text primary key,
+  user_id text not null references barq.users(id) on delete cascade,
+  title text not null default 'Nexus Site',
+  kind text not null default 'site',
+  language text not null default 'ar',
+  html text not null,
+  files jsonb not null default '[]'::jsonb,
+  bytes integer not null default 0,
+  lines integer not null default 0,
+  models jsonb not null default '[]'::jsonb,
+  visibility text not null default 'public',
+  views integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists atlas_sites_user_idx on barq.atlas_sites (user_id, created_at);
+
+create table if not exists barq.security_state (
+  user_id text primary key references barq.users(id) on delete cascade,
+  phone text,
+  phone_verified boolean not null default false,
+  code_hash text,
+  code_expires_at timestamptz,
+  code_sent_at timestamptz,
+  code_attempts integer not null default 0,
+  verified_at timestamptz,
+  two_factor text not null default 'off',
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists barq.apex_projects (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null references barq.users(id) on delete cascade,
+  slug text not null,
+  title text not null default '',
+  tagline text not null default '',
+  blueprint text not null,
+  kind text not null default 'app',
+  palette text not null default 'midnight',
+  lang text not null default 'ar',
+  scale text not null default 'large',
+  plan jsonb not null default '{}'::jsonb,
+  manifest jsonb not null default '[]'::jsonb,
+  html text not null,
+  modules integer not null default 0,
+  lines integer not null default 0,
+  files integer not null default 0,
+  bytes integer not null default 0,
+  score integer not null default 0,
+  data_rows integer not null default 0,
+  build_ms integer not null default 0,
+  visibility text not null default 'private',
+  views integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists apex_projects_slug_uq on barq.apex_projects (slug);
+create index if not exists apex_projects_user_idx on barq.apex_projects (user_id, updated_at);
+create index if not exists apex_projects_public_idx on barq.apex_projects (visibility, views);
 `;
 
 const g = globalThis as typeof globalThis & {

@@ -3,10 +3,10 @@ node_modules
 .pnp
 .pnp.js
 
-# next.js
-.next
-out
-build
+# next.js (root-anchored: a bare "build" also ignored src/app/api/apex/build/)
+/.next
+/out
+/build
 next-env.d.ts
 
 # env files (never commit secrets)

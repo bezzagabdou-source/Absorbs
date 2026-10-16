@@ -12,6 +12,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { chatPrefsPayload } from "@/lib/prefs";
 import {
   AlertTriangle,
   ArrowDown,
@@ -75,6 +76,9 @@ import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 const FullPreview = dynamic(() => import("@/components/game-preview").then((m) => m.FullPreview), { ssr: false });
+/** NEXUS APEX v18 — the built-project card (loaded only when a build actually happened) */
+const ApexCard = dynamic(() => import("@/components/chat/apex-card").then((m) => m.ApexCard), { ssr: false });
+import { apexMark, stripApexMark } from "@/lib/apex/mark";
 import { wantsPromptText } from "@/lib/design-canvas";
 import {
   isGameRequest as isForgeRequest,
@@ -220,13 +224,57 @@ function splitNext(text: string): { body: string; next: string[] } {
 /* One message — memoised so only the streaming bubble re-renders      */
 /* ------------------------------------------------------------------ */
 
-/** Instant, tiny "typing" indicator: no long message, no skeleton — the answer streams in right after it. */
-function TypingDots({ label }: { label: string }) {
+const WAIT_WORDS = [
+  "يقرأ سؤالك",
+  "يرتّب الأفكار",
+  "يختار أقوى نموذج",
+  "يسحب من قاعدة المعرفة",
+  "يصيغ الجواب",
+  "يدقّق اللغة",
+];
+
+/**
+ * v19 — خط الانتظار الحي.
+ * A queue line that feels alive instead of a frozen spinner: an animated orb,
+ * a flowing rail with a travelling pulse, the step the model is on, and the
+ * seconds you have waited. Light enough to render instantly on every message.
+ */
+function WaitingLine({ label }: { label: string }) {
+  const [i, setI] = useState(0);
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    const w = setInterval(() => setI((v) => (v + 1) % WAIT_WORDS.length), 2200);
+    const t = setInterval(() => setSec((v) => v + 1), 1000);
+    return () => {
+      clearInterval(w);
+      clearInterval(t);
+    };
+  }, []);
+
   return (
-    <span className="flex items-center gap-3 py-2" role="status" aria-label={label}>
-      <span className="think-orb" aria-hidden />
-      <span className="think-bar" aria-hidden />
-    </span>
+    <div className="wait-line" role="status" aria-live="polite" aria-label={label}>
+      <span className="wait-orb" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="wait-rail" aria-hidden>
+          <span className="wait-pulse" />
+        </div>
+        <p className="wait-word">
+          {WAIT_WORDS[i]}
+          <span className="wait-dots" aria-hidden>
+            <i />
+            <i />
+            <i />
+          </span>
+        </p>
+      </div>
+      <span className="wait-time" dir="ltr">
+        {String(Math.floor(sec / 60)).padStart(2, "0")}:{String(sec % 60).padStart(2, "0")}
+      </span>
+    </div>
   );
 }
 
@@ -395,6 +443,9 @@ function BuildThinking({ info, flavor = "web" }: { info: CodeInfo | null; flavor
   const steps = flavor === "web" ? BUILD_STEPS : FLAVOR_STEPS[flavor];
   const [i, setI] = useState(0);
   const [sec, setSec] = useState(0);
+  const [spark, setSpark] = useState<number[]>([]);
+  const lines = info?.lines ?? 0;
+
   useEffect(() => {
     const id = setInterval(() => setI((v) => Math.min(steps.length - 1, v + 1)), 4200);
     const t = setInterval(() => setSec((v) => v + 1), 1000);
@@ -402,12 +453,20 @@ function BuildThinking({ info, flavor = "web" }: { info: CodeInfo | null; flavor
       clearInterval(id);
       clearInterval(t);
     };
-  }, []);
-  const lines = info?.lines ?? 0;
+  }, [steps.length]);
+
+  /* a tiny live sparkline of how fast the code is growing */
+  useEffect(() => {
+    setSpark((prev) => [...prev.slice(-23), lines]);
+  }, [lines]);
+
   const target = flavor === "web" ? 4200 : 600; // a track / clip is far smaller than a game
   const pct = Math.min(97, Math.max(5, Math.round((lines / target) * 100)));
   const mm = String(Math.floor(sec / 60)).padStart(2, "0");
   const ss = String(sec % 60).padStart(2, "0");
+  const rate = spark.length > 1 ? Math.max(0, spark[spark.length - 1] - spark[0]) : 0;
+  const max = Math.max(1, ...spark);
+
   return (
     <div className="nx-build mt-2">
       <div className="nx-build-sheen" aria-hidden />
@@ -440,12 +499,39 @@ function BuildThinking({ info, flavor = "web" }: { info: CodeInfo | null; flavor
         </div>
       </div>
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] font-black text-slate-400">
-        <span dir="ltr">{(info?.lines ?? 0).toLocaleString("en-US")} lines</span>
+      {/* step rail: what already happened, what is happening now */}
+      <ol className="nx-steps mt-3">
+        {steps.slice(0, Math.min(steps.length, i + 3)).map((st, n) => (
+          <li key={st} className="nx-step" data-state={n < i ? "done" : n === i ? "now" : "next"}>
+            <span className="nx-step-dot" aria-hidden>{n < i ? "✓" : ""}</span>
+            <span className="nx-step-t">{st}</span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2 text-[11.5px] font-black text-slate-400">
+        <span dir="ltr">{lines.toLocaleString("en-US")} lines</span>
         <span dir="ltr">{((info?.chars ?? 0) / 1024).toFixed(0)} KB</span>
         <span className="text-brand-300">{pct}%</span>
+        {rate > 0 && (
+          <span className="text-emerald-500" dir="ltr">
+            +{rate.toLocaleString("en-US")} lines/min
+          </span>
+        )}
+        {/* live sparkline */}
+        <span className="nx-spark" aria-hidden>
+          {spark.slice(-16).map((v, n) => (
+            <i key={n} style={{ height: `${Math.max(8, Math.round((v / max) * 100))}%` }} />
+          ))}
+        </span>
         <span className="ms-auto text-emerald-500">لا تغلق الصفحة — البناء متواصل</span>
       </div>
+
+      {flavor === "web" && (
+        <a href="/app/code" className="nx-forge-hint">
+          <span aria-hidden>⚒️</span> مشروع أضخم؟ افتح <b>Nexus Code</b> — فريق نماذج يكتب حتى 12 000 سطر مع رابط حي
+        </a>
+      )}
     </div>
   );
 }
@@ -535,7 +621,14 @@ const MessageRow = memo(function MessageRow({
   const [showCode, setShowCode] = useState(false);
   const isUser = m.role === "user";
   const press = useLongPressCopy(m.content);
-  const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
+  /* v18 APEX: a build result arrives as one compact mark inside the message —
+     it is pulled out here so the prose stays clean and the card is precise */
+  const apex = useMemo(() => (isUser ? null : apexMark(m.content)), [isUser, m.content]);
+  const { body, next } = useMemo(() => {
+    if (isUser) return { body: m.content, next: [] as string[] };
+    const split = splitNext(m.content);
+    return { body: apex ? stripApexMark(split.body) : split.body, next: split.next };
+  }, [isUser, m.content, apex]);
   const done = !isUser && !m.pending && !!body;
   const html = useMemo(() => (done && pro ? extractHtml(body) : null), [done, pro, body]);
   const zipFiles = useMemo(
@@ -594,12 +687,15 @@ const MessageRow = memo(function MessageRow({
       </span>
 
       <div className="relative min-w-0 flex-1">
+        {apex && (
+          <SafeBoundary resetKey={apex?.slug}>
+            <ApexCard data={apex} />
+          </SafeBoundary>
+        )}
         {press.pill}
         <div className="text-[16px] leading-[1.85] text-slate-100" {...press.handlers}>
           {m.pending && !m.content ? (
-            <div>
-              <TypingDots label={thinking} />
-            </div>
+            <WaitingLine label={thinking} />
           ) : pro && m.pending && buildIntent ? (
             // while building: ONLY the thinking card (no long message, no raw code)
             <BuildThinking info={codeInfo ?? lineStats(body)} flavor={flavor} />
@@ -1458,6 +1554,8 @@ export function ChatPage() {
             ...(tier === "v6" ? { v6: true } : {}),
             ...(mode ? { mode } : {}),
             ...(isPro && tier === "v8" ? { v8: true, persona } : {}),
+            /* v18 ATLAS — the control centre knobs travel with every turn */
+            ...chatPrefsPayload(),
           }),
           signal: controller.signal,
         });
@@ -1572,6 +1670,7 @@ export function ChatPage() {
                   v6: tier === "v6",
                   ...(mode ? { mode } : {}),
                   ...(tier === "v8" ? { v8: true, persona } : {}),
+                  ...chatPrefsPayload(),
                 }),
                 signal: controller.signal,
               });

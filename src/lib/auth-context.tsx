@@ -24,6 +24,11 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   getAdditionalUserInfo,
+  PhoneAuthProvider,
+  RecaptchaVerifier,
+  linkWithCredential,
+  signInWithPhoneNumber,
+  type ConfirmationResult,
   type User,
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
@@ -42,6 +47,18 @@ type AuthContextValue = {
   sendReset: (email: string) => Promise<void>;
   /** v14: change the password in-app (requires the current one) */
   changePassword: (current: string, next: string) => Promise<void>;
+  /** v19: ask the server for a 6-digit verification code (emailed when a provider is set) */
+  sendSecurityCode: () => Promise<{ delivery: "email" | "link" | "phone" | "none"; expiresIn: number; masked: string; code?: string }>;
+  /** v19: verify the 6-digit code → opens a 15-minute trusted window */
+  verifySecurityCode: (code: string) => Promise<{ trustedUntil: string }>;
+  /** v19: burn the pending code and close the trusted window */
+  revokeSecurity: () => Promise<void>;
+  /** v19: set the 2FA preference (off · email · phone) */
+  setTwoFactor: (mode: "off" | "email" | "phone") => Promise<void>;
+  /** v19: send a real SMS code with Firebase phone auth (needs a reCAPTCHA container in the DOM) */
+  sendPhoneCode: (phone: string, containerId: string) => Promise<{ confirmation: ConfirmationResult; verificationId: string }>;
+  /** v19: confirm the SMS code and link the number to this account */
+  confirmPhoneCode: (input: { confirmation?: ConfirmationResult; verificationId?: string; code: string }) => Promise<void>;
   /** fetch() wrapper that attaches a fresh Firebase ID token */
   authFetch: (input: string, init?: RequestInit) => Promise<Response>;
 };
@@ -63,6 +80,15 @@ async function mailWithFallback(send: (s?: { url: string; handleCodeInApp: boole
     if (/continue-uri|unauthorized-domain/.test(code)) await send(undefined);
     else throw e;
   }
+}
+
+/** Firebase phone-auth error codes → Darija. */
+export function phoneError(code: string): string {
+  if (code === "auth/quota-exceeded" || code === "auth/too-many-requests") return "الطلبات كثرت — استنى شوية وعاود.";
+  if (code === "auth/captcha-check-failed") return "فحص reCAPTCHA فشل — حدّث الصفحة وعاود.";
+  if (code === "auth/network-request-failed") return "الإنترنت مقطوع — تحقق من الاتصال.";
+  if (code === "auth/missing-client-identifier") return "إعدادات Firebase ناقصة للتحقق بالهاتف.";
+  return "";
 }
 
 /** Client-side password rules (Firebase enforces the 6-character floor; we ask for more). */
@@ -237,6 +263,116 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await u.getIdToken(true);
   }, []);
 
+  /* ------------------------------------------------------------------ *
+   * v19 — رمز التحقق (server-minted 6-digit code + Firebase delivery)
+   * ------------------------------------------------------------------ */
+  const sendSecurityCode = useCallback(async () => {
+    const token = await auth.currentUser?.getIdToken();
+    const r = await fetch("/api/user/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ action: "mint-code" }),
+    });
+    const j = (await r.json().catch(() => null)) as
+      | { ok?: boolean; delivery?: "email" | "link"; expiresIn?: number; masked?: string; code?: string; detail?: string }
+      | null;
+    if (!r.ok || !j?.ok) throw new Error(j?.detail ?? "تعذّر إنشاء الرمز.");
+    // no mail provider configured → Firebase's own verification mail is the channel
+    if (j.delivery !== "email") {
+      const u = auth.currentUser;
+      if (u && !u.emailVerified) {
+        await mailWithFallback((s) => sendEmailVerification(u, s)).catch(() => undefined);
+      }
+    }
+    return { delivery: (j.delivery ?? "link") as "email" | "link" | "phone" | "none", expiresIn: j.expiresIn ?? 600, masked: j.masked ?? "", code: j.code };
+  }, []);
+
+  const verifySecurityCode = useCallback(async (code: string) => {
+    const token = await auth.currentUser?.getIdToken();
+    const r = await fetch("/api/user/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ action: "verify-code", code }),
+    });
+    const j = (await r.json().catch(() => null)) as { ok?: boolean; trustedUntil?: string; detail?: string } | null;
+    if (!r.ok || !j?.ok) throw new Error(j?.detail ?? "الرمز مرفوض.");
+    const u = auth.currentUser;
+    if (u) {
+      await u.reload().catch(() => undefined);
+      await u.getIdToken(true).catch(() => undefined);
+      setRev((n) => n + 1);
+      void syncUser(u);
+    }
+    return { trustedUntil: j.trustedUntil ?? new Date().toISOString() };
+  }, []);
+
+  const revokeSecurity = useCallback(async () => {
+    const token = await auth.currentUser?.getIdToken();
+    await fetch("/api/user/security", { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => undefined);
+  }, []);
+
+  const setTwoFactor = useCallback(async (mode: "off" | "email" | "phone") => {
+    const token = await auth.currentUser?.getIdToken();
+    await fetch("/api/user/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ action: "two-factor", mode }),
+    }).catch(() => undefined);
+  }, []);
+
+  /* ------------------------------------------------------------------ *
+   * v19 — رمز عبر SMS (Firebase phone auth)
+   * ------------------------------------------------------------------ */
+  const sendPhoneCode = useCallback(async (phone: string, containerId: string) => {
+    const el = typeof document !== "undefined" ? document.getElementById(containerId) : null;
+    if (!el) throw new Error("حاوية reCAPTCHA غير موجودة في الصفحة.");
+    const verifier = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
+    const clean = phone.replace(/[^\d+]/g, "");
+    try {
+      const confirmation = await signInWithPhoneNumber(auth, clean, verifier);
+      return { confirmation, verificationId: "" };
+    } catch (e) {
+      const code = (e as { code?: string })?.code ?? "";
+      if (code === "auth/operation-not-allowed") throw new Error("تسجيل الدخول بالهاتف غير مفعّل في إعدادات Firebase (Authentication → Sign-in method → Phone).");
+      if (code === "auth/invalid-phone-number") throw new Error("رقم الهاتف غير صالح — اكتبه بالصيغة الدولية مثل +213555123456.");
+      if (code === "auth/too-many-requests") throw new Error("طلبات كثيرة — استنى شوية وعاود.");
+      if (code === "auth/unauthorized-domain") throw new Error("هذا النطاق غير مسموح في إعدادات Firebase.");
+      throw new Error(phoneError(code) || "تعذّر إرسال الرمز.");
+    }
+  }, []);
+
+  const confirmPhoneCode = useCallback(async (input: { confirmation?: ConfirmationResult; verificationId?: string; code: string }) => {
+    const u = auth.currentUser;
+    if (!u) throw new Error("ما كاينش حساب مفتوح.");
+    const code = String(input.code ?? "").replace(/\D/g, "");
+    if (code.length !== 6) throw new Error("الرمز ستة أرقام.");
+    try {
+      if (input.confirmation) {
+        await input.confirmation.confirm(code);
+      } else if (input.verificationId) {
+        const cred = PhoneAuthProvider.credential(input.verificationId, code);
+        await linkWithCredential(u, cred);
+      } else {
+        throw new Error("ما كاينش جلسة تحقق — اطلب رمزًا جديدًا.");
+      }
+    } catch (e) {
+      const c = (e as { code?: string })?.code ?? "";
+      if (c === "auth/invalid-verification-code") throw new Error("الرمز غالط.");
+      if (c === "auth/code-expired") throw new Error("الرمز انتهى — اطلب واحدًا جديدًا.");
+      if (c === "auth/credential-already-in-use") throw new Error("هذا الرقم مربوط بحساب آخر.");
+      throw new Error(phoneError(c) || "تعذّر تأكيد الرمز.");
+    }
+    const phone = u.phoneNumber ?? u.reload().then(() => u.phoneNumber).catch(() => null);
+    const token = await u.getIdToken(true).catch(() => "");
+    await fetch("/api/user/security", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ action: "save-phone", phone: typeof phone === "string" ? phone : "", verified: true }),
+    }).catch(() => undefined);
+    setRev((n) => n + 1);
+    void syncUser(u);
+  }, []);
+
   const authFetch = useCallback(
     async (input: string, init: RequestInit = {}) => {
       const token = await auth.currentUser?.getIdToken();
@@ -262,9 +398,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshVerified,
       sendReset,
       changePassword,
+      sendSecurityCode,
+      verifySecurityCode,
+      revokeSecurity,
+      setTwoFactor,
+      sendPhoneCode,
+      confirmPhoneCode,
       authFetch,
     }),
-    [user, rev, loading, signInEmail, signUpEmail, signInGoogle, signOut, sendVerification, refreshVerified, sendReset, changePassword, authFetch]
+    [user, rev, loading, signInEmail, signUpEmail, signInGoogle, signOut, sendVerification, refreshVerified, sendReset, changePassword, sendSecurityCode, verifySecurityCode, revokeSecurity, setTwoFactor, sendPhoneCode, confirmPhoneCode, authFetch]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

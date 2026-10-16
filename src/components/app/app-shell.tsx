@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Braces,
   ChevronRight,
   Crown,
   History,
@@ -36,6 +37,11 @@ import {
   BrainCircuit,
   Anvil,
   Trophy,
+  SlidersHorizontal,
+  TerminalSquare,
+  FolderOpen,
+  Globe2,
+  Palette,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
@@ -92,10 +98,19 @@ type CreditsCtx = {
 
 const CreditsContext = createContext<CreditsCtx | null>(null);
 
+/** Inert context for pages rendered outside <AppShell> (public /code, /live…). */
+const NO_CREDITS: CreditsCtx = {
+  profile: null,
+  refresh: async () => {},
+  applyHeaders: () => {},
+};
+
 export function useCredits() {
   const ctx = useContext(CreditsContext);
-  if (!ctx) throw new Error("useCredits outside provider");
-  return ctx;
+  /* v20 — public pages reuse the same components but have no provider. Returning
+     an honest empty context (profile: null ⇒ the UI shows the guest state) beats
+     throwing, and beats inventing a fake plan. */
+  return ctx ?? NO_CREDITS;
 }
 
 /* ------------------------------------------------------------------ */
@@ -212,13 +227,24 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav: { href: string; label: string; icon: typeof Crown; exact: boolean; desktopOnly?: boolean }[] = [
     { href: "/app", label: t.app.chat, icon: MessagesSquare, exact: true },
+    { href: "/app/code", label: "Nexus Code", icon: TerminalSquare, exact: true },
+    // v19 — استوديو التصميم: فحص بقاعدة قواعد ضخمة ثم تحسين بالذكاء الاصطناعي
+    { href: "/app/design", label: "استوديو التصميم", icon: Palette, exact: true },
     { href: "/app/council", label: "المجلس", icon: Gavel, exact: true },
     { href: "/app/research", label: "البحث", icon: Telescope, exact: true },
     { href: "/app/tools", label: t.app.tools, icon: LayoutGrid, exact: false },
     { href: "/app/studio", label: "الاستوديو", icon: Wand2, exact: true },
+    // v18 APEX — the deterministic project factory (moved off /app/code in v20 so
+    // Nexus Code = the multi-model FORGE workspace; APEX keeps its own home)
+    { href: "/app/apex", label: "مصنع APEX", icon: Braces, exact: true },
     // v17 — the two new destinations: the instant game factory and the XP path
     { href: "/app/smith", label: "صانع الألعاب", icon: Anvil, exact: false },
     { href: "/app/mastery", label: "مسار الإتقان", icon: Crown, exact: false },
+    // v18 ATLAS — مركز التحكم، قاعدة المعرفة، خزنة الملفات، باحث الوسائط
+    { href: "/app/control", label: "مركز التحكم", icon: SlidersHorizontal, exact: false },
+    { href: "/app/knowledge", label: "قاعدة المعرفة", icon: Database, exact: false },
+    { href: "/app/files", label: "خزنة الملفات", icon: FolderOpen, exact: false },
+    { href: "/app/media", label: "باحث الوسائط", icon: Globe2, exact: false },
     { href: "/app/history", label: t.app.history, icon: History, exact: true },
     { href: "/app/upgrade", label: t.app.upgrade, icon: Crown, exact: true },
     { href: "/app/settings", label: t.app.settings, icon: Settings, exact: true },
@@ -228,6 +254,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   void mobileNav;
 
   const quickSettings: { href: string; label: string; icon: typeof Crown }[] = [
+    { href: "/app/code", label: "Nexus Code (ورشة البناء)", icon: TerminalSquare },
+    { href: "/app/design", label: "استوديو التصميم (افحص وحسّن موقعك)", icon: Palette },
+    { href: "/app/apex", label: "مصنع APEX (بناء محلي بلا نماذج)", icon: Braces },
+    { href: "/app/control", label: "مركز التحكم (كل المقابض)", icon: SlidersHorizontal },
     { href: "/app/settings", label: "الإعدادات العامة", icon: Settings },
     { href: "/app/settings/memory", label: "الذاكرة", icon: BrainCircuit },
     { href: "/app/settings/language", label: "اللغة", icon: Languages },

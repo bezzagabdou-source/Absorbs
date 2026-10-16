@@ -6,6 +6,8 @@ import { Check, Copy, Download, Maximize2, PanelRightOpen, Play, WrapText } from
 import { usePro } from "@/lib/pro-i18n";
 import { FullPreview, GamePreview } from "@/components/game-preview";
 import { useArtifacts, isArtifactLang } from "@/components/chat/artifacts-context";
+import { FileCard } from "@/components/chat/file-card";
+import { kindFromLang } from "@/lib/atlas-files";
 import { cn } from "@/lib/utils";
 
 const EXT: Record<string, string> = {
@@ -58,6 +60,9 @@ export function CodeBlockAction({
   const canPlay = pro && isHtml && /<(canvas|script|body|div)/i.test(code);
   const canOpen = pro && !!artifacts && isArtifactLang(lang, code);
   const lines = code.split("\n").length;
+  /* v18 ATLAS: every real deliverable becomes a file card (preview · download · ZIP · link) */
+  const fKind = kindFromLang(lang, code);
+  const isFile = (["html", "svg", "markdown", "json", "csv"] as const).includes(fKind as "html") && code.length >= 160;
 
   const copy = async () => {
     try {
@@ -167,6 +172,8 @@ export function CodeBlockAction({
           </button>
         </div>
       </div>
+
+      {isFile && <FileCard code={code} lang={lang} />}
 
       {full && <FullPreview html={code} onClose={() => setFull(false)} />}
       {play ? (
