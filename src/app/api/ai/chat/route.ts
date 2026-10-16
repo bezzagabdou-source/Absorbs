@@ -41,6 +41,16 @@ import { academyBlockDeep, playbookKeyFor, needsDraftStrip } from "@/lib/nexus-a
 import { isGameRequest, planGame, forgeSystemBlock } from "@/lib/game-forge";
 import { isAnyGameRequest, GAME_MASTER } from "@/lib/game-master";
 import { withDraftFilter } from "@/lib/draft-filter";
+import {
+  NEXUS_CODE_SYSTEM,
+  NEXUS_CODE_BUILD_ADDON,
+  parseFileBlocks,
+  withNexusProtocol,
+  withContractRepair,
+  sanitizeClaims,
+  stripContinueMarkers,
+  type RepairRequest,
+} from "@/lib/nexus-code";
 import { TITAN_MAX_BYTES, TITAN_TARGET_BYTES } from "@/lib/limits";
 import { resolveChatMode } from "@/lib/chat-modes";
 /* ── v18 APEX: the deterministic project factory ────────────────────────── */
@@ -111,6 +121,14 @@ function appendText(src: ReadableStream<string>, tail: (full: string) => Promise
       return reader.cancel(reason);
     },
   });
+}
+
+/** How many real files a NEXUS CODE deliverable declares (0 for a plain answer). */
+function nexusFileCount(blocks: { path: string; code: string }[]): number {
+  const real = blocks.filter((b) => b.code.trim().length > 40);
+  if (!real.length) return 0;
+  /* one fenced page that the parser named "index.html" is still a single file */
+  return real.length === 1 && /^index\.(html?|txt)$/i.test(real[0].path) ? 1 : real.length;
 }
 
 function prependText(src: ReadableStream<string>, prefix: string): ReadableStream<string> {
@@ -544,8 +562,12 @@ export async function POST(req: Request) {
     const system =
       (body.v8 === true || body.max === true ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
       QUALITY_CONTRACT.split("\n6.")[0] +
+      NEXUS_CODE_SYSTEM +
       (body.max === true ? MAX_ENGINE_CONFIG.systemPromptAddon : "");
     const lastTurn = turns[turns.length - 1];
+    /* the marker strip + honesty guard travel with this path too: a continuation is
+       still an answer the reader and the database get to see */
+    const continuationUrl = /https?:\/\/[^\s)]*\.(?:vercel\.app|netlify\.app|github\.io)\b/i.test(seed);
     const stream = withAutoContinue(emptyStream(), {
       system,
       messages: [lastTurn],
@@ -554,7 +576,9 @@ export async function POST(req: Request) {
       deadlineAt: Date.now() + REQUEST_DEADLINE_MS,
       keepAlive: true,
       onDone: async (full) => {
-        const tail = full.slice(seed.length);
+        const tail = sanitizeClaims(stripContinueMarkers(full.slice(seed.length)), {
+          hasLiveUrl: continuationUrl,
+        }).text;
         if (!convId || !tail.trim()) return;
         await db
           .execute(
@@ -568,7 +592,10 @@ export async function POST(req: Request) {
           .catch(() => undefined);
       },
     });
-    return streamToResponse(stream, { "x-conversation-id": convId ?? "" });
+    return streamToResponse(withNexusProtocol(stream, { hasLiveUrl: continuationUrl }), {
+      "x-conversation-id": convId ?? "",
+      "x-nexus-code": "on",
+    });
   }
 
   const parsed = parseAttachments(body.attachments);
@@ -830,6 +857,8 @@ export async function POST(req: Request) {
   }
 
   const startedAt = Date.now();
+  /** the system prompt of the branch that actually ran — the repair round reuses it */
+  let systemForRepair = "";
 
   /* ---- v18: a model-written deliverable is completed, verified and published ---- */
   let deliverable: { text: string; mark: Promise<string> } | null = null;
@@ -839,6 +868,10 @@ export async function POST(req: Request) {
     const answer = (full || "").trim();
     if (answer.length < 260) return Promise.resolve("");
     if (!isBuildRequest(lastUser) && !looksLikeDeliverable(answer)) return Promise.resolve("");
+    /* A NEXUS CODE deliverable of several files is a *project*: its index.html points
+       at ./css/… and ./js/…, so publishing the single file alone would give a broken
+       preview. Those go to NEXUS CODE / ZIP + GitHub from the studio instead. */
+    if (nexusFileCount(parseFileBlocks(answer)) > 1) return Promise.resolve("");
     if (deliverable && deliverable.text === answer) return deliverable.mark;
     const mark = (async () => {
       try {
@@ -902,7 +935,8 @@ export async function POST(req: Request) {
       /* the project mark is part of the message: without it a reloaded
          conversation would keep the prose and lose the card it describes */
       const tail = await finishDeliverable(full);
-      const text = cleanOutput(tail ? `${full}\n\n${tail}` : full).trim();
+      const stored = sanitizeClaims(tail ? `${full}\n\n${tail}` : full, { hasLiveUrl: Boolean(apex.slug) }).text;
+      const text = cleanOutput(stored).trim();
       const id = await persistP;
       if (!text || !id) return;
       await db
@@ -1184,8 +1218,11 @@ export async function POST(req: Request) {
         // with the strict MAX contract and a long never-stop continuation chain.
         await (async () => {
           const system =
+            systemForRepair =
             BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) +
             QUALITY_CONTRACT.split("\n6.")[0] +
+            NEXUS_CODE_SYSTEM +
+            NEXUS_CODE_BUILD_ADDON +
             maxAddon +
             v13Block +
             persona +
@@ -1266,9 +1303,11 @@ export async function POST(req: Request) {
         })()
       : build
       ? ensembleStream({
-          system:
-            (v8 ? BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) : BUILD_SYSTEM_PRO) +
+          system: (systemForRepair =
+            (v8 ? BUILD_SYSTEM_PRO.replace(CHAT_SYSTEM_PRO, CHAT_SYSTEM_V8) : BUILD_SYSTEM_PRO)) +
             QUALITY_CONTRACT.split("\n6.")[0] +
+            NEXUS_CODE_SYSTEM +
+            NEXUS_CODE_BUILD_ADDON +
             maxAddon +
             v13Block +
             persona +
@@ -1340,16 +1379,21 @@ export async function POST(req: Request) {
             });
           })()
       : await (async () => {
-          const system = isPro
+          /* v18 NEXUS CODE: one constitution for every model. Free (Nexus 6) and Pro
+             (Nexus 8) differ in budget, never in rules — that is the user's own
+             requirement, so the same text is appended on both branches. */
+          const system = (systemForRepair = isPro
             ? (v8 ? CHAT_SYSTEM_V8 : body.v6 === true ? CHAT_SYSTEM_V6 : CHAT_SYSTEM_PRO) +
               QUALITY_CONTRACT +
               MARATHON_ADDON +
               V11_CHAT_ADDON +
+              NEXUS_CODE_SYSTEM +
+              (build ? NEXUS_CODE_BUILD_ADDON : "") +
               v13Block +
               persona +
               memBlock
             : // v15: free accounts run the "Nexus 6" engine — same quality contract, smaller budget
-              CHAT_SYSTEM_V6 + schoolBlock + (chatMode?.addon ?? "");
+              CHAT_SYSTEM_V6 + schoolBlock + (chatMode?.addon ?? "") + NEXUS_CODE_SYSTEM + (build ? NEXUS_CODE_BUILD_ADDON : ""));
           const base = await streamGemini({
             system,
             messages: capped,
@@ -1401,14 +1445,50 @@ export async function POST(req: Request) {
     // v15: ONE choke point every engine passes through — Claude's draft
     // preamble and the reasoning models' <think> blocks are removed here, so
     // the fix covers all 16 models at once instead of per-provider.
-    const cleanStream = withDraftFilter(stream, { enabled: !voice && needsDraftStrip(pbKey) });
+    /* §5 of the contract, enforced: if the model left "باقي الكود" or a half-written
+       file, one bounded round rewrites exactly those files before we hand over. */
+    const repaired =
+      build && !voice && systemForRepair
+        ? withContractRepair(stream, {
+            deadlineAt: startedAt + REQUEST_DEADLINE_MS - 25_000,
+            repair: async (req: RepairRequest) => {
+              try {
+                return await streamGemini({
+                  system: systemForRepair,
+                  messages: [
+                    { role: "user" as const, text: lastUser.slice(0, 12_000) },
+                    { role: "model" as const, text: req.answer.slice(-90_000) },
+                    {
+                      role: "user" as const,
+                      text:
+                        `هذه الملفات ناقصة أو مقطوعة: ${req.files.join(", ") || "الملفات الأخيرة"}.\n` +
+                        `أعد كتابتها كلها الآن، كاملة من أول سطر لآخر سطر، بلا "..." ولا TODO ولا دالة فارغة، ولا تُعد كتابة أي ملف آخر.\n` +
+                        `الصيغة المطلوبة لكل ملف: سطر \`### FILE: path\` ثم الكتلة كاملة.`,
+                    },
+                  ],
+                  task: "code",
+                  maxTokens: isPro ? PRO_OUTPUT_TOKENS : FREE_OUTPUT_TOKENS,
+                });
+              } catch {
+                return null;
+              }
+            },
+          })
+        : stream;
+    const cleanStream = withDraftFilter(repaired, { enabled: !voice && needsDraftStrip(pbKey) });
+    /* v18 NEXUS CODE protocol, at the same single choke point:
+       the [[CONTINUE: …]] marker never reaches the reader (the server continues by
+       itself), and an unsupported "تم النشر / 100 % تحقق" becomes an honest line. */
+    const protocolStream = voice
+      ? cleanStream
+      : withNexusProtocol(cleanStream, { hasLiveUrl: Boolean(apex.slug) });
     /* the build mark travels in front of the answer, so the UI can render the
        project card even while the explanation is still streaming */
     const outStream = apex.line
-      ? prependText(cleanStream, apex.line + "\n\n")
+      ? prependText(protocolStream, apex.line + "\n\n")
       : isPro || isBuildRequest(lastUser)
-        ? appendText(cleanStream, finishDeliverable)
-        : cleanStream;
+        ? appendText(protocolStream, finishDeliverable)
+        : protocolStream;
 
     return streamToResponse(outStream, {
       "x-conversation-id": fixedConvId ?? "",
@@ -1419,6 +1499,7 @@ export async function POST(req: Request) {
       ...(fellBackFrom ? { "x-fallback-from": fellBackFrom } : {}),
       ...(isPro ? { "x-model": usedModel, "x-engine": (build || hard) && !(max && build) ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
       "x-nexus": "v18-atlas+apex",
+      "x-nexus-code": "on",
       ...(atlas.kb.ids.length ? { "x-atlas-kb": atlas.kb.ids.join(",") } : {}),
       ...(atlas.vault.chunks ? { "x-atlas-vault": String(atlas.vault.chunks) } : {}),
       ...(atlasAssets ? { "x-atlas-assets": String(atlasAssets) } : {}),

@@ -209,7 +209,28 @@ const LANG_EXT: Record<string, string> = {
   yml: "yml", markdown: "md", md: "md", xml: "xml", svg: "svg", text: "txt", txt: "txt",
 };
 
-export type Block = { lang: string; info: string; code: string; /** the whole fence line, original case */ raw?: string };
+export type Block = {
+  lang: string;
+  info: string;
+  code: string;
+  /** the whole fence line, original case */
+  raw?: string;
+  /**
+   * v18 NEXUS CODE — the file name declared on the line BEFORE the fence:
+   * `### FILE: js/app.js` (also `**FILE:** x`, `// FILE: x`, `===== FILE: x =====`).
+   */
+  file?: string;
+};
+
+/** Reads a `### FILE: path` style header (any of the spellings models use). */
+export function fileHeaderOf(line: string): string | null {
+  const t = (line || "").trim();
+  if (!t) return null;
+  const m =
+    /^(?:#{1,6}\s*|[-*>]\s*|\*\*)?\s*(?:FILE|file|filename|filepath|الملف|ملف)\s*[:：]\s*[`"']?([\w./@-]{1,120}?\.[A-Za-z0-9]{1,8})[`"']?\s*(?:\*\*)?$/.exec(t) ??
+    /^=+\s*FILE\s*[:：]\s*([\w./@-]{1,120})\s*=+$/i.exec(t);
+  return m?.[1] ?? null;
+}
 
 export function codeBlocks(reply: string): Block[] {
   const out: Block[] = [];
@@ -217,7 +238,18 @@ export function codeBlocks(reply: string): Block[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(reply))) {
     const code = m[3].replace(/\n$/, "");
-    if (code.trim()) out.push({ lang: m[1].toLowerCase(), info: m[2] ?? "", code, raw: `${m[1]}${m[2] ?? ""}`.trim() });
+    if (code.trim()) {
+      /* the header sits on one of the four lines above the fence, with blanks allowed */
+      const before = reply.slice(Math.max(0, m.index - 240), m.index).split("\n").slice(0, -1);
+      let file: string | null = null;
+      for (let i = before.length - 1; i >= 0 && i >= before.length - 4; i--) {
+        const line = before[i];
+        if (!line.trim()) continue;
+        file = fileHeaderOf(line);
+        break;
+      }
+      out.push({ lang: m[1].toLowerCase(), info: m[2] ?? "", code, raw: `${m[1]}${m[2] ?? ""}`.trim(), ...(file ? { file } : {}) });
+    }
     if (m[0].length === 0) re.lastIndex++;
   }
   return out;
@@ -245,6 +277,8 @@ export function splitHtml(html: string): ZipFile[] {
 }
 
 function nameHint(b: Block): string | null {
+  // `### FILE: src/engine.js` on the line above the fence (the NEXUS CODE contract)
+  if (b.file) return b.file.replace(/^\.?\//, "");
   // ```src/engine.js  → the whole fence line is the path (the Forge contract)
   const asPath = (b.raw ?? "").replace(/^[a-z]+:/i, "").replace(/^\.?\//, "");
   if (/^[\w\-./]+\.[a-z0-9]{1,6}$/i.test(asPath) && asPath.includes("/")) return asPath;

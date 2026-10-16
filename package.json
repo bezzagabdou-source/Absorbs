@@ -13,7 +13,8 @@
     "test:kb:json": "node scripts/v18-kb-test.mjs --json",
     "test:image": "node scripts/v18-image-test.mjs",
     "smoke:apex": "node --experimental-strip-types --import ./scripts/apex-smoke/register.mjs scripts/v18-apex-selftest.mjs",
-    "build:apex": "node scripts/build-apex-runtime.mjs"
+    "build:apex": "node scripts/build-apex-runtime.mjs",
+    "smoke:code": "node --experimental-strip-types --import ./scripts/apex-smoke/register.mjs scripts/v18-nexus-code-test.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
