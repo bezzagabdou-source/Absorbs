@@ -417,3 +417,48 @@ export type AtlasDoc = typeof atlasDocs.$inferSelect;
 export type AtlasFile = typeof atlasFiles.$inferSelect;
 export type AtlasPrefs = typeof atlasPrefs.$inferSelect;
 export type AtlasVoice = typeof atlasVoice.$inferSelect;
+
+/** NEXUS APEX v18 — full generated projects (site / app / shop / game / dashboard). */
+export const apexProjects = barq.table(
+  "apex_projects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** public short id used in /p/[slug] — the live URL of the project */
+    slug: text("slug").notNull(),
+    title: text("title").notNull().default(""),
+    tagline: text("tagline").notNull().default(""),
+    /** ecommerce · saas-dashboard · arcade · school · lms · clinic · travel · realestate · finance · restaurant · crm · support · docs · admin · landing · portfolio · blog */
+    blueprint: text("blueprint").notNull(),
+    kind: text("kind").notNull().default("app"),
+    palette: text("palette").notNull().default("midnight"),
+    lang: text("lang").notNull().default("ar"),
+    scale: text("scale").notNull().default("large"),
+    /** the whole recipe: blueprint, palette, features, pages, seed, modules */
+    plan: jsonb("plan").notNull().default({}),
+    /** file tree metadata: [{path, lines, bytes, lang}] */
+    manifest: jsonb("manifest").notNull().default([]),
+    /** the runnable single-file build */
+    html: text("html").notNull(),
+    modules: integer("modules").notNull().default(0),
+    lines: integer("lines").notNull().default(0),
+    files: integer("files").notNull().default(0),
+    bytes: integer("bytes").notNull().default(0),
+    score: integer("score").notNull().default(0),
+    dataRows: integer("data_rows").notNull().default(0),
+    buildMs: integer("build_ms").notNull().default(0),
+    /** private (owner only) · unlisted (anyone with the link) · public (listed) */
+    visibility: text("visibility").notNull().default("private"),
+    views: integer("views").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("apex_projects_slug_uq").on(t.slug),
+    index("apex_projects_user_idx").on(t.userId, t.updatedAt),
+    index("apex_projects_public_idx").on(t.visibility, t.views),
+  ]
+);
+

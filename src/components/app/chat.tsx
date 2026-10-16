@@ -76,6 +76,9 @@ import { speak, stopSpeaking } from "@/lib/voice";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 const FullPreview = dynamic(() => import("@/components/game-preview").then((m) => m.FullPreview), { ssr: false });
+/** NEXUS APEX v18 — the built-project card (loaded only when a build actually happened) */
+const ApexCard = dynamic(() => import("@/components/chat/apex-card").then((m) => m.ApexCard), { ssr: false });
+import { apexMark, stripApexMark } from "@/lib/apex/mark";
 import { wantsPromptText } from "@/lib/design-canvas";
 import {
   isGameRequest as isForgeRequest,
@@ -221,12 +224,27 @@ function splitNext(text: string): { body: string; next: string[] } {
 /* One message — memoised so only the streaming bubble re-renders      */
 /* ------------------------------------------------------------------ */
 
-/** Instant, tiny "typing" indicator: no long message, no skeleton — the answer streams in right after it. */
+/**
+ * v18 "aurora" thinking indicator: one spinning conic orb, two breathing rings
+ * and a real label that shimmer-sweeps while the answer is on its way. It is what
+ * the user stares at before every answer, so it says *what* is happening instead
+ * of three anonymous dots — and it costs nothing (CSS only, no network).
+ */
 function TypingDots({ label }: { label: string }) {
   return (
-    <span className="flex items-center gap-3 py-2" role="status" aria-label={label}>
-      <span className="think-orb" aria-hidden />
-      <span className="think-bar" aria-hidden />
+    <span className="nx-think" role="status" aria-label={label}>
+      <span className="nx-think-orb" aria-hidden>
+        <span className="nx-think-ring" />
+        <span className="nx-think-ring nx-r2" />
+      </span>
+      <span className="nx-think-col">
+        <span className="nx-think-text" aria-hidden>{label}</span>
+        <span className="nx-think-wave" aria-hidden>
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+            <i key={i} style={{ animationDelay: `${i * 95}ms` }} />
+          ))}
+        </span>
+      </span>
     </span>
   );
 }
@@ -536,7 +554,14 @@ const MessageRow = memo(function MessageRow({
   const [showCode, setShowCode] = useState(false);
   const isUser = m.role === "user";
   const press = useLongPressCopy(m.content);
-  const { body, next } = useMemo(() => (isUser ? { body: m.content, next: [] as string[] } : splitNext(m.content)), [isUser, m.content]);
+  /* v18 APEX: a build result arrives as one compact mark inside the message —
+     it is pulled out here so the prose stays clean and the card is precise */
+  const apex = useMemo(() => (isUser ? null : apexMark(m.content)), [isUser, m.content]);
+  const { body, next } = useMemo(() => {
+    if (isUser) return { body: m.content, next: [] as string[] };
+    const split = splitNext(m.content);
+    return { body: apex ? stripApexMark(split.body) : split.body, next: split.next };
+  }, [isUser, m.content, apex]);
   const done = !isUser && !m.pending && !!body;
   const html = useMemo(() => (done && pro ? extractHtml(body) : null), [done, pro, body]);
   const zipFiles = useMemo(
@@ -595,6 +620,11 @@ const MessageRow = memo(function MessageRow({
       </span>
 
       <div className="relative min-w-0 flex-1">
+        {apex && (
+          <SafeBoundary resetKey={apex?.slug}>
+            <ApexCard data={apex} />
+          </SafeBoundary>
+        )}
         {press.pill}
         <div className="text-[16px] leading-[1.85] text-slate-100" {...press.handlers}>
           {m.pending && !m.content ? (

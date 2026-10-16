@@ -43,6 +43,12 @@ import { isAnyGameRequest, GAME_MASTER } from "@/lib/game-master";
 import { withDraftFilter } from "@/lib/draft-filter";
 import { TITAN_MAX_BYTES, TITAN_TARGET_BYTES } from "@/lib/limits";
 import { resolveChatMode } from "@/lib/chat-modes";
+/* ── v18 APEX: the deterministic project factory ────────────────────────── */
+import { planFromText, buildApexProject, completeStandalone, looksLikeDeliverable } from "@/lib/apex";
+import { brainBrief } from "@/lib/brain";
+import { encodeApexMark } from "@/lib/apex/mark";
+import { saveApexProject } from "@/lib/apex/store";
+import { apexBuildIntent, APEX_BUILT_ADDON, APEX_COMPLETE_ADDON } from "@/lib/apex/intent";
 import { buildCommanderFor } from "@/lib/build-commander";
 import { withVerify, readAll } from "@/lib/build-verify";
 import { DZ_IDENTITY, DZ_SCHOOL_ADDON, looksLikeSchoolwork } from "@/lib/dz-school";
@@ -68,6 +74,66 @@ function isFreeModel(v: unknown): v is string {
   return typeof v === "string" && FREE_MODEL_IDS.has(v);
 }
 /** MAX / Pro: ANY OpenRouter model id (vendor/name[:variant]) is accepted; the picker lists them all. */
+/** Puts a prefix in front of a text stream without touching the engine's output. */
+/**
+ * v18 STANDALONE tail: when a build request is answered by the model (not by the
+ * deterministic factory), the finished answer is repaired into ONE complete page
+ * and a project card is appended at the very end of the stream. The tail is a
+ * promise, so the repair runs once, after the last token, without delaying a
+ * single byte of the answer itself.
+ */
+function appendText(src: ReadableStream<string>, tail: (full: string) => Promise<string>): ReadableStream<string> {
+  const reader = src.getReader();
+  let acc = "";
+  let flushed = false;
+  return new ReadableStream<string>({
+    async pull(controller) {
+      if (flushed) {
+        controller.close();
+        return;
+      }
+      const { done, value } = await reader.read();
+      if (done) {
+        flushed = true;
+        try {
+          const extra = await tail(acc);
+          if (extra) controller.enqueue(`\n\n${extra}\n`);
+        } catch (e) {
+          console.warn("[apex] standalone tail failed:", e instanceof Error ? e.message : e);
+        }
+        controller.close();
+        return;
+      }
+      acc += value;
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+}
+
+function prependText(src: ReadableStream<string>, prefix: string): ReadableStream<string> {
+  const reader = src.getReader();
+  return new ReadableStream<string>({
+    async start(controller) {
+      controller.enqueue(prefix);
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) controller.enqueue(value);
+        }
+      } finally {
+        controller.close();
+      }
+    },
+    cancel(reason) {
+      void reader.cancel(reason).catch(() => undefined);
+    },
+  });
+}
+
 const OR_MODEL_ID = /^[\w.\-]+\/[\w.\-:]+$/;
 function isAnyOpenRouterModel(v: unknown): v is string {
   return typeof v === "string" && v.length <= 120 && OR_MODEL_ID.test(v);
@@ -610,8 +676,78 @@ export async function POST(req: Request) {
     void awardXp(user.uid, "mind_read").catch(() => undefined);
   }
 
+  /* ── v18 APEX — the project factory ─────────────────────────────────────
+   * A whole-product request ("سوّي لي متجر…", "اصنع لعبة…") is NOT sent to the
+   * model as a coding task: the deterministic engine writes the entire project
+   * here (~60ms, thousands of lines, verified, with real data) and stores it
+   * with a live URL. The model then only explains it — which is why a build can
+   * never come back as a truncated snippet again.
+   */
+  const apexTurn = body.voice === true ? { build: false, reason: "voice", confidence: 0 } : apexBuildIntent(lastUser);
+  const apex = { line: "", addon: "", slug: "" };
+  if (apexTurn.build) {
+    try {
+      const built = buildApexProject({ plan: planFromText(lastUser).plan, text: lastUser });
+      const stored = await saveApexProject({
+        uid: user.uid,
+        title: built.title,
+        tagline: built.tagline,
+        blueprint: built.blueprint,
+        kind: built.kind,
+        palette: built.palette,
+        lang: built.lang,
+        scale: built.plan.scale,
+        plan: built.plan as unknown as Record<string, unknown>,
+        manifest: built.files.map((f) => ({ path: f.path, lines: f.lines, bytes: f.bytes, lang: f.lang })),
+        html: built.html,
+        modules: built.stats.modules,
+        lines: built.stats.lines,
+        files: built.stats.files,
+        bytes: built.stats.bytes,
+        score: built.stats.score,
+        dataRows: built.stats.dataRows,
+        buildMs: built.buildMs,
+      });
+      apex.slug = stored.slug;
+      apex.line = encodeApexMark({
+        slug: stored.slug,
+        title: built.title,
+        tagline: built.tagline,
+        blueprint: built.blueprint,
+        kind: built.kind,
+        emoji: built.emoji,
+        palette: built.palette,
+        lines: built.stats.lines,
+        files: built.stats.files,
+        modules: built.stats.modules,
+        bytes: built.stats.bytes,
+        dataRows: built.stats.dataRows,
+        score: stored.score,
+        pages: built.stats.pages,
+        buildMs: built.buildMs,
+        visibility: stored.visibility,
+        url: `/p/${stored.slug}`,
+      });
+      apex.addon = APEX_BUILT_ADDON;
+      void awardXp(user.uid, "apex_build").catch(() => undefined);
+    } catch (e) {
+      console.warn("[apex] build failed, falling back to the model contract:", e instanceof Error ? e.message : e);
+      apex.addon = APEX_COMPLETE_ADDON;
+    }
+  } else if (apexTurn.codeInChat || isBuildRequest(lastUser)) {
+    /* the user wants the code itself (or the engine did not claim the request):
+       hand the model the completeness contract instead of a silent snippet */
+    apex.addon = APEX_COMPLETE_ADDON;
+  }
+
+  /* NEXUS BRAIN v18: exact facts (TVA, couriers, wilayas, postcodes, universities,
+     engineering rules) retrieved from the shipped corpus and injected *as data*
+     — the single cheapest way to make every model stop guessing numbers. */
+  const brainBlock = apexTurn.build ? "" : brainBrief(lastUser, { limit: 5, maxChars: 1400 });
   const memBlock =
+    apex.addon +
     mindBrief +
+    brainBlock +
     (isPro && credit.tracked ? await loadMemoryBlock(user.uid) : "") +
     // v19 RAG: semantically relevant long-term memory (vector recall, best-effort)
     (isPro && credit.tracked ? await buildMemoryContext(user.uid, lastUser, { topK: 4, budget: 1200 }).catch(() => "") : "") +
@@ -694,10 +830,79 @@ export async function POST(req: Request) {
   }
 
   const startedAt = Date.now();
+
+  /* ---- v18: a model-written deliverable is completed, verified and published ---- */
+  let deliverable: { text: string; mark: Promise<string> } | null = null;
+  const finishDeliverable = (full: string): Promise<string> => {
+    if (apex.line) return Promise.resolve(apex.line);
+    if (body.voice === true) return Promise.resolve("");
+    const answer = (full || "").trim();
+    if (answer.length < 260) return Promise.resolve("");
+    if (!isBuildRequest(lastUser) && !looksLikeDeliverable(answer)) return Promise.resolve("");
+    if (deliverable && deliverable.text === answer) return deliverable.mark;
+    const mark = (async () => {
+      try {
+        const result = completeStandalone(answer, { text: lastUser, source: "chat" });
+        /* below 55 the repaired page is still thin: better to say nothing than to
+           put a weak project card under a strong answer */
+        if (result.score < 55) return "";
+        const stored = await saveApexProject({
+          uid: user.uid,
+          title: result.plan.title || "مشروع",
+          tagline: result.plan.tagline || "",
+          blueprint: result.plan.blueprint,
+          kind: result.kind,
+          palette: result.palette.id,
+          lang: result.lang,
+          scale: "standalone",
+          plan: { ...result.plan, source: "chat", modules: result.modules.map((m) => m.id), request: lastUser.slice(0, 400) },
+          manifest: [{ path: "index.html", lines: result.stats.htmlLines, bytes: result.bytes, lang: "html" }],
+          html: result.html,
+          modules: result.modules.length,
+          lines: result.lines,
+          files: 1,
+          bytes: result.bytes,
+          score: result.score,
+          dataRows: result.stats.dataRows,
+          buildMs: 0,
+        });
+        apex.slug = stored.slug;
+        void awardXp(user.uid, "apex_build").catch(() => undefined);
+        return encodeApexMark({
+          slug: stored.slug,
+          title: result.plan.title || "مشروع",
+          tagline: result.plan.tagline,
+          blueprint: result.plan.blueprint,
+          kind: result.kind,
+          emoji: result.kind === "game" ? "🎮" : "🧩",
+          palette: result.palette.id,
+          lines: result.lines,
+          files: 1,
+          modules: result.modules.length,
+          bytes: result.bytes,
+          dataRows: result.stats.dataRows,
+          score: result.score,
+          pages: result.stats.pages,
+          buildMs: 0,
+          visibility: stored.visibility,
+          url: `/p/${stored.slug}`,
+        });
+      } catch (e) {
+        console.warn("[apex] standalone completion skipped:", e instanceof Error ? e.message : e);
+        return "";
+      }
+    })();
+    deliverable = { text: answer, mark };
+    return mark;
+  };
+
   const saveAnswer = async (full: string) => {
     if (!isPro && credit.tracked) void chargeStreamTime(user.uid, Date.now() - startedAt);
     try {
-      const text = cleanOutput(full).trim();
+      /* the project mark is part of the message: without it a reloaded
+         conversation would keep the prose and lose the card it describes */
+      const tail = await finishDeliverable(full);
+      const text = cleanOutput(tail ? `${full}\n\n${tail}` : full).trim();
       const id = await persistP;
       if (!text || !id) return;
       await db
@@ -716,7 +921,7 @@ export async function POST(req: Request) {
   };
 
   // every game / site / app request of a Pro account runs the MAX titan builder (single strongest engine, huge output)
-  const max = isPro && (body.max === true || isBuildRequest(lastUser));
+  const max = apex.line ? false : isPro && (body.max === true || isBuildRequest(lastUser));
   const maxAddon = max ? MAX_ENGINE_CONFIG.systemPromptAddon + (isBuildRequest(lastUser) ? LEGEND_ADDON + buildCommanderFor(lastUser) : "") + MARATHON_ADDON : "";
   const v8 = isPro && (body.v8 === true || max || chatMode?.hard === true);
   const persona = v8 && typeof body.persona === "string" ? (V8_PERSONAS[body.persona] ?? "") : "";
@@ -1197,8 +1402,15 @@ export async function POST(req: Request) {
     // preamble and the reasoning models' <think> blocks are removed here, so
     // the fix covers all 16 models at once instead of per-provider.
     const cleanStream = withDraftFilter(stream, { enabled: !voice && needsDraftStrip(pbKey) });
+    /* the build mark travels in front of the answer, so the UI can render the
+       project card even while the explanation is still streaming */
+    const outStream = apex.line
+      ? prependText(cleanStream, apex.line + "\n\n")
+      : isPro || isBuildRequest(lastUser)
+        ? appendText(cleanStream, finishDeliverable)
+        : cleanStream;
 
-    return streamToResponse(cleanStream, {
+    return streamToResponse(outStream, {
       "x-conversation-id": fixedConvId ?? "",
       "x-credits-remaining": String(credit.remaining),
       "x-plan": credit.plan,
@@ -1206,10 +1418,11 @@ export async function POST(req: Request) {
       ...(selection ? { "x-provider": externalStream ? selection.provider : "gemini" } : {}),
       ...(fellBackFrom ? { "x-fallback-from": fellBackFrom } : {}),
       ...(isPro ? { "x-model": usedModel, "x-engine": (build || hard) && !(max && build) ? "team" : voice ? "voice" : "fast", "x-task": task } : {}),
-      "x-nexus": "v18-atlas",
+      "x-nexus": "v18-atlas+apex",
       ...(atlas.kb.ids.length ? { "x-atlas-kb": atlas.kb.ids.join(",") } : {}),
       ...(atlas.vault.chunks ? { "x-atlas-vault": String(atlas.vault.chunks) } : {}),
       ...(atlasAssets ? { "x-atlas-assets": String(atlasAssets) } : {}),
+      ...(apex.slug ? { "x-apex": apex.slug, "x-apex-live": `/p/${apex.slug}` } : {}),
       ...(pbKey ? { "x-playbook": pbKey } : {}),
       ...(canvasOn && !promptAsk ? { "x-canvas": canvasKind } : {}),
       ...(max && build ? { "x-titan": "on" } : {}),

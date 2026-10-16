@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, Check, Gauge, Hand, Keyboard, Mic, MicOff, PhoneOff, Sparkles, Waves, X } from "lucide-react";
+import { AlertCircle, ArrowUp, Check, Gauge, Hand, Keyboard, Mic, MicOff, PhoneOff, Sparkles, Waves, X, Zap } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useCredits } from "@/components/app/app-shell";
 import { VoiceSettings } from "@/components/chat/voice-recorder";
@@ -59,6 +59,16 @@ const PHASE_LABEL: Record<Phase, string> = {
   speaking: "Nexus AI v8.4 يتكلّم — اضغط على الكرة باش تقاطعه",
   paused: "اضغط على الكرة باش نكملو",
   error: "صرا مشكل",
+};
+
+/** the room takes the colour of the state — the screen (and the user) always knows what is happening */
+const PHASE_GLOW: Record<Phase, string> = {
+  idle: "rgba(217,119,87,.22)",
+  listening: "rgba(52,211,153,.28)",
+  thinking: "rgba(167,139,250,.28)",
+  speaking: "rgba(125,211,252,.3)",
+  paused: "rgba(250,204,21,.22)",
+  error: "rgba(244,63,94,.28)",
 };
 
 const ERR_TEXT: Record<string, string> = {
@@ -264,6 +274,8 @@ export function VoiceCall({
   const [lang, setLang] = useState<string>("ar-DZ");
   const [sttOk, setSttOk] = useState(true);
   const [ttsOk, setTtsOk] = useState(true);
+  /** which engine answered the last turn (team · fast · voice) — shown in the status bar */
+  const [health, setHealth] = useState("");
   /* v18 — switchable voice, mood, rate, emotion + measured latency */
   const [voice, setVoice] = useState<string>("Zephyr");
   const [mood, setMood] = useState<string>("warm");
@@ -498,6 +510,8 @@ export function VoiceCall({
         return;
       }
       applyHeaders(res);
+      const engine = res.headers.get("x-engine");
+      if (engine) setHealth(engine === "team" ? "فريق الموديلات" : engine === "voice" ? "صوت مباشر" : "سريع");
       const cid = res.headers.get("x-conversation-id");
       if (cid) convRef.current = cid;
 
@@ -747,6 +761,8 @@ export function VoiceCall({
   }, [gender, lang, mood]);
   const currentVoice = voiceById(voice);
 
+  const quality = phase === "error" ? -1 : phase === "idle" ? 2 : 3;
+
   return (
     <AnimatePresence>
       {open && (
@@ -759,89 +775,157 @@ export function VoiceCall({
           role="dialog"
           aria-modal="true"
           aria-label="مكالمة صوتية مع Nexus AI v8.4"
-          className="fixed inset-0 z-[95] flex flex-col bg-ink-950/95 text-white backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          className="fixed inset-0 z-[95] overflow-y-auto bg-[#04050a]/96 backdrop-blur-2xl"
         >
-          {/* header */}
-          <div className="flex items-center justify-between gap-3 px-4">
-            <div className="flex items-center gap-2 text-xs font-black">
-              <span className={cn("h-2.5 w-2.5 rounded-full", phase === "error" ? "bg-rose-400" : "animate-pulse bg-emerald-400")} />
-              <span dir="ltr" className="tabular-nums text-slate-300">
-                {mmss(seconds)}
-              </span>
-              <span className="rounded-full bg-white/8 px-2 py-0.5 text-[11px] text-slate-300">
-                {active.emoji} {active.label}
-              </span>
-              <span className="hidden rounded-full bg-white/8 px-2 py-0.5 text-[11px] text-slate-300 sm:inline-flex sm:items-center sm:gap-1">
-                <Waves className="size-3" /> {voiceById(voice).name.ar}
-              </span>
-              {latency !== null && (
-                <span
-                  className={cn(
-                    "hidden rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums sm:inline-flex sm:items-center sm:gap-1",
-                    latency < 900 ? "bg-emerald-500/18 text-emerald-300" : latency < 1800 ? "bg-amber-500/18 text-amber-300" : "bg-rose-500/18 text-rose-300"
-                  )}
-                  title="زمن توليد الصوت"
-                >
-                  <Gauge className="size-3" />
-                  <span dir="ltr">{(latency / 1000).toFixed(2)}s</span>
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPicker((v) => !v)}
-                aria-pressed={picker}
-                aria-label="غيّر الصوت"
-                title="غيّر الصوت والأسلوب"
-                className={cn(
-                  "grid size-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:text-white",
-                  picker && "ring-1 ring-brand-400/60 text-white"
-                )}
-              >
-                <Waves className="size-4" />
-              </button>
-              <VoiceSettings />
-              <button
-                type="button"
-                onClick={() => setTyping((v) => !v)}
-                aria-pressed={typing}
-                aria-label="اكتب بدل الكلام"
-                title="اكتب بدل الكلام"
-                className={cn(
-                  "grid size-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:text-white",
-                  typing && "ring-1 ring-brand-400/60"
-                )}
-              >
-                <Keyboard className="size-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* orb */}
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4">
-            <button
-              type="button"
-              onClick={onOrb}
-              aria-label={PHASE_LABEL[phase]}
-              className="grid place-items-center rounded-full outline-none transition active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-brand-400"
+          <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <motion.div
+              initial={{ opacity: 0, y: 18, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.3, ease: [0.2, 0.7, 0.3, 1] }}
+              className="nx-call flex min-h-[min(94vh,860px)] flex-col px-4 pb-4 pt-3"
             >
-              <Orb phase={phase} energyRef={energyRef} />
-            </button>
-            <p aria-live="polite" className="text-center text-sm font-black text-slate-200">
-              {phase === "error" && err ? err : muted && phase === "paused" ? "المايك مسكّر" : PHASE_LABEL[phase]}
-            </p>
-            {!sttOk && <p className="max-w-xs text-center text-xs text-amber-300">متصفحك ما يدعمش التعرّف على الصوت — اكتب رسائلك وNexus AI v8.4 يرد عليك بصوته.</p>}
-            {!ttsOk && <p className="max-w-xs text-center text-xs text-amber-300">متصفحك ما يدعمش القراءة الصوتية — الرد يظهر مكتوب.</p>}
+              <div
+                aria-hidden
+                className="nx-call-glow"
+                style={{ background: `radial-gradient(60% 60% at 50% 40%, ${PHASE_GLOW[phase]}, transparent 70%)` }}
+              />
 
-            {/* captions */}
-            <div ref={capRef} className="scroll-y max-h-[30vh] w-full max-w-xl space-y-2 rounded-2xl bg-white/[0.04] px-4 py-3 text-center">
-              {shownUser && <p className="text-[13px] leading-relaxed text-slate-400">{shownUser}</p>}
-              {reply && <p className="text-[17px] font-bold leading-relaxed text-white">{reply}</p>}
-              {!shownUser && !reply && <p className="text-[13px] text-slate-500">كلامك وردّ Nexus AI v8.4 يظهرو هنا مباشرة</p>}
-            </div>
-          </div>
+              {/* ── status bar: time, quality, persona ── */}
+              <div className="relative flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-[11.5px] font-black">
+                  <span className={cn("h-2 w-2 rounded-full", phase === "error" ? "bg-rose-400" : "bg-emerald-400")} />
+                  <span dir="ltr" className="tabular-nums text-slate-200">{mmss(seconds)}</span>
+                  <span className="hidden items-end gap-[2px] sm:flex" aria-hidden>
+                    {[6, 9, 12, 15].map((h, i) => (
+                      <i
+                        key={h}
+                        className={cn("block w-[3px] rounded-full", quality > i ? "bg-emerald-400" : "bg-white/20")}
+                        style={{ height: h }}
+                      />
+                    ))}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[10.5px] font-bold text-slate-300">
+                    {quality < 0 ? "الاتصال متقطّع" : quality >= 3 ? "HD · صوت نقي" : "اتصال جيد"}
+                  </span>
+                  <span className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[10.5px] font-bold text-slate-300 sm:inline-flex">
+                    <Waves className="size-3" /> {currentVoice.name.ar}
+                  </span>
+                  {latency !== null && (
+                    <span
+                      className={cn(
+                        "hidden items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-black tabular-nums sm:inline-flex",
+                        latency < 900 ? "bg-emerald-500/18 text-emerald-300" : latency < 1800 ? "bg-amber-500/18 text-amber-300" : "bg-rose-500/18 text-rose-300"
+                      )}
+                      title="زمن توليد الصوت"
+                    >
+                      <Gauge className="size-3" /> <span dir="ltr">{(latency / 1000).toFixed(2)}s</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {muted && (
+                    <span className="flex items-center gap-1 rounded-full border border-rose-400/40 bg-rose-500/15 px-2 py-0.5 text-[10.5px] font-black text-rose-200">
+                      <MicOff className="size-3" /> المايك مسكّر
+                    </span>
+                  )}
+                  {health && (
+                    <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[10.5px] font-bold text-slate-300">
+                      <Zap className="size-3 text-gold-300" /> {health}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPicker((v) => !v)}
+                    aria-pressed={picker}
+                    aria-label="غيّر الصوت"
+                    title={`استوديو الصوت: ${VOICE_CATALOG.length} صوتًا`}
+                    className={cn(
+                      "grid size-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-300 transition hover:text-white",
+                      picker && "ring-1 ring-brand-400/60 text-white"
+                    )}
+                  >
+                    <Waves className="size-4" />
+                  </button>
+                  <VoiceSettings />
+                </div>
+              </div>
 
+              {/* ── caller identity ── */}
+              <div className="relative mt-6 flex flex-col items-center gap-4">
+                <button
+                  type="button"
+                  onClick={onOrb}
+                  aria-label={PHASE_LABEL[phase]}
+                  className="relative grid place-items-center outline-none transition active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-brand-400 rounded-full"
+                >
+                  <span className="nx-call-halo" aria-hidden />
+                  <span className="nx-call-halo nx-h2" aria-hidden />
+                  <span className="nx-call-avatar" aria-hidden>
+                    <span className="grid h-[112px] w-[112px] place-items-center overflow-hidden rounded-full">
+                      <Orb phase={phase} energyRef={energyRef} />
+                    </span>
+                  </span>
+                  <span className="absolute -bottom-1 grid size-11 place-items-center rounded-full border border-white/15 bg-[#0d0e14] text-xl shadow-lg">
+                    {active.emoji}
+                  </span>
+                </button>
+
+                <div className="text-center">
+                  <div className="text-xl font-black tracking-tight text-white">Nexus AI v8.4</div>
+                  <div className="mt-0.5 text-[12.5px] font-bold text-slate-400">
+                    {active.label} · {lang === "ar" ? "عربي جزائري" : lang === "fr" ? "Français" : "English"}
+                  </div>
+                </div>
+
+                <div aria-live="polite" className="min-h-[26px] text-center">
+                  {(phase === "error" && err) ? (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/40 bg-rose-500/15 px-3 py-1 text-[12.5px] font-black text-rose-200">
+                      <AlertCircle className="size-4" /> {err}
+                    </span>
+                  ) : phase === "thinking" ? (
+                    <span className="inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">
+                      <span className="nx-think-orb" style={{ width: 18, height: 18 }} aria-hidden />
+                      <span className="nx-think-text" style={{ fontSize: 12.5 }}>يفكّر في الجواب…</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[12.5px] font-black text-slate-200">
+                      {phase === "listening" ? "🎙️ يسمعك الآن" : phase === "speaking" ? "🔊 يتكلّم" : phase === "paused" ? "وقفة — اضغط للمتابعة" : "اضغط للمكالمة"}
+                    </span>
+                  )}
+                </div>
+
+                {!sttOk && <p className="max-w-sm text-center text-[11.5px] font-semibold text-amber-300">متصفحك ما يدعمش التعرّف على الصوت — استعمل لوحة المفاتيح، وNexus AI v8.4 يرد بصوته.</p>}
+                {!ttsOk && <p className="max-w-sm text-center text-[11.5px] font-semibold text-amber-300">متصفحك ما يدعمش القراءة الصوتية — الرد يظهر مكتوب.</p>}
+              </div>
+
+              {/* ── live transcript ── */}
+              <div ref={capRef} className="no-scrollbar relative mt-5 min-h-[120px] flex-1 space-y-2.5 overflow-y-auto px-1 pb-1">
+                {!shownUser && !reply && (
+                  <p className="mt-6 text-center text-[12.5px] font-semibold text-slate-500">
+                    تكلّم عادي — كلامك وردّ Nexus AI v8.4 يبانو هنا مباشرة
+                  </p>
+                )}
+                {shownUser && (
+                  <div className="flex justify-end">
+                    <p className="nx-bubble nx-bubble-me max-w-[85%]" dir="auto">{shownUser}</p>
+                  </div>
+                )}
+                {reply && (
+                  <div className="flex justify-start">
+                    <p className="nx-bubble nx-bubble-ai max-w-[88%]" dir="auto">{reply}</p>
+                  </div>
+                )}
+                {phase === "thinking" && (
+                  <div className="flex justify-start">
+                    <span className="nx-bubble nx-bubble-ai nx-bubble-live inline-flex items-center gap-2 text-slate-300">
+                      <span className="nx-think-wave" aria-hidden>{[0, 1, 2, 3, 4].map((i) => <i key={i} style={{ animationDelay: `${i * 110}ms` }} />)}</span>
+                      يكتب…
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* ── voice studio: 30 voices, mood, emotion, speed (v18) ── */}
           {/* v18 — voice studio: pick any voice, mood, emotion and speed during the call */}
           <AnimatePresence>
             {picker && (
@@ -850,7 +934,7 @@ export function VoiceCall({
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-                className="mx-3 mb-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.05] backdrop-blur-xl"
+                className="relative mt-3 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.05] backdrop-blur-xl"
               >
                 <div className="max-h-[42vh] overflow-y-auto p-3">
                   <div className="mb-2 flex items-center gap-2">
@@ -960,106 +1044,115 @@ export function VoiceCall({
             )}
           </AnimatePresence>
 
-          {/* persona + language: only while paused / before talking, so the call screen stays clean */}
-          {(phase === "paused" || phase === "idle" || phase === "error") && (
-          <div className="space-y-2 px-3">
-            <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="radiogroup" aria-label="شخصية Nexus AI v8.4">
-              {VOICE_PERSONAS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={persona === p.id}
-                  title={p.hint}
-                  onClick={() => pickPersona(p.id)}
-                  className={cn(
-                    "inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 text-[12px] font-black transition active:scale-95",
-                    persona === p.id ? "bg-gold-400/20 text-gold-200 ring-1 ring-gold-400/50" : "bg-white/[0.06] text-slate-400 hover:text-white"
-                  )}
-                >
-                  <span aria-hidden>{p.emoji}</span>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center justify-center gap-1.5" role="radiogroup" aria-label="لغة الكلام">
-              {LANGS.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={lang === l.id}
-                  onClick={() => pickLang(l.id)}
-                  className={cn(
-                    "h-7 rounded-full px-3 text-[11px] font-black transition active:scale-95",
-                    lang === l.id ? "bg-brand-500/25 text-[#fff] ring-1 ring-brand-400/50" : "text-slate-500 hover:text-slate-200"
-                  )}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          )}
-
-          {/* typed fallback */}
-          {typing && (
-            <form
-              className="mx-auto mt-2 flex w-full max-w-xl items-center gap-2 px-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                submitDraft();
-              }}
-            >
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="اكتب لNexus AI v8.4…"
-                className="input-base min-w-0 flex-1"
-                autoFocus
-              />
-              <button
-                type="submit"
-                disabled={!draft.trim()}
-                aria-label="إرسال"
-                className="btn-primary !rounded-full !p-0 size-11 shrink-0"
-              >
-                <ArrowUp className="size-5" />
-              </button>
-            </form>
-          )}
-
-          {/* controls */}
-          <div className="mt-3 flex items-center justify-center gap-5 px-4">
-            <button
-              type="button"
-              onClick={toggleMute}
-              aria-pressed={muted}
-              aria-label={muted ? "شغّل المايك" : "سكّر المايك"}
-              className={cn(
-                "grid size-14 place-items-center rounded-full border transition active:scale-90",
-                muted ? "border-rose-400/50 bg-rose-500/15 text-rose-300" : "border-white/12 bg-white/[0.06] text-slate-200"
+              {/* ── persona + language ── */}
+              {(phase === "paused" || phase === "idle" || phase === "error") && (
+                <div className="relative mt-3 space-y-2">
+                  <div className="no-scrollbar flex gap-1.5 overflow-x-auto" role="radiogroup" aria-label="شخصية Nexus AI v8.4">
+                    {VOICE_PERSONAS.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={persona === p.id}
+                        title={p.hint}
+                        onClick={() => pickPersona(p.id)}
+                        className={cn(
+                          "inline-flex h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-3 text-[12px] font-black transition active:scale-95",
+                          persona === p.id ? "bg-gold-400/20 text-gold-200 ring-1 ring-gold-400/50" : "bg-white/[0.06] text-slate-400 hover:text-white"
+                        )}
+                      >
+                        <span aria-hidden>{p.emoji}</span>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5" role="radiogroup" aria-label="لغة الكلام">
+                    {LANGS.map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={lang === l.id}
+                        onClick={() => pickLang(l.id)}
+                        className={cn(
+                          "h-7 rounded-full px-3 text-[11px] font-black transition active:scale-95",
+                          lang === l.id ? "bg-brand-500/25 text-[#fff] ring-1 ring-brand-400/50" : "text-slate-500 hover:text-slate-200"
+                        )}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
-            >
-              {muted ? <MicOff className="size-6" /> : <Mic className="size-6" />}
-            </button>
-            <button
-              type="button"
-              onClick={hangup}
-              aria-label="إنهاء المكالمة"
-              className="grid size-[4.5rem] place-items-center rounded-full bg-gradient-to-b from-rose-500 to-rose-700 text-[#fff] shadow-[0_10px_30px_-8px_rgba(244,63,94,0.8)] transition active:scale-90"
-            >
-              <PhoneOff className="size-8" />
-            </button>
-            <button
-              type="button"
-              onClick={onOrb}
-              aria-label="قاطع أو أرسل الآن"
-              title="قاطع Nexus AI v8.4 أو أرسل كلامك الآن"
-              className="grid size-14 place-items-center rounded-full border border-white/12 bg-white/[0.06] text-slate-200 transition active:scale-90"
-            >
-              <Hand className="size-6" />
-            </button>
+
+              {/* ── typed fallback ── */}
+              {typing && (
+                <form
+                  className="relative mx-auto mt-3 flex w-full items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    submitDraft();
+                  }}
+                >
+                  <input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="اكتب لNexus AI v8.4…"
+                    className="input-base min-w-0 flex-1"
+                    autoFocus
+                  />
+                  <button type="submit" disabled={!draft.trim()} aria-label="إرسال" className="btn-primary !rounded-full !p-0 size-11 shrink-0">
+                    <ArrowUp className="size-5" />
+                  </button>
+                </form>
+              )}
+
+              {/* ── controls ── */}
+              <div className="relative mt-4 grid grid-cols-4 items-end justify-items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  aria-pressed={muted}
+                  aria-label={muted ? "شغّل المايك" : "سكّر المايك"}
+                  className={cn("nx-call-ctrl", muted && "nx-call-ctrl-on")}
+                >
+                  {muted ? <MicOff className="size-6" /> : <Mic className="size-6" />}
+                  <span>{muted ? "شغّل" : "كتم"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTyping((v) => !v)}
+                  aria-pressed={typing}
+                  aria-label="اكتب بدل الكلام"
+                  className={cn("nx-call-ctrl", typing && "nx-call-ctrl-on")}
+                >
+                  <Keyboard className="size-6" />
+                  <span>كتابة</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onOrb}
+                  aria-label="قاطع أو أرسل الآن"
+                  title="قاطع الكلام أو أرسل كلامك الآن"
+                  className="nx-call-ctrl"
+                >
+                  <Hand className="size-6" />
+                  <span>قاطع</span>
+                </button>
+
+                <button type="button" onClick={hangup} aria-label="إنهاء المكالمة" className="grid justify-items-center gap-1">
+                  <span className="nx-call-hangup"><PhoneOff className="size-8" /></span>
+                  <span className="text-[10.5px] font-black text-slate-400">إنهاء</span>
+                </button>
+              </div>
+
+              <p className="relative mt-3 text-center text-[10.5px] font-semibold text-slate-500">
+                الصوت يتكلّم مباشرة مع Nexus AI v8.4 بلا انتظار — اضغط الدائرة باش تقاطع أو تبعث
+              </p>
+            </motion.div>
           </div>
         </motion.div>
       )}
