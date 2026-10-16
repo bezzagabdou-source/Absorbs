@@ -1215,6 +1215,10 @@ async function streamLead(
 
 /** True when a code answer stops before its last fence / </html>. */
 export function looksCut(text: string): boolean {
+  /* v18 NEXUS CODE: the model asked for a continuation in its own protocol —
+     `[[CONTINUE: a.js, b.css]]`. The server continues by itself: the user never
+     has to type "continue", and the marker is stripped before it is displayed. */
+  if (/\[\[\s*CONTINUE\s*[:：]?/i.test(text.slice(-4000))) return true;
   const fences = (text.match(/```/g) ?? []).length;
   if (fences % 2 === 1) return true;
   const blocks = [...text.matchAll(/```html[ \t]*\r?\n([\s\S]*?)```/gi)];
