@@ -9,6 +9,8 @@
  * This module is shared by the browser and the API route: no server-only imports here.
  */
 
+import { NEXUS_CODE_FILE_CONTRACT } from "./nexus-code";
+
 export const MEGA_MAX_FILES = 150;
 export const MEGA_MAX_TOTAL = 10 * 1024 * 1024; // 10 MB of source
 export const MEGA_MAX_FILE = 400_000; // characters in a single file
@@ -219,6 +221,7 @@ export function fileUserPrompt(r: MegaFileRequest): string {
     r.digest ? `ALREADY WRITTEN (names they expose):\n${r.digest}` : "",
     needs ? `FILES YOU DEPEND ON:${needs}` : "",
     `YOUR FILE: ${r.path}\nWHAT IT CONTAINS: ${r.desc}\nTARGET SIZE: about ${r.kb} KB (at least 70% of it, all real content).\nWrite ${r.path} now.`,
+    NEXUS_CODE_FILE_CONTRACT,
   ]
     .filter(Boolean)
     .join("\n\n");
