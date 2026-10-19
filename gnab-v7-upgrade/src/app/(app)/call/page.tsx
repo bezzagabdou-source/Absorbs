@@ -38,6 +38,7 @@ export default function CallPage() {
   const [muted, setMuted] = useState(false);
   const [note, setNote] = useState('');
   const [supported, setSupported] = useState(true);
+  const [voiceName, setVoiceName] = useState('Kore');
   const recRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeRef = useRef(false);
@@ -46,6 +47,7 @@ export default function CallPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { try { const v = localStorage.getItem('gnab-voice'); if (v) setVoiceName(v); } catch (e) {} }, []);
   useEffect(() => {
     try {
       const unsub = onAuthStateChanged(fbAuth(), (u) => setUser(u));
@@ -82,7 +84,7 @@ export default function CallPage() {
         const res = await fetch('/api/voice/speak', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ text: clean }),
+          body: JSON.stringify({ text: clean, voice: voiceName }),
         });
         if (!res.ok) throw new Error('tts failed');
         const blob = await res.blob();
@@ -94,7 +96,7 @@ export default function CallPage() {
         await audio.play();
       } catch (e) { fallbackSpeak(clean, onDone); }
     })();
-  }, [user, fallbackSpeak]);
+  }, [user, fallbackSpeak, voiceName]);
 
   const startListening = useCallback(() => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -201,6 +203,16 @@ export default function CallPage() {
         <header style={{ textAlign: 'center' }}>
           <h1 style={{ fontSize: 21, fontWeight: 800, color: '#22314a' }}>مكالمة <span style={{ color: '#0e63c9' }}>GNAB AI</span></h1>
           <p style={{ fontSize: 12.5, color: '#5b6b82', marginTop: 4 }}>مكالمة صوتية حقيقية — تحدّث واستمع للرد فوراً</p>
+          <div style={{ marginTop: 8, display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 800, color: '#0e63c9', background: 'rgba(255,255,255,.75)', border: '1px solid rgba(255,255,255,.9)', padding: '5px 11px', borderRadius: 99 }}>🎙️ صوت Gemini البشري</span>
+            <select value={voiceName} onChange={(e) => { setVoiceName(e.target.value); try { localStorage.setItem('gnab-voice', e.target.value); } catch (err) {} }} style={{ padding: '7px 11px', borderRadius: 99, border: '1px solid #dbe4f0', background: '#fff', fontSize: 12.5, fontFamily: 'inherit', color: '#22314a' }}>
+              <option value='Kore'>صوت Kore — أنثى طبيعية</option>
+              <option value='Aoede'>صوت Aoede — أنثى ناعمة</option>
+              <option value='Charon'>صوت Charon — ذكر هادئ</option>
+              <option value='Fenrir'>صوت Fenrir — ذكر عميق</option>
+              <option value='Puck'>صوت Puck — مرح وحيوي</option>
+            </select>
+          </div>
         </header>
         <div style={{ display: 'grid', placeItems: 'center', padding: '30px 0 8px' }}>
           <div style={{ position: 'relative', width: 150, height: 150 }}>

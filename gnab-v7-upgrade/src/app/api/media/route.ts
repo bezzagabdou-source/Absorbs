@@ -43,6 +43,24 @@ export const POST = withAuth(async (req) => {
       const j = await r.json().catch(() => ({}));
       return Response.json(j, { status: r.status });
     }
+    if (kind === 'audio') {
+      const voice = String(body.voice || 'nova');
+      const r = await fetch(GEN + '/chat/completions', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          model: 'openai-audio',
+          modalities: ['text', 'audio'],
+          audio: { voice: voice, format: 'mp3' },
+          messages: [{ role: 'user', content: 'Read this aloud exactly as written: ' + String(body.prompt || '') }],
+        }),
+      });
+      const j: any = await r.json().catch(() => ({}));
+      const data = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.audio && j.choices[0].message.audio.data;
+      if (!r.ok || !data) return Response.json({ error: 'Audio generation failed', detail: JSON.stringify(j).slice(0, 300) }, { status: 502 });
+      const buf = Buffer.from(String(data), 'base64');
+      return new Response(buf, { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' } });
+    }
     const prompt = encodeURIComponent(String(body.prompt || 'beautiful landscape'));
     const w = Number(body.width || 1024);
     const h = Number(body.height || 1024);

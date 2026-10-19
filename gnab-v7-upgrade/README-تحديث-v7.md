@@ -12,3 +12,10 @@ Env: POLLINATIONS_API_KEY (sensitive) added on project prj_LiX1zfBsD9ohcM6eGsQKi
 NOTE: v7 code.ts MUST keep exports codeKnowledge() and sizeDirective() (called by projects routes) and system-prompt SystemPromptOptions.userText.
 
 Update 2026-10-19 (2): POLLINATIONS_API_KEY replaced with user new secret key (env id kJUz9Yml9WoMvGJM, sensitive, all targets) — verified live: polliDirect 200, /api/media 200, Gemini TTS speak 200 (148410 bytes), auth E2E 200. Clean production deployment: dpl_HqARymSDtuFcPAdpmGbRfPubTWhT (no tkx9, 404 verified).
+
+## 2026-10-19 — واجهة مرئية جديدة (استوديو Pollinations + اختيار الصوت) — PRODUCTION
+- deploy نظيف: `dpl_EnodywNKYwpLxqpR4rFbhHpYgTST` (78 عنصر)
+- صفحة `/images` ولات **استوديو Pollinations**: 7 تبويبات (نص/صور/فيديو/صوت/3D ثلاث.js/تضمينات/وقت حقيقي مفتاح) — `images/page.tsx` sha `858e7655…`
+- `/api/media` + صوت عبر gen chat/completions (openai-audio) — sha نهائي `450d1b4a…`
+- صفحة `/call`: اختيار صوت Gemini (Kore/Aoede/Charon/Fenrir/Puck) محفوظ في المتصفح — sha `08490231…`
+- تحقق حي: نص 200 ✅، صورة jpeg 200 ✅، صوت mp3 200 ✅، Gemini TTS 200 ✅، auth 200 ✅؛ tkx9 الآن 404 ✅
