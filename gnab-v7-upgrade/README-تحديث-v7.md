@@ -10,3 +10,5 @@ Changed files (blob sha1 == sha1 of file content):
 - src/app/api/media/route.ts ea44bff1 — NEW Pollinations passthrough (text/image/embeddings/video)
 Env: POLLINATIONS_API_KEY (sensitive) added on project prj_LiX1zfBsD9ohcM6eGsQKiUqDtX9b, verified live 200.
 NOTE: v7 code.ts MUST keep exports codeKnowledge() and sizeDirective() (called by projects routes) and system-prompt SystemPromptOptions.userText.
+
+Update 2026-10-19 (2): POLLINATIONS_API_KEY replaced with user new secret key (env id kJUz9Yml9WoMvGJM, sensitive, all targets) — verified live: polliDirect 200, /api/media 200, Gemini TTS speak 200 (148410 bytes), auth E2E 200. Clean production deployment: dpl_HqARymSDtuFcPAdpmGbRfPubTWhT (no tkx9, 404 verified).
