@@ -85,7 +85,7 @@ jobs:
               playwright install chromium --with-deps >/dev/null 2>&1 \
                 || playwright install chromium >/dev/null 2>&1 || true
               PYTHONPATH=legendary-studio SOURCE_OUT="$OUT" \
-                python legendary/cloudflare_fetch.py || true
+                python legendary-studio/legendary/cloudflare_fetch.py || true
             fi
             if [ ! -s "$OUT" ]; then
               python legendary-studio/download_reel.py --direct "$SOURCE_URL" -o "$OUT" || true
