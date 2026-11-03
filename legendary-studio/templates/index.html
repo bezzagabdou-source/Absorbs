@@ -62,7 +62,11 @@ button.go:disabled{opacity:.55;cursor:not-allowed;transform:none}
 .console:empty::after{content:"سجلّ العمليات سيظهر هنا…";color:#6b6780}
 .result{margin-top:16px;display:none}
 .result.on{display:block}
-.btn-dl{display:block;text-align:center;text-decoration:none;background:linear-gradient(100deg,#5cdcff,#a06bff);color:#08121a;font-weight:800;padding:13px;border-radius:13px;margin-top:12px}
+.btn-dl{display:block;text-align:center;text-decoration:none;background:linear-gradient(100deg,#5cdcff,#a06bff);color:#08121a;font-weight:800;padding:13px;border-radius:13px;margin-top:0}
+.dlbox{background:linear-gradient(135deg,rgba(92,220,255,.09),rgba(160,107,255,.09));border:1px solid rgba(92,220,255,.22);border-radius:16px;padding:14px;margin-bottom:16px}
+.linkrow{display:flex;gap:8px}
+.linkrow input{direction:ltr;text-align:left;font-size:11px}
+.linkrow button{flex:0 0 auto;border:1px solid var(--line);background:rgba(255,255,255,.07);color:var(--txt);border-radius:11px;padding:0 14px;cursor:pointer;font:inherit;font-size:12px}
 .edl{display:flex;height:34px;border-radius:9px;overflow:hidden;margin-top:14px;border:1px solid var(--line)}
 .edl div{display:grid;place-items:center;font-size:9px;color:#0b0810;font-weight:800;overflow:hidden}
 .tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
@@ -134,6 +138,12 @@ footer{text-align:center;color:var(--dim);font-size:11.5px;margin-top:34px;line-
   <!-- ================= PREVIEW ================= -->
   <section class="card">
     <h2>▶️ <span>المعاينة والنتيجة</span></h2>
+    <div class="dlbox">
+      <a class="btn-dl" id="dlMain" href="/download/DEMO.mp4" download>⬇️ حمّل الفيديو الأسطوري الآن — MP4 1080×1920</a>
+      <label style="margin-top:12px">🔗 رابط التحميل المباشر (انسخه وشاركه)</label>
+      <div class="linkrow"><input type="text" id="dlLink" readonly><button type="button" id="copy">نسخ</button></div>
+      <div class="hint" style="text-align:right;margin-top:8px">رابط دائم على GitHub (يبقى بعد إغلاق المعاينة):<br><a id="ghLink" dir="ltr" style="color:var(--cyan);font-size:11px;word-break:break-all" href="https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/LEGENDARY_DEMO_1080x1920.mp4">https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/LEGENDARY_DEMO_1080x1920.mp4</a></div>
+    </div>
     <div class="player"><video id="player" controls playsinline poster=""></video></div>
     <div class="hint" id="hint">هذا <b>فيديو تجريبي حقيقي</b> رُندِر بالمحرك نفسه (9 لقطات · ومضات · عناوين عربية · تصميم صوتي). بعد الرفع سيحلّ مونتاجك محلّه.</div>
 
@@ -165,6 +175,19 @@ footer{text-align:center;color:var(--dim);font-size:11.5px;margin-top:34px;line-
 const $ = s => document.querySelector(s);
 const demo = "/media/DEMO.mp4";
 $("#player").src = demo;
+
+// direct download links (absolute URL works through the preview proxy)
+function setLink(rel){
+  $("#dlLink").value = location.origin + "/download/" + rel;
+  $("#dlMain").href = "/download/" + rel;
+}
+setLink("DEMO.mp4");
+$("#copy").onclick = async () => {
+  const v = $("#dlLink").value;
+  try { await navigator.clipboard.writeText(v); } catch(e) { $("#dlLink").select(); document.execCommand("copy"); }
+  $("#copy").textContent = "✅ تم";
+  setTimeout(() => $("#copy").textContent = "نسخ", 1500);
+};
 
 // drag & drop
 const drop = $("#drop"), file = $("#video");
@@ -203,7 +226,9 @@ async function poll(jid){
       clearInterval(timer); $("#go").disabled = false;
       const src = "/media/" + s.output;
       $("#player").src = src; $("#player").load(); $("#player").play().catch(()=>{});
-      $("#dl").href = src; $("#result").classList.add("on");
+      $("#dl").href = "/download/" + s.output; $("#result").classList.add("on");
+      setLink(s.output);
+      $("#dlMain").textContent = "⬇️ حمّل مونتاجك الأسطوري الآن — MP4";
       $("#hint").innerHTML = "✅ <b>مونتاجك جاهز</b> — حمّله أو شاركه مباشرة.";
       const rp = s.report || {};
       $("#stats").innerHTML = `المدة <b>${rp.duration}s</b> · الدقة <b>${(rp.output_size||[]).join("×")}</b> · `+

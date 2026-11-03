@@ -11,3 +11,8 @@ __pycache__/
 *.ogg
 *.log
 .DS_Store
+
+# Exception: ONE exported demo is versioned on purpose so a permanent public
+# download URL exists after the live preview stops (GitHub raw link in README).
+!downloads/
+!downloads/*.mp4

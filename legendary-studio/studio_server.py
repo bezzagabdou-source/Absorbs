@@ -167,6 +167,32 @@ def media(rel: str):
     return send_from_directory(OUT, rel, conditional=True)
 
 
+@app.get("/download/<path:rel>")
+def download(rel: str):
+    """Force a real file download (Content-Disposition: attachment)."""
+    return send_from_directory(OUT, rel, as_attachment=True,
+                               download_name=os.path.basename(rel))
+
+
+@app.get("/api/videos")
+def api_videos():
+    """Every renderable MP4 currently available, with direct download links."""
+    items = []
+    for root, _dirs, files in os.walk(OUT):
+        for name in files:
+            if not name.lower().endswith(".mp4"):
+                continue
+            full = os.path.join(root, name)
+            rel = os.path.relpath(full, OUT).replace(os.sep, "/")
+            items.append({
+                "name": name,
+                "path": rel,
+                "download": "/download/" + rel,
+                "size": os.path.getsize(full),
+            })
+    return jsonify(origin=request.host_url.rstrip("/"), videos=sorted(items, key=lambda x: -x["size"]))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="0.0.0.0")

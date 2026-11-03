@@ -24,6 +24,18 @@
 
 ---
 
+## 🔗 روابط تحميل الفيديو المُرندَر
+
+| النوع | الرابط | ملاحظة |
+|---|---|---|
+| **دائم (GitHub)** | [`LEGENDARY_DEMO_1080x1920.mp4`](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/LEGENDARY_DEMO_1080x1920.mp4) | نسخة `fantasy` · 1080×1920 · 8s · 8.3 MB — يبقى بعد إغلاق المعاينة |
+| **من الاستوديو** | `https://<host>/download/DEMO.mp4` | الزر «حمّل الفيديو» + خانة «رابط التحميل المباشر» تنسخ الرابط المطلق تلقائياً |
+| **بعد رفع فيديوك** | `https://<host>/download/jobs/<id>/LEGENDARY_CUT.mp4` | يتولّد تلقائياً عند اكتمال كل مهمة |
+
+الملف الوحيد المُثبَّت في Git هو `downloads/LEGENDARY_DEMO_1080x1920.mp4` (استثناء مقصود في `.gitignore`) باش يبقى رابط التحميل العام شغّال. باقي المخرجات في `out/` مستثناة من Git.
+
+---
+
 ## 🚀 التشغيل في 3 أوامر
 
 ```bash
