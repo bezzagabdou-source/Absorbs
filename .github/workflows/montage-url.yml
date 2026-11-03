@@ -1,0 +1,91 @@
+name: Montage Direct MP4 URL
+# Sandbox egress is limited to github.com, so a GitHub Actions runner fetches the
+# user's direct MP4 link, renders it with the studio committed here, and pushes
+# the finished montage back to THIS SAME BRANCH (never any other branch).
+on:
+  push:
+    branches: [arena/ecff9abf-absorbs]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  montage:
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name == 'workflow_dispatch' ||
+       contains(github.event.head_commit.message || '', '[montage-url]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SOURCE_URL: 'https://www.image2url.com/r2/default/videos/1793744278259-bf9535b0-acc5-4e41-ae44-a6a1891f0a69.mp4'
+    steps:
+      - name: Checkout this branch
+        uses: actions/checkout@v4
+        with:
+          ref: arena/ecff9abf-absorbs
+          fetch-depth: 0
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the legendary stack
+        run: |
+          python -m pip install -q --upgrade pip
+          python -m pip install -q -r legendary-studio/requirements.txt
+          FFBIN=$(python -c 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())')
+          echo "FFMPEG_BINARY=$FFBIN" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/ffbin"
+          ln -sf "$FFBIN" "$RUNNER_TEMP/ffbin/ffmpeg"
+          echo "$RUNNER_TEMP/ffbin" >> "$GITHUB_PATH"
+          mkdir -p legendary-studio/out legendary-studio/downloads
+
+      - name: Download source MP4
+        run: |
+          {
+            echo "SOURCE_URL=$SOURCE_URL"
+            curl -L --fail --retry 3 --connect-timeout 20 --max-time 300 \
+              -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36" \
+              "$SOURCE_URL" -o legendary-studio/out/source_url.mp4 \
+            || python legendary-studio/download_reel.py --direct "$SOURCE_URL" \
+                 -o legendary-studio/out/source_url.mp4
+            ls -lh legendary-studio/out/source_url.mp4
+            PYTHONPATH=legendary-studio python -c "from legendary.ffmpeg import probe; print('PROBE', probe('legendary-studio/out/source_url.mp4'))"
+          } 2>&1 | tee legendary-studio/downloads/URL_LOG.txt
+          test -s legendary-studio/out/source_url.mp4
+
+      - name: LEGENDARY montage
+        run: |
+          {
+            PYTHONPATH=legendary-studio python -m legendary.cli \
+              -i legendary-studio/out/source_url.mp4 \
+              -o legendary-studio/downloads/URL_LEGENDARY.mp4 \
+              --preset fantasy --crf 19 --x264-preset veryfast \
+              --max-duration 60 --fps 30 \
+              --title "مونتاج أسطوري" --subtitle "الأسطورة تبدأ الآن" \
+              --outro "ABSORBS · LEGENDARY CUT" \
+              --json > legendary-studio/downloads/URL_REPORT.json
+            ls -lh legendary-studio/downloads/URL_LEGENDARY.mp4
+          } 2>&1 | tee -a legendary-studio/downloads/URL_LOG.txt
+
+      - name: Publish MP4 + status to this same branch
+        if: always()
+        run: |
+          git config user.name "arena-reel-bot"
+          git config user.email "arena-reel-bot@users.noreply.github.com"
+          if [ -f legendary-studio/downloads/URL_LEGENDARY.mp4 ]; then
+            echo "STATUS=ok" > legendary-studio/downloads/URL_STATUS.txt
+            echo "SOURCE=$SOURCE_URL" >> legendary-studio/downloads/URL_STATUS.txt
+            git add -f legendary-studio/downloads/URL_LEGENDARY.mp4 \
+                       legendary-studio/downloads/URL_REPORT.json \
+                       legendary-studio/downloads/URL_STATUS.txt
+          else
+            echo "STATUS=failed" > legendary-studio/downloads/URL_STATUS.txt
+            git add legendary-studio/downloads/URL_STATUS.txt
+          fi
+          [ -f legendary-studio/downloads/URL_LOG.txt ] && git add -f legendary-studio/downloads/URL_LOG.txt || true
+          git commit -m "chore(url-montage): publish result [skip ci]" || echo "nothing to commit"
+          git push origin HEAD:arena/ecff9abf-absorbs || true
