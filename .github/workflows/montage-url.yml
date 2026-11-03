@@ -80,6 +80,14 @@ jobs:
             echo "=== last response body preview ==="
             head -c 700 "$OUT.tmp" 2>/dev/null | strings | head -20
             if [ ! -s "$OUT" ]; then
+              echo "=== Cloudflare challenge: curl_cffi + headless Chromium ==="
+              python -m pip install -q curl_cffi playwright || true
+              playwright install chromium --with-deps >/dev/null 2>&1 \
+                || playwright install chromium >/dev/null 2>&1 || true
+              PYTHONPATH=legendary-studio SOURCE_OUT="$OUT" \
+                python legendary/cloudflare_fetch.py || true
+            fi
+            if [ ! -s "$OUT" ]; then
               python legendary-studio/download_reel.py --direct "$SOURCE_URL" -o "$OUT" || true
             fi
             ls -lh "$OUT" 2>/dev/null || echo "NO FILE"
