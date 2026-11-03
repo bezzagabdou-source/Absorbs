@@ -1,6 +1,6 @@
 # Nexus AI v11.0 — LEGEND
 
-> 🎬 **جديد — [`legendary-studio/`](./legendary-studio/README.md)**: استوديو مونتاج سينمائي تلقائي (FFmpeg + yt-dlp + تصميم صوتي مولّد بـ numpy). ارفع فيديو ريل في المتصفح واحصل على نسخة أسطورية: رفع جودة، تدرّج ألوان، ومضات، glitch، عناوين عربية، ومكس صوتي متزامن مع الإيقاع. `cd legendary-studio && ./setup.sh && ./studio.sh`
+> 🎬 **جديد — [`legendary-studio/`](./legendary-studio/README.md)**: استوديو مونتاج سينمائي تلقائي (FFmpeg + yt-dlp + تصميم صوتي مولّد بـ numpy). ريل إنستغرام `DfSkvUnxXb7` **تنزّل ورُندِر فعلياً** عبر GitHub Actions → [حمّل `REEL_LEGENDARY.mp4`](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/REEL_LEGENDARY.mp4) (1080×1920 · 22 لقطة). ارفع أي فيديو في المتصفح واحصل على نفس المونتاج. `cd legendary-studio && ./setup.sh && ./studio.sh`
 
 مساعد للسوق الجزائري والعربي: محادثة بالدارجة والعربية والفرنسية، 10 أدوات جاهزة، نظام نقاط يومي، وترقية Pro بالدينار (v8: أدوات الكود، صانع الألعاب، رفع الملفات، أحدث النماذج).
 تطبيق **PWA** — Next.js 16 · Firebase Auth · فريق AI موحّد (Claude + Gemini + DeepSeek + Grok + OpenRouter + Groq) · PostgreSQL (Drizzle) · Chargily Pay.

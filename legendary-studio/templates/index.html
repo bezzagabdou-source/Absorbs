@@ -83,8 +83,7 @@ footer{text-align:center;color:var(--dim);font-size:11.5px;margin-top:34px;line-
 </header>
 
 <div class="notice">
-<b>ملاحظة مهمة بخصوص رابط إنستغرام:</b> هذه البيئة المعزولة لا تملك وصولاً إلى <code>instagram.com</code> (أكدّنا ذلك بـ <b>yt-dlp</b>)، لذلك لا أستطيع تنزيل الريل مباشرةً من هنا.
-الحل: <b>ارفع ملف الفيديو</b> من جهازك في الخانة بالأسفل، أو الصق رابطاً من شبكتك أنت (مع الكوكيز)، وسيُطبَّق عليه كامل المونتاج فوراً. يوجد أيضاً <b>فيديو تجريبي مُرندَر بالفعل</b> على اليسار لتشاهد النتيجة.
+✅ <b>تمّ!</b> الريل <code>DfSkvUnxXb7</code> تنزّل فعلياً عبر <b>yt-dlp</b> على سيرفر GitHub Actions (لأن الساندبوكس محجوب عنه)، ثم طُبّق عليه المونتاج الأسطوري الكامل: <b>20.83s · 22 لقطة · 1080×1920 · صوت سينمائي مولّد</b>. المعروض على اليسار هو <b>فيديوك الحقيقي</b> موش نسخة تجريبية. تقدر كمان ترفع فيديو آخر وتعيد المونتاج بنفس المحرك.
 </div>
 
 <div class="grid">
@@ -139,13 +138,13 @@ footer{text-align:center;color:var(--dim);font-size:11.5px;margin-top:34px;line-
   <section class="card">
     <h2>▶️ <span>المعاينة والنتيجة</span></h2>
     <div class="dlbox">
-      <a class="btn-dl" id="dlMain" href="/download/DEMO.mp4" download>⬇️ حمّل الفيديو الأسطوري الآن — MP4 1080×1920</a>
+      <a class="btn-dl" id="dlMain" href="/download/REEL_LEGENDARY.mp4" download>⬇️ حمّل مونتاج الريل الأسطوري الآن — MP4 1080×1920</a>
       <label style="margin-top:12px">🔗 رابط التحميل المباشر (انسخه وشاركه)</label>
       <div class="linkrow"><input type="text" id="dlLink" readonly><button type="button" id="copy">نسخ</button></div>
-      <div class="hint" style="text-align:right;margin-top:8px">رابط دائم على GitHub (يبقى بعد إغلاق المعاينة):<br><a id="ghLink" dir="ltr" style="color:var(--cyan);font-size:11px;word-break:break-all" href="https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/LEGENDARY_DEMO_1080x1920.mp4">https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/LEGENDARY_DEMO_1080x1920.mp4</a></div>
+      <div class="hint" style="text-align:right;margin-top:8px">رابط دائم على GitHub (يبقى بعد إغلاق المعاينة):<br><a id="ghLink" dir="ltr" style="color:var(--cyan);font-size:11px;word-break:break-all" href="https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/REEL_LEGENDARY.mp4">https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/REEL_LEGENDARY.mp4</a><br><a dir="ltr" style="color:var(--dim);font-size:11px;word-break:break-all" href="/download/DEMO.mp4">⚡ النسخة التجريبية الخيالية (8s)</a></div>
     </div>
     <div class="player"><video id="player" controls playsinline poster=""></video></div>
-    <div class="hint" id="hint">هذا <b>فيديو تجريبي حقيقي</b> رُندِر بالمحرك نفسه (9 لقطات · ومضات · عناوين عربية · تصميم صوتي). بعد الرفع سيحلّ مونتاجك محلّه.</div>
+    <div class="hint" id="hint">هذا <b>مونتاج الريل الأصلي</b> (22 لقط · ومضات · زووم · glitch · تدرّج ألوان · عناوين عربية · تصميم صوتي مولّد). بعد رفع فيديو آخر سيحلّ مونتاجه محلّه.</div>
 
     <div class="progress"><i id="bar"></i></div>
     <div style="font-size:12px;color:var(--dim)" id="stage">جاهز للعمل</div>
@@ -173,7 +172,7 @@ footer{text-align:center;color:var(--dim);font-size:11.5px;margin-top:34px;line-
 
 <script>
 const $ = s => document.querySelector(s);
-const demo = "/media/DEMO.mp4";
+const demo = "/media/REEL_LEGENDARY.mp4";
 $("#player").src = demo;
 
 // direct download links (absolute URL works through the preview proxy)
@@ -181,7 +180,7 @@ function setLink(rel){
   $("#dlLink").value = location.origin + "/download/" + rel;
   $("#dlMain").href = "/download/" + rel;
 }
-setLink("DEMO.mp4");
+setLink("REEL_LEGENDARY.mp4");
 $("#copy").onclick = async () => {
   const v = $("#dlLink").value;
   try { await navigator.clipboard.writeText(v); } catch(e) { $("#dlLink").select(); document.execCommand("copy"); }
