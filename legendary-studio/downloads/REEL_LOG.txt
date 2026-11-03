@@ -1,0 +1,34 @@
+URL=https://www.instagram.com/reel/DfSkvUnxXb7/
+=== embed page diagnostics ===
+embed HTTP 200 size 231655
+=== yt-dlp ===
+ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+❌ yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+embed: no playable MP4 found in Instagram embed pages (likely login-gated / private)
+▸ اتصال بـ yt-dlp (أداة GitHub الأسطورية)…
+⚠️  yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+   embed https://www.instagram.com/reel/DfSkvUnxXb7/embed/captioned/: 500201 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/captioned/: 500191 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/: 500177 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/reel/DfSkvUnxXb7/: 503470 bytes · 0 MP4 candidates
+⚠️  embed fallback: no playable MP4 found in Instagram embed pages (likely login-gated / private)
+ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+❌ yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+embed: no playable MP4 found in Instagram embed pages (likely login-gated / private)
+▸ اتصال بـ yt-dlp (أداة GitHub الأسطورية)…
+⚠️  yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+   embed https://www.instagram.com/reel/DfSkvUnxXb7/embed/captioned/: 500196 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/captioned/: 500187 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/: 500183 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/reel/DfSkvUnxXb7/: 500172 bytes · 0 MP4 candidates
+⚠️  embed fallback: no playable MP4 found in Instagram embed pages (likely login-gated / private)
+ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+❌ yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+embed: no playable MP4 found in Instagram embed pages (likely login-gated / private)
+▸ اتصال بـ yt-dlp (أداة GitHub الأسطورية)…
+⚠️  yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
+   embed https://www.instagram.com/reel/DfSkvUnxXb7/embed/captioned/: 500202 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/captioned/: 500186 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/: 500184 bytes · 0 MP4 candidates
+   embed https://www.instagram.com/reel/DfSkvUnxXb7/: 500164 bytes · 0 MP4 candidates
+⚠️  embed fallback: no playable MP4 found in Instagram embed pages (likely login-gated / private)
