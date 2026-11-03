@@ -114,9 +114,16 @@ def download_reel(
     yt_dlp = _import_ytdlp()
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     tmp = os.path.splitext(out)[0]
+    # yt-dlp needs ffmpeg to merge separate A/V streams. Give it the static build.
+    try:
+        import imageio_ffmpeg  # noqa: PLC0415
+        opts_ffmpeg = {"ffmpeg_location": imageio_ffmpeg.get_ffmpeg_exe()}
+    except Exception:
+        opts_ffmpeg = {}
     opts = {
         "outtmpl": tmp + ".%(ext)s",
-        "format": "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b",
+        # Prefer a single progressive MP4 (no merge); fall back to A/V merge.
+        "format": "b[ext=mp4][acodec!=none]/bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b",
         "merge_output_format": "mp4",
         "retries": 3,
         "socket_timeout": 20,
@@ -125,6 +132,7 @@ def download_reel(
         "noplaylist": True,
         "overwrites": True,
         "progress_hooks": [lambda d: progress(f"   {d.get('status')} {d.get('_percent_str','')}".strip())],
+        **opts_ffmpeg,
     }
     if cookies_from_browser:
         opts["cookiesfrombrowser"] = (cookies_from_browser,)

@@ -40,8 +40,14 @@ jobs:
         run: |
           python -m pip install -q --upgrade pip
           python -m pip install -q -r legendary-studio/requirements.txt
-          # Force the same static FFmpeg 9 build used locally (system ffmpeg is older)
-          echo "FFMPEG_BINARY=$(python -c 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())')" >> "$GITHUB_ENV"
+          # Force the same static FFmpeg 9 build used locally (system ffmpeg is older).
+          # Also expose it as `ffmpeg` on PATH, which yt-dlp needs to merge A/V.
+          FFBIN=$(python -c 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())')
+          echo "FFMPEG_BINARY=$FFBIN" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/ffbin"
+          ln -sf "$FFBIN" "$RUNNER_TEMP/ffbin/ffmpeg"
+          echo "$RUNNER_TEMP/ffbin" >> "$GITHUB_PATH"
+          ffmpeg -version | head -1
           mkdir -p legendary-studio/out legendary-studio/downloads
 
       - name: Download reel with yt-dlp (GitHub runner has internet)
