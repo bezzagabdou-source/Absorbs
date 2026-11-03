@@ -1,0 +1,6 @@
+SOURCE_URL=https://www.image2url.com/r2/default/videos/1793744278259-bf9535b0-acc5-4e41-ae44-a6a1891f0a69.mp4
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0  5719    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+curl: (22) The requested URL returned error: 403
+❌ HTTP Error 403: Forbidden
