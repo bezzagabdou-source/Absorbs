@@ -1,2 +1,2 @@
-STATUS=failed
-Check the Actions log (yt-dlp / Instagram login wall).
+STATUS=ok
+SOURCE=https://www.instagram.com/reel/DfSkvUnxXb7/

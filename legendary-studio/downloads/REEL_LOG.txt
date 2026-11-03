@@ -1,34 +1,30 @@
 URL=https://www.instagram.com/reel/DfSkvUnxXb7/
 === embed page diagnostics ===
-embed HTTP 200 size 231655
+embed HTTP 200 size 231680
 === yt-dlp ===
-ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-❌ yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-embed: no playable MP4 found in Instagram embed pages (likely login-gated / private)
-▸ اتصال بـ yt-dlp (أداة GitHub الأسطورية)…
-⚠️  yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-   embed https://www.instagram.com/reel/DfSkvUnxXb7/embed/captioned/: 500201 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/captioned/: 500191 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/: 500177 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/reel/DfSkvUnxXb7/: 503470 bytes · 0 MP4 candidates
-⚠️  embed fallback: no playable MP4 found in Instagram embed pages (likely login-gated / private)
-ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-❌ yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-embed: no playable MP4 found in Instagram embed pages (likely login-gated / private)
-▸ اتصال بـ yt-dlp (أداة GitHub الأسطورية)…
-⚠️  yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-   embed https://www.instagram.com/reel/DfSkvUnxXb7/embed/captioned/: 500196 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/captioned/: 500187 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/: 500183 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/reel/DfSkvUnxXb7/: 500172 bytes · 0 MP4 candidates
-⚠️  embed fallback: no playable MP4 found in Instagram embed pages (likely login-gated / private)
-ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-❌ yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-embed: no playable MP4 found in Instagram embed pages (likely login-gated / private)
-▸ اتصال بـ yt-dlp (أداة GitHub الأسطورية)…
-⚠️  yt-dlp: ERROR: You have requested merging of multiple formats but ffmpeg is not installed. Aborting due to --abort-on-error
-   embed https://www.instagram.com/reel/DfSkvUnxXb7/embed/captioned/: 500202 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/captioned/: 500186 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/p/DfSkvUnxXb7/embed/: 500184 bytes · 0 MP4 candidates
-   embed https://www.instagram.com/reel/DfSkvUnxXb7/: 500164 bytes · 0 MP4 candidates
-⚠️  embed fallback: no playable MP4 found in Instagram embed pages (likely login-gated / private)
+[download]   0.0% of    3.36MiB at  Unknown B/s ETA Unknown▸ اتصال بـ yt-dlp (أداة GitHub الأسطورية)…
+[download]   0.1% of    3.36MiB at  Unknown B/s ETA Unknowndownloading   0.0%
+[download]   0.2% of    3.36MiB at    1.55MiB/s ETA 00:02  downloading   0.1%
+[download]   0.4% of    3.36MiB at  235.82KiB/s ETA 00:14downloading   0.2%
+[download]   0.9% of    3.36MiB at  352.57KiB/s ETA 00:09downloading   0.4%
+[download]   1.8% of    3.36MiB at  443.46KiB/s ETA 00:07downloading   0.9%
+[download]   3.7% of    3.36MiB at  615.10KiB/s ETA 00:05downloading   1.8%
+[download]   7.4% of    3.36MiB at  945.80KiB/s ETA 00:03downloading   3.7%
+[download]  14.8% of    3.36MiB at    1.50MiB/s ETA 00:01downloading   7.4%
+[download]  29.7% of    3.36MiB at    2.51MiB/s ETA 00:00downloading  14.8%
+[download]  59.5% of    3.36MiB at    4.29MiB/s ETA 00:00downloading  29.7%
+[download] 100.0% of    3.36MiB at    6.54MiB/s ETA 00:00downloading  59.5%
+[download] 100% of    3.36MiB in 00:00:00 at 4.70MiB/s   downloading 100.0%
+                                                      finished 100.0%
+[download]   0.5% of  194.08KiB at  Unknown B/s ETA Unknown[download]   1.5% of  194.08KiB at  Unknown B/s ETA Unknowndownloading   0.5%
+[download]   3.6% of  194.08KiB at  824.33KiB/s ETA 00:00  downloading   1.5%
+[download]   7.7% of  194.08KiB at  236.19KiB/s ETA 00:00downloading   3.6%
+[download]  16.0% of  194.08KiB at  351.05KiB/s ETA 00:00downloading   7.7%
+[download]  32.5% of  194.08KiB at  443.91KiB/s ETA 00:00downloading  16.0%
+[download]  65.4% of  194.08KiB at  615.23KiB/s ETA 00:00downloading  32.5%
+[download] 100.0% of  194.08KiB at  803.89KiB/s ETA 00:00downloading  65.4%
+[download] 100% of  194.08KiB in 00:00:00 at 439.62KiB/s downloading 100.0%
+                                                        finished 100.0%
+✅ تم التحميل: legendary-studio/out/reel_source.mp4
+legendary-studio/out/reel_source.mp4
+-rw-r--r-- 1 runner runner 3.6M Nov  3 21:38 legendary-studio/out/reel_source.mp4
