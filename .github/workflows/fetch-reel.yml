@@ -1,0 +1,84 @@
+name: Fetch Reel + Legendary Montage
+# The sandbox can only reach github.com, so we let GitHub's own runner reach
+# instagram.com, render with the studio committed in this repo, and publish the
+# finished MP4 back to THIS SAME BRANCH (never any other branch).
+on:
+  push:
+    branches: [arena/ecff9abf-absorbs]
+  workflow_dispatch:
+    inputs:
+      reel_url:
+        description: Instagram reel URL
+        default: 'https://www.instagram.com/reel/DfSkvUnxXb7/'
+
+permissions:
+  contents: write
+
+jobs:
+  reel:
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name == 'workflow_dispatch' ||
+       contains(github.event.head_commit.message || '', '[fetch-reel]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      REEL_URL: ${{ github.event.inputs.reel_url || 'https://www.instagram.com/reel/DfSkvUnxXb7/' }}
+    steps:
+      - name: Checkout this branch
+        uses: actions/checkout@v4
+        with:
+          ref: arena/ecff9abf-absorbs
+          fetch-depth: 0
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install the legendary stack
+        run: |
+          python -m pip install -q --upgrade pip
+          python -m pip install -q -r legendary-studio/requirements.txt
+          # Force the same static FFmpeg 9 build used locally (system ffmpeg is older)
+          echo "FFMPEG_BINARY=$(python -c 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())')" >> "$GITHUB_ENV"
+          mkdir -p legendary-studio/out legendary-studio/downloads
+
+      - name: Download reel with yt-dlp (GitHub runner has internet)
+        run: |
+          set -x
+          python legendary-studio/download_reel.py "$REEL_URL" -o legendary-studio/out/reel_source.mp4 \
+            || python legendary-studio/download_reel.py "${REEL_URL%/}" -o legendary-studio/out/reel_source.mp4 \
+            || python legendary-studio/download_reel.py "$(echo "$REEL_URL" | sed 's#/reel/#/p/#')" -o legendary-studio/out/reel_source.mp4
+          ls -lh legendary-studio/out/reel_source.mp4
+
+      - name: LEGENDARY montage
+        run: |
+          PYTHONPATH=legendary-studio python -m legendary.cli \
+            -i legendary-studio/out/reel_source.mp4 \
+            -o legendary-studio/downloads/REEL_LEGENDARY.mp4 \
+            --preset fantasy --height 1920 --crf 19 --x264-preset veryfast \
+            --max-duration 45 --fps 30 \
+            --title "مونتاج أسطوري" --subtitle "الأسطورة تبدأ الآن" \
+            --outro "ABSORBS · LEGENDARY CUT" \
+            --json > legendary-studio/downloads/REEL_REPORT.json
+          ls -lh legendary-studio/downloads/
+
+      - name: Publish MP4 + status to this same branch
+        if: always()
+        run: |
+          git config user.name "arena-reel-bot"
+          git config user.email "arena-reel-bot@users.noreply.github.com"
+          if [ -f legendary-studio/downloads/REEL_LEGENDARY.mp4 ]; then
+            echo "STATUS=ok" > legendary-studio/downloads/REEL_STATUS.txt
+            echo "SOURCE=$REEL_URL" >> legendary-studio/downloads/REEL_STATUS.txt
+            git add -f legendary-studio/downloads/REEL_LEGENDARY.mp4 \
+                       legendary-studio/downloads/REEL_REPORT.json \
+                       legendary-studio/downloads/REEL_STATUS.txt
+          else
+            echo "STATUS=failed" > legendary-studio/downloads/REEL_STATUS.txt
+            echo "Check the Actions log (yt-dlp / Instagram login wall)." >> legendary-studio/downloads/REEL_STATUS.txt
+            git add legendary-studio/downloads/REEL_STATUS.txt
+          fi
+          git commit -m "chore(reel): publish montage result [skip ci]" || echo "nothing to commit"
+          git push origin HEAD:arena/ecff9abf-absorbs || true
