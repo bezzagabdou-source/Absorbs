@@ -90,9 +90,19 @@ def download_via_embed(url: str, out: str, progress=lambda msg: None) -> str:
 
 def download_direct(url: str, out: str) -> str:
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    headers = {
+        "User-Agent": _UA,
+        "Accept": "video/mp4,application/octet-stream,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.image2url.com/",
+        "Origin": "https://www.image2url.com",
+        "Sec-Fetch-Dest": "video",
+        "Sec-Fetch-Mode": "no-cors",
+        "Sec-Fetch-Site": "same-origin",
+    }
+    req = urllib.request.Request(url, headers=headers)
     ctx = ssl.create_default_context()
-    with urllib.request.urlopen(req, timeout=90, context=ctx) as r, open(out, "wb") as f:
+    with urllib.request.urlopen(req, timeout=120, context=ctx) as r, open(out, "wb") as f:
         while True:
             chunk = r.read(1 << 20)
             if not chunk:

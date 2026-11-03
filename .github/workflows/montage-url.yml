@@ -45,15 +45,45 @@ jobs:
 
       - name: Download source MP4
         run: |
+          set +e
           {
             echo "SOURCE_URL=$SOURCE_URL"
-            curl -L --fail --retry 3 --connect-timeout 20 --max-time 300 \
-              -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36" \
-              "$SOURCE_URL" -o legendary-studio/out/source_url.mp4 \
-            || python legendary-studio/download_reel.py --direct "$SOURCE_URL" \
-                 -o legendary-studio/out/source_url.mp4
-            ls -lh legendary-studio/out/source_url.mp4
-            PYTHONPATH=legendary-studio python -c "from legendary.ffmpeg import probe; print('PROBE', probe('legendary-studio/out/source_url.mp4'))"
+            UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+            BASE='https://www.image2url.com'
+            OUT='legendary-studio/out/source_url.mp4'
+            ENC=$(python -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['SOURCE_URL'],safe=''))")
+            rm -f "$OUT" "$OUT.tmp"
+            curl -sS -L --max-time 30 -A "$UA" -c /tmp/cj "$BASE/" -o /dev/null -w "homepage: %{http_code}\n" || true
+            try () {
+              label="$1"; url="$2"; shift 2
+              info=$(curl -sS -L --max-time 180 -A "$UA" "$@" -o "$OUT.tmp" \
+                     -w "%{http_code}|%{content_type}|%{size_download}" "$url" 2>>/tmp/curlerr)
+              echo "$label -> $info | curlerr=$(tail -c 160 /tmp/curlerr 2>/dev/null)"
+              echo "  first bytes: $(head -c 120 "$OUT.tmp" 2>/dev/null | tr -cd '[:print:]' | head -c 120)"
+              if echo "$info" | grep -q '^200|' && [ -s "$OUT.tmp" ] \
+                 && head -c 12 "$OUT.tmp" | grep -aq ftyp; then
+                cp "$OUT.tmp" "$OUT"; echo "SUCCESS:$label"; return 0
+              fi
+              return 1
+            }
+            H=(-e "$BASE/" -H "Origin: $BASE" -H "Accept: video/mp4,application/octet-stream,*/*"
+               -H "Accept-Language: en-US,en;q=0.9" -H "Sec-Fetch-Dest: video"
+               -H "Sec-Fetch-Mode: no-cors" -H "Sec-Fetch-Site: same-origin" -b /tmp/cj)
+            try "browser-full" "$SOURCE_URL" "${H[@]}" \
+            || try "range" "$SOURCE_URL" -e "$BASE/" -b /tmp/cj -H 'Range: bytes=0-' -H 'Accept: */*' \
+            || try "no-www" "$(echo "$SOURCE_URL" | sed 's#www\.##')" "${H[@]}" \
+            || try "download-param" "$SOURCE_URL?download=1" "${H[@]}" \
+            || try "http" "$(echo "$SOURCE_URL" | sed 's#^https://#http://#')" "${H[@]}" \
+            || try "allorigins" "https://api.allorigins.win/raw?url=$ENC" \
+            || try "codetabs" "https://api.codetabs.com/v1/proxy?quest=$ENC" \
+            || try "corsproxy" "https://corsproxy.io/?url=$ENC"
+            echo "=== last response body preview ==="
+            head -c 700 "$OUT.tmp" 2>/dev/null | strings | head -20
+            if [ ! -s "$OUT" ]; then
+              python legendary-studio/download_reel.py --direct "$SOURCE_URL" -o "$OUT" || true
+            fi
+            ls -lh "$OUT" 2>/dev/null || echo "NO FILE"
+            [ -s "$OUT" ] && PYTHONPATH=legendary-studio python -c "from legendary.ffmpeg import probe; print('PROBE', probe('$OUT'))"
           } 2>&1 | tee legendary-studio/downloads/URL_LOG.txt
           test -s legendary-studio/out/source_url.mp4
 
