@@ -15,6 +15,8 @@
 
 > إعادة التشغيل: أي commit رسالته تحتوي `[fetch-reel]` على هذا الفرع يعيد التنزيل + المونتاج تلقائياً.
 
+**الرابط المباشر (`image2url.com`)**: نفس الفكرة عبر [`.github/workflows/montage-url.yml`](../.github/workflows/montage-url.yml) مع فرق واحد — الموقع محمي بتحدّي Cloudflare «Just a moment…» (كل محاولات curl العادية والبروكسي رجعت 403). الحل في [`legendary/cloudflare_fetch.py`](./legendary/cloudflare_fetch.py): `curl_cffi` يقلّد بصمة TLS/HTTP2 الخاصة بـ Chrome (نجح من أول محاولة: 200 · video/mp4 · 4.7 MB)، ومعاه مسار احتياطي بـ Playwright/Chromium يحلّ التحدّي ويستعمل كوكي `cf_clearance`. أي commit رسالته `[montage-url]` يعيد العملية.
+
 ولو تحبّ تدخل فيديو آخر: ارفعه في الاستوديو، أو شغّل `download_reel.py` على جهازك مع `--cookies-from-browser chrome`، أو الصق رابط `.mp4` مباشر.
 
 ---
@@ -23,6 +25,7 @@
 
 | النوع | الرابط | ملاحظة |
 |---|---|---|
+| **🎬 مونتاج رابطك المباشر (الأحدث)** | **[`URL_LEGENDARY.mp4`](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4)** | `image2url.com` · 1080×1920 · 20.92s · 22.3 MB — Cloudflare تجاوزناه بـ `curl_cffi` على GitHub Actions |
 | **🎬 مونتاج الريل الحقيقي (دائم)** | **[`REEL_LEGENDARY.mp4`](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/REEL_LEGENDARY.mp4)** | إنستغرام `DfSkvUnxXb7` · 1080×1920 · 20.83s · 23.5 MB — **هذا هو المطلوب** |
 | **تجريبي (دائم)** | [`LEGENDARY_DEMO_1080x1920.mp4`](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/LEGENDARY_DEMO_1080x1920.mp4) | نسخة خيالية `fantasy` · 1080×1920 · 8s · 8.3 MB |
 | **من الاستوديو** | `https://<host>/download/DEMO.mp4` | الزر «حمّل الفيديو» + خانة «رابط التحميل المباشر» تنسخ الرابط المطلق تلقائياً |
