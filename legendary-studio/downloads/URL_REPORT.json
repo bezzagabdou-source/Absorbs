@@ -1,0 +1,185 @@
+{
+  "input": "/home/runner/work/Absorbs/Absorbs/legendary-studio/out/source_url.mp4",
+  "output": "/home/runner/work/Absorbs/Absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4",
+  "preset": "fantasy",
+  "bpm": 128.0,
+  "duration": 20.92,
+  "source": {
+    "width": 720,
+    "height": 1280,
+    "fps": 30.0,
+    "has_audio": true
+  },
+  "output_size": [
+    1080,
+    1920
+  ],
+  "fps": 30,
+  "shots": [
+    {
+      "index": 0,
+      "start": 0.0,
+      "end": 0.816,
+      "style": "hero",
+      "speed": 1.0
+    },
+    {
+      "index": 1,
+      "start": 0.816,
+      "end": 2.0,
+      "style": "impact",
+      "speed": 0.82
+    },
+    {
+      "index": 2,
+      "start": 2.0,
+      "end": 2.768,
+      "style": "glide",
+      "speed": 1.0
+    },
+    {
+      "index": 3,
+      "start": 2.768,
+      "end": 3.792,
+      "style": "hero",
+      "speed": 1.0
+    },
+    {
+      "index": 4,
+      "start": 3.792,
+      "end": 4.736,
+      "style": "glitch",
+      "speed": 0.9
+    },
+    {
+      "index": 5,
+      "start": 4.736,
+      "end": 5.667,
+      "style": "slow",
+      "speed": 1.38
+    },
+    {
+      "index": 6,
+      "start": 5.667,
+      "end": 6.562,
+      "style": "impact",
+      "speed": 0.82
+    },
+    {
+      "index": 7,
+      "start": 6.562,
+      "end": 7.6,
+      "style": "rush",
+      "speed": 0.72
+    },
+    {
+      "index": 8,
+      "start": 7.6,
+      "end": 8.56,
+      "style": "hero",
+      "speed": 1.0
+    },
+    {
+      "index": 9,
+      "start": 8.56,
+      "end": 9.5,
+      "style": "impact",
+      "speed": 0.82
+    },
+    {
+      "index": 10,
+      "start": 9.5,
+      "end": 10.352,
+      "style": "glide",
+      "speed": 1.0
+    },
+    {
+      "index": 11,
+      "start": 10.352,
+      "end": 11.25,
+      "style": "impact",
+      "speed": 0.82
+    },
+    {
+      "index": 12,
+      "start": 11.25,
+      "end": 12.188,
+      "style": "glitch",
+      "speed": 0.9
+    },
+    {
+      "index": 13,
+      "start": 12.188,
+      "end": 13.125,
+      "style": "slow",
+      "speed": 1.38
+    },
+    {
+      "index": 14,
+      "start": 13.125,
+      "end": 14.112,
+      "style": "impact",
+      "speed": 0.82
+    },
+    {
+      "index": 15,
+      "start": 14.112,
+      "end": 15.008,
+      "style": "rush",
+      "speed": 0.72
+    },
+    {
+      "index": 16,
+      "start": 15.008,
+      "end": 15.888,
+      "style": "hero",
+      "speed": 1.0
+    },
+    {
+      "index": 17,
+      "start": 15.888,
+      "end": 16.875,
+      "style": "impact",
+      "speed": 0.82
+    },
+    {
+      "index": 18,
+      "start": 16.875,
+      "end": 17.744,
+      "style": "glitch",
+      "speed": 0.9
+    },
+    {
+      "index": 19,
+      "start": 17.744,
+      "end": 18.768,
+      "style": "hero",
+      "speed": 1.0
+    },
+    {
+      "index": 20,
+      "start": 18.768,
+      "end": 19.744,
+      "style": "glitch",
+      "speed": 0.9
+    },
+    {
+      "index": 21,
+      "start": 19.744,
+      "end": 20.92,
+      "style": "slow",
+      "speed": 1.38
+    }
+  ],
+  "onsets": 55,
+  "scene_changes": 11,
+  "sfx": "/home/runner/work/Absorbs/Absorbs/legendary-studio/downloads/_work/sfx.wav",
+  "size_bytes": 23351579,
+  "tools": [
+    "FFmpeg/libx264",
+    "yt-dlp (GitHub)",
+    "numpy",
+    "Pillow",
+    "google/fonts · Noto Sans Arabic"
+  ]
+}

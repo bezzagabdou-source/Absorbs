@@ -8,9 +8,9 @@ no-www -> 403|text/html; charset=UTF-8|5971 | curlerr=
   first bytes: <!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/htm
 download-param -> 403|text/html; charset=UTF-8|6044 | curlerr=
   first bytes: <!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/htm
-http -> 403|text/html; charset=UTF-8|5954 | curlerr=
+http -> 403|text/html; charset=UTF-8|5975 | curlerr=
   first bytes: <!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/htm
-allorigins -> 403|text/html; charset=UTF-8|4551 | curlerr=
+allorigins -> 403|text/html; charset=UTF-8|4548 | curlerr=
   first bytes: <!DOCTYPE html><!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]--><!--[if IE 7]>    <html class
 codetabs -> 522|text/plain; charset=UTF-8|16 | curlerr=
   first bytes: error code: 522
@@ -19,6 +19,8 @@ corsproxy -> 401|application/json|81 | curlerr=
 === last response body preview ===
 {"error":"A valid API key is required. Get one at https://console.corsproxy.io/"}
 === Cloudflare challenge: curl_cffi + headless Chromium ===
-python: can't open file '/home/runner/work/Absorbs/Absorbs/legendary/cloudflare_fetch.py': [Errno 2] No such file or directory
-❌ HTTP Error 403: Forbidden
-NO FILE
+curl_cffi[chrome124] → 200 · video/mp4 · 4709577 bytes · b'\x00\x00\x00 ftypisom'
+✅ saved 4709577 bytes → legendary-studio/out/source_url.mp4
+-rw-r--r-- 1 runner runner 4.5M Nov  3 22:30 legendary-studio/out/source_url.mp4
+PROBE MediaInfo(duration=20.92, width=720, height=1280, fps=30.0, has_audio=True)
+-rw-r--r-- 1 runner runner 23M Nov  3 22:31 legendary-studio/downloads/URL_LEGENDARY.mp4

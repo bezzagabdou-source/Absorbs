@@ -1,1 +1,2 @@
-STATUS=failed
+STATUS=ok
+SOURCE=https://www.image2url.com/r2/default/videos/1793744278259-bf9535b0-acc5-4e41-ae44-a6a1891f0a69.mp4
