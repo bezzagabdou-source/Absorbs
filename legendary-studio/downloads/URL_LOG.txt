@@ -18,5 +18,7 @@ corsproxy -> 401|application/json|81 | curlerr=
   first bytes: {"error":"A valid API key is required. Get one at https://console.corsproxy.io/"}
 === last response body preview ===
 {"error":"A valid API key is required. Get one at https://console.corsproxy.io/"}
+=== Cloudflare challenge: curl_cffi + headless Chromium ===
+python: can't open file '/home/runner/work/Absorbs/Absorbs/legendary/cloudflare_fetch.py': [Errno 2] No such file or directory
 ❌ HTTP Error 403: Forbidden
 NO FILE
