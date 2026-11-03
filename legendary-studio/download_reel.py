@@ -13,7 +13,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html
 import os
+import re
 import ssl
 import sys
 import urllib.request
@@ -31,6 +33,59 @@ def _import_ytdlp():
         return yt_dlp
     except ImportError as exc:
         raise RuntimeError("yt-dlp مفقود: نفّذ ./setup.sh أولاً") from exc
+
+
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+
+
+def download_via_embed(url: str, out: str, progress=lambda msg: None) -> str:
+    """Fallback for public reels: Instagram's public embed page often embeds
+    the raw CDN .mp4 URL even when yt-dlp hits the login wall."""
+    m = re.search(r"/(?:reel|p|tv)/([A-Za-z0-9_-]+)", url)
+    if not m:
+        raise RuntimeError("cannot extract shortcode from URL")
+    sc = m.group(1)
+    headers = {"User-Agent": _UA, "Accept-Language": "en-US,en;q=0.9"}
+    pages = [
+        f"https://www.instagram.com/reel/{sc}/embed/captioned/",
+        f"https://www.instagram.com/p/{sc}/embed/captioned/",
+        f"https://www.instagram.com/p/{sc}/embed/",
+        f"https://www.instagram.com/reel/{sc}/",
+    ]
+    for page in pages:
+        try:
+            req = urllib.request.Request(page, headers=headers)
+            with urllib.request.urlopen(req, timeout=25, context=ssl.create_default_context()) as r:
+                body = r.read().decode("utf-8", "replace")
+        except Exception as exc:
+            progress(f"   embed {page}: {exc}")
+            continue
+        found = re.findall(r"https?[^\s\"'<]+?\.mp4[^\s\"'<]*", body)
+        found += re.findall(r'"video_url"\s*:\s*"([^"]+)"', body)
+        progress(f"   embed {page}: {len(body)} bytes · {len(found)} MP4 candidates")
+        for cand in found:
+            cand = (html.unescape(cand).replace("\\u0026", "&").replace("\\/", "/")
+                    .replace("&amp;", "&"))
+            if cand.startswith("//"):
+                cand = "https:" + cand
+            if not cand.startswith("http"):
+                continue
+            try:
+                req2 = urllib.request.Request(cand, headers={**headers, "Referer": page})
+                with urllib.request.urlopen(req2, timeout=90,
+                                           context=ssl.create_default_context()) as rr, open(out, "wb") as f:
+                    while True:
+                        chunk = rr.read(1 << 20)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                if os.path.getsize(out) > 10000:
+                    progress(f"✅ تم التحميل من CDN: {out}")
+                    return out
+            except Exception as exc2:
+                progress(f"   CDN attempt: {str(exc2)[:160]}")
+    raise RuntimeError("no playable MP4 found in Instagram embed pages (likely login-gated / private)")
 
 
 def download_direct(url: str, out: str) -> str:
@@ -84,16 +139,15 @@ def download_reel(
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
             produced = ydl.prepare_filename(info)
-    except Exception as exc:  # network / login / private reel
-        msg = str(exc)
-        if any(k in msg for k in ("SSL", "TLS", "Connection", "urlopen", "timed out", "Resolve")):
+    except Exception as exc:  # login wall / private reel → try public embed page
+        progress(f"⚠️  yt-dlp: {str(exc)[:280]}")
+        try:
+            return download_via_embed(url, out, progress)
+        except Exception as emb:
+            progress(f"⚠️  embed fallback: {str(emb)[:280]}")
             raise RuntimeError(
-                "تعذّر الوصول إلى Instagram من هذه البيئة (الشبكة محجوبة هنا).\n"
-                "✅ الحل: حمّل الفيديو من متصفحك ثم ارفعه في الاستوديو، أو شغّل "
-                "download_reel.py على جهازك، أو استعمل --direct مع رابط MP4 مباشر."
+                f"yt-dlp: {str(exc)[:280]}\nembed: {str(emb)[:280]}"
             ) from exc
-        raise RuntimeError(f"فشل التحميل: {msg[:500]}") from exc
-
     for ext in ("mp4", "mkv", "webm", "mov"):
         cand = f"{tmp}.{ext}"
         if os.path.isfile(cand):
