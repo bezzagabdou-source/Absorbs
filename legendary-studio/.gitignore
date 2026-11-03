@@ -1,0 +1,13 @@
+# Generated media + runtimes are NOT committed (they are reproducible via setup.sh)
+.venv/
+vendor/
+out/
+__pycache__/
+*.pyc
+*.mp4
+*.mkv
+*.mov
+*.wav
+*.ogg
+*.log
+.DS_Store
