@@ -182,14 +182,12 @@ def dispatch(ctx):
             if ctx.settings.get("admin_only") and not privileged:
                 return
     else:
-        # الخاص: المطالبة بالملكية
+        # الخاص: الملكية تُحسم بمفتاح سري فقط (ليس بأول /start)
         if not ctx.state.get("owner") and not os.environ.get("OWNER_ID"):
-            if ctx.nwords and ctx.nwords[0] in ("الاوامر", "start", "بدايه", "تفعيل"):
-                ctx.state["owner"] = ctx.user_id
-                ctx.dirty = ctx.force_save = True
-                ctx.reply(f"👑 <b>مبروك! أصبحت مطور البوت</b> {mention(ctx.user)}\n\n"
-                          "أوامرك الخاصة:\n• <b>اذاعة نص</b> — لكل المجموعات\n• <b>حظر عام</b> بالرد\n"
-                          "• <b>رفع مطور</b> بالرد\n• <b>الحالة</b> — إحصائيات\n\nاكتب (الاوامر) لاستكشاف كل شيء 🚀")
+            if ctx.nwords and ctx.nwords[0] in ("الاوامر", "start", "بدايه"):
+                ctx.reply("👑 <b>ملكية البوت محمية بمفتاح سري.</b>\n\n"
+                          "لتصبح المطور أرسل:\n<code>مفتاح المطور YOUR_SECRET_KEY</code>\n\n"
+                          "🔑 المفتاح عند مالك البوت فقط. من يملكه يتحكم بكل شيء.")
 
     if not ctx.text:
         # وسائط بلا نص: ملصق/صورة بدون أمر → لا شيء
@@ -379,7 +377,7 @@ def owner_commands(ctx):
         if owner:
             ctx.reply(f"👑 مطور البوت: <a href='tg://user?id={owner}'>المطور</a>\n🆔 <code>{owner}</code>")
         else:
-            ctx.reply("👑 لم يُعيّن مطور بعد — أول من يرسل /start في الخاص يصبح المطور.")
+            ctx.reply("👑 لم يُعيّن مطور بعد — أرسل (مفتاح المطور YOUR_KEY) في الخاص لتصبح المطور.")
         return True
 
     # استعادة الملكية بمفتاح الإعداد
@@ -390,7 +388,10 @@ def owner_commands(ctx):
         if rest.strip() == expect:
             ctx.state["owner"] = ctx.user_id
             ctx.dirty = ctx.force_save = True
-            ctx.reply("👑 تم نقل ملكية البوت إليك!")
+            ctx.reply(f"👑 <b>مبروك! أصبحت مطور البوت</b> {mention(ctx.user)} 🎉\n\n"
+                      "أوامرك الخاصة:\n• <b>اذاعة نص</b> — رسالة لكل المجموعات\n• <b>حظر عام</b> بالرد — حظر من الكل\n"
+                      "• <b>رفع مطور</b> بالرد — مطور مساعد\n• <b>الحالة</b> — إحصائيات البوت\n\n"
+                      "اكتب (الاوامر) لاستكشاف كل شيء 🚀")
         else:
             ctx.reply("🔑 مفتاح غير صحيح.")
         return True
