@@ -1,0 +1,170 @@
+# -*- coding: utf-8 -*-
+"""تخزين دائم مجاني بدون تسجيل: jsonblob.com أساسي + kvdb.io احتياطي.
+المؤشر يُحفظ داخل رابط الويبهوك نفسه حتى يبقى عبر كل الاستدعاءات (serverless)."""
+import json
+import time
+import requests
+
+DEFAULT_STATE = {"v": 2, "owner": None, "sudo": [], "gbans": {}, "chats": {}, "created": 0}
+
+DEFAULT_SETTINGS = {
+    "on": True,
+    "locks": {},            # اسم القفل -> True
+    "welcome_on": True,
+    "welcome": "",
+    "goodbye_on": False,
+    "goodbye": "",
+    "rules": "",
+    "admin_only": False,    # وضع المشرفين: البوت يرد على المشرفين فقط
+    "captcha": False,
+    "flood_on": True,
+    "flood_n": 7,
+    "flood_s": 8,
+    "warn_limit": 3,
+    "warn_action": "mute",  # mute | ban | kick
+    "badwords_on": False,
+    "badwords": [],
+    "replies_on": True,
+    "replies": {},          # كلمة -> رد
+    "force_sub_on": False,
+    "force_sub": "",
+    "del_service": True,
+    "clean_warns": True,
+    "fun": True,
+}
+
+
+def new_chat():
+    return {"settings": dict(DEFAULT_SETTINGS), "users": {}, "captcha_pending": {},
+            "game": None, "bot_msgs": [], "admins": {"ids": [], "ts": 0},
+            "msgs": 0, "flood": {}, "married": {}, "proposals": {}}
+
+
+def new_user(name="", username=""):
+    return {"n": name[:40], "u": (username or "")[:32], "m": 0, "x": 0, "w": 0,
+            "a": 0, "g": 0, "l": 0, "t": "", "sp": 0, "d": 0, "ts": 0}
+
+
+class Store:
+    """pointer: 'jb:<url>' أو 'kv:<bucket>' أو '' (بلا تخزين)."""
+
+    def __init__(self, pointer=""):
+        self.pointer = pointer or ""
+        self.ok = bool(pointer)
+        self.last_error = ""
+
+    # ----- إنشاء مخزن جديد -----
+    @staticmethod
+    def provision():
+        state = dict(DEFAULT_STATE)
+        state["created"] = int(time.time())
+        # 1) jsonblob
+        try:
+            r = requests.post("https://jsonblob.com/api/jsonBlob", json=state,
+                              headers={"Content-Type": "application/json", "Accept": "application/json"},
+                              timeout=15)
+            if r.status_code in (200, 201):
+                loc = r.headers.get("Location") or r.headers.get("location")
+                if loc:
+                    return "jb:" + loc.rstrip("/").split("/")[-1]
+        except Exception:
+            pass
+        # 2) kvdb
+        try:
+            r = requests.post("https://kvdb.io", data={"email": "absorbs.bot@proton.me"}, timeout=15)
+            if r.status_code in (200, 201) and r.text.strip():
+                bucket = r.text.strip().split("/")[-1]
+                requests.put(f"https://kvdb.io/{bucket}/state",
+                             data=json.dumps(state, ensure_ascii=False).encode("utf-8"), timeout=15)
+                return "kv:" + bucket
+        except Exception:
+            pass
+        return ""
+
+    def _url(self):
+        if self.pointer.startswith("jb:"):
+            return f"https://jsonblob.com/api/jsonBlob/{self.pointer[3:]}"
+        if self.pointer.startswith("kv:"):
+            return f"https://kvdb.io/{self.pointer[3:]}/state"
+        return None
+
+    def load(self):
+        url = self._url()
+        if not url:
+            return json.loads(json.dumps(DEFAULT_STATE))
+        for attempt in range(2):
+            try:
+                r = requests.get(url, timeout=12, headers={"Accept": "application/json"})
+                if r.status_code == 200:
+                    data = r.json()
+                    if isinstance(data, dict):
+                        data.setdefault("chats", {})
+                        data.setdefault("sudo", [])
+                        data.setdefault("gbans", {})
+                        return data
+                self.last_error = f"HTTP {r.status_code}"
+            except Exception as e:
+                self.last_error = str(e)[:120]
+                time.sleep(0.4)
+        return json.loads(json.dumps(DEFAULT_STATE))
+
+    def save(self, state):
+        url = self._url()
+        if not url:
+            return False
+        state["saved"] = int(time.time())
+        body = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+        # حماية من تضخم البيانات
+        if len(body.encode("utf-8")) > 900_000:
+            prune(state)
+            body = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+        for attempt in range(2):
+            try:
+                r = requests.put(url, data=body.encode("utf-8"),
+                                 headers={"Content-Type": "application/json"}, timeout=15)
+                if r.status_code in (200, 201, 204):
+                    return True
+                self.last_error = f"HTTP {r.status_code}"
+            except Exception as e:
+                self.last_error = str(e)[:120]
+                time.sleep(0.4)
+        return False
+
+
+def prune(state):
+    """تقليم المستخدمين غير النشطين عند تضخم البيانات."""
+    now = time.time()
+    for chat in state.get("chats", {}).values():
+        users = chat.get("users", {})
+        if len(users) > 150:
+            drop = [uid for uid, u in users.items()
+                    if u.get("m", 0) < 3 and now - u.get("l", 0) > 14 * 86400]
+            for uid in drop:
+                users.pop(uid, None)
+        chat["bot_msgs"] = chat.get("bot_msgs", [])[-80:]
+        chat["flood"] = {}
+
+
+def get_chat(state, chat_id):
+    key = str(chat_id)
+    if key not in state["chats"]:
+        state["chats"][key] = new_chat()
+    ch = state["chats"][key]
+    # ضمان الحقول الجديدة عند الترقية
+    for k, v in DEFAULT_SETTINGS.items():
+        ch["settings"].setdefault(k, json.loads(json.dumps(v)))
+    for k, v in new_chat().items():
+        ch.setdefault(k, v)
+    return ch
+
+
+def get_user(chat, user):
+    uid = str(user.get("id"))
+    if uid not in chat["users"]:
+        chat["users"][uid] = new_user(user.get("first_name", ""), user.get("username", ""))
+    u = chat["users"][uid]
+    if user.get("first_name"):
+        u["n"] = (user.get("first_name", "") + " " + user.get("last_name", "")).strip()[:40]
+    if user.get("username"):
+        u["u"] = user["username"][:32]
+    return u
