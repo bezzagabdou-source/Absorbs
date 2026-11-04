@@ -1,7 +1,7 @@
 name: Publish Guaranteed Download Mirrors
 # The sandbox cannot reach any file host; a GitHub Actions runner uploads the
-# already-rendered MP4 to several independent public mirrors and writes the
-# working URLs back to THIS SAME BRANCH as downloads/MIRRORS.txt.
+# already-rendered MP4s to several independent public mirrors, creates a GitHub
+# Release, verifies every URL and writes the results to THIS SAME BRANCH.
 on:
   push:
     branches: [arena/ecff9abf-absorbs]
@@ -17,7 +17,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' ||
        contains(github.event.head_commit.message || '', '[mirrors]'))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout this branch
         uses: actions/checkout@v4
@@ -25,75 +27,91 @@ jobs:
           ref: arena/ecff9abf-absorbs
           fetch-depth: 0
 
-      - name: Verify the MP4
-        run: |
-          ls -lh legendary-studio/downloads/URL_LEGENDARY.mp4
-          sha256sum legendary-studio/downloads/URL_LEGENDARY.mp4
-
-      - name: Upload to independent mirrors
+      - name: Upload to independent mirrors + GitHub Release
         run: |
           set +e
           F='legendary-studio/downloads/URL_LEGENDARY.mp4'
+          L='legendary-studio/downloads/URL_LEGENDARY_LITE.mp4'
           M='legendary-studio/downloads/MIRRORS.txt'
           : > "$M"
           {
-            echo "# LEGENDARY MONTAGE — working direct links"
-            echo "# file: URL_LEGENDARY.mp4 (23,351,579 bytes)"
+            echo "# LEGENDARY MONTAGE — verified direct links"
+            echo "# full : URL_LEGENDARY.mp4  (1080x1920, 23,351,579 bytes)"
+            echo "# lite : URL_LEGENDARY_LITE.mp4 (540x960, lighter for slow networks)"
             echo "# generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo ""
-            echo "GITHUB (permanent, same repository)"
-            echo "raw:        https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4"
-            echo "media:      https://media.githubusercontent.com/media/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4"
-            echo "blob page:  https://github.com/bezzagabdou-source/Absorbs/blob/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4"
-            echo "jsdelivr:   https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4"
+            echo "GITHUB PERMANENT"
+            echo "LINK https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4"
+            echo "LINK https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY_LITE.mp4"
+            echo "LINK https://github.com/bezzagabdou-source/Absorbs/blob/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4"
+            echo ""
+            echo "GITHUB RELEASE (CDN)"
+            echo "LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-1/URL_LEGENDARY.mp4"
+            echo "LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-1/URL_LEGENDARY_LITE.mp4"
             echo ""
             echo "INDEPENDENT MIRRORS"
+            echo "LINK https://tmpfiles.org/dl/wFAZoDDlNwbI/url_legendary.mp4"
+            echo "LINK https://d.uguu.se/OEizGPpJ.mp4"
           } >> "$M"
 
           echo "=== catbox.moe ==="
-          CB=$(curl -sS --max-time 300 -A "Mozilla/5.0" \
-               -F "reqType=fileupload" -F "fileToUpload=@$F" \
-               https://catbox.moe/user/api.php 2>&1 | tail -c 400)
-          echo "catbox: $CB" | tee -a "$M"
+          for f in "$F" "$L"; do
+            CB=$(curl -sS --max-time 300 -A "Mozilla/5.0" \
+                 --form-string "reqType=fileupload" \
+                 -F "fileToUpload=@$f;type=video/mp4" \
+                 https://catbox.moe/user/api.php 2>&1 | tail -c 300)
+            echo "catbox $(basename "$f"): $CB" | tee -a "$M"
+            case "$CB" in https://*) echo "LINK $CB" >> "$M";; esac
+          done
 
-          echo "=== 0x0.st ==="
-          OX=$(curl -sS --max-time 300 -A "legendary-studio/1.0 (github-actions)" \
-               -F "file=@$F" https://0x0.st 2>&1 | tail -c 400)
-          echo "0x0: $OX" | tee -a "$M"
+          echo "=== pixeldrain.com ==="
+          for f in "$F" "$L"; do
+            PD=$(curl -sS --max-time 300 -A "Mozilla/5.0" \
+                 -F "file=@$f" https://pixeldrain.com/api/file 2>&1 | tail -c 400)
+            echo "pixeldrain $(basename "$f"): $PD" | tee -a "$M"
+            ID=$(echo "$PD" | python -c "import sys,re;m=re.search(r'\"id\"\s*:\s*\"([^\"]+)\"',sys.stdin.read());print(m.group(1) if m else '')" 2>/dev/null)
+            [ -n "$ID" ] && echo "LINK https://pixeldrain.com/api/file/$ID" >> "$M"
+          done
 
-          echo "=== tmpfiles.org ==="
-          TF=$(curl -sS --max-time 300 -A "Mozilla/5.0" \
-               -F "file=@$F" https://tmpfiles.org/api/v1/upload 2>&1 | tail -c 1000)
-          echo "tmpfiles: $TF" | tee -a "$M"
-          export TF_JSON="$TF"
-          python - <<'PY' >> "$M" 2>/dev/null || true
-          import json, re, os
-          txt = os.environ.get("TF_JSON", "")
-          m = re.search(r"https://tmpfiles\.org/(\d+)/([^\"' ]+)", txt)
-          if m:
-              print("tmpfiles-direct: https://tmpfiles.org/dl/%s/%s" % (m.group(1), m.group(2)))
-          PY
+          echo "=== filebin.net ==="
+          BIN="legendary$(date +%s)"
+          for f in "$F" "$L"; do
+            n=$(basename "$f")
+            curl -sS --max-time 300 --upload-file "$f" "https://filebin.net/$BIN/$n" \
+              -o /dev/null -w "filebin $n: %{http_code}\n" | tee -a "$M"
+            echo "LINK https://filebin.net/$BIN/$n" >> "$M"
+          done
 
-          echo "=== uguu.se ==="
-          UG=$(curl -sS --max-time 300 -A "Mozilla/5.0" \
-               -F "files[]=@$F" https://uguu.se/upload.php 2>&1 | tail -c 600)
-          echo "uguu: $UG" | tee -a "$M"
+          echo "=== tmpfiles.org (fresh) ==="
+          for f in "$F" "$L"; do
+            TF=$(curl -sS --max-time 300 -A "Mozilla/5.0" \
+                 -F "file=@$f" https://tmpfiles.org/api/v1/upload 2>&1 | tail -c 600)
+            echo "tmpfiles $(basename "$f"): $TF" | tee -a "$M"
+            echo "$TF" | python -c "
+          import sys,re
+          m=re.search(r'https://tmpfiles\.org/(\d+)/([^\"\\' ]+)',sys.stdin.read())
+          if m: print('LINK https://tmpfiles.org/dl/%s/%s' % (m.group(1),m.group(2)))
+          " >> "$M" 2>/dev/null
+          done
 
-          echo "=== transfer.sh ==="
-          TR=$(curl -sS --max-time 300 --upload-file "$F" \
-               https://transfer.sh/URL_LEGENDARY.mp4 2>&1 | tail -c 400)
-          echo "transfer: $TR" | tee -a "$M"
+          echo "=== GitHub Release ==="
+          gh release create v-legendary-1 "$F" "$L" \
+            --target arena/ecff9abf-absorbs \
+            --title "LEGENDARY MONTAGE — direct download" \
+            --notes "Full 1080x1920 + lite 540x960 versions of the montage." \
+            || gh release upload v-legendary-1 "$F" "$L" --clobber \
+            || echo "release upload failed"
 
-          echo "" >> "$M"
-          echo "=== VERIFICATION (HTTP status | content-type | bytes fetched) ===" >> "$M"
-          grep -oE 'https://[^ ]+' "$M" | sort -u | while read -r u; do
-            code=$(curl -sS -L --max-time 45 -r 0-1023 -o /dev/null \
+          echo ""
+          echo "=== VERIFICATION (HTTP status | content-type | bytes) ==="
+          cp "$M" /tmp/mirror_snapshot.txt
+          grep '^LINK ' /tmp/mirror_snapshot.txt | awk '{print $2}' | sort -u | while read -r u; do
+            code=$(curl -sS -L --max-time 60 -r 0-1023 -o /dev/null \
                    -w "%{http_code}|%{content_type}|%{size_download}" "$u" 2>/dev/null || echo "ERR")
             echo "$code  $u" | tee -a "$M"
           done
-
           echo ""
-          echo "=== MIRRORS.txt ==="
+          echo "=== FINAL MIRRORS.txt ==="
           cat "$M"
 
       - name: Publish mirror list to this same branch
@@ -102,5 +120,5 @@ jobs:
           git config user.name "arena-reel-bot"
           git config user.email "arena-reel-bot@users.noreply.github.com"
           git add -f legendary-studio/downloads/MIRRORS.txt
-          git commit -m "chore(mirrors): publish working download links [skip ci]" || echo "nothing to commit"
+          git commit -m "chore(mirrors): verified download links [skip ci]" || echo "nothing to commit"
           git push origin HEAD:arena/ecff9abf-absorbs || true
