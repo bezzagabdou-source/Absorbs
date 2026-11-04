@@ -88,6 +88,47 @@ class Ctx:
         return res
 
 
+_REPAIR_TS = [0.0]
+
+
+def _auto_repair(tg, token, pointer, state):
+    """إذا فشل الحفظ (تخزين تالف): ينشئ خادماً موثوقاً، ينقل البيانات، ويحدّث الويبهوك."""
+    now = time.time()
+    if now - _REPAIR_TS[0] < 90:  # مهلة حتى لا نكرر الإصلاح كل طلب
+        return None
+    _REPAIR_TS[0] = now
+    try:
+        new_pointer = Store.provision()
+        if not new_pointer or new_pointer == pointer:
+            return None
+        new_store = Store(new_pointer)
+        if not state.get("created"):
+            state["created"] = int(now)
+        state.pop("_probe", None)
+        state.pop("_wtest", None)
+        if not new_store.save(state):
+            return None
+        # أعد ضبط الويبهوك على الخادم الجديد (نفس المضيف الحالي)
+        import hashlib
+        from urllib.parse import urlparse, quote
+        secret = os.environ.get("WEBHOOK_SECRET", "").strip() or hashlib.sha256(("wh:" + token).encode()).hexdigest()[:32]
+        base = "https://arabic-super-bot.vercel.app"
+        try:
+            info = tg.webhook_info()
+            old = info.get("url", "") if isinstance(info, dict) else ""
+            pr = urlparse(old)
+            if pr.netloc:
+                base = f"{pr.scheme}://{pr.netloc}"
+        except Exception:
+            pass
+        wh_url = base + "/api?p=" + quote(new_pointer, safe="")
+        tg.set_webhook(wh_url, secret, drop=False)
+        return new_store
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
 def handle_update(update, token, pointer):
     tg = TG(token)
     store = Store(pointer)
@@ -100,9 +141,16 @@ def handle_update(update, token, pointer):
     except Exception:
         traceback.print_exc()
     # الحفظ
+    attempted = saved = False
     if ctx.dirty or ctx.force_save:
         if ctx.force_save or ctx.handled or time.time() - state.get("saved", 0) >= 4:
-            store.save(state)
+            attempted = True
+            saved = store.save(state)
+    # إصلاح ذاتي للتخزين التالف (يحفظ تغييرات المستخدم في الخادم الجديد)
+    if attempted and not saved:
+        new_store = _auto_repair(tg, token, pointer, state)
+        if new_store is not None:
+            new_store.save(state)
     return True
 
 
