@@ -1,0 +1,159 @@
+name: Studio Kinetic Captions + Image Stickers
+# Pro studio pass: precise word-level captions, real image stickers, animated
+# effects, quality enhancement. Source timing and audio are NEVER altered.
+on:
+  push:
+    branches: [arena/ecff9abf-absorbs]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pro:
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name == 'workflow_dispatch' ||
+       contains(github.event.head_commit.message || '', '[procaps]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SOURCE_URL: 'https://www.image2url.com/r2/default/videos/1793744278259-bf9535b0-acc5-4e41-ae44-a6a1891f0a69.mp4'
+    steps:
+      - name: Checkout this branch
+        uses: actions/checkout@v4
+        with:
+          ref: arena/ecff9abf-absorbs
+          fetch-depth: 0
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install stack
+        run: |
+          python -m pip install -q --upgrade pip
+          python -m pip install -q -r legendary-studio/requirements.txt curl_cffi
+          FFBIN=$(python -c 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())')
+          echo "FFMPEG_BINARY=$FFBIN" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/ffbin"
+          ln -sf "$FFBIN" "$RUNNER_TEMP/ffbin/ffmpeg"
+          echo "$RUNNER_TEMP/ffbin" >> "$GITHUB_PATH"
+          mkdir -p legendary-studio/out legendary-studio/downloads
+
+      - name: Download the ORIGINAL video
+        run: |
+          PYTHONPATH=legendary-studio SOURCE_OUT='legendary-studio/out/source_original.mp4' \
+            python legendary-studio/legendary/cloudflare_fetch.py
+          test -s legendary-studio/out/source_original.mp4
+          ls -lh legendary-studio/out/source_original.mp4
+
+      - name: Multi-pass ASR (or use proofread words)
+        run: |
+          D='legendary-studio/downloads'
+          if [ -s "$D/FINAL_WORDS.json" ]; then
+            echo "✅ استخدام الكلمات المدقّقة يدوياً (FINAL_WORDS.json)"
+            cp "$D/FINAL_WORDS.json" "$D/WORDS_IN_USE.json"
+          else
+            PYTHONPATH=legendary-studio python -m legendary.asr_pro \
+              -i legendary-studio/out/source_original.mp4 \
+              -o "$D/ASR_CANDIDATES.json"
+            cp "$D/BEST_WORDS.json" "$D/WORDS_IN_USE.json"
+          fi
+          echo "=== الكلمات المستعملة ==="
+          python -c "
+          import json;w=json.load(open('legendary-studio/downloads/WORDS_IN_USE.json'))
+          print(len(w),'كلمة')
+          print(' '.join(x['word'] for x in w)[:900])"
+
+      - name: Render studio pass
+        run: |
+          PYTHONPATH=legendary-studio python -m legendary.pro \
+            -i legendary-studio/out/source_original.mp4 \
+            -o legendary-studio/downloads/CAPTION_STUDIO.mp4 \
+            --words legendary-studio/downloads/WORDS_IN_USE.json \
+            --workdir legendary-studio/downloads/_pro
+          ls -lh legendary-studio/downloads/CAPTION_STUDIO.mp4
+          cat legendary-studio/downloads/_pro/PRO_TIMELINE.json | head -30
+
+      - name: Lite copy
+        run: |
+          ffmpeg -y -loglevel error -i legendary-studio/downloads/CAPTION_STUDIO.mp4 \
+            -vf 'scale=540:960:flags=lanczos' -c:v libx264 -preset veryfast -crf 26 \
+            -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart \
+            legendary-studio/downloads/CAPTION_STUDIO_LITE.mp4
+          ls -lh legendary-studio/downloads/CAPTION_STUDIO*.mp4
+
+      - name: Publish + verified mirrors
+        run: |
+          set +e
+          D='legendary-studio/downloads'
+          F="$D/CAPTION_STUDIO.mp4"
+          L="$D/CAPTION_STUDIO_LITE.mp4"
+          M="$D/PRO_LINKS.txt"
+          : > "$M"
+          {
+            echo "# STUDIO KINETIC CAPTIONS — verified direct links"
+            echo "# word-accurate captions + image stickers + effects; NO cuts / NO speed change"
+            echo "# generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "GITHUB (permanent, available after push)"
+            echo "INFO https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_STUDIO.mp4"
+            echo "GITHUB RELEASE"
+            echo "LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-3/CAPTION_STUDIO.mp4"
+            echo "LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-3/CAPTION_STUDIO_LITE.mp4"
+            echo "INDEPENDENT MIRRORS"
+          } >> "$M"
+
+          echo "=== uguu.se ==="
+          for f in "$F" "$L"; do
+            UG=$(curl -sS --max-time 300 -A "Mozilla/5.0" -F "files[]=@$f" https://uguu.se/upload.php 2>&1 | tail -c 800)
+            echo "$UG" | python -c "
+          import sys,re
+          m=re.search(r'\"url\"\s*:\s*\"([^\"]+)\"',sys.stdin.read())
+          if m: print('LINK '+m.group(1).replace(chr(92)+'/','/'))
+          " >> "$M" 2>/dev/null
+            echo "uguu $(basename "$f"): done" >> "$M"
+          done
+
+          echo "=== filebin.net ==="
+          BIN="studio$(date +%s)"
+          for f in "$F" "$L"; do
+            n=$(basename "$f")
+            curl -sS --max-time 300 --upload-file "$f" "https://filebin.net/$BIN/$n" \
+              -o /dev/null -w "filebin $n: %{http_code}\n" >> "$M"
+            echo "LINK https://filebin.net/$BIN/$n" >> "$M"
+          done
+
+          echo "=== GitHub Release ==="
+          gh release create v-legendary-3 "$F" "$L" \
+            --target arena/ecff9abf-absorbs \
+            --title "STUDIO KINETIC CAPTIONS — pro studio pass" \
+            --notes "Word-level kinetic Arabic captions, image stickers, animated effects, quality only. Original timing preserved." \
+            || gh release upload v-legendary-3 "$F" "$L" --clobber \
+            || echo "release upload failed"
+
+          echo ""
+          echo "=== VERIFICATION ==="
+          cp "$M" /tmp/pro_snapshot.txt
+          grep '^LINK ' /tmp/pro_snapshot.txt | awk '{print $2}' | sort -u | while read -r u; do
+            code=$(curl -sS -L --max-time 60 -r 0-1023 -o /dev/null \
+                   -w "%{http_code}|%{content_type}|%{size_download}" "$u" 2>/dev/null || echo "ERR")
+            echo "$code  $u" | tee -a "$M"
+          done
+          echo ""
+          cat "$M"
+
+          git config user.name "arena-reel-bot"
+          git config user.email "arena-reel-bot@users.noreply.github.com"
+          ADD=""
+          for f in "$F" "$L" "$M" "$D/WORDS_IN_USE.json" \
+                   "$D/_pro/PRO_TIMELINE.json" "$D/ASR_CANDIDATES.json" \
+                   "$D/BEST_WORDS.json" "$D/FINAL_WORDS.json"; do
+            [ -e "$f" ] && ADD="$ADD $f"
+          done
+          git add -f $ADD
+          git commit -m "chore(procaps): publish studio kinetic captions [skip ci]" || echo "nothing to commit"
+          git push origin HEAD:arena/ecff9abf-absorbs || true
