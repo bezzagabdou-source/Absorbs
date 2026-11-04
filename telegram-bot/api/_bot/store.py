@@ -60,36 +60,56 @@ class Store:
         r = requests.post("https://jsonblob.com/api/jsonBlob", json={"init": True},
                           headers={"Content-Type": "application/json", "Accept": "application/json"},
                           timeout=15)
-        if r.status_code in (200, 201):
-            loc = r.headers.get("Location") or r.headers.get("location") or ""
-            if loc:
-                return "jb:" + loc.rstrip("/").split("/")[-1]
-        return ""
+        loc = r.headers.get("Location") or r.headers.get("location") or ""
+        xid = r.headers.get("x-jsonblob") or r.headers.get("X-jsonblob") or ""
+        blob = (loc.rstrip("/").split("/")[-1] if loc else "") or xid
+        if r.status_code in (200, 201) and blob:
+            return "jb:" + blob
+        raise RuntimeError("HTTP %s loc=%s body=%s" % (r.status_code, bool(loc), r.text[:70]))
+
+    @staticmethod
+    def _prov_superjsonblob():
+        r = requests.post("https://superjsonblob.com/api/jsonBlob", json={"init": True},
+                          headers={"Content-Type": "application/json", "Accept": "application/json"},
+                          timeout=15)
+        loc = r.headers.get("Location") or r.headers.get("location") or ""
+        blob = loc.rstrip("/").split("/")[-1] if loc else ""
+        if not blob:
+            try:
+                blob = r.json().get("id", "")
+            except Exception:
+                blob = ""
+        if r.status_code in (200, 201) and blob:
+            return "sj:" + blob
+        raise RuntimeError("HTTP %s body=%s" % (r.status_code, r.text[:70]))
 
     @staticmethod
     def _prov_pantry():
-        r = requests.post("https://getpantry.com/api/pantry/create",
+        r = requests.post("https://getpantry.cloud/apiv1/pantry/create",
                           json={"name": "absorbs-bot", "description": "telegram bot state"},
                           headers={"Content-Type": "application/json"}, timeout=15)
         if r.status_code in (200, 201):
-            data = r.json()
-            pid = data.get("pantryId") or data.get("pantry_id") or ""
+            try:
+                data = r.json()
+                pid = data.get("pantryId") or data.get("pantry_id") or data.get("id") or ""
+            except Exception:
+                pid = r.text.strip().strip('"')
             if pid:
                 return "pt:" + pid
-        return ""
+        raise RuntimeError("HTTP %s body=%s" % (r.status_code, r.text[:70]))
 
     @staticmethod
     def _prov_kvdb():
         r = requests.post("https://kvdb.io", data={"email": "absorbs.bot@proton.me"}, timeout=15)
         if r.status_code in (200, 201) and r.text.strip():
             return "kv:" + r.text.strip().split("/")[-1]
-        return ""
+        raise RuntimeError("HTTP %s body=%s" % (r.status_code, r.text[:70]))
 
     @staticmethod
     def provision(debug=None):
         """يجرّب عدة خوادم ويتحقق من الكتابة+القراءة قبل اعتماد أيّ منها."""
-        for name, maker in (("jsonblob", Store._prov_jsonblob), ("pantry", Store._prov_pantry),
-                            ("kvdb", Store._prov_kvdb)):
+        for name, maker in (("jsonblob", Store._prov_jsonblob), ("superjsonblob", Store._prov_superjsonblob),
+                            ("pantry", Store._prov_pantry), ("kvdb", Store._prov_kvdb)):
             entry = {"backend": name}
             try:
                 pointer = maker()
@@ -121,10 +141,12 @@ class Store:
     def _url(self):
         if self.pointer.startswith("jb:"):
             return f"https://jsonblob.com/api/jsonBlob/{self.pointer[3:]}"
+        if self.pointer.startswith("sj:"):
+            return f"https://superjsonblob.com/api/jsonBlob/{self.pointer[3:]}"
         if self.pointer.startswith("kv:"):
             return f"https://kvdb.io/{self.pointer[3:]}/state"
         if self.pointer.startswith("pt:"):
-            return f"https://getpantry.com/api/pantry/{self.pointer[3:]}/basket/state"
+            return f"https://getpantry.cloud/apiv1/pantry/{self.pointer[3:]}/basket/state"
         return None
 
     def _write_method(self):
