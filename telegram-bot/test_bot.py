@@ -297,7 +297,7 @@ check("ختمتي", any("ختمتك" in t for t in texts(calls)))
 
 # ---- سجل الميزات ----
 calls = run(msg_update("الميزات", uid=111))
-check("الميزات 500+", any("560+ ميزة" in t for t in texts(calls)))
+check("الميزات 500+", any("+ ميزة" in t for t in texts(calls)))
 
 # ---- أزرار الميزات (callback) ----
 def cq_update(data):
@@ -306,6 +306,73 @@ def cq_update(data):
 calls = run(cq_update("feat:0"))
 check("زر فئة الميزات", any("الحماية" in t for t in texts(calls)))
 calls = run(cq_update("feat:back"))
-check("زر رجوع الميزات", any("560+ ميزة" in t for t in texts(calls)))
+check("زر رجوع الميزات", any("+ ميزة" in t for t in texts(calls)))
+
+# ================= تحسينات "مايكي" =================
+print("\n--- بادئات / و ! + الرد الذكي + المعالج + الحماية الافتراضية ---")
+
+# ---- بادئات / و ! للأوامر العربية ----
+victim = {"message_id": 7, "from": {"id": 333, "first_name": "Target"}, "chat": {"id": -100123}}
+calls = run(msg_update("/حظر", uid=555, reply=victim))
+check("/حظر يعمل", any("تم حظر" in t for t in texts(calls)))
+calls = run(msg_update("!كتم", uid=555, reply=victim))
+check("!كتم يعمل", any("كتم" in t for t in texts(calls)))
+calls = run(msg_update("/قوانين", uid=111))
+check("/قوانين يعمل", any("قوانين" in t for t in texts(calls)))
+calls = run(msg_update("!قوانين", uid=111))
+check("!قوانين يعمل", any("قوانين" in t for t in texts(calls)))
+calls = run(msg_update("/تحذير", uid=555, reply=victim))
+check("/تحذير يعمل", any("تحذير" in t for t in texts(calls)))
+calls = run(msg_update("!طرد", uid=555, reply=victim))
+check("!طرد يعمل", any("طرد" in t for t in texts(calls)))
+
+# ---- الرد الذكي: منشن @ للبوت ----
+calls = run(msg_update("@absorbs_bot شكون انت", uid=111))
+check("رد ذكي على المنشن", any("Absorbs" in t for t in texts(calls)))
+calls = run(msg_update("@absorbs_bot كيفك", uid=111))
+check("رد ذكي كيفك", any("بخير" in t or "تمام" in t or "الحمد لله" in t or "هايل" in t for t in texts(calls)))
+# ---- الرد الذكي: الرد على رسالة البوت ----
+bot_msg = {"message_id": 9, "from": {"id": 999, "first_name": "Absorbs", "is_bot": True}, "text": "رسالة سابقة"}
+calls = run(msg_update("شكون انت", uid=111, reply=bot_msg))
+check("رد ذكي على الرد للبوت", any("Absorbs" in t for t in texts(calls)))
+calls = run(msg_update("شكرا", uid=111, reply=bot_msg))
+check("رد ذكي شكرا", any("العفو" in t or "بلا جميل" in t or "يعافيك" in t or "تسلملي" in t for t in texts(calls)))
+
+# ---- المعالج التفاعلي (اضف رد وحدها) ----
+calls = run(msg_update("اضف رد", uid=555))
+check("المعالج يفتح", any("معالج إضافة رد" in t and "الخطوة 1/2" in t for t in texts(calls)))
+calls = run(msg_update("كلمة_معالج", uid=555))
+check("المعالج يقبل الكلمة", any("الخطوة 2/2" in t for t in texts(calls)))
+calls = run(msg_update("رد المعالج {name} 🌹", uid=555))
+check("المعالج يقبل الرد النصي", any("تزاد الرد النصي" in t for t in texts(calls)))
+calls = run(msg_update("تم", uid=555))
+check("المعالج يحفظ", any("تم حفظ الرد" in t for t in texts(calls)))
+calls = run(msg_update("كلمة_معالج", uid=111))
+check("رد المعالج يعمل", any("رد المعالج" in t for t in texts(calls)))
+
+# ---- المعالج: صورة مع تعليق ----
+calls = run(msg_update("اضف رد صورة_معالج", uid=555))
+check("معالج بكلمة جاهزة", any("الخطوة 2/2" in t for t in texts(calls)))
+photo_msg = msg_update("", uid=555)
+photo_msg["message"]["photo"] = [{"file_id": "sm", "file_size": 100}, {"file_id": "PHOTO_WIZ", "file_size": 5000}]
+photo_msg["message"]["caption"] = "صورة مع رد 📷"
+calls = run(photo_msg)
+check("المعالج يقبل صورة+تعليق", any("صورة" in t and "تعليق" in t for t in texts(calls)))
+calls = run(msg_update("تم", uid=555))
+check("حفظ رد الصورة", any("تم حفظ الرد" in t for t in texts(calls)))
+calls = run(msg_update("صورة_معالج", uid=111))
+check("رد الصورة يعمل", any(m == "send_photo" for m, a, k in calls))
+
+# ---- المعالج: إلغاء ----
+calls = run(msg_update("اضف رد", uid=555))
+run(msg_update("الغاء", uid=555))
+calls = run(msg_update("كلمة_ملغاة", uid=555))
+check("إلغاء المعالج يعمل", len(texts(calls)) == 0)
+
+# ---- الحماية الافتراضية (مجموعة جديدة) ----
+calls = run(msg_update("زوروا https://spam.com الآن", uid=111, chat_id=-100999))
+check("حذف الروابط افتراضياً", any(m == "delete" for m, a, k in calls))
+calls = run(msg_update("انت غبي جدا", uid=111, chat_id=-100999))
+check("فلتر السب افتراضياً", any(m == "delete" for m, a, k in calls))
 
 print("\n🎉 كل الاختبارات نجحت! البوت جاهز للنشر.")

@@ -11,7 +11,7 @@ from .store import Store, get_chat, get_user, DEFAULT_SETTINGS
 from .helpers import (norm, esc, mention, fullname, uname, keyboard, btn, is_error,
                       is_group_admin, admin_ids, need_owner, take)
 from . import protection, admin, fun, games, music, tools, menus
-from . import replies, economy, moregames, moretools, islam, social, features
+from . import replies, economy, moregames, moretools, islam, social, features, smart
 
 SLASH = {
     "start": "الاوامر", "help": "الاوامر", "id": "ايدي", "ping": "بنج",
@@ -55,12 +55,14 @@ class Ctx:
         self.text = "" if cq else (self.msg.get("text") or self.msg.get("caption") or "")
         self.reply_msg = self.msg.get("reply_to_message")
         self.words = self.text.split()
-        # أوامر /slash
-        if self.words and self.words[0].startswith("/"):
-            head = self.words[0][1:].split("@")[0].lower()
-            if head in SLASH:
-                mapped = SLASH[head].split()
-                self.words = mapped + self.words[1:]
+        # أوامر ببادئة / أو ! (عربية أو إنجليزية): /حظر ، !حظر ، /ban
+        if self.words and self.words[0][:1] in ("/", "!"):
+            head = self.words[0][1:].split("@")[0]
+            low = head.lower()
+            if low in SLASH:
+                self.words = SLASH[low].split() + self.words[1:]
+            elif head:
+                self.words = [head] + self.words[1:]
         self.nwords = [norm(w) for w in self.words]
         self.args = self.words[1:]
         self.rest = " ".join(self.args)
@@ -191,6 +193,12 @@ def dispatch(ctx):
                           "لتصبح المطور أرسل:\n<code>مفتاح المطور YOUR_SECRET_KEY</code>\n\n"
                           "🔑 المفتاح عند مالك البوت فقط. من يملكه يتحكم بكل شيء.")
 
+    # معالج الردود التفاعلي (وسيط) — يعترض نص/وسائط المستخدم ذي المعالج النشط
+    if replies.wizard_step(ctx):
+        ctx.handled = True
+        ctx.force_save = True
+        return
+
     if not ctx.text:
         # وسائط بلا نص: ملصق/صورة بدون أمر → لا شيء
         return
@@ -227,7 +235,7 @@ def dispatch(ctx):
         return
 
     # الوحدات
-    for module in (menus, replies, admin, economy, social, features, fun, moregames, games, music, tools, moretools, islam):
+    for module in (menus, replies, admin, economy, social, features, fun, moregames, games, music, tools, moretools, islam, smart):
         if module.handle(ctx):
             ctx.handled = True
             if ctx.is_group:
@@ -266,6 +274,8 @@ def handle_callback(ctx):
             games.callback(ctx, parts)
         elif parts[0] == "feat":
             features.callback(ctx, parts)
+        elif parts[0] == "wiz":
+            replies.callback(ctx, parts)
         elif parts[0] == "yt":
             music.callback(ctx, parts)
         else:

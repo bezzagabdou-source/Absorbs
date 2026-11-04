@@ -9,7 +9,7 @@ DEFAULT_STATE = {"v": 2, "owner": None, "sudo": [], "gbans": {}, "chats": {}, "c
 
 DEFAULT_SETTINGS = {
     "on": True,
-    "locks": {},            # اسم القفل -> True
+    "locks": {"links": True},  # حذف الروابط تلقائياً افتراضياً (حماية فورية)
     "welcome_on": True,
     "welcome": "",
     "goodbye_on": False,
@@ -22,7 +22,7 @@ DEFAULT_SETTINGS = {
     "flood_s": 8,
     "warn_limit": 3,
     "warn_action": "mute",  # mute | ban | kick
-    "badwords_on": False,
+    "badwords_on": True,   # فلتر السب مفعّل افتراضياً (قابلة للتعديل: اضف كلمة / احذف كلمة)
     "badwords": [],
     "replies_on": True,
     "replies": {},          # كلمة -> رد
@@ -35,9 +35,10 @@ DEFAULT_SETTINGS = {
 
 
 def new_chat():
-    return {"settings": dict(DEFAULT_SETTINGS), "users": {}, "captcha_pending": {},
+    # نسخة عميقة حتى لا تتشارك المجموعات نفس كائنات الإعدادات (locks/badwords…)
+    return {"settings": json.loads(json.dumps(DEFAULT_SETTINGS)), "users": {}, "captcha_pending": {},
             "game": None, "bot_msgs": [], "admins": {"ids": [], "ts": 0},
-            "msgs": 0, "flood": {}, "married": {}, "proposals": {}}
+            "msgs": 0, "flood": {}, "married": {}, "proposals": {}, "wizards": {}}
 
 
 def new_user(name="", username=""):
