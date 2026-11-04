@@ -1,6 +1,6 @@
 # 🎬 LEGENDARY STUDIO — استوديو المونتاج الأسطوري
 
-> ✅ **روابط النسخة المصحّحة (مُختبَرة 206 · video/mp4)**: [كامل 16MB](https://is.gd/iQ9RUS) · [خفيف 2.4MB](https://is.gd/pRLWDq) · [بديل uguu](https://is.gd/WZygEK) · [بديل خفيف](https://is.gd/7WjRbP) — كل الروابط في [`downloads/CAPTION_LINKS.md`](./downloads/CAPTION_LINKS.md). النسخ القديمة الخيالية في [`downloads/LINKS.md`](./downloads/LINKS.md) لم تعد النهائية.
+> 🏆 **النسخة النهائية — استوديو احترافي (مُختبَرة 206 · video/mp4)**: [🎬 كامل 18MB · الأفضل](https://is.gd/B3kcZX) · [⚡ خفيف 2.7MB](https://is.gd/f3AskK) · [بديل filebin كامل](https://is.gd/CICeOa) · [بديل filebin خفيف](https://is.gd/PVTj1Y) — كل الروابط وتفاصيل التدقيق في [`downloads/STUDIO_LINKS.md`](./downloads/STUDIO_LINKS.md). كتيبة حركية كلمة‑بكلمة + صور ملصقات + تأثيرات، بلا تقطيع ولا تسريع. `CAPTION_LINKS.md` و `LINKS.md` نسخ سابقة.
 
 محرك مونتاج سينمائي **تلقائي وكامل** يعمل محلياً: يأخذ فيديو (ريل 9:16 مثلاً)، يحلّل إيقاعه، يبني قائمة لقطات متزامنة مع النبضات، يرفع الجودة، يضيف عشرات التأثيرات البصرية، ويولّد **تصميماً صوتياً سينمائياً من الصفر** (بدون أي مكتبات أصوات)، ثم يخرّج MP4 جاهزاً للنشر.
 
