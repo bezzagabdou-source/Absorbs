@@ -1,34 +1,36 @@
-# LEGENDARY MONTAGE — working direct links
-# file: URL_LEGENDARY.mp4 (23,351,579 bytes)
-# generated: 2026-11-04T06:57:16Z
+# LEGENDARY MONTAGE — verified direct links
+# full : URL_LEGENDARY.mp4  (1080x1920, 23,351,579 bytes)
+# lite : URL_LEGENDARY_LITE.mp4 (540x960, lighter for slow networks)
+# generated: 2026-11-04T07:02:57Z
 
-GITHUB (permanent, same repository)
-raw:        https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
-media:      https://media.githubusercontent.com/media/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
-blob page:  https://github.com/bezzagabdou-source/Absorbs/blob/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
-jsdelivr:   https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+GITHUB PERMANENT
+LINK https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+LINK https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY_LITE.mp4
+LINK https://github.com/bezzagabdou-source/Absorbs/blob/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+
+GITHUB RELEASE (CDN)
+LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-1/URL_LEGENDARY.mp4
+LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-1/URL_LEGENDARY_LITE.mp4
 
 INDEPENDENT MIRRORS
-catbox: No request type given?
-0x0: uploads disabled because it’s been almost nothing but AI botnet spam for the past few months. will be back with a few changes at some point. no ETA.
-tmpfiles: {"status":"success","data":{"url":"https://tmpfiles.org/wFAZoDDlNwbI/url_legendary.mp4"}}
-uguu: {
-    "success": true,
-    "files": [
-        {
-            "hash": "e88fc619e330af95",
-            "filename": "OEizGPpJ.mp4",
-            "url": "https:\/\/d.uguu.se\/OEizGPpJ.mp4",
-            "size": 23351579,
-            "dupe": false
-        }
-    ]
-}
-transfer: curl: (28) Failed to connect to transfer.sh port 443 after 134844 ms: Couldn't connect to server
-
-=== VERIFICATION (HTTP status | content-type | bytes fetched) ===
-403|text/plain; charset=utf-8|49  https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+LINK https://tmpfiles.org/dl/wFAZoDDlNwbI/url_legendary.mp4
+LINK https://d.uguu.se/OEizGPpJ.mp4
+catbox URL_LEGENDARY.mp4: No request type given?
+catbox URL_LEGENDARY_LITE.mp4: No request type given?
+pixeldrain URL_LEGENDARY.mp4: {"success":false,"value":"authentication_required","message":"This request requires API authentication. Please provide an API key in the password field of HTTP Basic Access Authentication"}
+pixeldrain URL_LEGENDARY_LITE.mp4: {"success":false,"value":"authentication_required","message":"This request requires API authentication. Please provide an API key in the password field of HTTP Basic Access Authentication"}
+filebin URL_LEGENDARY.mp4: 201
+LINK https://filebin.net/legendary1793775781/URL_LEGENDARY.mp4
+filebin URL_LEGENDARY_LITE.mp4: 201
+LINK https://filebin.net/legendary1793775781/URL_LEGENDARY_LITE.mp4
+tmpfiles URL_LEGENDARY.mp4: {"status":"success","data":{"url":"https://tmpfiles.org/wdAhoOSue0d9/url_legendary.mp4"}}
+tmpfiles URL_LEGENDARY_LITE.mp4: {"status":"success","data":{"url":"https://tmpfiles.org/wPAso1See2JB/url_legendary_lite.mp4"}}
+206|video/mp4|1024  https://d.uguu.se/OEizGPpJ.mp4
+206|video/mp4|1024  https://filebin.net/legendary1793775781/URL_LEGENDARY.mp4
+206|video/mp4|1024  https://filebin.net/legendary1793775781/URL_LEGENDARY_LITE.mp4
 206|text/html; charset=utf-8|1024  https://github.com/bezzagabdou-source/Absorbs/blob/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
-404||0  https://media.githubusercontent.com/media/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+206|application/octet-stream|1024  https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-1/URL_LEGENDARY.mp4
+206|application/octet-stream|1024  https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-1/URL_LEGENDARY_LITE.mp4
 206|application/octet-stream|1024  https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
-ERR  https://tmpfiles.org/wFAZoDDlNwbI/url_legendary.mp4"}}
+206|application/octet-stream|1024  https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY_LITE.mp4
+200|text/html; charset=utf-8|2816  https://tmpfiles.org/dl/wFAZoDDlNwbI/url_legendary.mp4
