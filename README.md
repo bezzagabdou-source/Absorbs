@@ -1,6 +1,8 @@
 # Nexus AI v11.0 — LEGEND
 
-> 🎬 **جديد — [`legendary-studio/`](./legendary-studio/README.md)**: استوديو مونتاج سينمائي تلقائي (FFmpeg + yt-dlp + curl_cffi + تصميم صوتي مولّد بـ numpy). ريل إنستغرام والرابط المباشر **تنزّلا ورُندِرا فعلياً** عبر GitHub Actions → [حمّل `URL_LEGENDARY.mp4`](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4) (1080×1920 · 22 لقطة) · [نسخة إنستغرام](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/REEL_LEGENDARY.mp4). ارفع أي فيديو في المتصفح واحصل على نفس المونتاج. `cd legendary-studio && ./setup.sh && ./studio.sh`
+> ✅ **النسخة المصحّحة (الأحدث)**: كتابة/ترجمة حسب كلام الشخص + ملصقات مرتبطة بالكلام + تحسين جودة فقط، **بدون تقطيع ولا تسريع ولا مؤثرات صوتية مضافة** — الزمن الأصلي 20.92s محفوظ. [رابط مباشر مُختبَر `video/mp4`](https://is.gd/iQ9RUS) · [نسخة خفيفة 2.4MB](https://is.gd/pRLWDq) · [الملف على GitHub](https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_LEGENDARY.mp4) · [كل الروابط](./legendary-studio/downloads/CAPTION_LINKS.md)
+>
+> 🎬 [`legendary-studio/`](./legendary-studio/README.md) — استوديو المونتاج. الملفات `URL_LEGENDARY.mp4` / `REEL_LEGENDARY.mp4` أدناه نسخ قديمة بمونتاج خيالي (22 لقطة + تسريع) **تم استبدالها** بالنسخة المصحّحة أعلاه. `cd legendary-studio && ./setup.sh && ./studio.sh`
 
 مساعد للسوق الجزائري والعربي: محادثة بالدارجة والعربية والفرنسية، 10 أدوات جاهزة، نظام نقاط يومي، وترقية Pro بالدينار (v8: أدوات الكود، صانع الألعاب، رفع الملفات، أحدث النماذج).
 تطبيق **PWA** — Next.js 16 · Firebase Auth · فريق AI موحّد (Claude + Gemini + DeepSeek + Grok + OpenRouter + Groq) · PostgreSQL (Drizzle) · Chargily Pay.
