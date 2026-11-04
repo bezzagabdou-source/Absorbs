@@ -46,12 +46,18 @@ jobs:
       - name: Download the ORIGINAL video
         run: |
           set +e
-          python -m pip install -q playwright
-          playwright install chromium || true
           mkdir -p legendary-studio/downloads
           LOG='legendary-studio/downloads/DOWNLOAD_DIAG.txt'
-          : > "$LOG"
           SRC='legendary-studio/out/source_original.mp4'
+          CACHE='legendary-studio/downloads/SOURCE_ORIGINAL.mp4'
+          : > "$LOG"
+          if [ -s "$CACHE" ]; then
+            cp "$CACHE" "$SRC"
+            echo "✅ استخدام المصدر الأصلي المحفوظ في المستودع (لا إعادة تحميل)" | tee -a "$LOG"
+            exit 0
+          fi
+          python -m pip install -q playwright
+          playwright install chromium || true
           ok=0
           for i in 1 2 3 4; do
             echo "=== attempt $i ===" | tee -a "$LOG"
@@ -63,17 +69,23 @@ jobs:
           done
           echo "OK=$ok" | tee -a "$LOG"
           ls -lh "$SRC" 2>/dev/null | tee -a "$LOG"
+          if [ "$ok" = "1" ]; then cp "$SRC" "$CACHE"; fi
           test "$ok" = "1"
 
-      - name: Keep download diagnostics
+      - name: Keep download diagnostics + cache clean source
         if: always()
         run: |
-          F='legendary-studio/downloads/DOWNLOAD_DIAG.txt'
-          [ -s "$F" ] || exit 0
+          D='legendary-studio/downloads'
+          F="$D/DOWNLOAD_DIAG.txt"
+          C="$D/SOURCE_ORIGINAL.mp4"
+          ADD=""
+          [ -s "$F" ] && ADD="$ADD $F"
+          [ -s "$C" ] && ADD="$ADD $C"
+          [ -z "$ADD" ] && exit 0
           git config user.name "arena-reel-bot"
           git config user.email "arena-reel-bot@users.noreply.github.com"
-          git add -f "$F"
-          git commit -m "diag: source download log [skip ci]" || true
+          git add -f $ADD
+          git commit -m "chore: cache clean source + download log [skip ci]" || true
           git push origin HEAD:arena/ecff9abf-absorbs || true
 
       - name: Multi-pass ASR (or use proofread words)
@@ -177,7 +189,9 @@ jobs:
           ADD=""
           for f in "$F" "$L" "$M" "$D/WORDS_IN_USE.json" \
                    "$D/_pro/PRO_TIMELINE.json" "$D/ASR_CANDIDATES.json" \
-                   "$D/BEST_WORDS.json" "$D/FINAL_WORDS.json"; do
+                   "$D/BEST_WORDS.json" "$D/FINAL_WORDS.json" \
+                   "$D/CAPTIONS_STUDIO.srt" "$D/PROOFREAD.md" \
+                   "$D/SOURCE_ORIGINAL.mp4" "$D/DOWNLOAD_DIAG.txt"; do
             [ -e "$f" ] && ADD="$ADD $f"
           done
           git add -f $ADD
