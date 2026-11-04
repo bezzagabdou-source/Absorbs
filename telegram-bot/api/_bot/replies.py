@@ -89,18 +89,32 @@ def handle(ctx):
         if not need_group(ctx) or not need_admin(ctx):
             return True
         reps = _store(ctx)
-        # رد بالوسائط: الرد على وسائط + "اضف رد الكلمة"
-        media = _media_of(ctx.reply_msg)
-        if media and "|" not in rest and rest.strip():
-            trig = norm(rest.strip())
+        trig_word = rest.strip()
+        # ⭐ أسهل طريقة: رد على أي رسالة (نص/صورة/ملصق/صوت) + "اضف رد الكلمة" → تُحفظ فوراً
+        if ctx.reply_msg and trig_word and "|" not in rest:
+            trig = norm(trig_word)
             if len(reps) >= MAX_REPLIES and trig not in reps:
                 ctx.reply(f"⚠️ وصلت الحد الأقصى ({MAX_REPLIES} رد). احذف بعضها أولاً.")
                 return True
+            media = _media_of(ctx.reply_msg)
+            rtext = (ctx.reply_msg.get("text") or ctx.reply_msg.get("caption") or "").strip()
             entry = _norm_entry(reps.get(trig))
-            entry["media"] = media
+            if media:
+                entry["media"] = media
+                entry["items"] = [{"t": "", "media": media}]
+                label = "وسائط 🎬"
+            elif rtext:
+                entry["t"] = [rtext]
+                entry["items"] = [{"t": rtext, "media": None}]
+                label = "نص 💬"
+            else:
+                ctx.reply("⚠️ الرسالة اللي رديت عليها ما فيها نص ولا وسائط. جرّب رسالة ثانية.")
+                return True
+            entry["on"] = True
             reps[trig] = entry
             ctx.dirty = ctx.force_save = True
-            ctx.reply(f"✅ أضفت رداً بالوسائط ({media['type']}) للكلمة: <b>{esc(rest.strip())}</b> 🎬")
+            ctx.reply(f"✅ <b>تسجّل الرد!</b> ({label})\n🔑 الكلمة: <b>{esc(trig_word)}</b>\n\n"
+                      f"جرّب درك: اكتب <code>{esc(trig_word)}</code> 😎")
             return True
         if "|" in rest:
             trig, resp = rest.split("|", 1)
@@ -120,8 +134,18 @@ def handle(ctx):
                 ctx.reply(f"✅ رد جديد{multi}: <b>{esc(trig)}</b>\n👁 معاينة: {esc(responses[0][:100])}\n\n"
                           f"💡 متغيرات: {{name}} {{username}} {{id}} {{group}} {{date}} {{time}}")
                 return True
-        # المعالج التفاعلي: "اضف رد" وحدها، أو "اضف رد الكلمة" (كلمة جاهزة)
-        start_wizard(ctx, trigger=rest.strip() or None)
+        # "اضف رد" وحدها → بطاقة تعليمات سهلة جداً + زر المعالج الاختياري
+        if not trig_word:
+            ctx.reply("💬 <b>أسهل طريقة تضيف رد (خطوة وحدة!):</b>\n\n"
+                      "1️⃣ <b>رد على أي رسالة</b> (نص / صورة / ملصق / صوت) واكتب:\n"
+                      "<code>اضف رد الكلمة</code>\n\n"
+                      "2️⃣ ولا اكتبها مباشرة:\n<code>اضف رد الكلمة | الرد</code>\n"
+                      "مثال: <code>اضف رد سلام | وعليكم السلام 🌹</code>\n\n"
+                      "🧙 تحب نعاونك خطوة بخطوة؟ اضغط الزر 👇",
+                      markup=keyboard([[btn("🧙 معالج تفاعلي", data="wiz:new")]]))
+            return True
+        # "اضف رد الكلمة" بلا رد وبلا | → معالج بكلمة جاهزة
+        start_wizard(ctx, trigger=trig_word)
         return True
 
     # ---- حذف رد ----

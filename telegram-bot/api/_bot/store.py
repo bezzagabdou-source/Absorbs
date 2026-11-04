@@ -54,32 +54,54 @@ class Store:
         self.ok = bool(pointer)
         self.last_error = ""
 
-    # ----- إنشاء مخزن جديد -----
+    # ----- إنشاء مخزن جديد (مع تحقق فعلي من الكتابة) -----
+    @staticmethod
+    def _prov_jsonblob():
+        r = requests.post("https://jsonblob.com/api/jsonBlob", json={"init": True},
+                          headers={"Content-Type": "application/json", "Accept": "application/json"},
+                          timeout=15)
+        if r.status_code in (200, 201):
+            loc = r.headers.get("Location") or r.headers.get("location") or ""
+            if loc:
+                return "jb:" + loc.rstrip("/").split("/")[-1]
+        return ""
+
+    @staticmethod
+    def _prov_pantry():
+        r = requests.post("https://getpantry.com/api/pantry/create",
+                          json={"name": "absorbs-bot", "description": "telegram bot state"},
+                          headers={"Content-Type": "application/json"}, timeout=15)
+        if r.status_code in (200, 201):
+            data = r.json()
+            pid = data.get("pantryId") or data.get("pantry_id") or ""
+            if pid:
+                return "pt:" + pid
+        return ""
+
+    @staticmethod
+    def _prov_kvdb():
+        r = requests.post("https://kvdb.io", data={"email": "absorbs.bot@proton.me"}, timeout=15)
+        if r.status_code in (200, 201) and r.text.strip():
+            return "kv:" + r.text.strip().split("/")[-1]
+        return ""
+
     @staticmethod
     def provision():
-        state = dict(DEFAULT_STATE)
-        state["created"] = int(time.time())
-        # 1) jsonblob
-        try:
-            r = requests.post("https://jsonblob.com/api/jsonBlob", json=state,
-                              headers={"Content-Type": "application/json", "Accept": "application/json"},
-                              timeout=15)
-            if r.status_code in (200, 201):
-                loc = r.headers.get("Location") or r.headers.get("location")
-                if loc:
-                    return "jb:" + loc.rstrip("/").split("/")[-1]
-        except Exception:
-            pass
-        # 2) kvdb
-        try:
-            r = requests.post("https://kvdb.io", data={"email": "absorbs.bot@proton.me"}, timeout=15)
-            if r.status_code in (200, 201) and r.text.strip():
-                bucket = r.text.strip().split("/")[-1]
-                requests.put(f"https://kvdb.io/{bucket}/state",
-                             data=json.dumps(state, ensure_ascii=False).encode("utf-8"), timeout=15)
-                return "kv:" + bucket
-        except Exception:
-            pass
+        """يجرّب عدة خوادم ويتحقق من الكتابة+القراءة قبل اعتماد أيّ منها."""
+        for maker in (Store._prov_jsonblob, Store._prov_pantry, Store._prov_kvdb):
+            try:
+                pointer = maker()
+                if not pointer:
+                    continue
+                st = Store(pointer)
+                probe = {"v": 2, "created": int(time.time()), "chats": {}, "sudo": [],
+                         "gbans": {}, "_probe": "absorbs-ok"}
+                if st.save(probe):
+                    back = st.load()
+                    if back.get("_probe") == "absorbs-ok":
+                        return pointer
+            except Exception:
+                continue
         return ""
 
     def _url(self):
@@ -87,7 +109,12 @@ class Store:
             return f"https://jsonblob.com/api/jsonBlob/{self.pointer[3:]}"
         if self.pointer.startswith("kv:"):
             return f"https://kvdb.io/{self.pointer[3:]}/state"
+        if self.pointer.startswith("pt:"):
+            return f"https://getpantry.com/api/pantry/{self.pointer[3:]}/basket/state"
         return None
+
+    def _write_method(self):
+        return "POST" if self.pointer.startswith("pt:") else "PUT"
 
     def load(self):
         url = self._url()
@@ -98,7 +125,8 @@ class Store:
                 r = requests.get(url, timeout=12, headers={"Accept": "application/json"})
                 if r.status_code == 200:
                     data = r.json()
-                    if isinstance(data, dict):
+                    # تأكد أنه حالة حقيقية وليس جسم خطأ مثل {"message":"Not Found"}
+                    if isinstance(data, dict) and ("chats" in data or "v" in data or "created" in data):
                         data.setdefault("chats", {})
                         data.setdefault("sudo", [])
                         data.setdefault("gbans", {})
@@ -119,10 +147,11 @@ class Store:
         if len(body.encode("utf-8")) > 900_000:
             prune(state)
             body = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
+        method = self._write_method()
         for attempt in range(2):
             try:
-                r = requests.put(url, data=body.encode("utf-8"),
-                                 headers={"Content-Type": "application/json"}, timeout=15)
+                r = requests.request(method, url, data=body.encode("utf-8"),
+                                     headers={"Content-Type": "application/json"}, timeout=15)
                 if r.status_code in (200, 201, 204):
                     return True
                 self.last_error = f"HTTP {r.status_code}"
@@ -130,6 +159,21 @@ class Store:
                 self.last_error = str(e)[:120]
                 time.sleep(0.4)
         return False
+
+    def write_ok(self):
+        """اختبار كتابة حقيقي: يحفظ الحالة الحالية ويعيد قراءتها."""
+        try:
+            state = self.load()
+            marker = int(time.time())
+            state["_wtest"] = marker
+            if not self.save(state):
+                return False, self.last_error or "save failed"
+            back = self.load()
+            if back.get("_wtest") == marker:
+                return True, "ok"
+            return False, "read-back mismatch"
+        except Exception as e:
+            return False, str(e)[:120]
 
 
 def prune(state):

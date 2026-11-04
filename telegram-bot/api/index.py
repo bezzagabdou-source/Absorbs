@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 import traceback
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
@@ -148,16 +149,78 @@ def do_health():
     if isinstance(info, dict) and "p=" in info.get("url", ""):
         pointer = parse_qs(urlparse(info["url"]).query).get("p", [""])[0]
     storage_ok = False
+    write_ok = False
+    write_detail = "no pointer"
     if pointer:
         try:
             st = Store(pointer)
-            state = st.load()
-            storage_ok = bool(state.get("created") or state.get("chats") is not None)
-        except Exception:
-            storage_ok = False
+            write_ok, write_detail = st.write_ok()
+            storage_ok = write_ok
+        except Exception as e:
+            write_detail = str(e)[:120]
     return {"ok": isinstance(me, dict) and not me.get("_error"),
             "bot": me if isinstance(me, dict) else str(me),
-            "webhook": info, "storage_ok": storage_ok}
+            "webhook": info, "storage_ok": storage_ok,
+            "storage_write_ok": write_ok, "storage_write_detail": write_detail}
+
+
+def do_storage(qs, host):
+    """تشخيص وإصلاح التخزين: يتحقق من الكتابة، وإن فشلت ينشئ خادماً جديداً موثوقاً."""
+    if not TOKEN:
+        return {"ok": False, "error": "BOT_TOKEN missing"}
+    key = (qs.get("key") or [""])[0]
+    if key != _setup_key():
+        return {"ok": False, "error": "مفتاح غير صحيح"}
+    tg = TG(TOKEN)
+    info = tg.webhook_info()
+    old_url = info.get("url", "") if isinstance(info, dict) else ""
+    pointer = parse_qs(urlparse(old_url).query).get("p", [""])[0] if "p=" in old_url else ""
+    repair = (qs.get("repair") or ["0"])[0] == "1"
+    report = {"old_pointer": pointer}
+    cur_ok, cur_detail = (False, "no pointer")
+    if pointer:
+        cur_ok, cur_detail = Store(pointer).write_ok()
+    report["current_write_ok"] = cur_ok
+    report["current_detail"] = cur_detail
+    if cur_ok and not repair:
+        report["ok"] = True
+        report["action"] = "none — التخزين سليم"
+        return report
+    new_pointer = Store.provision()
+    report["new_pointer"] = new_pointer
+    if not new_pointer:
+        report["ok"] = False
+        report["error"] = "لم ينجح أي خادم تخزين"
+        return report
+    st = Store(new_pointer)
+    state = st.load()
+    if pointer:
+        old_state = Store(pointer).load()
+        if old_state.get("chats"):
+            state = old_state  # انقل البيانات الموجودة إن كانت قابلة للقراءة
+    me = tg.get_me()
+    if isinstance(me, dict):
+        state["bot_id"] = me.get("id")
+        state["bot_username"] = me.get("username")
+    if not state.get("created"):
+        state["created"] = int(time.time())
+    state.pop("_probe", None)
+    report["migrated_chats"] = len(state.get("chats", {}))
+    report["saved"] = st.save(state)
+    wok, wdetail = st.write_ok()
+    report["new_write_ok"] = wok
+    report["new_write_detail"] = wdetail
+    if not wok:
+        report["ok"] = False
+        report["error"] = "الخادم الجديد لا يكتب"
+        return report
+    base = f"https://{host}"
+    wh_url = base + "/api?p=" + quote(new_pointer, safe="")
+    report["webhook"] = wh_url
+    report["webhook_result"] = tg.set_webhook(wh_url, _secret(), drop=False)
+    report["ok"] = True
+    report["action"] = "repaired — تم إصلاح التخزين"
+    return report
 
 
 class handler(BaseHTTPRequestHandler):
@@ -177,6 +240,8 @@ class handler(BaseHTTPRequestHandler):
                 _json_response(self, do_setup(qs, self._host()))
             elif action == "health" or path.endswith("/health"):
                 _json_response(self, do_health())
+            elif action == "storage" or path.endswith("/storage"):
+                _json_response(self, do_storage(qs, self._host()))
             else:
                 _json_response(self, {"name": BOT_TITLE, "status": "legendary", "endpoints": ["/setup", "/health", "/api"],
                                       "features": "200+ ميزة: حماية، إدارة، أغاني يوتيوب، ألعاب، قرآن، أدوات"})

@@ -338,11 +338,24 @@ check("رد ذكي على الرد للبوت", any("Absorbs" in t for t in text
 calls = run(msg_update("شكرا", uid=111, reply=bot_msg))
 check("رد ذكي شكرا", any("العفو" in t or "بلا جميل" in t or "يعافيك" in t or "تسلملي" in t for t in texts(calls)))
 
-# ---- المعالج التفاعلي (اضف رد وحدها) ----
+# ---- ⭐ أسهل طريقة: رد على رسالة + اضف رد الكلمة (خطوة واحدة) ----
 calls = run(msg_update("اضف رد", uid=555))
-check("المعالج يفتح", any("معالج إضافة رد" in t and "الخطوة 1/2" in t for t in texts(calls)))
-calls = run(msg_update("كلمة_معالج", uid=555))
-check("المعالج يقبل الكلمة", any("الخطوة 2/2" in t for t in texts(calls)))
+check("بطاقة التعليمات السهلة", any("أسهل طريقة" in t for t in texts(calls)))
+src_text = {"message_id": 20, "from": {"id": 222, "first_name": "Src"}, "text": "هذا رد نصي سهل 🌹"}
+calls = run(msg_update("اضف رد كلمة_سهلة", uid=555, reply=src_text))
+check("رد خطوة واحدة (نص)", any("تسجّل الرد" in t for t in texts(calls)))
+calls = run(msg_update("كلمة_سهلة", uid=111))
+check("الرد السهل يعمل", any("هذا رد نصي سهل" in t for t in texts(calls)))
+src_photo = {"message_id": 21, "from": {"id": 222, "first_name": "Src"},
+             "photo": [{"file_id": "p1", "file_size": 100}, {"file_id": "EASY_PHOTO", "file_size": 5000}]}
+calls = run(msg_update("اضف رد صورة_سهلة", uid=555, reply=src_photo))
+check("رد خطوة واحدة (صورة)", any("تسجّل الرد" in t for t in texts(calls)))
+calls = run(msg_update("صورة_سهلة", uid=111))
+check("الرد بالصورة يعمل", any(m == "send_photo" for m, a, k in calls))
+
+# ---- المعالج بكلمة جاهزة (اضف رد الكلمة) ----
+calls = run(msg_update("اضف رد كلمة_معالج", uid=555))
+check("معالج بكلمة جاهزة", any("الخطوة 2/2" in t for t in texts(calls)))
 calls = run(msg_update("رد المعالج {name} 🌹", uid=555))
 check("المعالج يقبل الرد النصي", any("تزاد الرد النصي" in t for t in texts(calls)))
 calls = run(msg_update("تم", uid=555))
@@ -350,9 +363,23 @@ check("المعالج يحفظ", any("تم حفظ الرد" in t for t in texts(
 calls = run(msg_update("كلمة_معالج", uid=111))
 check("رد المعالج يعمل", any("رد المعالج" in t for t in texts(calls)))
 
+# ---- المعالج عبر الزر (wiz:new → خطوة 1) ----
+def cq_as(data, uid):
+    return {"update_id": 3, "callback_query": {"id": "cqw", "from": {"id": uid, "first_name": "T"},
+            "message": {"message_id": 70, "chat": {"id": -100123, "type": "supergroup"}}, "data": data}}
+calls = run(cq_as("wiz:new", 555))
+check("المعالج عبر الزر", any("الخطوة 1/2" in t for t in texts(calls)))
+calls = run(msg_update("كلمة_زر", uid=555))
+check("المعالج يقبل الكلمة", any("الخطوة 2/2" in t for t in texts(calls)))
+run(msg_update("رد الزر", uid=555))
+calls = run(cq_as("wiz:done", 555))
+check("الحفظ عبر الزر", any("تم حفظ الرد" in t for t in texts(calls)))
+calls = run(msg_update("كلمة_زر", uid=111))
+check("رد الزر يعمل", any("رد الزر" in t for t in texts(calls)))
+
 # ---- المعالج: صورة مع تعليق ----
 calls = run(msg_update("اضف رد صورة_معالج", uid=555))
-check("معالج بكلمة جاهزة", any("الخطوة 2/2" in t for t in texts(calls)))
+check("معالج صورة بكلمة جاهزة", any("الخطوة 2/2" in t for t in texts(calls)))
 photo_msg = msg_update("", uid=555)
 photo_msg["message"]["photo"] = [{"file_id": "sm", "file_size": 100}, {"file_id": "PHOTO_WIZ", "file_size": 5000}]
 photo_msg["message"]["caption"] = "صورة مع رد 📷"
@@ -364,9 +391,9 @@ calls = run(msg_update("صورة_معالج", uid=111))
 check("رد الصورة يعمل", any(m == "send_photo" for m, a, k in calls))
 
 # ---- المعالج: إلغاء ----
-calls = run(msg_update("اضف رد", uid=555))
+run(msg_update("اضف رد كلمة_ملغاة", uid=555))
 run(msg_update("الغاء", uid=555))
-calls = run(msg_update("كلمة_ملغاة", uid=555))
+calls = run(msg_update("كلمة_ملغاة", uid=111))
 check("إلغاء المعالج يعمل", len(texts(calls)) == 0)
 
 # ---- الحماية الافتراضية (مجموعة جديدة) ----
