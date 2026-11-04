@@ -1,5 +1,7 @@
 # 🎬 LEGENDARY STUDIO — استوديو المونتاج الأسطوري
 
+> 🔗 **روابط مضمونة مُختبَرة**: [خفيف 2.8MB](https://tinyurl.com/284k6kq7) · [كامل 23MB](https://tinyurl.com/25oee48m) · [GitHub Release](https://tinyurl.com/2yc5vruh) · [بديل filebin](https://tinyurl.com/28684gf2) — القائمة الكاملة في [`downloads/LINKS.md`](./downloads/LINKS.md)
+
 محرك مونتاج سينمائي **تلقائي وكامل** يعمل محلياً: يأخذ فيديو (ريل 9:16 مثلاً)، يحلّل إيقاعه، يبني قائمة لقطات متزامنة مع النبضات، يرفع الجودة، يضيف عشرات التأثيرات البصرية، ويولّد **تصميماً صوتياً سينمائياً من الصفر** (بدون أي مكتبات أصوات)، ثم يخرّج MP4 جاهزاً للنشر.
 
 > built for the reel: `https://www.instagram.com/reel/DfSkvUnxXb7/`
