@@ -2,10 +2,27 @@
 """تخزين دائم مجاني بدون تسجيل: jsonblob.com أساسي + kvdb.io احتياطي.
 المؤشر يُحفظ داخل رابط الويبهوك نفسه حتى يبقى عبر كل الاستدعاءات (serverless)."""
 import json
+import re
 import time
 import requests
 
 DEFAULT_STATE = {"v": 2, "owner": None, "sudo": [], "gbans": {}, "chats": {}, "created": 0}
+
+# بعض الخوادم (Cloudflare) تحجب وكيل python-requests الافتراضي → نستخدم وكيل متصفح
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+
+
+def _http(method, url, **kw):
+    headers = {"User-Agent": _UA, "Accept": "application/json"}
+    headers.update(kw.pop("headers", None) or {})
+    kw.setdefault("timeout", 15)
+    return requests.request(method, url, headers=headers, **kw)
+
+
+def _snip(r):
+    t = re.sub(r"<[^>]+>", " ", getattr(r, "text", "") or "")
+    return " ".join(t.split())[:60]
 
 DEFAULT_SETTINGS = {
     "on": True,
@@ -57,21 +74,19 @@ class Store:
     # ----- إنشاء مخزن جديد (مع تحقق فعلي من الكتابة) -----
     @staticmethod
     def _prov_jsonblob():
-        r = requests.post("https://jsonblob.com/api/jsonBlob", json={"init": True},
-                          headers={"Content-Type": "application/json", "Accept": "application/json"},
-                          timeout=15)
+        r = _http("POST", "https://jsonblob.com/api/jsonBlob", json={"init": True},
+                  headers={"Content-Type": "application/json"})
         loc = r.headers.get("Location") or r.headers.get("location") or ""
         xid = r.headers.get("x-jsonblob") or r.headers.get("X-jsonblob") or ""
         blob = (loc.rstrip("/").split("/")[-1] if loc else "") or xid
         if r.status_code in (200, 201) and blob:
             return "jb:" + blob
-        raise RuntimeError("HTTP %s loc=%s body=%s" % (r.status_code, bool(loc), r.text[:70]))
+        raise RuntimeError("HTTP %s loc=%s %s" % (r.status_code, bool(loc), _snip(r)))
 
     @staticmethod
     def _prov_superjsonblob():
-        r = requests.post("https://superjsonblob.com/api/jsonBlob", json={"init": True},
-                          headers={"Content-Type": "application/json", "Accept": "application/json"},
-                          timeout=15)
+        r = _http("POST", "https://superjsonblob.com/api/jsonBlob", json={"init": True},
+                  headers={"Content-Type": "application/json"})
         loc = r.headers.get("Location") or r.headers.get("location") or ""
         blob = loc.rstrip("/").split("/")[-1] if loc else ""
         if not blob:
@@ -81,13 +96,13 @@ class Store:
                 blob = ""
         if r.status_code in (200, 201) and blob:
             return "sj:" + blob
-        raise RuntimeError("HTTP %s body=%s" % (r.status_code, r.text[:70]))
+        raise RuntimeError("HTTP %s %s" % (r.status_code, _snip(r)))
 
     @staticmethod
     def _prov_pantry():
-        r = requests.post("https://getpantry.cloud/apiv1/pantry/create",
-                          json={"name": "absorbs-bot", "description": "telegram bot state"},
-                          headers={"Content-Type": "application/json"}, timeout=15)
+        r = _http("POST", "https://getpantry.cloud/apiv1/pantry/create",
+                  json={"name": "absorbs-bot", "description": "telegram bot state"},
+                  headers={"Content-Type": "application/json"})
         if r.status_code in (200, 201):
             try:
                 data = r.json()
@@ -96,14 +111,14 @@ class Store:
                 pid = r.text.strip().strip('"')
             if pid:
                 return "pt:" + pid
-        raise RuntimeError("HTTP %s body=%s" % (r.status_code, r.text[:70]))
+        raise RuntimeError("HTTP %s %s" % (r.status_code, _snip(r)))
 
     @staticmethod
     def _prov_kvdb():
-        r = requests.post("https://kvdb.io", data={"email": "absorbs.bot@proton.me"}, timeout=15)
+        r = _http("POST", "https://kvdb.io", data={"email": "absorbs.bot@proton.me"})
         if r.status_code in (200, 201) and r.text.strip():
             return "kv:" + r.text.strip().split("/")[-1]
-        raise RuntimeError("HTTP %s body=%s" % (r.status_code, r.text[:70]))
+        raise RuntimeError("HTTP %s %s" % (r.status_code, _snip(r)))
 
     @staticmethod
     def provision(debug=None):
@@ -158,7 +173,7 @@ class Store:
             return json.loads(json.dumps(DEFAULT_STATE))
         for attempt in range(2):
             try:
-                r = requests.get(url, timeout=12, headers={"Accept": "application/json"})
+                r = _http("GET", url, timeout=12)
                 if r.status_code == 200:
                     data = r.json()
                     # تأكد أنه حالة حقيقية وليس جسم خطأ مثل {"message":"Not Found"}
@@ -186,8 +201,8 @@ class Store:
         method = self._write_method()
         for attempt in range(2):
             try:
-                r = requests.request(method, url, data=body.encode("utf-8"),
-                                     headers={"Content-Type": "application/json"}, timeout=15)
+                r = _http(method, url, data=body.encode("utf-8"),
+                          headers={"Content-Type": "application/json"})
                 if r.status_code in (200, 201, 204):
                     return True
                 self.last_error = f"HTTP {r.status_code}"
