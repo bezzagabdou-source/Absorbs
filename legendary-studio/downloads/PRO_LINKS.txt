@@ -1,0 +1,24 @@
+# STUDIO KINETIC CAPTIONS — verified direct links
+# word-accurate captions + image stickers + effects; NO cuts / NO speed change
+# generated: 2026-11-04T08:11:18Z
+
+GITHUB (permanent, available after push)
+INFO https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_STUDIO.mp4
+GITHUB RELEASE
+LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-3/CAPTION_STUDIO.mp4
+LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-3/CAPTION_STUDIO_LITE.mp4
+INDEPENDENT MIRRORS
+LINK https://d.uguu.se/gJgaxisT.mp4
+uguu CAPTION_STUDIO.mp4: done
+LINK https://h.uguu.se/HhtaQTcj.mp4
+uguu CAPTION_STUDIO_LITE.mp4: done
+filebin CAPTION_STUDIO.mp4: 201
+LINK https://filebin.net/studio1793779883/CAPTION_STUDIO.mp4
+filebin CAPTION_STUDIO_LITE.mp4: 201
+LINK https://filebin.net/studio1793779883/CAPTION_STUDIO_LITE.mp4
+206|video/mp4|1024  https://d.uguu.se/gJgaxisT.mp4
+206|video/mp4|1024  https://filebin.net/studio1793779883/CAPTION_STUDIO.mp4
+206|video/mp4|1024  https://filebin.net/studio1793779883/CAPTION_STUDIO_LITE.mp4
+206|application/octet-stream|1024  https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-3/CAPTION_STUDIO.mp4
+206|application/octet-stream|1024  https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-3/CAPTION_STUDIO_LITE.mp4
+206|video/mp4|1024  https://h.uguu.se/HhtaQTcj.mp4
