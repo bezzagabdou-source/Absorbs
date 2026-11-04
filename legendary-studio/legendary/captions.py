@@ -36,7 +36,10 @@ KEYWORDS = [
 DEFAULT_COLOR = "0xB87333"
 
 
-def transcribe(src: str, sizes=("small", "base", "tiny")) -> list[dict]:
+DETECTED_LANGUAGE = "unknown"
+
+
+def transcribe(src: str, sizes=("large-v3-turbo", "medium", "small", "base", "tiny")) -> list[dict]:
     try:
         from faster_whisper import WhisperModel  # noqa: PLC0415
     except ImportError as exc:
@@ -60,6 +63,8 @@ def transcribe(src: str, sizes=("small", "base", "tiny")) -> list[dict]:
                                       "end": round(float(w.end), 2)})
             print(f"   اللغة: {info.language} · {len(words)} كلمة", flush=True)
             if words:
+                global DETECTED_LANGUAGE
+                DETECTED_LANGUAGE = info.language
                 return words
         except Exception as exc:  # model download / runtime failure
             last_error = exc
@@ -82,9 +87,15 @@ def make_captions(words: list[dict], max_words: int = 4, gap: float = 0.45,
         cur.append(w)
     if cur:
         groups.append(cur)
-    return [{"text": " ".join(x["word"] for x in g).strip(),
+    caps = [{"text": " ".join(x["word"] for x in g).strip(),
              "start": round(g[0]["start"], 2),
-             "end": round(g[-1]["end"] + 0.25, 2)} for g in groups if g]
+             "end": round(g[-1]["end"] + 0.20, 2)} for g in groups if g]
+    # Whisper word timestamps can overlap; never stack two captions on screen.
+    for i in range(len(caps) - 1):
+        if caps[i]["end"] > caps[i + 1]["start"]:
+            caps[i]["end"] = round(max(caps[i]["start"] + 0.25,
+                                       caps[i + 1]["start"] - 0.03), 2)
+    return caps
 
 
 def pick_sticker(text: str) -> tuple[str, str]:
@@ -221,7 +232,7 @@ def render(src: str, out: str, workdir: str, transcript_json: str | None = None)
         "input": os.path.abspath(src), "output": os.path.abspath(out),
         "duration": info.duration, "source_size": [info.width, info.height],
         "output_size": [W, H], "fps": info.fps,
-        "words": len(words), "captions": captions,
+        "words": len(words), "language": DETECTED_LANGUAGE, "captions": captions,
         "transcript": " ".join(w["word"] for w in words),
         "stickers": [pick_sticker(c["text"])[0] for c in captions],
         "edits": "none (original timeline + original audio preserved)",
