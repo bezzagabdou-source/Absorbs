@@ -60,7 +60,7 @@
 ## 🧪 الاختبار المحلي
 ```bash
 pip install -r requirements.txt
-python test_bot.py   # 92 اختبار محاكاة تيليجرام
+python test_bot.py   # 100 اختبار محاكاة تيليجرام
 ```
 
 ## 🗂 البنية
