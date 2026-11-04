@@ -45,10 +45,36 @@ jobs:
 
       - name: Download the ORIGINAL video
         run: |
-          PYTHONPATH=legendary-studio SOURCE_OUT='legendary-studio/out/source_original.mp4' \
-            python legendary-studio/legendary/cloudflare_fetch.py
-          test -s legendary-studio/out/source_original.mp4
-          ls -lh legendary-studio/out/source_original.mp4
+          set +e
+          python -m pip install -q playwright
+          playwright install chromium || true
+          mkdir -p legendary-studio/downloads
+          LOG='legendary-studio/downloads/DOWNLOAD_DIAG.txt'
+          : > "$LOG"
+          SRC='legendary-studio/out/source_original.mp4'
+          ok=0
+          for i in 1 2 3 4; do
+            echo "=== attempt $i ===" | tee -a "$LOG"
+            PYTHONPATH=legendary-studio SOURCE_OUT="$SRC" \
+              python legendary-studio/legendary/cloudflare_fetch.py 2>&1 | tee -a "$LOG"
+            if [ -s "$SRC" ]; then ok=1; break; fi
+            rm -f "$SRC"
+            sleep 12
+          done
+          echo "OK=$ok" | tee -a "$LOG"
+          ls -lh "$SRC" 2>/dev/null | tee -a "$LOG"
+          test "$ok" = "1"
+
+      - name: Keep download diagnostics
+        if: always()
+        run: |
+          F='legendary-studio/downloads/DOWNLOAD_DIAG.txt'
+          [ -s "$F" ] || exit 0
+          git config user.name "arena-reel-bot"
+          git config user.email "arena-reel-bot@users.noreply.github.com"
+          git add -f "$F"
+          git commit -m "diag: source download log [skip ci]" || true
+          git push origin HEAD:arena/ecff9abf-absorbs || true
 
       - name: Multi-pass ASR (or use proofread words)
         run: |
