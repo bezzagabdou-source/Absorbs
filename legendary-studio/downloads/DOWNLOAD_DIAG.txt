@@ -1,15 +1,5 @@
 === attempt 1 ===
-curl_cffi[chrome124] error: Failed to perform, curl: (28) Operation timed out after 60001 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.
-curl_cffi[chrome123] → 504 · text/html; charset=UTF-8 · 6437 bytes · b'<!DOCTYPE ht'
-curl_cffi[chrome] error: Failed to perform, curl: (28) Operation timed out after 60001 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.
-curl_cffi[safari17_0] error: Failed to perform, curl: (28) Operation timed out after 60001 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.
-→ falling back to headless Chromium challenge solver
-  challenge tick 0: image2url.com | 504: Gateway time-out
-cookies: []
-playwright request → 403 · text/html; charset=UTF-8 · 5869 bytes · b'<!DOCTYPE ht'
-❌ all browser-grade strategies failed (Cloudflare challenge not solved)
-=== attempt 2 ===
 curl_cffi[chrome124] → 200 · video/mp4 · 4709577 bytes · b'\x00\x00\x00 ftypisom'
 ✅ saved 4709577 bytes → legendary-studio/out/source_original.mp4
 OK=1
--rw-r--r-- 1 runner runner 4.5M Nov  4 08:07 legendary-studio/out/source_original.mp4
+-rw-r--r-- 1 runner runner 4.5M Nov  4 08:16 legendary-studio/out/source_original.mp4
