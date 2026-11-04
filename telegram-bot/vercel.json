@@ -8,6 +8,7 @@
     { "source": "/", "destination": "/api/index" },
     { "source": "/setup", "destination": "/api/index?action=setup" },
     { "source": "/health", "destination": "/api/index?action=health" },
+    { "source": "/storage", "destination": "/api/index?action=storage" },
     { "source": "/api", "destination": "/api/index" }
   ]
 }

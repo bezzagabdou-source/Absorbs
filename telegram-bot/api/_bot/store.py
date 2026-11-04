@@ -86,12 +86,18 @@ class Store:
         return ""
 
     @staticmethod
-    def provision():
+    def provision(debug=None):
         """يجرّب عدة خوادم ويتحقق من الكتابة+القراءة قبل اعتماد أيّ منها."""
-        for maker in (Store._prov_jsonblob, Store._prov_pantry, Store._prov_kvdb):
+        for name, maker in (("jsonblob", Store._prov_jsonblob), ("pantry", Store._prov_pantry),
+                            ("kvdb", Store._prov_kvdb)):
+            entry = {"backend": name}
             try:
                 pointer = maker()
+                entry["pointer"] = pointer
                 if not pointer:
+                    entry["error"] = "create failed"
+                    if debug is not None:
+                        debug.append(entry)
                     continue
                 st = Store(pointer)
                 probe = {"v": 2, "created": int(time.time()), "chats": {}, "sudo": [],
@@ -99,9 +105,17 @@ class Store:
                 if st.save(probe):
                     back = st.load()
                     if back.get("_probe") == "absorbs-ok":
+                        entry["ok"] = True
+                        if debug is not None:
+                            debug.append(entry)
                         return pointer
-            except Exception:
-                continue
+                    entry["error"] = "read-back mismatch"
+                else:
+                    entry["error"] = "save: " + (st.last_error or "failed")
+            except Exception as e:
+                entry["error"] = str(e)[:160]
+            if debug is not None:
+                debug.append(entry)
         return ""
 
     def _url(self):

@@ -186,7 +186,9 @@ def do_storage(qs, host):
         report["ok"] = True
         report["action"] = "none — التخزين سليم"
         return report
-    new_pointer = Store.provision()
+    attempts = []
+    new_pointer = Store.provision(debug=attempts)
+    report["attempts"] = attempts
     report["new_pointer"] = new_pointer
     if not new_pointer:
         report["ok"] = False
