@@ -190,6 +190,8 @@ allcalls = []
 for i in range(8):
     allcalls += run(msg_update(f"رسالة {i}", uid=444))
 check("كتم السبام", any(m == "restrict" for m, a, k in allcalls) or any("سبام" in t for t in texts(allcalls)))
+STATE["chats"]["-100123"]["settings"]["flood_on"] = False  # نوقفه مجدداً لاختبارات الميزات الجديدة
+STATE["chats"]["-100123"]["flood"] = {}
 
 # 17) callback كويز
 STATE["chats"]["-100123"]["game"] = {"type": "quiz", "qid": 4242, "correct": 1, "q": "س", "ts": time.time()}
@@ -203,5 +205,107 @@ calls = run(msg_update("/help", uid=111))
 check("/help", any("الأسطوري" in t for t in texts(calls)))
 calls = run(msg_update("/id", uid=111))
 check("/id", any("الآيدي" in t for t in texts(calls)))
+
+# ================= الميزات الجديدة (500+) =================
+print("\n--- الميزات الجديدة ---")
+
+# ---- الردود الغنية (تحتاج مشرف uid=555) ----
+calls = run(msg_update("اضف رد هلا | أهلاً {name} نورت {group} 🌹", uid=555))
+check("اضف رد غني", any("✅" in t for t in texts(calls)))
+calls = run(msg_update("هلا", uid=111))
+check("رد غني بالمتغيرات", any("أهلاً" in t and "Test" in t for t in texts(calls)))
+calls = run(msg_update("اضف رد عشوائي | رد1 || رد2 || رد3", uid=555))
+check("رد عشوائي متعدد", any("✅" in t for t in texts(calls)))
+calls = run(msg_update("الردود", uid=555))
+check("قائمة الردود", any("هلا" in t and "🎲" in t for t in texts(calls)))
+calls = run(msg_update("عدل رد هلا | جديد {name}", uid=555))
+check("عدل رد", any("✏️" in t for t in texts(calls)))
+calls = run(msg_update("تعطيل رد هلا", uid=555))
+check("تعطيل رد", any("⛔" in t for t in texts(calls)))
+calls = run(msg_update("تفعيل رد هلا", uid=555))
+check("تفعيل رد", any("✅" in t for t in texts(calls)))
+calls = run(msg_update("بحث رد هلا", uid=555))
+check("بحث رد", any("هلا" in t for t in texts(calls)))
+calls = run(msg_update("احذف رد هلا", uid=555))
+check("احذف رد غني", any("🗑" in t for t in texts(calls)))
+
+# ---- الاقتصاد ----
+calls = run(msg_update("المتجر", uid=111))
+check("المتجر", any("متجر الأساطير" in t for t in texts(calls)))
+calls = run(msg_update("عمل", uid=111))
+check("عمل", any("ربحت" in t or "تعبت" in t for t in texts(calls)))
+calls = run(msg_update("بنك", uid=111))
+check("بنك", any("البنك" in t for t in texts(calls)))
+calls = run(msg_update("ايداع 50", uid=111))
+check("ايداع", any("أودعت" in t or "🔢" in t for t in texts(calls)))
+calls = run(msg_update("مقتنياتي", uid=111))
+check("مقتنياتي", any("مقتنيات" in t for t in texts(calls)))
+
+# ---- الاجتماعي ----
+calls = run(msg_update("ملفي", uid=111))
+check("ملفي", any("ملف" in t for t in texts(calls)))
+calls = run(msg_update("ضع نبذة أنا مطور البوت", uid=111))
+check("ضع نبذة", any("حُفظت نبذتك" in t for t in texts(calls)))
+calls = run(msg_update("سمعتي", uid=111))
+check("سمعتي", any("سمعة" in t for t in texts(calls)))
+calls = run(msg_update("انجازاتي", uid=111))
+check("انجازاتي", any("إنجازاتك" in t for t in texts(calls)))
+calls = run(msg_update("اصدقائي", uid=111))
+check("اصدقائي", any("أصدقاء" in t for t in texts(calls)))
+calls = run(msg_update("توب الثراء", uid=111))
+check("توب الثراء", any("أغنى" in t for t in texts(calls)))
+
+# ---- ألعاب إضافية ----
+calls = run(msg_update("شنق", uid=111))
+check("شنق", any("الشنق" in t for t in texts(calls)))
+calls = run(msg_update("سلسلة", uid=111))
+check("سلسلة", any("سلسلة الكلمات" in t for t in texts(calls)))
+calls = run(msg_update("ذاكرة", uid=111))
+check("ذاكرة", any("الذاكرة" in t for t in texts(calls)))
+calls = run(msg_update("خمن الفيلم", uid=111))
+check("خمن الفيلم", any("الفيلم" in t for t in texts(calls)))
+calls = run(msg_update("مليونير", uid=111))
+check("مليونير", any("من سيربح" in t for t in texts(calls)))
+
+# ---- أدوات إضافية ----
+calls = run(msg_update("كلمة مرور 16", uid=111))
+check("كلمة مرور", any("كلمة مرور قوية" in t for t in texts(calls)))
+calls = run(msg_update("تشفير sha256 test", uid=111))
+check("تشفير", any("🔒" in t for t in texts(calls)))
+calls = run(msg_update("ترميز base64 hello", uid=111))
+check("ترميز base64", any("الترميز" in t for t in texts(calls)))
+calls = run(msg_update("حول 100 كم ميل", uid=111))
+check("تحويل وحدات", any("📏" in t and "ميل" in t for t in texts(calls)))
+calls = run(msg_update("لون عشوائي", uid=111))
+check("لون عشوائي", any("لون عشوائي" in t for t in texts(calls)))
+calls = run(msg_update("احفظ هذه ملاحظة تجريبية", uid=111))
+check("احفظ ملاحظة", any("حُفظت ملاحظتك" in t for t in texts(calls)))
+calls = run(msg_update("ملاحظاتي", uid=111))
+check("ملاحظاتي", any("ملاحظاتك" in t for t in texts(calls)))
+
+# ---- إسلاميات موسعة ----
+calls = run(msg_update("اسماء الله", uid=111))
+check("اسماء الله", any("أسماء الله الحسنى" in t for t in texts(calls)))
+calls = run(msg_update("اسماء الله 2", uid=111))
+check("اسم الله رقم", any("الرحمن" in t for t in texts(calls)))
+calls = run(msg_update("حديث", uid=111))
+check("حديث", any("قال" in t and "ﷺ" in t for t in texts(calls)))
+calls = run(msg_update("اذكار النوم", uid=111))
+check("اذكار النوم", any("أذكار النوم" in t for t in texts(calls)))
+calls = run(msg_update("ختمتي", uid=111))
+check("ختمتي", any("ختمتك" in t for t in texts(calls)))
+
+# ---- سجل الميزات ----
+calls = run(msg_update("الميزات", uid=111))
+check("الميزات 500+", any("560+ ميزة" in t for t in texts(calls)))
+
+# ---- أزرار الميزات (callback) ----
+def cq_update(data):
+    return {"update_id": 3, "callback_query": {"id": "cqf", "from": {"id": 111, "first_name": "T"},
+            "message": {"message_id": 60, "chat": {"id": -100123, "type": "supergroup"}}, "data": data}}
+calls = run(cq_update("feat:0"))
+check("زر فئة الميزات", any("الحماية" in t for t in texts(calls)))
+calls = run(cq_update("feat:back"))
+check("زر رجوع الميزات", any("560+ ميزة" in t for t in texts(calls)))
 
 print("\n🎉 كل الاختبارات نجحت! البوت جاهز للنشر.")

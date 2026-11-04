@@ -11,6 +11,7 @@ from .store import Store, get_chat, get_user, DEFAULT_SETTINGS
 from .helpers import (norm, esc, mention, fullname, uname, keyboard, btn, is_error,
                       is_group_admin, admin_ids, need_owner, take)
 from . import protection, admin, fun, games, music, tools, menus
+from . import replies, economy, moregames, moretools, islam, social, features
 
 SLASH = {
     "start": "الاوامر", "help": "الاوامر", "id": "ايدي", "ping": "بنج",
@@ -161,7 +162,8 @@ def dispatch(ctx):
             now = time.time()
             cu["m"] = cu.get("m", 0) + 1
             if now - cu.get("l", 0) >= 5:
-                cu["x"] = cu.get("x", 0) + 1
+                gain = 2 if economy.boost_active(cu) else 1
+                cu["x"] = cu.get("x", 0) + gain
             cu["l"] = now
             ctx.chat_data["msgs"] = ctx.chat_data.get("msgs", 0) + 1
             ctx.dirty = True
@@ -194,7 +196,7 @@ def dispatch(ctx):
         return
 
     # ألعاب نصية
-    if ctx.is_group and games.check_answer(ctx):
+    if ctx.is_group and (games.check_answer(ctx) or moregames.check_answer(ctx)):
         ctx.force_save = True
         return
 
@@ -225,16 +227,16 @@ def dispatch(ctx):
         return
 
     # الوحدات
-    for module in (menus, admin, fun, games, music, tools):
+    for module in (menus, replies, admin, economy, social, features, fun, moregames, games, music, tools, moretools, islam):
         if module.handle(ctx):
             ctx.handled = True
             if ctx.is_group:
                 ctx.force_save = True
             return
 
-    # ردود تلقائية
+    # ردود تلقائية (المخصصة الغنية أولاً ثم المدمجة)
     if ctx.settings.get("on", True):
-        if fun.auto_reply(ctx):
+        if replies.auto_reply(ctx) or fun.auto_reply(ctx):
             ctx.handled = True
             return
 
@@ -262,6 +264,8 @@ def handle_callback(ctx):
             menus.callback(ctx, parts)
         elif parts[0] in ("quiz", "rps", "xo"):
             games.callback(ctx, parts)
+        elif parts[0] == "feat":
+            features.callback(ctx, parts)
         elif parts[0] == "yt":
             music.callback(ctx, parts)
         else:

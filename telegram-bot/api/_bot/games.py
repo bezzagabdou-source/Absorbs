@@ -4,7 +4,7 @@ import random
 import time
 
 from . import data
-from .helpers import esc, mention, fullname, norm, take, need_group, keyboard, btn
+from .helpers import esc, mention, fullname, norm, take, need_group, keyboard, btn, starts_command
 from .store import get_user
 
 GAME_TTL = 100
@@ -329,6 +329,8 @@ def callback(ctx, parts):
 
 def check_answer(ctx):
     """فحص إجابات الألعاب النصية. True إذا استُهلكت الرسالة كإجابة."""
+    if starts_command(ctx.text):
+        return False
     g = ctx.chat_data.get("game")
     if not g:
         return False
