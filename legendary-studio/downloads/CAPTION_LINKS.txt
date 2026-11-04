@@ -1,10 +1,10 @@
 # CAPTION + STICKER MONTAGE — verified direct links
 # captions/stickers follow the speech; NO cuts, NO speed change
-# generated: 2026-11-04T07:26:25Z
+# generated: 2026-11-04T07:30:37Z
 
-GITHUB (permanent)
-LINK https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_LEGENDARY.mp4
-LINK https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_LEGENDARY_LITE.mp4
+GITHUB (permanent, available after this commit is pushed)
+INFO https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_LEGENDARY.mp4
+INFO https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_LEGENDARY_LITE.mp4
 GITHUB RELEASE
 LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-2/CAPTION_LEGENDARY.mp4
 LINK https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-2/CAPTION_LEGENDARY_LITE.mp4
@@ -13,39 +13,37 @@ uguu CAPTION_LEGENDARY.mp4: {
     "success": true,
     "files": [
         {
-            "hash": "5d72589e43c087b2",
-            "filename": "HtxbEUXS.mp4",
+            "hash": "c1277f31502de7c2",
+            "filename": "BlvzOkuH.mp4",
+            "url": "https:\/\/d.uguu.se\/BlvzOkuH.mp4",
+            "size": 15894547,
+            "dupe": false
+        }
+    ]
+}
+LINK https://d.uguu.se/BlvzOkuH.mp4
+uguu CAPTION_LEGENDARY_LITE.mp4: {
+    "success": true,
+    "files": [
+        {
+            "hash": "65850c9aef2dcd96",
+            "filename": "NElWnxKc.mp4",
             "mimetype": "video\/mp4",
-            "url": "https:\/\/h.uguu.se\/HtxbEUXS.mp4",
-            "size": 15914959,
+            "url": "https:\/\/h.uguu.se\/NElWnxKc.mp4",
+            "size": 2420242,
             "dupe": false
         }
     ],
     "errors": []
 }
-LINK https://h.uguu.se/HtxbEUXS.mp4
-uguu CAPTION_LEGENDARY_LITE.mp4: {
-    "success": true,
-    "files": [
-        {
-            "hash": "527e60e3a0840aba",
-            "filename": "RSUMdnyY.mp4",
-            "url": "https:\/\/n.uguu.se\/RSUMdnyY.mp4",
-            "size": 2427875,
-            "dupe": false
-        }
-    ]
-}
-LINK https://n.uguu.se/RSUMdnyY.mp4
+LINK https://h.uguu.se/NElWnxKc.mp4
 filebin CAPTION_LEGENDARY.mp4: 201
-LINK https://filebin.net/captioned1793777191/CAPTION_LEGENDARY.mp4
+LINK https://filebin.net/captioned1793777443/CAPTION_LEGENDARY.mp4
 filebin CAPTION_LEGENDARY_LITE.mp4: 201
-LINK https://filebin.net/captioned1793777191/CAPTION_LEGENDARY_LITE.mp4
-206|video/mp4|1024  https://filebin.net/captioned1793777191/CAPTION_LEGENDARY.mp4
-206|video/mp4|1024  https://filebin.net/captioned1793777191/CAPTION_LEGENDARY_LITE.mp4
+LINK https://filebin.net/captioned1793777443/CAPTION_LEGENDARY_LITE.mp4
+206|video/mp4|1024  https://d.uguu.se/BlvzOkuH.mp4
+206|video/mp4|1024  https://filebin.net/captioned1793777443/CAPTION_LEGENDARY.mp4
+206|video/mp4|1024  https://filebin.net/captioned1793777443/CAPTION_LEGENDARY_LITE.mp4
 206|application/octet-stream|1024  https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-2/CAPTION_LEGENDARY.mp4
 206|application/octet-stream|1024  https://github.com/bezzagabdou-source/Absorbs/releases/download/v-legendary-2/CAPTION_LEGENDARY_LITE.mp4
-206|video/mp4|1024  https://h.uguu.se/HtxbEUXS.mp4
-206|video/mp4|1024  https://n.uguu.se/RSUMdnyY.mp4
-404|text/plain; charset=utf-8|14  https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_LEGENDARY.mp4
-404|text/plain; charset=utf-8|14  https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/CAPTION_LEGENDARY_LITE.mp4
+206|video/mp4|1024  https://h.uguu.se/NElWnxKc.mp4
