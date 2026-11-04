@@ -1,0 +1,34 @@
+# LEGENDARY MONTAGE — working direct links
+# file: URL_LEGENDARY.mp4 (23,351,579 bytes)
+# generated: 2026-11-04T06:57:16Z
+
+GITHUB (permanent, same repository)
+raw:        https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+media:      https://media.githubusercontent.com/media/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+blob page:  https://github.com/bezzagabdou-source/Absorbs/blob/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+jsdelivr:   https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+
+INDEPENDENT MIRRORS
+catbox: No request type given?
+0x0: uploads disabled because it’s been almost nothing but AI botnet spam for the past few months. will be back with a few changes at some point. no ETA.
+tmpfiles: {"status":"success","data":{"url":"https://tmpfiles.org/wFAZoDDlNwbI/url_legendary.mp4"}}
+uguu: {
+    "success": true,
+    "files": [
+        {
+            "hash": "e88fc619e330af95",
+            "filename": "OEizGPpJ.mp4",
+            "url": "https:\/\/d.uguu.se\/OEizGPpJ.mp4",
+            "size": 23351579,
+            "dupe": false
+        }
+    ]
+}
+transfer: curl: (28) Failed to connect to transfer.sh port 443 after 134844 ms: Couldn't connect to server
+
+=== VERIFICATION (HTTP status | content-type | bytes fetched) ===
+403|text/plain; charset=utf-8|49  https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+206|text/html; charset=utf-8|1024  https://github.com/bezzagabdou-source/Absorbs/blob/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+404||0  https://media.githubusercontent.com/media/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+206|application/octet-stream|1024  https://raw.githubusercontent.com/bezzagabdou-source/Absorbs/arena/ecff9abf-absorbs/legendary-studio/downloads/URL_LEGENDARY.mp4
+ERR  https://tmpfiles.org/wFAZoDDlNwbI/url_legendary.mp4"}}
