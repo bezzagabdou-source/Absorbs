@@ -58,6 +58,7 @@
 | `TELEGRAM_BOT_TOKEN` | توكن البوت من @BotFather | ✅ |
 | `TELEGRAM_WEBHOOK_SECRET` | أي نص عشوائي طويل (حماية الويب هوك) | ✅ يُفضّل |
 | `ADMIN_SECRET` | نص عشوائي 32 حرف (توقيع جلسة الأدمن) | ✅ يُفضّل |
+| `ADMIN_PASSWORD` | كلمة مرور اللوحة (اختياري — أو أنشئها من صفحة الدخول) | اختياري |
 | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` | من Storage → Upstash | ✅ |
 | أو `DATABASE_URL` | رابط Postgres (Neon/Supabase) | ✅ بديل |
 

@@ -14,9 +14,14 @@ function hash(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString("hex");
 }
 
+/** كلمة مرور احتياطية من متغير البيئة (مفيدة قبل إضافة قاعدة بيانات) */
+function envPassword(): string {
+  return process.env.ADMIN_PASSWORD || "";
+}
+
 export async function hasAdminPassword(): Promise<boolean> {
   const cred = await getStore().get<Credential>(CRED_KEY);
-  return Boolean(cred?.hash);
+  return Boolean(cred?.hash) || Boolean(envPassword());
 }
 
 export async function setAdminPassword(password: string): Promise<void> {
@@ -31,11 +36,15 @@ export async function setAdminPassword(password: string): Promise<void> {
 
 export async function verifyPassword(password: string): Promise<boolean> {
   const cred = await getStore().get<Credential>(CRED_KEY);
-  if (!cred) return false;
-  const candidate = Buffer.from(hash(password, cred.salt), "hex");
-  const expected = Buffer.from(cred.hash, "hex");
-  if (candidate.length !== expected.length) return false;
-  return crypto.timingSafeEqual(candidate, expected);
+  if (cred) {
+    const candidate = Buffer.from(hash(password, cred.salt), "hex");
+    const expected = Buffer.from(cred.hash, "hex");
+    if (candidate.length !== expected.length) return false;
+    return crypto.timingSafeEqual(candidate, expected);
+  }
+  const fallback = envPassword();
+  if (!fallback || password.length !== fallback.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(password), Buffer.from(fallback));
 }
 
 async function sign(value: string): Promise<string> {
