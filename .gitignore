@@ -25,3 +25,6 @@ PRO-CODES-V*.txt
 .v11-build/
 .v13-build/
 .v14-build/
+
+# opencode dashboard runtime: pid files, logs, generated basic-auth password
+.opencode/

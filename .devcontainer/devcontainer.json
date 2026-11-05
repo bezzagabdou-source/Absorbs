@@ -1,0 +1,50 @@
+{
+  "name": "OpenCode Dashboard — Codespaces",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "workspaceFolder": "/workspaces/Absorbs",
+  "remoteUser": "node",
+  "forwardPorts": [3000, 4000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Dashboard — Next.js",
+      "protocol": "http",
+      "visibility": "public",
+      "onAutoForward": "notify"
+    },
+    "4000": {
+      "label": "OpenCode Server",
+      "protocol": "http",
+      "visibility": "public",
+      "onAutoForward": "notify"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "silent"
+  },
+  "postCreateCommand": "npm install -g opencode-ai && npm install --no-audit --no-fund",
+  "postStartCommand": "bash scripts/opencode/start-opencode.sh && bash scripts/opencode/start-dashboard.sh",
+  "remoteEnv": {
+    "OPENCODE_PORT": "4000",
+    "OPENCODE_HOST": "0.0.0.0",
+    "OPENCODE_SERVER_URL": "http://127.0.0.1:4000",
+    "OPENCODE_SERVER_USERNAME": "opencode",
+    "DASHBOARD_PORT": "3000",
+    "DASHBOARD_HOST": "0.0.0.0",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.eol": "\n",
+        "editor.formatOnSave": false,
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

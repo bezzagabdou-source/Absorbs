@@ -5,6 +5,27 @@
 
 ---
 
+## 🖥️ OpenCode Dashboard — تحكم بـ OpenCode من الهاتف
+
+واجهة ويب عربية داكنة (Mobile-first) على المسار **`/opencode`**، تشغّل `opencode serve`
+في الخلفية على المنفذ **4000** وتتحكم به من الهاتف: محادثة لحظية عبر SSE، إدارة الجلسات،
+اختيار النموذج، الموافقة على الأدوات، إعادة تشغيل السيرفر، وفحص حالة الاتصال.
+
+- **التشغيل في Codespaces:** `.devcontainer/devcontainer.json` يثبّت `opencode-ai`
+  ويشغّل السيرفر والواجهة تلقائياً، ويجعل المنفذين **3000** و**4000** **Public**.
+- **التشغيل محلياً:**
+  ```bash
+  npm install -g opencode-ai
+  bash scripts/opencode/start-opencode.sh
+  bash scripts/opencode/start-dashboard.sh   # ثم افتح http://localhost:3000/opencode
+  ```
+- **البنية:** الواجهة (Next.js) → `/api/opencode/*` (proxy) → سيرفر OpenCode على
+  `127.0.0.1:4000` مع Basic Auth. لا يفتح المتصفح المنفذ 4000، وكلمة المرور تبقى في
+  الخادم (`.opencode/server-auth.json`).
+- التفاصيل الكاملة في [`OPENCODE-DASHBOARD.md`](./OPENCODE-DASHBOARD.md).
+
+---
+
 ## ✨ v17 — SMITH · MIND · MASTERY
 
 | الميزة | وين | شنو دير |

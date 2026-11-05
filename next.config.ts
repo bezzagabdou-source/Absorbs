@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
       { source: `/arcade`, destination: "/app/arcade", permanent: false },
       { source: `/studio`, destination: "/app/studio", permanent: false },
       { source: `/upgrade`, destination: "/app/upgrade", permanent: false },
+      // OpenCode mobile dashboard (server on :4000, dashboard on :3000)
+      { source: "/dashboard", destination: "/opencode", permanent: false },
     ];
   },
   // optional: serve Firebase's auth handler from our own domain (see firebase-config.ts)
