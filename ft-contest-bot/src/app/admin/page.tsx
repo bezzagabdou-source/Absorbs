@@ -58,8 +58,22 @@ export default async function DashboardPage({
 
       {!storage.configured ? (
         <div className="alert alert-warn">
-          ⚠️ <b>لا توجد قاعدة بيانات دائمة على هذا النشر.</b> أضف Upstash Redis أو Postgres من
-          Vercel ← Storage، ثم أعد النشر حتى تُحفظ المسابقات والحسابات والمستخدمون.
+          <b>⚠️ خطوة واحدة الباقية: أضف قاعدة بيانات.</b>
+          <div className="small" style={{ marginTop: 6 }}>
+            من غير قاعدة بيانات، المسابقات والحسابات تُحفظ في الذاكرة فقط وتضيع مع كل إعادة تشغيل.
+            <br />
+            1) افتح{" "}
+            <a
+              href="https://vercel.com/dashboard/stores"
+              target="_blank"
+              rel="noreferrer"
+              style={{ textDecoration: "underline" }}
+            >
+              Vercel ← Storage
+            </a>{" "}
+            2) أنشئ <b>Upstash Redis</b> (مجاني) 3) اضغط <b>Connect</b> على مشروع ft-bot 4) أعد
+            النشر (Redeploy) — المتغيرات تُضاف تلقائياً.
+          </div>
         </div>
       ) : null}
 

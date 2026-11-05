@@ -454,6 +454,10 @@ async function handleClaim(chatId: number | string, user: BotUser, contestId: st
 async function creditReferral(contest: Contest, inviterId: string, newUser: BotUser) {
   const store = getStore();
   if (!/^\d+$/.test(inviterId) || inviterId === newUser.id) return { counted: false, count: 0 };
+  // لا تُحسب إحالات بعد نهاية المسابقة أو من صاحب رابط غير مسجّل
+  if (contest.status !== "active") return { counted: false, count: 0 };
+  const inviterExists = await getUser(inviterId);
+  if (!inviterExists) return { counted: false, count: 0 };
 
   const added = await store.sAdd(`contest:${contest.id}:credited`, newUser.id);
   if (!added) return { counted: false, count: await getReferralCount(contest.id, inviterId) };
