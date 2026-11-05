@@ -3,7 +3,8 @@ import { ensureBotReady, BOT_COMMANDS } from "@/lib/botSetup";
 import { listContests } from "@/lib/contests";
 import { getStore, storageInfo } from "@/lib/store";
 import { usersCount } from "@/lib/users";
-import { getSettings } from "@/lib/settings";
+import { linkedGroup } from "@/lib/groups";
+import { getSettings, ownerHandle } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,9 @@ export default async function StatusPage({
     getSettings(),
   ]);
   const active = contests.filter((c) => c.status === "active");
-  const allGood = status.botOk && status.webhookMatches && storage.configured && active.length > 0;
+  const group = linkedGroup(settings);
+  const allGood =
+    status.botOk && status.webhookMatches && status.updatesOk && storage.configured && active.length > 0;
 
   return (
     <main className="landing" style={{ maxWidth: 820 }}>
@@ -99,6 +102,28 @@ export default async function StatusPage({
           <div>⏳ يوجد {status.pendingUpdates} تحديث في الانتظار عند تيليغرام.</div>
         ) : null}
         {status.lastError ? <div style={{ color: "#ffb4b4" }}>آخر خطأ من تيليغرام: {status.lastError}</div> : null}
+      </Row>
+
+      <Row ok={status.updatesOk} title="تحديثات المجموعة (نظام أسرع ضيف)">
+        {status.updatesOk
+          ? "البوت يستقبل طلبات الانضمام للمجموعة وأعضاء جدد — نظام أسرع ضيف يعمل."
+          : "الويب هوك لا يستقبل chat_join_request — الزر أسفل الصفحة يعيد ضبطه تلقائياً."}
+        {group ? (
+          <div style={{ marginTop: 6 }}>
+            👥 المجموعة المربوطة: {group.title} <span className="mono">({group.chatId})</span>
+          </div>
+        ) : (
+          <div style={{ marginTop: 6 }}>
+            👥 ما فيه مجموعة مربوطة — أضف البوت للمجموعة فيتفعّل النظام تلقائياً، أو اربطها من{" "}
+            <Link href="/admin/group" style={{ textDecoration: "underline" }}>
+              صفحة المجموعة
+            </Link>
+            .
+          </div>
+        )}
+        <div style={{ marginTop: 6 }}>
+          👑 المالك: <a href={`https://t.me/${settings.ownerUsername}`}>{ownerHandle(settings)}</a>
+        </div>
       </Row>
 
       <Row ok={storage.configured} title="قاعدة البيانات (حفظ المسابقات والحسابات)">

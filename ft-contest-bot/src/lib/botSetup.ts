@@ -28,6 +28,7 @@ export type WebhookInfo = {
   pending_update_count?: number;
   last_error_date?: number;
   last_error_message?: string;
+  allowed_updates?: string[];
 };
 
 export type BotStatus = {
@@ -38,6 +39,8 @@ export type BotStatus = {
   webhookExpected: string;
   webhookCurrent: string;
   webhookMatches: boolean;
+  /** كل أنواع التحديثات المطلوبة (طلبات الانضمام للمجموعة...) مسجّلة؟ */
+  updatesOk: boolean;
   pendingUpdates: number;
   lastError: string;
   secretProtected: boolean;
@@ -73,6 +76,7 @@ async function fetchStatus(expectedUrl: string): Promise<BotStatus> {
     webhookExpected: expectedUrl,
     webhookCurrent: "",
     webhookMatches: false,
+    updatesOk: false,
     pendingUpdates: 0,
     lastError: "",
     secretProtected: Boolean(settings.webhookSecret),
@@ -103,6 +107,14 @@ async function fetchStatus(expectedUrl: string): Promise<BotStatus> {
     status.pendingUpdates = info.result.pending_update_count || 0;
     status.lastError = info.result.last_error_message || "";
     status.webhookMatches = Boolean(status.webhookCurrent) && status.webhookCurrent === expectedUrl;
+    const registered = info.result.allowed_updates;
+    // allowed_updates فارغة = تيليغرام يرسل الافتراضي فقط (بدون طلبات الانضمام للمجموعة)
+    status.updatesOk = Array.isArray(registered)
+      ? ALLOWED_UPDATES.every((u) => registered.includes(u))
+      : false;
+    if (status.webhookMatches && !status.updatesOk) {
+      details.push("الويب هوك مسجّل لكن بدون تحديثات المجموعة (طلبات الانضمام) — سيُعاد ضبطه.");
+    }
     if (!status.webhookMatches) {
       details.push(
         status.webhookCurrent
@@ -135,7 +147,7 @@ export async function ensureBotReady(
   const expectedUrl = `${origin}/api/telegram/webhook`;
   const status = await fetchStatus(expectedUrl);
 
-  if (status.botOk && !status.webhookMatches && settings.botToken) {
+  if (status.botOk && settings.botToken && (!status.webhookMatches || !status.updatesOk)) {
     const res = await tgCall("setWebhook", {
       url: expectedUrl,
       ...(settings.webhookSecret ? { secret_token: settings.webhookSecret } : {}),
@@ -146,6 +158,7 @@ export async function ensureBotReady(
       status.fixed = true;
       status.webhookCurrent = expectedUrl;
       status.webhookMatches = true;
+      status.updatesOk = true;
       status.details.push("تم ربط الويب هوك تلقائياً بالموقع ✅");
       await tgCall("setMyCommands", { commands: BOT_COMMANDS });
     } else {
