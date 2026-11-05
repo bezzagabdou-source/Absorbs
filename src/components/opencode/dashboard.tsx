@@ -1237,5 +1237,5 @@ export function OpenCodeDashboard() {
 
 /** Small indirection so the dashboard file stays focused on UI state. */
 async function openCodeCreateSession(model: ModelRef | null): Promise<{ session: Session }> {
-  return opencodeApi.createSession({ model: model ?? undefined });
+  return opencodeApi.createSession({ title: "محادثة جديدة", model: model ?? undefined });
 }

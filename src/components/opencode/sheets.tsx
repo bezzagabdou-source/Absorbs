@@ -262,7 +262,7 @@ export function ModelsSheet({
             onClick={onRefresh}
             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9.5px] text-slate-500 transition hover:bg-white/[0.05] hover:text-slate-300"
           >
-            <RefreshCw className="size-2.5" /> تحديث
+            {loading ? <Spinner className="size-2.5" /> : <RefreshCw className="size-2.5" />} تحديث
           </button>
         </div>
       </div>
