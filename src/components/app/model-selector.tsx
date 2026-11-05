@@ -3,7 +3,7 @@
 /**
  * Nexus AI v12 — the model picker.
  *
- * Exactly 16 models: 8 free, 8 Pro. No raw provider dump, no duplicates.
+ * 8 free and 8 Pro models, plus an optional experimental gateway.
  * Every row states what the model is for and how fast it is, so the choice is
  * informed instead of a guess.
  */
@@ -90,7 +90,7 @@ function Row({
           <span className="text-[10px] font-medium" style={{ color: meta.tone }}>
             {meta.label}
           </span>
-          <span className="text-[10px] text-[var(--v12-faint)]">· {m.ctxK}k سياق</span>
+          {m.ctxK > 0 && <span className="text-[10px] text-[var(--v12-faint)]">· {m.ctxK}k سياق</span>}
         </span>
       </span>
 

@@ -261,9 +261,17 @@ const PRO: readonly Model12[] = [
 ];
 
 /** The complete line-up — 16 models, nothing hidden, nothing extra. */
-export const MODELS_V12: readonly Model12[] = [...FREE, ...PRO];
+// Experimental gateway is opt-in. The screenshot does not establish a Claude offering.
+const GATEWAY: readonly Model12[] = process.env.NEXT_PUBLIC_FREE_LLM_ENABLED === "1" ? [{
+  key: "free-llm", label: "Free LLM API (تجريبي)",
+  blurb: "خدمة خارجية محدودة؛ ليست Claude. قد تطلب مفتاحًا أو توقف الطلبات.",
+  provider: "free-llm", model: "auto", plan: "free", speed: "balanced",
+  strengths: ["نص", "تجربة"], ctxK: 0,
+}] : [];
 
-export const FREE_MODELS_V12 = FREE;
+export const MODELS_V12: readonly Model12[] = [...FREE, ...GATEWAY, ...PRO];
+
+export const FREE_MODELS_V12: readonly Model12[] = [...FREE, ...GATEWAY];
 export const PRO_MODELS_V12 = PRO;
 
 export const MODEL_BY_KEY: ReadonlyMap<string, Model12> = new Map(
@@ -274,7 +282,7 @@ export const DEFAULT_MODEL_KEY = "flash-2.5";
 
 /** Models a given plan may actually run. */
 export function modelsFor(plan: PlanId): readonly Model12[] {
-  return plan === "pro" ? MODELS_V12 : FREE;
+  return plan === "pro" ? MODELS_V12 : FREE_MODELS_V12;
 }
 
 export function toSelection(m: Model12): ModelSelection {

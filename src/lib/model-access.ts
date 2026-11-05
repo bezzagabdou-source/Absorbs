@@ -5,11 +5,11 @@
  *   Free: the native engine + open-source engines
  *   Pro : everything above + the routed heavyweight engines
  */
-export type ProviderId = "gemini" | "huggingface" | "grok" | "openrouter";
+export type ProviderId = "gemini" | "huggingface" | "grok" | "openrouter" | "free-llm";
 export type PlanId = "free" | "pro";
 
 /** display order: routed engines first, then the native engine, then open-source */
-export const PROVIDERS: readonly ProviderId[] = ["grok", "openrouter", "gemini", "huggingface"];
+export const PROVIDERS: readonly ProviderId[] = ["grok", "openrouter", "gemini", "huggingface", "free-llm"];
 
 /** providers that need a Pro plan */
 export const PRO_PROVIDERS: ReadonlySet<ProviderId> = new Set<ProviderId>(["grok", "openrouter"]);
@@ -48,6 +48,7 @@ export const PROVIDER_LABEL: Record<ProviderId, string> = {
   openrouter: "Nexus Router — محرّكات Pro",
   gemini: "Nexus Titan",
   huggingface: "Nexus Open — نماذج مفتوحة المصدر",
+  "free-llm": "Free LLM API — تجريبي",
 };
 
 export interface ModelSelection {

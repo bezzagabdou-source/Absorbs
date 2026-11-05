@@ -177,7 +177,7 @@ export async function streamOpenAICompat(o: StreamOpts): Promise<ReadableStream<
     try {
       const res = await fetch(o.url, {
         method: "POST",
-        headers: { Authorization: `Bearer ${o.key}`, "Content-Type": "application/json", ...o.headers },
+        headers: { ...(o.key ? { Authorization: `Bearer ${o.key}` } : {}), "Content-Type": "application/json", ...o.headers },
         body: payload(model),
         cache: "no-store",
         signal: ctl.signal,
