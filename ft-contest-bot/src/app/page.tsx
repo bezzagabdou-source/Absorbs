@@ -3,7 +3,7 @@ import { accountsCount, listContests } from "@/lib/contests";
 import { claimsCount } from "@/lib/claims";
 import { getSettings } from "@/lib/settings";
 import { usersCount } from "@/lib/users";
-import { getStore, storageInfo } from "@/lib/store";
+import { getStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -174,12 +174,6 @@ export default async function LandingPage() {
           </div>
         </div>
 
-        {!storageInfo().configured ? (
-          <div className="alert alert-warn" style={{ marginTop: 24 }}>
-            ⚠️ التخزين غير مضبوط على السيرفر — أضف قاعدة بيانات (Upstash Redis أو Postgres) من
-            إعدادات المشروع في Vercel حتى تُحفظ المسابقات والحسابات والمستخدمون.
-          </div>
-        ) : null}
       </main>
 
       <footer className="footer">
