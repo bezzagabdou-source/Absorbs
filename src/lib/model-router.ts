@@ -32,6 +32,7 @@ import { streamOpenRouter, getOpenRouterKey, OPENROUTER_DEFAULT_MODEL } from "@/
 import { streamHuggingFace, findHuggingFaceKey, huggingFaceModels } from "@/lib/huggingface";
 import { ProviderStreamError, envModel, findEnvKey, streamOpenAICompat } from "@/lib/openai-stream";
 import { classifyTask } from "@/lib/task-router";
+import { streamFreeLlm } from "@/lib/free-llm";
 
 const env = (n: string, d: string): string => (process.env[n] ?? "").trim() || d;
 
@@ -100,6 +101,8 @@ export async function streamSelectedModel(o: {
       return streamOpenRouter(common);
     case "huggingface":
       return streamHuggingFace(common);
+    case "free-llm":
+      return streamFreeLlm(common);
     default:
       throw new Error("gemini is handled by the chat route");
   }
