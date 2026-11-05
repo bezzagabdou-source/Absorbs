@@ -6,6 +6,8 @@ import { getStore, storageInfo } from "@/lib/store";
 import { usersCount } from "@/lib/users";
 import { linkedGroup } from "@/lib/groups";
 import { getSettings, ownerHandle } from "@/lib/settings";
+import { requiredChannelsOf } from "@/lib/bot";
+import { tgCall } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +56,27 @@ export default async function StatusPage({
     getStore().zCount("claims:index"),
     getSettings(),
   ]);
+  const required = requiredChannelsOf(settings);
+  const channelChecks = await Promise.all(
+    required.map(async (chat) => {
+      const res = await tgCall<{ title?: string }>("getChat", { chat_id: chat });
+      return {
+        chat,
+        ok: Boolean(res.ok && res.result),
+        note: res.ok ? res.result?.title || "" : res.description || "تعذّر",
+      };
+    }),
+  );
+  const channelsOk = required.length === 0 || channelChecks.every((c) => c.ok);
   const active = contests.filter((c) => c.status === "active");
   const group = linkedGroup(settings);
   const allGood =
-    status.botOk && status.webhookMatches && status.updatesOk && storage.configured && active.length > 0;
+    status.botOk &&
+    status.webhookMatches &&
+    status.updatesOk &&
+    storage.configured &&
+    active.length > 0 &&
+    channelsOk;
 
   return (
     <main className="landing" style={{ maxWidth: 820 }}>
@@ -150,6 +169,22 @@ export default async function StatusPage({
             Connect ← Redeploy.
           </>
         )}
+      </Row>
+
+      <Row ok={channelsOk} title={`قنوات الاشتراك الإجباري (${required.length})`}>
+        {required.length === 0 ? (
+          "ما كاينش قنوات مطلوبة — تقدر تزيدهم من الإعدادات."
+        ) : (
+          <div className="mono-box" style={{ marginBottom: 8 }}>
+            {channelChecks.map((c) => `${c.ok ? "✅" : "❌"} ${c.chat}${c.note ? ` — ${c.note}` : ""}`).join("\n")}
+          </div>
+        )}
+        {channelsOk
+          ? "البوت يشوف كل القنوات ويقدر يتحقق من الاشتراك."
+          : "زيد البوت أدمن في القنوات اللي فيها ❌ ثم أعد الفحص."}
+        <div style={{ marginTop: 8 }}>
+          <Link href="/admin/settings">تعديل القنوات / فحص فوري ←</Link>
+        </div>
       </Row>
 
       <Row ok={active.length > 0} title={`المسابقات المفتوحة (${active.length})`}>

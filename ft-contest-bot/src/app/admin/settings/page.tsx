@@ -2,11 +2,13 @@ import { headers } from "next/headers";
 import { aiStatus } from "@/lib/ai";
 import { requireAdmin } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
+import { getStore } from "@/lib/store";
 import { storageInfo } from "@/lib/store";
 import { tgCall } from "@/lib/telegram";
 import {
   changePasswordAction,
   checkBotAction,
+  checkChannelsAction,
   connectWebhookAction,
   disconnectWebhookAction,
   saveSettingsAction,
@@ -34,6 +36,9 @@ export default async function SettingsPage({
   const { ok, err } = await searchParams;
   const settings = await getSettings();
   const storage = storageInfo();
+  const lastCheck = await getStore().get<{ at: number; results: { chat: string; ok: boolean; note: string }[] }>(
+    "channels:lastCheck",
+  );
   const headerBag = await headers();
   const host = headerBag.get("x-forwarded-host") || headerBag.get("host") || "your-domain.vercel.app";
   const proto = headerBag.get("x-forwarded-proto") || "https";
@@ -158,24 +163,25 @@ export default async function SettingsPage({
               />
               <small>من @BotFather. لو حطيت توكن جديد، اضغط «فحص التوكن» بعد الحفظ.</small>
             </label>
-            <label className="field">
-              <span>قناة الاشتراك الإجباري</span>
-              <input
-                name="channelChat"
-                defaultValue={settings.channelChat}
-                placeholder="@mychannel أو -1001234567890"
+            <label className="field" style={{ gridColumn: "1 / -1" }}>
+              <span>قنوات الاشتراك الإجباري (كل واحدة في سطر)</span>
+              <textarea
+                name="requiredChannels"
+                rows={4}
+                defaultValue={(settings.requiredChannels || []).join("\n")}
+                placeholder={"@F_5_5_T\n@Ft_efootbal\n@F_M_M_T"}
                 className="mono"
               />
-              <small>يجب أن يكون البوت أدمن في القناة حتى يقدر يتحقق من الاشتراك.</small>
+              <small>
+                البوت ما كيخليش أي واحد يستعملو حتى يشترك في <b>كل</b> هاد القنوات. لازم البوت يكون{" "}
+                <b>أدمن</b> في كل قناة، وإلا ما يقدرش يتحقق من الاشتراك.
+              </small>
             </label>
             <label className="field">
-              <span>رابط القناة</span>
-              <input
-                name="channelUrl"
-                defaultValue={settings.channelUrl}
-                placeholder="https://t.me/mychannel"
-                className="mono"
-              />
+              <span>قناة قديمة / رابط (اختياري)</span>
+              <input name="channelChat" defaultValue={settings.channelChat} placeholder="@mychannel" className="mono" />
+              <input name="channelUrl" defaultValue={settings.channelUrl} placeholder="https://t.me/mychannel" className="mono" />
+              <small>كانت للنسخة القديمة — القائمة فوق هي اللي كتتحكم.</small>
             </label>
             <label className="field">
               <span>يوزر المالك (يظهر في البوت)</span>
@@ -267,7 +273,9 @@ export default async function SettingsPage({
                 defaultChecked={settings.requireJoin}
                 style={{ width: "auto", marginInlineEnd: 8 }}
               />
-              <span style={{ display: "inline" }}>اشتراك القناة إجباري قبل استلام الجائزة</span>
+              <span style={{ display: "inline" }}>
+                الاشتراك في القنوات إجباري قبل استعمال البوت (موصى به ✅)
+              </span>
             </label>
             <label className="field">
               <input
@@ -281,6 +289,24 @@ export default async function SettingsPage({
               </span>
             </label>
           </div>
+
+          <div className="card-title" style={{ marginTop: 18 }}>
+            <h2>🔔 فحص قنوات الاشتراك</h2>
+            <span className="hint">تأكد أن البوت يشوف القنوات</span>
+          </div>
+          <p className="muted small">
+            اضغط الزر باش نتأكدو أن البوت أدمن في كل قناة. إذا ظهر خطأ، زيد البوت أدمن في القناة ثم أعد الفحص.
+          </p>
+          {lastCheck?.results?.length ? (
+            <div className="mono-box" style={{ marginBottom: 10 }}>
+              {lastCheck.results
+                .map((row) => `${row.ok ? "✅" : "❌"} ${row.chat} — ${row.note}`)
+                .join("\n")}
+            </div>
+          ) : null}
+          <button className="btn btn-ghost" type="submit" formAction={checkChannelsAction}>
+            🔍 فحص القنوات الآن
+          </button>
 
           <div className="card-title" style={{ marginTop: 18 }}>
             <h2>🤖 المساعد الذكي</h2>

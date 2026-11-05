@@ -6,6 +6,7 @@ export const BOT_COMMANDS = [
   { command: "start", description: "مرحبا بكم في بوت مسابقات FT" },
   { command: "fastest", description: "مسابقة أسرع ضيف — رابط الدعوة" },
   { command: "me", description: "جهاتي ورابطي" },
+  { command: "points", description: "نقاطي — كل 100 جهة = نقطة" },
   { command: "top", description: "الترتيب" },
   { command: "claim", description: "ربح الحساب" },
   { command: "link", description: "رابط الدعوة / الإحالة" },

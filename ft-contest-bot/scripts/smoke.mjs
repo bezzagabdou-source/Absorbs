@@ -122,6 +122,16 @@ const textTo = (calls, chatId) =>
     .filter((c) => c.method === "sendMessage" && String(c.payload.chat_id) === String(chatId))
     .map((c) => String(c.payload.text || ""));
 
+/** كل النصوص اللي وصلت للشات (رسائل جديدة + تعديل رسائل) */
+const anyTextTo = (calls, chatId) =>
+  calls
+    .filter(
+      (c) =>
+        (c.method === "sendMessage" || c.method === "editMessageText" || c.method === "editMessage") &&
+        String(c.payload.chat_id) === String(chatId),
+    )
+    .map((c) => String(c.payload.text || ""));
+
 (async () => {
   console.log(`\n🔎 اختبار ${BASE}\n`);
   await fetch(`${BASE}/api/dev/mock?clear=1`, { method: "DELETE" }).catch(() => undefined);
@@ -619,6 +629,134 @@ const textTo = (calls, chatId) =>
     statusText.includes("قاعدة البيانات"),
     statusText.slice(0, 120),
   );
+
+
+  /* ── 13) الاشتراك الإجباري في القنوات ── */
+  console.log("\n13) الاشتراك الإجباري في القنوات");
+  const settingsHtml = (await page("/admin/settings")).html;
+  const settingsText = plain(settingsHtml);
+  check(
+    "القنوات الثلاثة مضبوطة في الإعدادات",
+    ["F_5_5_T", "Ft_efootbal", "F_M_M_T"].every((handle) => settingsText.includes(handle)),
+    settingsText.slice(0, 120),
+  );
+  const channelsCheckForm = findForm(extractForms(settingsHtml), "فحص القنوات الآن");
+  check("زر «فحص القنوات» موجود", Boolean(channelsCheckForm));
+  const statusChannels = plain((await page("/status")).html);
+  check("صفحة التشخيص كتوري حالة القنوات", /قنوات الاشتراك الإجباري/.test(statusChannels));
+
+  const setMockChannels = (body) =>
+    fetch(`${BASE}/api/dev/mock`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+
+  const gateChat = 940000 + Math.floor(Math.random() * 9000);
+  const gateFrom = { id: gateChat, is_bot: false, first_name: "لاعب جديد", username: "newbie" };
+  await setMockChannels({ left: ["@F_5_5_T"] });
+  await update({
+    message: { message_id: 5101, from: gateFrom, chat: { id: gateChat, type: "private" }, text: "/start" },
+  });
+  let gateCalls = await mockCalls();
+  let gateTexts = textTo(gateCalls, gateChat);
+  check(
+    "البوت كيطلب الاشتراك قبل كل شيء",
+    gateTexts.some((t) => /آخر خطوة|اشترك/.test(t)),
+    gateTexts.join(" | ").slice(0, 140),
+  );
+  const gateKb = gateCalls
+    .filter((c) => c.method === "sendMessage" && String(c.payload.chat_id) === String(gateChat))
+    .map((c) => JSON.stringify(c.payload.reply_markup || {}))
+    .join(" ");
+  check("زر مباشر للقناة + زر «تحقّقت»", /t\.me\/F_5_5_T/.test(gateKb) && /joinchk/.test(gateKb), gateKb.slice(0, 120));
+
+  await update({
+    message: { message_id: 5102, from: gateFrom, chat: { id: gateChat, type: "private" }, text: "/me" },
+  });
+  gateTexts = textTo(await mockCalls(), gateChat);
+  check("حتى /me محبوس قبل الاشتراك", gateTexts.filter((t) => /آخر خطوة/.test(t)).length >= 2);
+
+  const clickJoinCheck = async () =>
+    update({
+      callback_query: {
+        id: `cb_${Math.random().toString(36).slice(2, 8)}`,
+        from: gateFrom,
+        message: { message_id: 5103, chat: { id: gateChat, type: "private" } },
+        data: "joinchk",
+      },
+    });
+
+  await clickJoinCheck();
+  const gateAfterCheck = anyTextTo(await mockCalls(), gateChat);
+  check(
+    "«تحقّقت» بلا اشتراك = ما كيدخلش",
+    gateAfterCheck.filter((t) => /آخر خطوة/.test(t)).length >= 2,
+    gateAfterCheck.join(" | ").slice(0, 140),
+  );
+
+  await setMockChannels({ left: [] });
+  await clickJoinCheck();
+  gateTexts = textTo(await mockCalls(), gateChat);
+  check("من بعد الاشتراك كيدخل عادي", gateTexts.some((t) => /تم التحقّق/.test(t)), gateTexts.slice(-1)[0]?.slice(0, 120));
+
+  // البوت ماشي أدمن في قناة → ما نبلوكيوش المستخدم بسبب خطأ تقني
+  await setMockChannels({ left: [], broken: ["@F_M_M_T"] });
+  const softChat = 960000 + Math.floor(Math.random() * 9000);
+  await update({
+    message: {
+      message_id: 5201,
+      from: { id: softChat, is_bot: false, first_name: "مستخدم" },
+      chat: { id: softChat, type: "private" },
+      text: "/start",
+    },
+  });
+  const softTexts = textTo(await mockCalls(), softChat);
+  check(
+    "إذا تعذّر التحقّق ما كيتبلوكاش المستخدم",
+    softTexts.some((t) => /مرحبا|مسابقات/.test(t)),
+    softTexts.join(" | ").slice(0, 120),
+  );
+  await setMockChannels({ left: [], broken: [] });
+
+  /* ── 14) النقاط: كل 100 جهة = نقطة، و3 نقاط = جائزة عشوائية ── */
+  console.log("\n14) النقاط والجوائز");
+  const pointsChat = 950000 + Math.floor(Math.random() * 9000);
+  const pointsFrom = { id: pointsChat, is_bot: false, first_name: "بطل الجهات", username: "hero" };
+  await update({
+    message: { message_id: 6001, from: pointsFrom, chat: { id: pointsChat, type: "private" }, text: "/points" },
+  });
+  let pointsTexts = textTo(await mockCalls(), pointsChat);
+  check("صفحة النقاط كتوري 0/3", pointsTexts.some((t) => /0\/3|0 من 3|نقاط/.test(t)), pointsTexts.join(" | ").slice(0, 140));
+
+  const grantPoints = (amount) =>
+    fetch(`${BASE}/api/dev/points`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: pointsChat, amount }),
+    }).then((r) => r.json());
+
+  const first100 = await grantPoints(100);
+  check("100 جهة = نقطة واحدة", first100.state?.points === 1, JSON.stringify(first100.state || {}).slice(0, 140));
+  pointsTexts = textTo(await mockCalls(), pointsChat);
+  check("البوت كيبشّر بالنقطة الجديدة", pointsTexts.some((t) => /نقطة جديدة/.test(t)), pointsTexts.slice(-1)[0]?.slice(0, 140));
+
+  const toMax = await grantPoints(200);
+  check("300 جهة = 3 نقاط", toMax.state?.points === 3, JSON.stringify(toMax.state || {}).slice(0, 140));
+  pointsTexts = textTo(await mockCalls(), pointsChat);
+  check(
+    "عند 3 نقاط كيقولو تواصل مع المالك لجائزة عشوائية",
+    pointsTexts.some((t) => /جائزة عشوائية/.test(t)),
+    pointsTexts.slice(-1)[0]?.slice(0, 160),
+  );
+  const rewardKb = (await mockCalls())
+    .filter((c) => c.method === "sendMessage" && String(c.payload.chat_id) === String(pointsChat))
+    .map((c) => JSON.stringify(c.payload.reply_markup || {}))
+    .join(" ");
+  check("زر مراسلة المالك في رسالة الجائزة", /t\.me\/F_Y_Y_T/.test(rewardKb));
+
+  const dashPoints = plain((await page("/admin")).html);
+  check("لوحة التحكم كتوري جدول النقاط", /النقاط/.test(dashPoints) && /جهة/.test(dashPoints), dashPoints.slice(0, 120));
 
   console.log(`\n${failed === 0 ? "🎉" : "⚠️"} النتيجة: ${passed} ناجح / ${failed} فاشل\n`);
   process.exit(failed === 0 ? 0 : 1);

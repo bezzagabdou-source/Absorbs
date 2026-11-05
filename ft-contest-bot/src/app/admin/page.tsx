@@ -5,6 +5,7 @@ import { claimsCount, listClaims } from "@/lib/claims";
 import { activeGroupContest, groupJoinsCount, linkedGroup } from "@/lib/groups";
 import { getStats } from "@/lib/stats";
 import { getSettings, ownerHandle } from "@/lib/settings";
+import { pointsLeaderboard, winnersReadyCount } from "@/lib/points";
 import { getStore, storageInfo } from "@/lib/store";
 import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
 import { usersCount } from "@/lib/users";
@@ -46,6 +47,9 @@ export default async function DashboardPage({
   const active = enriched.filter((e) => e.contest.status === "active");
   const totalStock = enriched.reduce((sum, e) => sum + e.stock, 0);
   const storage = storageInfo();
+  const pointsTop = await pointsLeaderboard(5);
+  const pointsReady = await winnersReadyCount();
+  const pointsNames = await Promise.all(pointsTop.map((row) => getStore().get<{ firstName?: string; username?: string }>(`user:${row.userId}`)));
 
   return (
     <>
@@ -192,6 +196,35 @@ export default async function DashboardPage({
             👑 المالك {ownerHandle(settings)} ↗
           </a>
         </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">
+          <h2>⭐ النقاط (كل 100 جهة = نقطة)</h2>
+          <span className="hint">{pointsReady} جاهز للجائزة</span>
+        </div>
+        {pointsTop.length === 0 ? (
+          <p className="muted">
+            ما كاينش نقاط بعد — كل 100 جهة كتزيدها في المجموعة كتعطي نقطة، ومن يوصل 3 نقاط البوت
+            كيقولو يتواصل معاك لجائزة عشوائية 🎁
+          </p>
+        ) : (
+          <div className="mono-box">
+            {pointsTop
+              .map((row, i) => {
+                const person = pointsNames[i];
+                const name = person?.firstName || row.userId;
+                const handle = person?.username ? ` (@${person.username})` : "";
+                return `${i + 1}. ${name}${handle} — ⭐ ${row.points}/3 (${row.invites} جهة)`;
+              })
+              .join("\n")}
+          </div>
+        )}
+        {pointsReady > 0 ? (
+          <p className="small" style={{ marginTop: 8 }}>
+            👑 {pointsReady} مشارك وصلو 3 نقاط — تواصل معهم لتسليم الجوائز العشوائية.
+          </p>
+        ) : null}
       </div>
 
       <div className="card">

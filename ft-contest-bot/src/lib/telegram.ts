@@ -71,6 +71,10 @@ export type MockCall = { at: number; method: string; payload: Record<string, unk
 const mockGlobal = globalThis as unknown as {
   __ftMockLog?: MockCall[];
   __ftMockSeq?: number;
+  /** محاكاة: قنوات المستخدم ماشي مشترك فيها (للاختبارات) */
+  __ftMockLeft?: string[];
+  /** محاكاة: قنوات تعذّر التحقق منها (البوت ماشي أدمن) */
+  __ftMockBroken?: string[];
 };
 
 export function isMock(): boolean {
@@ -83,6 +87,12 @@ export function getMockLog(): MockCall[] {
 
 export function clearMockLog() {
   mockGlobal.__ftMockLog = [];
+}
+
+/** محاكاة فقط: نحدد القنوات اللي المستخدم ماشي مشترك فيها / اللي تعذّر التحقق منها */
+export function setMockChannelState(next: { left?: string[]; broken?: string[] }) {
+  mockGlobal.__ftMockLeft = (next.left || []).map(String);
+  mockGlobal.__ftMockBroken = (next.broken || []).map(String);
 }
 
 export type InlineKeyboard = { inline_keyboard: { text: string; url?: string; callback_data?: string }[][] };
@@ -111,8 +121,14 @@ export async function tgCall<T = unknown>(
       };
     }
     if (method === "getChatMember") {
-      const status = process.env.MOCK_NOT_MEMBER === "1" ? "left" : "member";
-      return { ok: true, result: { status } as unknown as T };
+      const chat = String(payload.chat_id || "").toLowerCase();
+      const listed = (list?: string[]) => (list || []).some((item) => item.toLowerCase() === chat);
+      if (listed(mockGlobal.__ftMockBroken) || process.env.MOCK_BROKEN_CHANNELS === "1") {
+        return { ok: false, description: "Bad Request: chat not found" };
+      }
+      const left =
+        process.env.MOCK_NOT_MEMBER === "1" || listed(mockGlobal.__ftMockLeft);
+      return { ok: true, result: { status: left ? "left" : "member" } as unknown as T };
     }
     if (method === "createChatInviteLink") {
       const seq = mockGlobal.__ftMockSeq;

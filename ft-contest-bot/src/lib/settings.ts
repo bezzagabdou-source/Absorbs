@@ -1,7 +1,28 @@
 import { getStore } from "./store";
 import { DEFAULT_SETTINGS, OWNER_USERNAME, WELCOME_TEXT, type Settings } from "./types";
 
+/** تطبيع قائمة القنوات: نص أو مصفوفة → مصفوفة @usernames فريدة */
+export function normalizeChannels(input: unknown): string[] {
+  const raw = Array.isArray(input)
+    ? input
+    : String(input || "")
+        .split(/[\n,]+/)
+        .map((x) => x.trim());
+  const out: string[] = [];
+  for (const item of raw) {
+    const value = String(item || "").trim();
+    if (!value) continue;
+    const normalized = value.startsWith("https://t.me/")
+      ? `@${value.replace(/^https:\/\/t\.me\//, "").replace(/\/.*$/, "")}`
+      : value;
+    if (!out.includes(normalized)) out.push(normalized);
+  }
+  return out;
+}
+
 const SETTINGS_KEY = "settings";
+/** إصدار بوابة الاشتراك الإجباري (2 = القنوات المتعددة) */
+const GATE_VERSION = 2;
 const SECRET_KEY = "system:secret";
 
 /** هل النص هو الترحيب الطويل القديم؟ (نهاجر منه إلى النص القصير) */
@@ -21,6 +42,16 @@ export async function getSettings(): Promise<Settings> {
     ownerUsername: (saved.ownerUsername || OWNER_USERNAME).replace(/^@/, ""),
     supportUsername: (saved.supportUsername || saved.ownerUsername || OWNER_USERNAME).replace(/^@/, ""),
     welcomeText: !savedWelcome || isOldLongWelcome(savedWelcome) ? WELCOME_TEXT : savedWelcome,
+    requiredChannels: (() => {
+      const list = normalizeChannels(saved.requiredChannels);
+      if (list.length) return list;
+      const legacy = normalizeChannels(saved.channelChat);
+      if (legacy.length) return legacy;
+      return DEFAULT_SETTINGS.requiredChannels;
+    })(),
+    // بوابة الاشتراك: من الترقية GATE_VERSION كتولي إجبارية مرة واحدة (باش القيمة القديمة false ما تعطلهاش)
+    requireJoin: saved.gateV === GATE_VERSION ? Boolean(saved.requireJoin) : true,
+    gateV: GATE_VERSION,
     groupTarget: Math.max(1, Number(saved.groupTarget) || DEFAULT_SETTINGS.groupTarget),
     aiEnabled: saved.aiEnabled === undefined ? DEFAULT_SETTINGS.aiEnabled : Boolean(saved.aiEnabled),
     aiModel: (saved.aiModel || "").trim(),
@@ -35,7 +66,7 @@ export async function getSettings(): Promise<Settings> {
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
-  const next: Settings = { ...current, ...patch };
+  const next: Settings = { ...current, ...patch, gateV: GATE_VERSION };
   await getStore().set(SETTINGS_KEY, next);
   return next;
 }

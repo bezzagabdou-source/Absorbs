@@ -21,6 +21,7 @@ import {
   unlinkGroup,
 } from "./groups";
 import { aiGenerate, aiStatus, toTelegramHtml } from "./ai";
+import { creditPoints, getPointsState, pointsLeaderboard, type PointsState } from "./points";
 import { getSettings, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
 import { getStore } from "./store";
@@ -39,6 +40,7 @@ import {
   type TgUpdate,
   type TgUser,
 } from "./telegram";
+import { POINTS_MAX, POINTS_STEP } from "./types";
 import type { BotUser, Claim, Contest, Settings } from "./types";
 import { getUser, touchUser } from "./users";
 
@@ -74,35 +76,106 @@ function isGroupMode(contest: Contest | null | undefined): boolean {
   return contest?.mode === "group";
 }
 
-async function isMember(settings: Settings, userId: number | string): Promise<boolean> {
-  if (!settings.requireJoin || !settings.channelChat) return true;
-  const res = await tgCall<{ status: string }>("getChatMember", {
-    chat_id: settings.channelChat,
-    user_id: userId,
-  });
-  if (!res.ok || !res.result) return false;
-  return ["creator", "administrator", "member"].includes(res.result.status);
-}
+/** حالات تيليغرام اللي معناها «مشترك» */
+const MEMBER_STATUS = ["creator", "administrator", "member"];
+/** أخطاء معناها «البوت ما يقدرش يتحقق» — ما نبلوكيوش المستخدم بسببها */
+const SOFT_ERROR = /chat not found|not enough rights|member list is inaccessible|bot is not a member|chat_admin_required|user not found|user_id_invalid|participant_id_invalid/i;
 
-function joinUrl(settings: Settings): string {
-  if (settings.channelUrl) return settings.channelUrl;
-  const chat = settings.channelChat;
+export type ChannelCheck = { chat: string; url: string; status: string };
+
+export function channelUrl(chat: string): string {
+  if (!chat) return "";
   if (chat.startsWith("@")) return `https://t.me/${chat.slice(1)}`;
+  if (/^https?:\/\//.test(chat)) return chat;
   return "";
 }
 
+/** القنوات المطلوبة فعلياً (لا شيء إذا كان الاشتراك غير إجباري) */
+export function requiredChannelsOf(settings: Settings): string[] {
+  if (!settings.requireJoin) return [];
+  const list = (settings.requiredChannels || []).filter(Boolean);
+  if (list.length) return list;
+  return settings.channelChat ? [settings.channelChat] : [];
+}
+
+/**
+ * نتحقق من اشتراك المستخدم في كل القنوات.
+ * - missing: قنوات ثبت أنو ما مشتركش فيها → نبلوكيو
+ * - soft:    قنوات تعذّر التحقق منها (البوت ماشي أدمن...) → ما نبلوكيوش
+ */
+export async function checkChannels(
+  settings: Settings,
+  userId: number | string,
+): Promise<{ required: string[]; missing: ChannelCheck[]; soft: string[]; ok: boolean }> {
+  const required = requiredChannelsOf(settings);
+  const missing: ChannelCheck[] = [];
+  const soft: string[] = [];
+  for (const chat of required) {
+    const res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
+    if (!res.ok || !res.result) {
+      if (SOFT_ERROR.test(res.description || "")) soft.push(`${chat}: ${res.description}`);
+      else soft.push(`${chat}: ${res.description || "تعذّر التحقّق"}`);
+      continue;
+    }
+    if (!MEMBER_STATUS.includes(res.result.status)) {
+      missing.push({ chat, url: channelUrl(chat), status: res.result.status });
+    }
+  }
+  return { required, missing, soft, ok: missing.length === 0 };
+}
+
+function gateText(settings: Settings, missing: ChannelCheck[]): string {
+  const lines = [
+    "🔒 <b>آخر خطوة قبل ما تستعمل البوت</b>",
+    "",
+    "خاصك تكون مشترك في هاد القنوات:",
+  ];
+  missing.forEach((c, i) => {
+    const label = c.chat.replace(/^@/, "");
+    lines.push(`${i + 1}️⃣ ${c.url ? `<a href="${c.url}">${escapeHtml(label)}</a>` : escapeHtml(c.chat)}`);
+  });
+  lines.push("", "من بعد ما تشترك في الكل، اضغط <b>✅ تحقّقت — دخلني</b> 👇");
+  if (missing.some((c) => !c.url)) {
+    lines.push("", "ℹ️ بعض القنوات ما عندهاش رابط عام — المالك خاصو يضيف @username.");
+  }
+  lines.push("", `👑 المالك: ${ownerHandle(settings)}`);
+  return lines.join("\n");
+}
+
+function gateKeyboard(missing: ChannelCheck[]): InlineKeyboard {
+  const rows: Button[][] = missing
+    .filter((c) => c.url)
+    .map((c) => [{ text: `📢 اشترك: ${c.chat.replace(/^@/, "")}`, url: c.url }]);
+  rows.push([{ text: "✅ تحقّقت — دخلني", callback_data: "joinchk" }]);
+  return keyboard(rows);
+}
+
+async function sendGate(
+  chatId: number | string,
+  settings: Settings,
+  missing: ChannelCheck[],
+  messageId?: number,
+) {
+  const text = gateText(settings, missing);
+  const kb = gateKeyboard(missing);
+  if (messageId) await editMessage(chatId, messageId, text, kb);
+  else await sendMessage(chatId, text, kb);
+}
+
+/** بوابة قديمة (متوافقة مع الاستدعاءات القديمة) */
 async function gateJoin(
   chatId: number | string,
   user: BotUser,
   settings: Settings,
   next: Button,
 ): Promise<boolean> {
-  if (await isMember(settings, user.id)) return true;
-  const url = joinUrl(settings);
-  const rows: Button[][] = [];
-  if (url) rows.push([{ text: "📢 اشترك في القناة", url }]);
-  rows.push([{ text: "✅ تحقّق", callback_data: next.callback_data || "home" }]);
-  await sendMessage(chatId, "🔒 اشترك في القناة أولاً 👇", keyboard(rows));
+  const gate = await checkChannels(settings, user.id);
+  if (gate.ok) return true;
+  const rows: Button[][] = [
+    ...gateKeyboard(gate.missing).inline_keyboard,
+    [next],
+  ];
+  await sendMessage(chatId, gateText(settings, gate.missing), { inline_keyboard: rows });
   return false;
 }
 
@@ -125,6 +198,7 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
     { text: "📊 جهاتي", callback_data: "mine" },
     { text: "🥇 الترتيب", callback_data: "top" },
   ]);
+  rows.push([{ text: `⭐️ نقاطي (${POINTS_STEP} جهة = نقطة)`, callback_data: "points" }]);
   rows.push([
     { text: "📜 الشروط", callback_data: "rules" },
     { text: `👑 المالك ${ownerHandle(settings)}`, callback_data: "owner" },
@@ -179,8 +253,12 @@ export async function aiContext(user: BotUser, settings: Settings): Promise<stri
     );
   }
   const group = linkedGroup(settings);
+  const points = await getPointsState(user.id);
+  const channels = requiredChannelsOf(settings);
   return [
     `المستخدم: ${user.firstName || "صديق"} (${user.username ? "@" + user.username : "بلا معرف"}).`,
+    `الاشتراك الإجباري: ${channels.length ? `مطلوب الاشتراك في هذه القنوات قبل استعمال البوت: ${channels.join(" ، ")}` : "غير مفروض"}.`,
+    `النقاط: ${points.points}/${POINTS_MAX} (${points.invites} جهة محسوبة) — كل ${POINTS_STEP} جهة = نقطة، و${POINTS_MAX} نقاط = جائزة عشوائية من المالك.`,
     `المسابقات: ${rows.length ? rows.join("\n") : "ما فيه مسابقة منشورة."}`,
     `المجموعة: ${group ? "مربوطة ومسابقة أسرع ضيف خدامة" : "ما زالت ما مربوطة"} (الهدف ${settings.groupTarget} ضيف).`,
     `المالك: ${ownerHandle(settings)}.`,
@@ -401,6 +479,106 @@ async function showGroupInvite(chatId: number | string, user: BotUser, contest: 
   );
 }
 
+/* ───────────────────────────── النقاط ───────────────────────────── */
+
+function pointsLine(state: PointsState): string {
+  if (state.reachedMax) {
+    return `⭐️ النقاط: <b>${state.points}/${POINTS_MAX}</b> — كاملة 🎉`;
+  }
+  return `⭐️ النقاط: <b>${state.points}/${POINTS_MAX}</b> — باقي <b>${state.toNext}</b> جهة للنقطة ${state.nextPoint}`;
+}
+
+function pointsProgress(state: PointsState): string {
+  if (state.reachedMax) return "🟩🟩🟩";
+  const filled = state.points;
+  return `${"🟩".repeat(filled)}${"⬜️".repeat(Math.max(0, POINTS_MAX - filled))}`;
+}
+
+export async function notifyPointsMilestone(user: BotUser, settings: Settings, state: PointsState, milestone: number) {
+  const owner = ownerHandle(settings);
+  const maxed = milestone >= POINTS_MAX;
+  const text = maxed
+    ? [
+        `🎉 <b>مبروك ${nameOf(user)}!</b>`,
+        "",
+        `وصلت <b>${state.points}/${POINTS_MAX}</b> نقاط (كل ${POINTS_STEP} جهة = نقطة).`,
+        `🎁 تواصل مع المالك ${owner} باش تستلم <b>جائزة عشوائية</b>.`,
+      ].join("\n")
+    : [
+        `⭐️ <b>نقطة جديدة!</b> ${nameOf(user)}`,
+        "",
+        `وصلت <b>${milestone}/${POINTS_MAX}</b> نقطة — كل ${POINTS_STEP} جهة = نقطة.`,
+        `باقي <b>${state.toNext}</b> جهة وتكمل ${POINTS_MAX} نقاط وتاخد جائزة عشوائية من المالك.`,
+      ].join("\n");
+  await sendMessage(
+    user.id,
+    text,
+    keyboard([
+      [{ text: `💬 تواصل مع المالك ${owner}`, url: ownerUrl(settings) }],
+      [{ text: "🏁 المسابقات", callback_data: "home" }],
+    ]),
+  );
+  await notifyAdmins(
+    `⭐️ <b>${nameOf(user)}</b> (@${escapeHtml(user.username || "—")}) وصل ${milestone} نقطة — ${state.invites} جهة.${
+      maxed ? "\n🎁 جاهز لاستلام جائزة عشوائية." : ""
+    }`,
+  );
+}
+
+/** نزيد نقطة لصاحب الجهة بعد انضمام عضو للمجموعة (واحد فقط لكل انضمام) */
+async function creditPointsForOwner(ownerId: string) {
+  try {
+    const user = await getUser(ownerId);
+    if (!user) return;
+    const settings = await getSettings();
+    const result = await creditPoints(ownerId);
+    if (result.milestone) await notifyPointsMilestone(user, settings, result.state, result.milestone);
+  } catch (error) {
+    console.error("[points] credit failed", error);
+  }
+}
+
+async function showPoints(
+  chatId: number | string,
+  user: BotUser,
+  settings: Settings,
+  messageId?: number,
+) {
+  const state = await getPointsState(user.id);
+  const top = await pointsLeaderboard(5);
+  const names = await Promise.all(top.map((row) => getUser(row.userId)));
+  const medals = ["🥇", "🥈", "🥉", "▫️", "▫️"];
+  const lines = [
+    `⭐️ <b>نقاط ${nameOf(user)}</b>`,
+    "",
+    pointsLine(state),
+    pointsProgress(state),
+    `📥 مجموع جهاتك: <b>${state.invites}</b>`,
+    "",
+    `<b>كيفاش تخدم:</b> كل ${POINTS_STEP} جهة كتزيدها في المجموعة = نقطة واحدة.`,
+    `من توصل <b>${POINTS_MAX}</b> نقاط → تواصل مع المالك ${ownerHandle(settings)} لاستلام <b>جائزة عشوائية</b> 🎁`,
+  ];
+  if (state.reachedMax) {
+    lines.push("", "✅ وصلت الحد الأقصى — المالك عندو علم ونستناك.");
+  } else {
+    lines.push("", `📈 باقي <b>${state.toNext}</b> جهة للنقطة ${state.nextPoint}.`);
+  }
+  if (top.length) {
+    lines.push("", "<b>🥇 أحسن المشاركين في النقاط</b>");
+    top.forEach((row, i) => {
+      const name = names[i] ? escapeHtml(names[i]!.firstName) : row.userId;
+      lines.push(`${medals[i] || "▫️"} ${name} — <b>${row.points}</b> نقطة (${row.invites} جهة)`);
+    });
+  }
+  const kb = keyboard([
+    [{ text: `💬 مراسلة المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+    [{ text: "🏃 اجمع جهات", callback_data: "fastest" }],
+    backRow(),
+  ]);
+  if (messageId) await editMessage(chatId, messageId, lines.join("\n"), kb);
+  else await sendMessage(chatId, lines.join("\n"), kb);
+}
+
 async function showMine(
   chatId: number | string,
   user: BotUser,
@@ -420,7 +598,8 @@ async function showMine(
     return;
   }
 
-  const parts: string[] = [`👤 <b>${nameOf(user)}</b>`];
+  const points = await getPointsState(user.id);
+  const parts: string[] = [`👤 <b>${nameOf(user)}</b>`, "", pointsLine(points), pointsProgress(points)];
   for (const c of contests) {
     const mine = await getReferralCount(c.id, user.id);
     const remaining = Math.max(0, c.target - mine);
@@ -448,6 +627,7 @@ async function showMine(
   } else if (contests.length === 1) {
     buttons.push([{ text: "🎁 ربح الحساب", callback_data: `claim:${contests[0].id}` }]);
   }
+  buttons.unshift([{ text: "⭐️ نقاطي", callback_data: "points" }]);
   buttons.push(backRow());
 
   const text = parts.join("\n");
@@ -686,6 +866,15 @@ async function creditReferral(contest: Contest, inviterId: string, newUser: BotU
 
   const count = await store.zIncr(`contest:${contest.id}:score`, inviterId, 1);
   await notifyOwnerOfReferral(contest, inviterExists, count, newUser.firstName);
+  const settings = await getSettings();
+  const points = await creditPoints(inviterId);
+  if (points.milestone) {
+    try {
+      await notifyPointsMilestone(inviterExists, settings, points.state, points.milestone);
+    } catch (error) {
+      console.error("[points] milestone failed", error);
+    }
+  }
   return { counted: true, count };
 }
 
@@ -823,6 +1012,7 @@ async function handleJoinRequest(
   const owner = await getUser(result.ownerId);
   if (owner) {
     await notifyOwnerOfReferral(result.contest, owner, result.count, from.first_name || "عضو");
+    await creditPointsForOwner(result.ownerId);
   }
 
   const settingsNow = await getSettings();
@@ -855,6 +1045,7 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
     const owner = await getUser(credit.ownerId);
     if (owner) {
       await notifyOwnerOfReferral(credit.contest, owner, credit.count, member.first_name || "عضو");
+      await creditPointsForOwner(credit.ownerId);
     }
     await sendMessage(
       chat.id,
@@ -904,6 +1095,8 @@ async function handleMessage(message: TgMessage) {
 
   const known = [
     "/start",
+    "/points",
+    "/score",
     "/help",
     "/rules",
     "/me",
@@ -922,6 +1115,26 @@ async function handleMessage(message: TgMessage) {
     "/ask",
   ];
   if (inGroup && !known.includes(command)) return;
+
+  // 🔒 بوابة الاشتراك الإجباري (الخاص فقط — المجموعة ما كنبوكيوهاش)
+  if (!inGroup) {
+    const gate = await checkChannels(settings, user.id);
+    if (!gate.ok) {
+      // نحسبو الإحالة قبل البلوك باش ما يضيعش حق صاحب الرابط
+      if (command === "/start" && payload.startsWith("r_")) {
+        const [, contestId, inviterId] = payload.split("_");
+        const contest = await getContest(contestId);
+        if (contest && inviterId) await creditReferral(contest, inviterId, user);
+      }
+      await sendGate(chatId, settings, gate.missing);
+      return;
+    }
+  }
+
+  if (command === "/points" || command === "/score") {
+    await showPoints(chatId, user, settings);
+    return;
+  }
 
   if (command === "/start") {
     if (payload.startsWith("r_")) {
@@ -1062,7 +1275,30 @@ async function handleCallback(query: TgCallbackQuery) {
   const data = query.data || "home";
   const [action, arg] = data.split(":");
 
+  if (action === "joinchk") {
+    const gate = await checkChannels(settings, user.id);
+    if (!gate.ok) {
+      await sendGate(chatId, settings, gate.missing, messageId);
+      return;
+    }
+    await sendMessage(chatId, "✅ <b>تم التحقّق!</b> مرحبا بيك، تقدر تبدا دابا 👇");
+    await showHome(chatId, user, settings);
+    return;
+  }
+
+  // 🔒 نفس بوابة الاشتراك على الأزرار
+  if (!inGroup) {
+    const gate = await checkChannels(settings, user.id);
+    if (!gate.ok) {
+      await sendGate(chatId, settings, gate.missing, messageId);
+      return;
+    }
+  }
+
   switch (action) {
+    case "points":
+      await showPoints(chatId, user, settings, messageId);
+      return;
     case "home":
       await showHome(chatId, user, settings, messageId);
       return;

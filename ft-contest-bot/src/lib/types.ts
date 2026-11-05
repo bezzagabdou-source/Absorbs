@@ -31,9 +31,11 @@ export type Settings = {
   botToken: string;
   botUsername: string;
   botId: number | null;
-  /** معرف القناة المطلوب الاشتراك فيها (@username أو -100...) */
+  /** معرف القناة المطلوب الاشتراك فيها (@username أو -100...) — قناة واحدة (قديمة) */
   channelChat: string;
   channelUrl: string;
+  /** القنوات المطلوبة كلها (@username أو -100...) — الاشتراك فيها إجباري لاستعمال البوت */
+  requiredChannels: string[];
   /** يوزر الدعم (افتراضياً المالك) */
   supportUsername: string;
   /** يوزر المالك — يظهر في البوت واللوحة */
@@ -43,6 +45,8 @@ export type Settings = {
   /** آي دي الأدمن اللي يستقبلون إشعارات الفوز */
   adminIds: string[];
   requireJoin: boolean;
+  /** إصدار بوابة الاشتراك — من ترقية 2 كيولي إجباري مرة واحدة (بعدها كيفما المالك يختار) */
+  gateV?: number;
   /** تسليم الحساب تلقائياً لحظة إكمال الهدف */
   autoGrant: boolean;
   /** مجموعة أسرع ضيف المربوطة بالبوت */
@@ -84,17 +88,22 @@ export const WELCOME_TEXT = "مرحبا بكم في بوت مسابقات FT";
 
 export const OWNER_USERNAME = "F_Y_Y_T";
 
+/** كل 100 جهة = نقطة واحدة، و3 نقاط = جائزة عشوائية من المالك */
+export const POINTS_STEP = 100;
+export const POINTS_MAX = 3;
+
 export const DEFAULT_SETTINGS: Settings = {
   botToken: "",
   botUsername: "",
   botId: null,
   channelChat: "",
   channelUrl: "",
+  requiredChannels: ["@F_5_5_T", "@Ft_efootbal", "@F_M_M_T"],
   supportUsername: OWNER_USERNAME,
   ownerUsername: OWNER_USERNAME,
   logChatId: "",
   adminIds: [],
-  requireJoin: false,
+  requireJoin: true,
   autoGrant: false,
   groupChat: "",
   groupTitle: "",

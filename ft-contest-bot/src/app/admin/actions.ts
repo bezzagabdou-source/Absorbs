@@ -26,7 +26,8 @@ import { normalizeImageUrl, readUploadedImage } from "@/lib/images";
 import { getStore } from "@/lib/store";
 import { resetStats } from "@/lib/stats";
 import { ensureGroupContest, linkGroup, syncGroupInfo, unlinkGroup } from "@/lib/groups";
-import { ensureWebhookSecret, getSettings, saveSettings } from "@/lib/settings";
+import { ensureWebhookSecret, getSettings, normalizeChannels, saveSettings } from "@/lib/settings";
+import { checkChannels, requiredChannelsOf } from "@/lib/bot";
 import { sendMessage, tgCall } from "@/lib/telegram";
 import type { ContestStatus } from "@/lib/types";
 import { listRecentUsers } from "@/lib/users";
@@ -88,6 +89,42 @@ export async function changePasswordAction(form: FormData): Promise<void> {
 
 /* ────────────────────────────── الإعدادات ────────────────────────────── */
 
+/** فحص فوري: هل البوت يشوف القنوات المطلوبة؟ (كيحتاج البوت يكون أدمن فيهم) */
+export async function checkChannelsAction(): Promise<void> {
+  await guard();
+  const settings = await getSettings();
+  const required = requiredChannelsOf(settings);
+  if (!required.length) {
+    go("/admin/settings", "err", "ما كاينش قنوات مطلوبة — زيد @username ولواحدة في السطر");
+  }
+  const results: { chat: string; ok: boolean; note: string }[] = [];
+  for (const chat of required) {
+    const res = await tgCall<{ title?: string; username?: string }>("getChat", { chat_id: chat });
+    if (res.ok && res.result) {
+      results.push({
+        chat,
+        ok: true,
+        note: `البوت يشوف القناة ✅${res.result.title ? ` — ${res.result.title}` : ""}`,
+      });
+    } else {
+      results.push({
+        chat,
+        ok: false,
+        note: `${res.description || "تعذّر الوصول"} — زيد البوت أدمن في القناة`,
+      });
+    }
+  }
+  await getStore().set("channels:lastCheck", { at: Date.now(), results });
+  const bad = results.filter((r) => !r.ok);
+  go(
+    "/admin/settings",
+    bad.length ? "err" : "ok",
+    bad.length
+      ? `${bad.length} قناة فيها مشكل — شوف التفاصيل تحت`
+      : "كل القنوات مربوطة والبوت أدمن فيها ✅",
+  );
+}
+
 export async function saveSettingsAction(form: FormData): Promise<void> {
   await guard();
   const before = await getSettings();
@@ -105,6 +142,9 @@ export async function saveSettingsAction(form: FormData): Promise<void> {
     botId: tokenChanged ? null : before.botId,
     channelChat: str(form, "channelChat"),
     channelUrl: str(form, "channelUrl"),
+    requiredChannels: fullForm
+      ? normalizeChannels(str(form, "requiredChannels"))
+      : before.requiredChannels,
     supportUsername: str(form, "supportUsername").replace(/^@/, ""),
     ownerUsername: str(form, "ownerUsername").replace(/^@/, "") || before.ownerUsername,
     logChatId: str(form, "logChatId"),
