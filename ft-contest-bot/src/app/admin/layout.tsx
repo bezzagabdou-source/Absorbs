@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { after } from "next/server";
+import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
 import { isAuthenticated } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { storageInfo } from "@/lib/store";
@@ -12,6 +14,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!authed) return <>{children}</>;
 
   const [settings, storage] = [await getSettings(), storageInfo()];
+  const origin = await currentOrigin();
+  after(async () => {
+    await ensureBotReady({ origin }).catch(() => undefined);
+  });
 
   return (
     <div className="admin-shell">
@@ -47,6 +53,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           ) : null}
           <Link className="btn btn-ghost btn-sm" href="/" style={{ marginTop: 6 }}>
             🌐 الموقع العام
+          </Link>
+          <Link className="btn btn-ghost btn-sm" href="/status">
+            🩺 تشخيص البوت
           </Link>
           <form action={logoutAction}>
             <button className="btn btn-danger btn-sm btn-block" type="submit">

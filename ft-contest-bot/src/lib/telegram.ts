@@ -102,6 +102,7 @@ export async function tgCall<T = unknown>(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       cache: "no-store",
+      signal: AbortSignal.timeout(8000),
     });
     const json = (await res.json()) as TgResult<T>;
     if (!json.ok) console.error(`[tg] ${method}`, json.description);

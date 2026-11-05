@@ -282,10 +282,18 @@ export default async function SettingsPage({
           </p>
         ) : (
           <div className="alert alert-warn">
-            البيانات حالياً في الذاكرة فقط (تختفي بعد إعادة تشغيل السيرفر). أضف قاعدة بيانات مجاناً:
+            البيانات حالياً في الذاكرة فقط (تختفي بعد إعادة تشغيل السيرفر، والبوت لا يرى المسابقات).
+            أضف قاعدة بيانات مجاناً:
             <br />
-            Vercel ← مشروعك ← Storage ← Upstash Redis (أو Neon Postgres) ← ثم أعد النشر. المتغيرات
-            تُضاف تلقائياً.
+            <a
+              href="https://vercel.com/abdoubita986-gif/ft-bot/stores"
+              target="_blank"
+              rel="noreferrer"
+              style={{ textDecoration: "underline" }}
+            >
+              Vercel ← Storage ← Upstash Redis
+            </a>{" "}
+            ← Connect على مشروع ft-bot ← Redeploy. المتغيرات تُضاف تلقائياً.
           </div>
         )}
       </div>

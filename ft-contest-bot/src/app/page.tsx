@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { after } from "next/server";
+import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
 import { accountsCount, listContests } from "@/lib/contests";
 import { claimsCount } from "@/lib/claims";
 import { getSettings } from "@/lib/settings";
@@ -14,6 +16,12 @@ function statusBadge(status: string) {
 }
 
 export default async function LandingPage() {
+  // إصلاح ذاتي: يربط البوت بالموقع تلقائياً بعد إرسال الصفحة (بدون أي أمر يدوي)
+  const origin = await currentOrigin();
+  after(async () => {
+    await ensureBotReady({ origin }).catch(() => undefined);
+  });
+
   const [settings, contests, users, totalClaims] = await Promise.all([
     getSettings(),
     listContests(),

@@ -4,6 +4,7 @@ import { accountsCount, listContests, participantsCount } from "@/lib/contests";
 import { claimsCount, listClaims } from "@/lib/claims";
 import { getSettings } from "@/lib/settings";
 import { getStore, storageInfo } from "@/lib/store";
+import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
 import { usersCount } from "@/lib/users";
 import { Flash, StatusBadge, dateText } from "./ui";
 
@@ -16,6 +17,8 @@ export default async function DashboardPage({
 }) {
   await requireAdmin();
   const { ok, err } = await searchParams;
+  const origin = await currentOrigin();
+  const botStatus = await ensureBotReady({ origin });
   const [settings, contests, users, totalClaims, recentClaims] = await Promise.all([
     getSettings(),
     listContests(),
@@ -64,7 +67,7 @@ export default async function DashboardPage({
             <br />
             1) افتح{" "}
             <a
-              href="https://vercel.com/dashboard/stores"
+              href="https://vercel.com/abdoubita986-gif/ft-bot/stores"
               target="_blank"
               rel="noreferrer"
               style={{ textDecoration: "underline" }}
@@ -82,12 +85,30 @@ export default async function DashboardPage({
           ⚠️ لم يتم ضبط توكن البوت بعد.{" "}
           <Link href="/admin/settings">أضِف التوكن من الإعدادات</Link> ثم اضغط «ربط الويب هوك».
         </div>
-      ) : !settings.botUsername ? (
-        <div className="alert alert-warn">
-          ⚠️ البوت غير مربوط بالموقع.{" "}
-          <Link href="/admin/settings">روح للإعدادات واضغط «ربط الويب هوك»</Link>.
+      ) : !botStatus.botOk ? (
+        <div className="alert alert-err">
+          ❌ توكن البوت غير صالح أو تيليغرام رفض الاتصال: {botStatus.details[0] || ""}
+          <div className="small">جرّب <Link href="/status">صفحة التشخيص</Link>.</div>
         </div>
-      ) : null}
+      ) : botStatus.webhookMatches ? (
+        <div className="alert alert-ok">
+          ✅ البوت مربوط ويستقبل الرسائل على @{botStatus.botUsername}
+          {botStatus.fixed ? " — تم الربط الآن تلقائياً" : ""}
+          {botStatus.pendingUpdates > 0 ? ` • ${botStatus.pendingUpdates} تحديث في الانتظار` : ""}
+        </div>
+      ) : (
+        <div className="alert alert-err">
+          ❌ البوت غير مربوط بالموقع (الويب هوك غير مسجّل) — لذلك لا يستجيب لأي رسالة.
+          <div className="small" style={{ marginTop: 6 }}>
+            <Link className="btn btn-primary btn-sm" href="/status?fix=1">
+              🔧 إصلاح تلقائي الآن
+            </Link>{" "}
+            <Link className="small" href="/status" style={{ marginInlineStart: 8 }}>
+              تفاصيل التشخيص
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="stats">
         <div className="stat">
