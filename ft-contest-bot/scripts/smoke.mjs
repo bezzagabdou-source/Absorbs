@@ -306,6 +306,11 @@ const textTo = (calls, chatId) =>
     JSON.stringify(gInvites[0]?.payload),
   );
   adderMessages = textTo(await mockCalls(), adder);
+  check(
+    "اسم الدعوة يحمل صاحب الرابط (خطة احتياطية)",
+    /^FT-\d+-\S+$/.test(String(gInvites[0]?.payload.name || "")),
+    String(gInvites[0]?.payload.name),
+  );
   const gLink = (adderMessages.join("\n").match(/https:\/\/t\.me\/\+[A-Za-z0-9_-]+/) || [])[0] || "";
   check("الرابط وصل للمشارك", Boolean(gLink), adderMessages.at(-1)?.slice(0, 120));
 
@@ -323,16 +328,26 @@ const textTo = (calls, chatId) =>
   await update(joinRequest(920001, "عضو أول"));
   await update(joinRequest(920002, "عضو ثاني"));
   await update(joinRequest(920001, "عضو مكرر")); // نفس العضو — ما يتحسبش مرتين
+  // خطة احتياطية: رابط غير معروف لكن اسم الدعوة يحمل صاحبها
+  await update({
+    update_id: 60,
+    chat_join_request: {
+      chat: { id: GROUP_ID, type: "supergroup", title: "مجموعة FT" },
+      from: { id: 920003, first_name: "عضو ثالث" },
+      user_chat_id: 920003,
+      invite_link: { invite_link: "https://t.me/+unknownxyz", name: gInvites[0].payload.name },
+    },
+  });
   const callsJoin = await mockCalls();
   adderMessages = textTo(callsJoin, adder);
   check(
     "العضو الجديد يتحسب كجهة",
-    adderMessages.filter((t) => t.includes("جهة جديدة")).length === 2,
+    adderMessages.filter((t) => t.includes("جهة جديدة")).length === 3,
     `count=${adderMessages.filter((t) => t.includes("جهة جديدة")).length}`,
   );
   check(
     "قبول طلبات الانضمام تلقائياً",
-    callsJoin.filter((c) => c.method === "approveChatJoinRequest").length === 3,
+    callsJoin.filter((c) => c.method === "approveChatJoinRequest").length === 4,
     `count=${callsJoin.filter((c) => c.method === "approveChatJoinRequest").length}`,
   );
   const groupText2 = plain((await page("/admin/group")).html);

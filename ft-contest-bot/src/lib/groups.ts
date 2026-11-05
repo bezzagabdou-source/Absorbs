@@ -139,7 +139,8 @@ export async function personalGroupInvite(
     if (saved?.link) return saved;
   }
 
-  const created = await createChatInviteLink(settings.groupChat, `FT-${user.id}`);
+  // الاسم يحمل صاحب الرابط + المسابقة حتى نعرف صاحبه حتى لو ضاع التخزين
+  const created = await createChatInviteLink(settings.groupChat, `FT-${user.id}-${contest.id}`);
   if (!created) return null;
 
   const invite: GroupInvite = {
@@ -157,6 +158,16 @@ export async function personalGroupInvite(
     contestId: invite.contestId,
   });
   return invite;
+}
+
+/** يستخرج صاحب الرابط من اسم الدعوة (خطة احتياطية إذا ضاع التخزين) */
+export function resolveInviteName(
+  name?: string,
+): { userId: string; contestId: string } | null {
+  if (!name) return null;
+  const match = /^FT-(\d+)-(\S+)$/.exec(name.trim());
+  if (!match) return null;
+  return { userId: match[1], contestId: match[2] };
 }
 
 /** يعرف صاحب الرابط من نص رابط الدعوة */
@@ -188,6 +199,7 @@ export async function creditGroupJoin(input: {
   chatId: string;
   joiner: { id: number | string; firstName?: string; username?: string; isBot?: boolean };
   inviteLink?: string;
+  inviteName?: string;
   adderId?: string;
   adderName?: string;
 }): Promise<CreditResult> {
@@ -200,9 +212,13 @@ export async function creditGroupJoin(input: {
   let contest: Contest | null = null;
 
   const fromLink = input.inviteLink ? await resolveInviteLink(input.inviteLink) : null;
+  const fromName = resolveInviteName(input.inviteName);
   if (fromLink && fromLink.chatId === input.chatId) {
     ownerId = fromLink.userId;
     contest = await getContest(fromLink.contestId);
+  } else if (fromName) {
+    ownerId = fromName.userId;
+    contest = await getContest(fromName.contestId);
   } else if (input.adderId) {
     ownerId = input.adderId;
   }
@@ -241,7 +257,7 @@ export async function creditGroupJoin(input: {
     ownerId,
     ownerName: owner?.firstName || input.adderName || "عضو",
     contestId: contest.id,
-    via: fromLink ? "link" : "add",
+    via: fromLink || fromName ? "link" : "add",
   };
   await store.listPush(LOG_KEY(input.chatId), [JSON.stringify(event)]);
   const len = await store.listLen(LOG_KEY(input.chatId));

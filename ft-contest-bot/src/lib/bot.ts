@@ -695,11 +695,21 @@ async function handleMyChatMember(
   }
 }
 
+/** يربط المجموعة تلقائياً عند أي نشاط داخلها (حتى لو ضاع التخزين) */
+async function ensureLinkedFromActivity(chat: TgMessage["chat"]): Promise<void> {
+  if (!groupType(chat)) return;
+  const settings = await getSettings();
+  if (settings.groupChat) return;
+  await linkGroup({ id: chat.id, title: chat.title, username: chat.username });
+  await ensureGroupContest((await getSettings()).groupTarget);
+}
+
 async function handleJoinRequest(
   request: NonNullable<TgUpdate["chat_join_request"]>,
 ): Promise<void> {
   const { chat, from } = request;
   if (!groupType(chat) || !from || from.is_bot) return;
+  await ensureLinkedFromActivity(chat);
   const settings = await getSettings();
   const link = request.invite_link?.invite_link || "";
 
@@ -707,6 +717,7 @@ async function handleJoinRequest(
     chatId: String(chat.id),
     joiner: { id: from.id, firstName: from.first_name, username: from.username, isBot: from.is_bot },
     inviteLink: link,
+    inviteName: request.invite_link?.name,
   });
 
   if (settings.autoApproveJoins) {
@@ -736,8 +747,8 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
   if (!added.length) return;
   const chat = message.chat;
   if (!groupType(chat)) return;
-  const settings = await getSettings();
   const adder = message.from;
+  await ensureLinkedFromActivity(chat);
 
   for (const member of added) {
     if (member.is_bot) continue;
@@ -758,9 +769,6 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
     );
   }
 
-  if (!settings.groupChat) {
-    await linkGroup({ id: chat.id, title: chat.title, username: chat.username });
-  }
 }
 
 /* ───────────────────────────── entry points ───────────────────────────── */
@@ -794,6 +802,7 @@ async function handleMessage(message: TgMessage) {
   const chatId = chat.id;
   const inGroup = groupType(chat);
   const user = await touchUser(from);
+  if (inGroup) await ensureLinkedFromActivity(chat);
   const settings = await getSettings();
   const text = message.text!.trim();
   const [rawCommand, ...args] = text.split(/\s+/);
