@@ -167,12 +167,17 @@ const globalForDb = globalThis as unknown as {
 };
 
 function postgresUrl(): string | null {
-  return (
+  const raw =
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
-    null
-  );
+    "";
+  if (!raw) return null;
+  // بعض مزوّدي الاستضافة (Neon) يضيفون channel_binding=require وهو غير مدعوم في node-postgres
+  return raw
+    .replace(/([?&])channel_binding=[^&]*/g, "$1")
+    .replace(/[?&]$/, "")
+    .replace(/\?&/, "?");
 }
 
 async function getPool(): Promise<PgPool> {

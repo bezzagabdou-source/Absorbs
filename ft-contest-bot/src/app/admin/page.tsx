@@ -66,6 +66,20 @@ export default async function DashboardPage({
 
       <Flash ok={ok} err={err} />
 
+      {storage.backend === "memory" ? (
+        <div className="alert alert-warn">
+          ⚠️ <strong>التخزين مؤقت (بدون قاعدة بيانات)</strong> — هذا سبب «المسابقة ما كتبانش في البوت»:
+          اللوحة والبوت كيخدمو في نسختين مختلفتين من السيرفر، وكل واحدة عندها ذاكرة بوحدها. زيد
+          <span className="mono"> DATABASE_URL</span> (Neon/Upstash) في Vercel ثم Redeploy — وبعدها كل
+          مسابقة كتزيد هنا كتظهر فوراً في البوت.
+        </div>
+      ) : (
+        <div className="alert alert-ok">
+          ✅ التخزين دائم (<span className="mono">{storage.backend}</span>) — المسابقات والمستخدمون
+          والصور كيتحفظو ويظهرو في البوت مباشرة.
+        </div>
+      )}
+
       {!storage.configured ? (
         <div className="alert alert-warn">
           <b>⚠️ خطوة واحدة الباقية: أضف قاعدة بيانات.</b>

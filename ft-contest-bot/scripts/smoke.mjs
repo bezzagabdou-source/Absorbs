@@ -567,6 +567,59 @@ const textTo = (calls, chatId) =>
   const settingsAi = await page("/admin/settings");
   check("إعدادات المساعد الذكي", settingsAi.html.includes("المساعد الذكي"));
 
+
+  /* ── 12) المسابقات: من اللوحة إلى البوت ── */
+  console.log("\n12) المسابقات كتوصل للبوت");
+  const contestsPage2 = await page("/admin/contests");
+  const wizardForm = findForm(extractForms(contestsPage2.html), "أنشئ المسابقة الآن");
+  check("كارت «مسابقة بسطر واحد» موجود", Boolean(wizardForm));
+  const wizard = await submit("/admin/contests", wizardForm.id, {
+    idea: "مسابقة 300 دعوة وجائزة حساب FT سنة، 3 فائزين",
+  });
+  check("توليد مسابقة من سطر واحد", wizard.status === 303, `(${wizard.status})`);
+  const listAfter = plain((await page("/admin/contests")).html);
+  check(
+    "المسابقة الجديدة ظاهرة في اللوحة",
+    listAfter.includes("300") || listAfter.includes("دعوة"),
+    listAfter.slice(0, 160),
+  );
+
+  const botChat = 930001;
+  await update({
+    message: {
+      message_id: 7001,
+      from: { id: botChat, is_bot: false, first_name: "لاعب" },
+      chat: { id: botChat, type: "private" },
+      text: "/start",
+    },
+  });
+  const botCalls = await mockCalls();
+  const home = textTo(botCalls, botChat);
+  const homeButtons = botCalls
+    .filter((c) => c.method === "sendMessage" && String(c.payload.chat_id) === String(botChat))
+    .map((c) => JSON.stringify(c.payload.reply_markup || {}))
+    .join(" ");
+  check("البوت كيرحّب", home.length > 0, home.at(-1)?.slice(0, 140));
+  check(
+    "المسابقة الجديدة بانت كزر في البوت",
+    /دعوة|مسابقة|جهة/.test(homeButtons),
+    homeButtons.slice(0, 160),
+  );
+
+  const dashBoard = plain((await page("/admin")).html);
+  check(
+    "اللوحة كتحذّر من التخزين المؤقت محلياً",
+    dashBoard.includes("التخزين مؤقت") || dashBoard.includes("التخزين دائم"),
+    dashBoard.slice(0, 120),
+  );
+  const statusPage2 = await page("/status");
+  const statusText = plain(statusPage2.html);
+  check(
+    "صفحة التشخيص كتوري حالة قاعدة البيانات",
+    statusText.includes("قاعدة البيانات"),
+    statusText.slice(0, 120),
+  );
+
   console.log(`\n${failed === 0 ? "🎉" : "⚠️"} النتيجة: ${passed} ناجح / ${failed} فاشل\n`);
   process.exit(failed === 0 ? 0 : 1);
 })().catch((error) => {

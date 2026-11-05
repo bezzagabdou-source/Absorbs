@@ -71,6 +71,18 @@ export default async function StatusPage({
         </Link>
       </div>
 
+      {!storage.configured ? (
+        <div className="alert alert-warn">
+          ⚠️ <strong>ما كاينش قاعدة بيانات</strong> — وهادشي هو السبب الأول باش «المسابقة ما كتبانش في
+          البوت»: اللوحة والبوت ما كيتشاركوش نفس الذاكرة، وأي Redeploy كيمسح كلشي. زيد
+          <span className="mono"> DATABASE_URL</span> ثم Redeploy.
+        </div>
+      ) : (
+        <div className="alert alert-ok">
+          ✅ قاعدة البيانات مربوطة (<span className="mono">{storage.backend}</span>) — كلشي محفوظ.
+        </div>
+      )}
+
       <div className={`alert ${allGood ? "alert-ok" : "alert-warn"}`}>
         {allGood
           ? "كل شيء سليم — البوت يستقبل الرسائل والمسابقات جاهزة 🎉"

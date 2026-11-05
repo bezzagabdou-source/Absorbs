@@ -502,3 +502,102 @@ export async function aiBroadcastDraftAction(form: FormData): Promise<void> {
   revalidatePath("/admin/broadcast");
   go("/admin/broadcast", "ok", "جاهزة الرسالة — راجعها ومن بعد صيفطها");
 }
+
+/* ──────────────────── مولّد المسابقات (سطر واحد → مسابقة كاملة) ──────────────────── */
+
+type AiContestDraft = {
+  title: string;
+  target: number;
+  prize: string;
+  winners: number;
+  description: string;
+  mode: "referral" | "group";
+};
+
+function pickNumber(text: string, patterns: RegExp[], fallback: number): number {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const value = Number(String(match[1]).replace(/[^0-9]/g, ""));
+      if (Number.isFinite(value) && value > 0) return Math.min(100000, Math.floor(value));
+    }
+  }
+  return fallback;
+}
+
+/** يستخرج حقول المسابقة من رد الموديل (JSON إن أمكن، وإلا بالكلمات المفتاحية) */
+function parseContestDraft(text: string, idea: string): AiContestDraft {
+  const fallback: AiContestDraft = {
+    title: idea.replace(/\s+/g, " ").trim().slice(0, 80) || "مسابقة FT",
+    target: 200,
+    prize: "",
+    winners: 1,
+    description: text.trim().slice(0, 900),
+    mode: /مجموعة|أسرع ضيف|group/i.test(idea) ? "group" : "referral",
+  };
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]) as Partial<AiContestDraft> & { target?: unknown };
+      const target = Number(parsed.target);
+      const winners = Number(parsed.winners);
+      return {
+        title: String(parsed.title || fallback.title).slice(0, 80),
+        target: Number.isFinite(target) && target > 0 ? Math.floor(target) : fallback.target,
+        prize: String(parsed.prize || "").slice(0, 200),
+        winners: Number.isFinite(winners) && winners > 0 ? Math.floor(winners) : 1,
+        description: String(parsed.description || fallback.description).slice(0, 900),
+        mode: parsed.mode === "group" ? "group" : fallback.mode,
+      };
+    } catch {
+      /* نكمل للاستخراج النصي */
+    }
+  }
+
+  return {
+    ...fallback,
+    target: pickNumber(text, [/target["\s:]+(\d+)/i, /(\d{1,6})\s*(?:جهة|دعوة|ضيف)/], fallback.target),
+    winners: pickNumber(text, [/winners["\s:]+(\d+)/i], fallback.winners),
+  };
+}
+
+export async function aiContestWizardAction(form: FormData): Promise<void> {
+  await guard();
+  const idea = str(form, "idea");
+  if (!idea) go("/admin/contests", "err", "اكتب فكرة المسابقة في سطر واحد");
+  const res = await aiGenerate({
+    system:
+      "أنت مدير مسابقات محترف في بوت تيليغرام عربي. تجيب دائمًا بكائن JSON صحيح فقط بلا أي شرح ولا ماركداون.",
+    prompt: [
+      "حوّل هذه الفكرة إلى مسابقة جاهزة للنشر:",
+      `الفكرة: ${idea}`,
+      "",
+      "أرجع JSON بهذا الشكل بالضبط:",
+      '{"title":"عنوان قصير جذاب (أقل من 60 حرف)","target":200,"prize":"وصف الجائزة في سطر","winners":1,"description":"وصف من 3 إلى 5 أسطر يشمل الهدف والجائزة وطريقة المشاركة","mode":"referral"}',
+      "قواعد: target رقم صحيح (عدد الدعوات أو الأعضاء)، winners رقم صحيح، mode إما referral أو group.",
+    ].join("\n"),
+    maxTokens: 700,
+    temperature: 0.4,
+  });
+  if (!res.ok) go("/admin/contests", "err", `الذكاء الاصطناعي ما جاوبش: ${res.error || "خطأ"}`);
+
+  const draft = parseContestDraft(res.text, idea);
+  const contest = await createContest({
+    title: draft.title,
+    description: draft.description,
+    target: draft.target,
+    prize: draft.prize,
+    winners: draft.winners,
+    status: "active",
+    mode: draft.mode,
+    imageUrl: "",
+  });
+  revalidatePath("/");
+  revalidatePath("/admin/contests");
+  redirect(
+    `/admin/contests/${contest.id}?ok=${encodeURIComponent(
+      "🤖 المسابقة تولّدت وتفعّلت — راهي ظاهرة في البوت ✅",
+    )}`,
+  );
+}

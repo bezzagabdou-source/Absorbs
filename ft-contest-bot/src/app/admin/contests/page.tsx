@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { accountsCount, listContests, participantsCount } from "@/lib/contests";
 import { claimsCount } from "@/lib/claims";
-import { createContestAction, setContestStatusAction } from "../actions";
+import { aiStatus } from "@/lib/ai";
+import { aiContestWizardAction, createContestAction, setContestStatusAction } from "../actions";
 import { Flash, StatusBadge, timeAgo } from "../ui";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export default async function ContestsPage({
 }) {
   await requireAdmin();
   const { ok, err } = await searchParams;
+  const ai = aiStatus();
   const contests = await listContests();
   const rows = await Promise.all(
     contests.map(async (c) => ({
@@ -36,6 +38,34 @@ export default async function ContestsPage({
       </div>
 
       <Flash ok={ok} err={err} />
+
+      <div className="card">
+        <div className="card-title">
+          <h2>🤖 مسابقة بسطر واحد</h2>
+          {ai.available ? (
+            <span className="badge badge-active">🟢 {ai.provider}</span>
+          ) : (
+            <span className="badge badge-ended">غير مفعّل</span>
+          )}
+        </div>
+        <form action={aiContestWizardAction}>
+          <label className="field">
+            <span>اكتب الفكرة بالعامية وخلّي البوت يبني المسابقة</span>
+            <textarea
+              name="idea"
+              rows={2}
+              required
+              placeholder="مثال: مسابقة 300 دعوة، الجائزة حساب FT سنة كاملة، 3 فائزين، كتسالي نهار الجمعة"
+            />
+            <small>
+              يولّد العنوان + الهدف + الجائزة + الوصف، ويفعّل المسابقة مباشرةً باش تبان في البوت.
+            </small>
+          </label>
+          <button className="btn btn-primary" type="submit" disabled={!ai.available}>
+            ✨ أنشئ المسابقة الآن
+          </button>
+        </form>
+      </div>
 
       <div className="card">
         <div className="card-title">
