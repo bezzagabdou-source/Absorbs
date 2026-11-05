@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { aiStatus } from "@/lib/ai";
 import { ensureBotReady } from "@/lib/botSetup";
 import { listContests } from "@/lib/contests";
 import { getStore, storageInfo } from "@/lib/store";
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
       secretProtected: status.secretProtected,
       autoFixedNow: status.fixed,
     },
+    ai: aiStatus(),
     storage: {
       backend: storage.backend,
       persistent: storage.configured,

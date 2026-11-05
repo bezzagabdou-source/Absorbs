@@ -20,7 +20,9 @@ import {
   recentGroupJoins,
   unlinkGroup,
 } from "./groups";
+import { aiGenerate, aiStatus, toTelegramHtml } from "./ai";
 import { getSettings, ownerHandle } from "./settings";
+import { dayKey } from "./stats";
 import { getStore } from "./store";
 import {
   answerCallback,
@@ -28,6 +30,7 @@ import {
   editMessage,
   escapeHtml,
   getBotIdentity,
+  sendChatAction,
   sendMessage,
   tgCall,
   type InlineKeyboard,
@@ -147,6 +150,73 @@ function contestKeyboard(contest: Contest): InlineKeyboard {
 
 function backRow(target = "home"): Button[] {
   return [{ text: "⬅️ رجوع", callback_data: target }];
+}
+
+/* ───────────────────────────── المساعد الذكي ───────────────────────────── */
+
+const AI_DAILY_LIMIT = Math.max(1, Number(process.env.AI_DAILY_LIMIT) || 30);
+
+async function aiQuota(userId: string): Promise<{ allowed: boolean; used: number }> {
+  try {
+    const store = await getStore();
+    const used = await store.incr(`ai:used:${dayKey()}:${userId}`);
+    return { allowed: used <= AI_DAILY_LIMIT, used };
+  } catch {
+    return { allowed: true, used: 0 };
+  }
+}
+
+export async function aiContext(user: BotUser, settings: Settings): Promise<string> {
+  const contests = await listContests();
+  const rows: string[] = [];
+  for (const contest of contests.slice(0, 5)) {
+    const mine = await getReferralCount(contest.id, user.id);
+    const joined = await participantsCount(contest.id);
+    rows.push(
+      `- «${contest.title}» (${statusLabel(contest.status)}، ${
+        contest.mode === "group" ? "مسابقة مجموعة" : "مسابقة دعوات"
+      }) الهدف ${contest.target} دعوة، الجائزة: ${contest.prize || "غير محددة"}، المشاركين ${joined}، دعوات المستخدم ${mine}.`,
+    );
+  }
+  const group = linkedGroup(settings);
+  return [
+    `المستخدم: ${user.firstName || "صديق"} (${user.username ? "@" + user.username : "بلا معرف"}).`,
+    `المسابقات: ${rows.length ? rows.join("\n") : "ما فيه مسابقة منشورة."}`,
+    `المجموعة: ${group ? "مربوطة ومسابقة أسرع ضيف خدامة" : "ما زالت ما مربوطة"} (الهدف ${settings.groupTarget} ضيف).`,
+    `المالك: ${ownerHandle(settings)}.`,
+    `القواعد: ${settings.rulesText.replace(/\s+/g, " ").slice(0, 400)}`,
+  ].join("\n");
+}
+
+export function aiSystemPrompt(): string {
+  return [
+    "أنت مساعد بوت تيليغرام ديال مسابقات «FT» (جمع دعوات + مسابقة أسرع ضيف في المجموعة).",
+    "جاوب بالعربية أو الدارجة، بلهجة ودودة وقصيرة: من 2 حتى 5 أسطر، وبلا ماركداون معقد.",
+    "استعمل غير المعلومات اللي في السياق؛ إلا ما عرفتيش، قول للمستخدم يراسل المالك.",
+    "عمرك ما تعطي كلمات سر ولا حسابات ولا معطيات مستخدمين آخرين؛ بيانات الفائزين كتوصل غير للمالك.",
+    "ما تديرش وعود بالجائزة، وما تطلبش معلومات شخصية ولا فلوس.",
+  ].join(" ");
+}
+
+/** جواب ذكي على سؤال المستخدم */
+export async function aiAnswer(
+  user: BotUser,
+  question: string,
+  settings: Settings,
+  model?: string,
+): Promise<{ ok: boolean; text: string; error: string }> {
+  if (!settings.aiEnabled || process.env.AI_ENABLED === "0") {
+    return { ok: false, text: "", error: "المساعد الذكي مطفي" };
+  }
+  const context = await aiContext(user, settings);
+  const res = await aiGenerate({
+    system: aiSystemPrompt(),
+    prompt: `سياق البوت:\n${context}\n\nسؤال المستخدم: ${question}`,
+    maxTokens: 500,
+    temperature: 0.5,
+    model: model || settings.aiModel || undefined,
+  });
+  return { ok: res.ok, text: res.text, error: res.error };
 }
 
 /* ───────────────────────────── screens ───────────────────────────── */
@@ -848,6 +918,8 @@ async function handleMessage(message: TgMessage) {
     "/owner",
     "/support",
     "/admin",
+    "/ai",
+    "/ask",
   ];
   if (inGroup && !known.includes(command)) return;
 
@@ -924,7 +996,56 @@ async function handleMessage(message: TgMessage) {
     return;
   }
 
+  if (command === "/ai" || command === "/ask") {
+    const question = text.slice(rawCommand.length).trim();
+    if (inGroup) {
+      await sendMessage(chatId, "🤖 المساعد الذكي كيخدم غير في الخاص. صيفطلي رسالة هنا 👉 " + ownerUrl(settings));
+      return;
+    }
+    if (!question) {
+      await sendMessage(
+        chatId,
+        "🤖 المساعد الذكي\n\nكتب لي سؤالك مباشرة (بلا أوامر) وأنا نجاوبك: على المسابقات، الجوائز، كيفاش تجمع الدعوات، وشنو تدير إلا ما وصلكش الحساب.",
+        keyboard([[{ text: "🏁 المسابقات", callback_data: "home" }], backRow()]),
+      );
+      return;
+    }
+    await answerWithAi(chatId, user, question, settings);
+    return;
+  }
+
+  if (!inGroup && !command.startsWith("/") && aiStatus().available) {
+    await answerWithAi(chatId, user, text, settings);
+    return;
+  }
+
   await showHome(chatId, user, settings);
+}
+
+async function answerWithAi(chatId: number | string, user: BotUser, question: string, settings: Settings) {
+  const quota = await aiQuota(user.id);
+  if (!quota.allowed) {
+    await sendMessage(
+      chatId,
+      `⏳ وصلتي للحد اليومي ديال المساعد الذكي (${AI_DAILY_LIMIT} رسالة).\nتقدر تراسل المالك: ${ownerHandle(settings)}`,
+      keyboard([[{ text: "💬 مراسلة المالك", url: ownerUrl(settings) }], backRow()]),
+    );
+    return;
+  }
+  await sendChatAction(chatId, "typing");
+  const res = await aiAnswer(user, question, settings);
+  if (!res.ok) {
+    await showHome(chatId, user, settings);
+    return;
+  }
+  await sendMessage(
+    chatId,
+    `🤖 ${toTelegramHtml(res.text.slice(0, 3500))}`,
+    keyboard([
+      [{ text: "🏁 المسابقات", callback_data: "home" }],
+      [{ text: `💬 مراسلة المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+    ]),
+  );
 }
 
 async function handleCallback(query: TgCallbackQuery) {

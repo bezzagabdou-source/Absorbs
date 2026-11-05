@@ -9,11 +9,13 @@ import {
   maskAccount,
   participantsCount,
 } from "@/lib/contests";
+import { aiStatus } from "@/lib/ai";
 import { claimsCount, listContestClaims } from "@/lib/claims";
 import { getSettings } from "@/lib/settings";
 import { getUser } from "@/lib/users";
 import {
   addAccountsAction,
+  aiContestDescriptionAction,
   clearAccountsAction,
   deleteContestAction,
   removeAccountAction,
@@ -37,6 +39,7 @@ export default async function ContestDetailPage({
   const contest = await getContest(id);
   if (!contest) notFound();
 
+  const ai = aiStatus();
   const [stock, accounts, participants, winners, claims, settings] = await Promise.all([
     accountsCount(contest.id),
     listAccounts(contest.id, 60),
@@ -135,6 +138,33 @@ export default async function ContestDetailPage({
           ⚠️ مخزون الحسابات فاضي — لو وصل أحد للهدف مش راح يقدر يستلم. أضف حسابات من الكارت تحت.
         </div>
       ) : null}
+
+      <div className="card">
+        <div className="card-title">
+          <h2>🤖 وصف بالذكاء الاصطناعي</h2>
+          {ai.available ? (
+            <span className="badge badge-active">🟢 {ai.provider}</span>
+          ) : (
+            <span className="badge badge-ended">مطفي</span>
+          )}
+        </div>
+        <form action={aiContestDescriptionAction}>
+          <input type="hidden" name="id" value={contest.id} />
+          <label className="field">
+            <span>ملاحظات إضافية (اختياري)</span>
+            <input
+              name="notes"
+              placeholder="مثال: المسابقة كتسالي ليلة الجمعة، الفائزين 3 ونشرح كيفاش يجمع الدعوات"
+            />
+            <small>
+              يولّد وصف من 3–5 أسطر + يقترح صياغة الجائزة إلا كانت خاوية، ويكتبهم مباشرة في المسابقة.
+            </small>
+          </label>
+          <button className="btn btn-primary" type="submit" disabled={!ai.available}>
+            ✨ ولّد الوصف وعبّي المسابقة
+          </button>
+        </form>
+      </div>
 
       <div className="card">
         <div className="card-title">

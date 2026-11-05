@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { aiStatus } from "@/lib/ai";
 import { ensureBotReady, BOT_COMMANDS } from "@/lib/botSetup";
 import { listContests } from "@/lib/contests";
 import { getStore, storageInfo } from "@/lib/store";
@@ -44,6 +45,7 @@ export default async function StatusPage({
   searchParams: Promise<{ fix?: string }>;
 }) {
   const { fix } = await searchParams;
+  const ai = aiStatus();
   const status = await ensureBotReady({ force: fix === "1" });
   const [contests, storage, users, claims, settings] = await Promise.all([
     listContests(),
@@ -195,6 +197,9 @@ export default async function StatusPage({
             <li>لا ملاحظات — كل الفحوصات مرّت.</li>
           )}
           <li>الأسرار محمية: {status.secretProtected ? "نعم (secret_token)" : "لا"}</li>
+          <li>
+            المساعد الذكي: {ai.available ? `مفعّل — ${ai.provider} (${ai.model})` : "غير مفعّل (بلا مفتاح)"}
+          </li>
           <li>
             الأوامر المسجّلة: {BOT_COMMANDS.map((c) => `/${c.command}`).join(" ، ")} —{" "}
             {settings.botUsername ? "تظهر في زر القائمة" : "تُضبط تلقائياً بعد الربط"}

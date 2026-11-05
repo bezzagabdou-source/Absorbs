@@ -217,6 +217,10 @@ export async function editMessage(
   return res;
 }
 
+export async function sendChatAction(chatId: number | string, action = "typing") {
+  return tgCall("sendChatAction", { chat_id: chatId, action });
+}
+
 export async function answerCallback(id: string, text?: string) {
   return tgCall("answerCallbackQuery", {
     callback_query_id: id,

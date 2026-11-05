@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { aiStatus } from "@/lib/ai";
 import { requireAdmin } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { storageInfo } from "@/lib/store";
@@ -29,6 +30,7 @@ export default async function SettingsPage({
   searchParams: Promise<{ ok?: string; err?: string }>;
 }) {
   await requireAdmin();
+  const ai = aiStatus();
   const { ok, err } = await searchParams;
   const settings = await getSettings();
   const storage = storageInfo();
@@ -277,6 +279,36 @@ export default async function SettingsPage({
               <span style={{ display: "inline" }}>
                 تسليم الحساب تلقائياً لحظة إكمال الهدف (بدون ضغط «ربح الحساب»)
               </span>
+            </label>
+          </div>
+
+          <div className="card-title" style={{ marginTop: 18 }}>
+            <h2>🤖 المساعد الذكي</h2>
+            {ai.available ? (
+              <span className="badge badge-active">🟢 {ai.provider} — {ai.model}</span>
+            ) : (
+              <span className="badge badge-ended">🔴 بلا مفتاح</span>
+            )}
+          </div>
+          <div className="grid-2">
+            <label className="field">
+              <input
+                type="checkbox"
+                name="aiEnabled"
+                defaultChecked={settings.aiEnabled}
+                style={{ width: "auto", marginInlineEnd: 8 }}
+              />
+              <span style={{ display: "inline" }}>تفعيل المساعد الذكي في البوت (الخاص فقط)</span>
+            </label>
+            <label className="field">
+              <span>موديل مخصص (اختياري)</span>
+              <input
+                name="aiModel"
+                defaultValue={settings.aiModel}
+                placeholder="gemini-2.5-flash"
+                className="mono"
+              />
+              <small>خليه خاوي إلا بغيت الموديل الافتراضي ديال المزوّد.</small>
             </label>
           </div>
 

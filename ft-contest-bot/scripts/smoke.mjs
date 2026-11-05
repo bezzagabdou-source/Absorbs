@@ -496,6 +496,77 @@ const textTo = (calls, chatId) =>
     afterReset.slice(0, 160),
   );
 
+
+  /* ── 11) المساعد الذكي ── */
+  console.log("\n11) المساعد الذكي");
+  const aiPage = await page("/admin/ai");
+  const aiText = plain(aiPage.html);
+  check("صفحة المساعد الذكي تفتح", aiPage.status === 200);
+  check("تعرض حالة المحرّك", aiText.includes("حالة المحرّك"));
+  const aiForm = findForm(extractForms(aiPage.html), "ولّد النص");
+  const generated = await submit("/admin/ai", aiForm.id, {
+    kind: "contest",
+    prompt: "مسابقة 300 دعوة وجائزة حساب FT",
+  });
+  check("توليد نص بالذكاء الاصطناعي", generated.status === 303, `(${generated.status})`);
+  const aiAfter = plain((await page("/admin/ai")).html);
+  check("النص المولّد ظاهر في الصفحة", aiAfter.includes("محاكاة"), aiAfter.slice(0, 160));
+
+  const aiChat = 910002;
+  await update({
+    message: {
+      message_id: 5100,
+      from: { id: aiChat, is_bot: false, first_name: "سائل" },
+      chat: { id: aiChat, type: "private" },
+      text: "كيفاش نجمع 200 دعوة بسرعة؟",
+    },
+  });
+  const aiCalls = await mockCalls();
+  const aiReplies = textTo(aiCalls, aiChat);
+  check(
+    "البوت يجاوب على الأسئلة الحرة بالذكاء الاصطناعي",
+    aiReplies.some((t) => t.includes("محاكاة")),
+    aiReplies.at(-1)?.slice(0, 120),
+  );
+  check(
+    "الجواب فيه زر رجوع للمسابقات",
+    aiCalls.some(
+      (c) =>
+        c.method === "sendMessage" &&
+        String(c.payload.chat_id) === String(aiChat) &&
+        JSON.stringify(c.payload.reply_markup || {}).includes("المسابقات"),
+    ),
+  );
+  check(
+    "البوت كيبين «يكتب…» قبل الجواب",
+    aiCalls.some(
+      (c) => c.method === "sendChatAction" && String(c.payload.chat_id) === String(aiChat),
+    ),
+  );
+
+  const aiHelpChat = 910003;
+  await update({
+    message: {
+      message_id: 5101,
+      from: { id: aiHelpChat, is_bot: false, first_name: "سائل" },
+      chat: { id: aiHelpChat, type: "private" },
+      text: "/ai",
+    },
+  });
+  const aiHelp = textTo(await mockCalls(), aiHelpChat);
+  check(
+    "أمر /ai يشرح المساعد",
+    aiHelp.some((t) => t.includes("المساعد الذكي")),
+    aiHelp.at(-1)?.slice(0, 120),
+  );
+
+  const contestPage = await page(`/admin/contests/${contestId}`);
+  check("زر توليد الوصف في صفحة المسابقة", contestPage.html.includes("ولّد الوصف"));
+  const broadcastAi = await page("/admin/broadcast");
+  check("كارت الصياغة الذكية في البث", broadcastAi.html.includes("صياغة بالذكاء الاصطناعي"));
+  const settingsAi = await page("/admin/settings");
+  check("إعدادات المساعد الذكي", settingsAi.html.includes("المساعد الذكي"));
+
   console.log(`\n${failed === 0 ? "🎉" : "⚠️"} النتيجة: ${passed} ناجح / ${failed} فاشل\n`);
   process.exit(failed === 0 ? 0 : 1);
 })().catch((error) => {

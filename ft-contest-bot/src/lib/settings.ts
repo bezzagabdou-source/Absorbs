@@ -22,6 +22,8 @@ export async function getSettings(): Promise<Settings> {
     supportUsername: (saved.supportUsername || saved.ownerUsername || OWNER_USERNAME).replace(/^@/, ""),
     welcomeText: !savedWelcome || isOldLongWelcome(savedWelcome) ? WELCOME_TEXT : savedWelcome,
     groupTarget: Math.max(1, Number(saved.groupTarget) || DEFAULT_SETTINGS.groupTarget),
+    aiEnabled: saved.aiEnabled === undefined ? DEFAULT_SETTINGS.aiEnabled : Boolean(saved.aiEnabled),
+    aiModel: (saved.aiModel || "").trim(),
     webhookSecret:
       saved.webhookSecret ||
       process.env.TELEGRAM_WEBHOOK_SECRET ||

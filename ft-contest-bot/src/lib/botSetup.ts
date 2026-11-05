@@ -10,6 +10,7 @@ export const BOT_COMMANDS = [
   { command: "claim", description: "ربح الحساب" },
   { command: "link", description: "رابط الدعوة / الإحالة" },
   { command: "rules", description: "الشروط" },
+  { command: "ai", description: "المساعد الذكي — اسأل أي حاجة" },
   { command: "owner", description: "مالك البوت" },
 ];
 

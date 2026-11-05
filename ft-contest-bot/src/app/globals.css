@@ -679,6 +679,16 @@ tbody tr:hover td {
   font-size: 12.5px;
 }
 
+.ai-out {
+  white-space: pre-wrap;
+  background: var(--bg-soft, rgba(127, 127, 127, 0.08));
+  border: 1px solid var(--line, rgba(127, 127, 127, 0.25));
+  border-radius: 12px;
+  padding: 14px 16px;
+  line-height: 1.9;
+  margin: 0 0 14px;
+}
+
 .mono-box {
   background: rgba(6, 11, 21, 0.8);
   border: 1px dashed var(--line-strong);

@@ -1,6 +1,8 @@
+import { aiStatus } from "@/lib/ai";
 import { requireAdmin } from "@/lib/auth";
+import { getStore } from "@/lib/store";
 import { usersCount } from "@/lib/users";
-import { broadcastAction } from "../actions";
+import { aiBroadcastDraftAction, broadcastAction } from "../actions";
 import { Flash } from "../ui";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,9 @@ export default async function BroadcastPage({
   await requireAdmin();
   const { ok, err } = await searchParams;
   const total = await usersCount();
+  const ai = aiStatus();
+  const store = await getStore();
+  const draft = await store.get<{ text: string; topic: string; at: number }>("broadcast:draft");
 
   return (
     <>
@@ -27,6 +32,31 @@ export default async function BroadcastPage({
 
       <div className="card">
         <div className="card-title">
+          <h2>🤖 صياغة بالذكاء الاصطناعي</h2>
+          {ai.available ? (
+            <span className="badge badge-active">🟢 {ai.provider}</span>
+          ) : (
+            <span className="badge badge-ended">مطفي</span>
+          )}
+        </div>
+        <form action={aiBroadcastDraftAction}>
+          <label className="field">
+            <span>موضوع الرسالة</span>
+            <input
+              name="topic"
+              placeholder="مثال: مسابقة جديدة الليلة، 500 دعوة، الجائزة حساب FT كامل"
+              defaultValue={draft?.topic || ""}
+            />
+            <small>البوت يكتب الرسالة ويحطها في الصندوق تحت — راجعها قبل الإرسال.</small>
+          </label>
+          <button className="btn" type="submit" disabled={!ai.available}>
+            ✨ ولّد الرسالة
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <div className="card-title">
           <h2>📣 رسالة جماعية</h2>
           <span className="hint">{total} مستخدم إجمالاً</span>
         </div>
@@ -37,6 +67,7 @@ export default async function BroadcastPage({
               name="text"
               rows={6}
               required
+              defaultValue={draft?.text || ""}
               placeholder={"🏆 مسابقة جديدة!\n200 جهة وأول واحد يربح حساب FT كامل.\nافتح البوت واضغط «المسابقات» 👇"}
             />
           </label>

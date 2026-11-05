@@ -21,7 +21,9 @@ import {
   updateContest,
 } from "@/lib/contests";
 import { ALLOWED_UPDATES, BOT_COMMANDS, resetAutoSetupCache } from "@/lib/botSetup";
+import { aiGenerate } from "@/lib/ai";
 import { normalizeImageUrl, readUploadedImage } from "@/lib/images";
+import { getStore } from "@/lib/store";
 import { resetStats } from "@/lib/stats";
 import { ensureGroupContest, linkGroup, syncGroupInfo, unlinkGroup } from "@/lib/groups";
 import { ensureWebhookSecret, getSettings, saveSettings } from "@/lib/settings";
@@ -114,6 +116,8 @@ export async function saveSettingsAction(form: FormData): Promise<void> {
     autoGrant: flag("autoGrant", before.autoGrant),
     autoApproveJoins: flag("autoApproveJoins", before.autoApproveJoins),
     groupTarget: int(form, "groupTarget", before.groupTarget),
+    aiEnabled: flag("aiEnabled", before.aiEnabled),
+    aiModel: str(form, "aiModel"),
     groupChat: str(form, "groupChat") || before.groupChat,
     groupUrl: str(form, "groupUrl"),
     welcomeText: str(form, "welcomeText") || before.welcomeText,
@@ -366,4 +370,135 @@ export async function broadcastAction(form: FormData): Promise<void> {
   }
 
   go("/admin/broadcast", "ok", `تم الإرسال: ${sent} ✅ — فشل: ${failed} ⚠️`);
+}
+
+/* ────────────────────────────── المساعد الذكي ────────────────────────────── */
+
+const AI_KINDS: Record<string, { label: string; system: string; instruction: string }> = {
+  contest: {
+    label: "وصف مسابقة",
+    system:
+      "أنت كاتب محتوى عربي لبوت مسابقات تيليغرام (FT). اكتب نصًا حماسيًا قصيرًا بدارجة عربية واضحة، بلا مبالغات كاذبة، وبدون ماركداون.",
+    instruction:
+      "اكتب وصفًا لمسابقة جمع دعوات من 3 إلى 5 أسطر: الفكرة، الهدف، الجائزة، ومهلة/شروط عامة. زيد إيموجي مناسب في بداية كل سطر.",
+  },
+  broadcast: {
+    label: "رسالة بث",
+    system:
+      "أنت كاتب رسائل تسويقية عربية لبوت مسابقات تيليغرام. أسلوب مختصر، مباشر، بلا حشو، وبلا ماركداون.",
+    instruction:
+      "اكتب رسالة بث من 3 إلى 6 أسطر لإعلان هذا الشيء للمستخدمين، مع دعوة واضحة للضغط على زر «المسابقات»، وإيموجي مناسب.",
+  },
+  ideas: {
+    label: "أفكار مسابقات",
+    system: "أنت خبير نمو بوتات تيليغرام في المغرب الكبير. اقترح أفكارًا عملية قابلة للتنفيذ.",
+    instruction:
+      "اقترح 5 أفكار مسابقات جديدة (سطر لكل فكرة: الاسم + الهدف + الجائزة المقترحة + كيفاش تزيد الدعوات).",
+  },
+  reply: {
+    label: "رد على مستخدم",
+    system: "أنت مسؤول دعم عربي لبوت مسابقات تيليغرام. ردود قصيرة، مؤدبة، وحاسمة.",
+    instruction: "اكتب ردًا مهذبًا وقصيرًا (3 أسطر) على هذه الرسالة/الشكاية، واقترح الحل.",
+  },
+  custom: {
+    label: "نص حر",
+    system:
+      "أنت مساعد كتابة عربي لبوت مسابقات تيليغرام اسمه FT. اكتب بالعربية أو الدارجة، بلا ماركداون.",
+    instruction: "نفّذ الطلب التالي بدقة وباختصار.",
+  },
+};
+
+export async function aiStudioAction(form: FormData): Promise<void> {
+  await guard();
+  const prompt = str(form, "prompt");
+  const kind = str(form, "kind", "custom");
+  if (!prompt) go("/admin/ai", "err", "اكتب شنو بغيت نكتب ليك");
+  const preset = AI_KINDS[kind] || AI_KINDS.custom;
+  const res = await aiGenerate({
+    system: preset.system,
+    prompt: `${preset.instruction}\n\nالمطلوب: ${prompt}`,
+    maxTokens: 700,
+  });
+  if (!res.ok) go("/admin/ai", "err", `ما قدرناش نولّدو: ${res.error || "خطأ غير معروف"}`);
+  const store = await getStore();
+  await store.set("ai:last", {
+    kind,
+    kindLabel: preset.label,
+    prompt,
+    answer: res.text,
+    provider: res.provider,
+    model: res.model,
+    at: Date.now(),
+  });
+  revalidatePath("/admin/ai");
+  go("/admin/ai", "ok", "تولّد النص ✅");
+}
+
+export async function aiContestDescriptionAction(form: FormData): Promise<void> {
+  await guard();
+  const id = str(form, "id");
+  const contest = await getContest(id);
+  if (!contest) go("/admin/contests", "err", "المسابقة غير موجودة");
+  const notes = str(form, "notes");
+  const res = await aiGenerate({
+    system:
+      "أنت كاتب محتوى عربي لبوت مسابقات FT. تكتب بالعربية/الدارجة بلا ماركداون، وبأمانة تامة في الوصف.",
+    prompt: [
+      `اكتب وصف مسابقة تيليغرام بالمعطيات التالية:`,
+      `- العنوان: ${contest.title}`,
+      `- النوع: ${contest.mode === "group" ? "مسابقة مجموعة (أسرع ضيف)" : "مسابقة جمع دعوات"}`,
+      `- الهدف: ${contest.target} ${contest.mode === "group" ? "عضو" : "دعوة"}`,
+      `- عدد الفائزين: ${contest.winners}`,
+      `- الجائزة الحالية: ${contest.prize || "غير محددة"}`,
+      notes ? `- ملاحظات إضافية: ${notes}` : "",
+      ``,
+      `أجب بهذا الشكل بالضبط وسطرين فقط للعناوين:`,
+      `الوصف:`,
+      `<3 إلى 5 أسطر وصف حماسي واضح>`,
+      `الجائزة:`,
+      `<سطر واحد يحدد الجائزة إن كانت غير محددة، أو أعد نفسها>`,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    maxTokens: 600,
+  });
+  if (!res.ok) {
+    go(`/admin/contests/${id}`, "err", `الذكاء الاصطناعي ما جاوبش: ${res.error || "خطأ غير معروف"}`);
+  }
+  const text = res.text.trim();
+  const descMatch = text.match(/الوصف\s*:\s*([\s\S]*?)(?:\n\s*الجائزة\s*:|$)/);
+  const prizeMatch = text.match(/الجائزة\s*:\s*([\s\S]*)$/);
+  const description = (descMatch ? descMatch[1] : text).trim().slice(0, 1500);
+  const prize = (prizeMatch ? prizeMatch[1] : "").trim().slice(0, 200);
+  await updateContest(id, {
+    description,
+    ...(prize ? { prize } : {}),
+  });
+  revalidatePath(`/admin/contests/${id}`);
+  revalidatePath("/");
+  go(`/admin/contests/${id}`, "ok", "تولّد الوصف بالذكاء الاصطناعي ✅");
+}
+
+export async function aiBroadcastDraftAction(form: FormData): Promise<void> {
+  await guard();
+  const topic = str(form, "topic");
+  if (!topic) go("/admin/broadcast", "err", "اكتب موضوع الرسالة");
+  const settings = await getSettings();
+  const res = await aiGenerate({
+    system:
+      "أنت كاتب رسائل عربية لبوت مسابقات تيليغرام. تكتب نصًا بسيطًا بلا ماركداون ولا وسوم HTML، سطور قصيرة، وإيموجي مناسب.",
+    prompt: [
+      `اكتب رسالة بث جماعية لبوت مسابقات FT حول: ${topic}`,
+      `قيود: من 3 إلى 6 أسطر، بلا روابط مزيفة، بلا وعود بربح مضمون، واذكر أن الفتح من زر «المسابقات» داخل البوت.`,
+      settings.supportUsername ? `لو احتجت مرجع للدعم استعمل: @${settings.supportUsername}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    maxTokens: 500,
+  });
+  if (!res.ok) go("/admin/broadcast", "err", `ما قدرناش نولّدو: ${res.error || "خطأ غير معروف"}`);
+  const store = await getStore();
+  await store.set("broadcast:draft", { text: res.text.trim(), at: Date.now(), topic });
+  revalidatePath("/admin/broadcast");
+  go("/admin/broadcast", "ok", "جاهزة الرسالة — راجعها ومن بعد صيفطها");
 }

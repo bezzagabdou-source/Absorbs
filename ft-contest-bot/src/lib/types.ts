@@ -53,6 +53,10 @@ export type Settings = {
   autoApproveJoins: boolean;
   /** هدف مسابقة أسرع ضيف الافتراضي عند ربط مجموعة */
   groupTarget: number;
+  /** المساعد الذكي في البوت */
+  aiEnabled: boolean;
+  /** موديل مخصص (اختياري) */
+  aiModel: string;
   welcomeText: string;
   rulesText: string;
   webhookSecret: string;
@@ -97,6 +101,8 @@ export const DEFAULT_SETTINGS: Settings = {
   groupUrl: "",
   autoApproveJoins: true,
   groupTarget: 20,
+  aiEnabled: true,
+  aiModel: "",
   welcomeText: WELCOME_TEXT,
   rulesText: "📜 <b>الشروط</b>\n\n1️⃣ كل شخص جديد من رابطك = جهة\n2️⃣ ممنوع الحسابات الوهمية\n3️⃣ أول من يوصل الهدف يربح\n\nبالتوفيق 🍀",
   webhookSecret: "",

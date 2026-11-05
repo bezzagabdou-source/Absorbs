@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/admin/claims", label: "الجوائز المسلّمة", icon: "🎁" },
   { href: "/admin/stats", label: "الإحصائيات", icon: "📈" },
   { href: "/admin/broadcast", label: "بث رسالة", icon: "📣" },
+  { href: "/admin/ai", label: "المساعد الذكي", icon: "🤖" },
   { href: "/admin/settings", label: "الإعدادات والبوت", icon: "⚙️" },
 ];
 
