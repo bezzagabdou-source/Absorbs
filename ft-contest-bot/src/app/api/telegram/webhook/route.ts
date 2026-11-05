@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { handleUpdate } from "@/lib/bot";
 import { getSettings } from "@/lib/settings";
+import { trackBotMessage } from "@/lib/stats";
 import type { TgUpdate } from "@/lib/telegram";
 
 export const runtime = "nodejs";
@@ -35,6 +36,8 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
   }
+
+  await trackBotMessage();
 
   try {
     await handleUpdate(update);

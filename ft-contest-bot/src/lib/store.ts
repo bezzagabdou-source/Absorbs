@@ -240,7 +240,12 @@ class PostgresStore implements Store {
   }
   async del(key: string) {
     const pool = await getPool();
-    await pool.query("delete from ft_kv where k = $1", [key]);
+    await Promise.all([
+      pool.query("delete from ft_kv where k = $1", [key]),
+      pool.query("delete from ft_set where k = $1", [key]),
+      pool.query("delete from ft_zset where k = $1", [key]),
+      pool.query("delete from ft_list where k = $1", [key]),
+    ]);
   }
   async incr(key: string, by = 1) {
     const pool = await getPool();

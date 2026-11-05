@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/admin/group", label: "المجموعة وأسرع ضيف", icon: "🏃" },
   { href: "/admin/users", label: "المستخدمون", icon: "👥" },
   { href: "/admin/claims", label: "الجوائز المسلّمة", icon: "🎁" },
+  { href: "/admin/stats", label: "الإحصائيات", icon: "📈" },
   { href: "/admin/broadcast", label: "بث رسالة", icon: "📣" },
   { href: "/admin/settings", label: "الإعدادات والبوت", icon: "⚙️" },
 ];

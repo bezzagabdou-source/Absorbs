@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { accountsCount, listContests, participantsCount } from "@/lib/contests";
 import { claimsCount, listClaims } from "@/lib/claims";
 import { activeGroupContest, groupJoinsCount, linkedGroup } from "@/lib/groups";
+import { getStats } from "@/lib/stats";
 import { getSettings, ownerHandle } from "@/lib/settings";
 import { getStore, storageInfo } from "@/lib/store";
 import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
@@ -20,12 +21,13 @@ export default async function DashboardPage({
   const { ok, err } = await searchParams;
   const origin = await currentOrigin();
   const botStatus = await ensureBotReady({ origin });
-  const [settings, contests, users, totalClaims, recentClaims] = await Promise.all([
+  const [settings, contests, users, totalClaims, recentClaims, stats] = await Promise.all([
     getSettings(),
     listContests(),
     usersCount(),
     getStore().zCount("claims:index"),
     listClaims(6),
+    getStats(1),
   ]);
 
   const enriched = await Promise.all(
@@ -132,6 +134,24 @@ export default async function DashboardPage({
           <b>{totalClaims}</b>
           <span>جائزة مسلّمة</span>
         </div>
+        <div className="stat">
+          <b>{stats.uniquesToday}</b>
+          <span>زائر اليوم</span>
+        </div>
+        <div className="stat">
+          <b>{stats.activeToday}</b>
+          <span>نشط في البوت اليوم</span>
+        </div>
+        <div className="stat">
+          <b>{stats.activeOnline}</b>
+          <span>نشط الآن</span>
+        </div>
+      </div>
+
+      <div className="row" style={{ marginBottom: 14 }}>
+        <Link className="btn btn-primary btn-sm" href="/admin/stats">
+          📈 الإحصائيات الكاملة (زوار + نشاط)
+        </Link>
       </div>
 
       <div className="card">

@@ -12,6 +12,12 @@
  */
 
 const BASE = process.env.BASE || "http://localhost:3000";
+
+/** أصغر PNG صالح (1×1) لاختبار رفع الصور */
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=",
+  "base64",
+);
 const PASSWORD = process.env.ADMIN_PASSWORD || "test1234";
 // لازم يطابق TELEGRAM_WEBHOOK_SECRET على السيرفر (يُضبط تلقائياً عند ربط الويب هوك)
 const SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || "smoke-secret";
@@ -65,7 +71,13 @@ async function page(path, withAuth = true) {
 async function submit(path, actionId, fields) {
   const fd = new FormData();
   fd.append(`$ACTION_ID_${actionId}`, "");
-  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  for (const [k, v] of Object.entries(fields)) {
+    if (v && typeof v === "object" && typeof v.arrayBuffer === "function") {
+      fd.append(k, v, v.name || "upload.bin");
+    } else {
+      fd.append(k, v);
+    }
+  }
   const res = await fetch(BASE + path, {
     method: "POST",
     headers: { Accept: "text/html", Origin: BASE, ...(cookie ? { Cookie: cookie } : {}) },
@@ -140,6 +152,8 @@ const textTo = (calls, chatId) =>
     prize: "حساب FT تجريبي",
     description: "اختبار تلقائي",
     status: "active",
+    mode: "referral",
+    image: new File([TINY_PNG], "contest.png", { type: "image/png" }),
   });
   const contestId = (created.location.match(/\/admin\/contests\/([a-zA-Z0-9_-]+)/) || [])[1];
   check("تم إنشاء المسابقة", Boolean(contestId), created.location);
@@ -147,6 +161,7 @@ const textTo = (calls, chatId) =>
   const contestUrl = `/admin/contests/${contestId}`;
   let detail = await page(contestUrl);
   check("صفحة المسابقة تفتح", detail.status === 200);
+  check("صورة المسابقة محفوظة وتظهر في اللوحة", detail.html.includes(`/api/contests/${contestId}/image`));
 
   /* ── 3) مخزون الحسابات ── */
   console.log("\n3) مخزون الحسابات");
@@ -160,6 +175,23 @@ const textTo = (calls, chatId) =>
   const detailText = plain(detail.html);
   check("المخزون = 2", /مخزون الحسابات\s*\(\s*2\s*\)/.test(detailText), detailText.slice(0, 120));
   check("كلمات السر مخفية", detailText.includes("••••") && !detail.html.includes("Secret1"));
+
+  /* ── 3ب) صورة المسابقة ── */
+  console.log("\n3ب) صورة المسابقة");
+  const imageRes = await fetch(`${BASE}/api/contests/${contestId}/image`);
+  check("رابط الصورة يعمل", imageRes.status === 200, `(${imageRes.status})`);
+  check(
+    "نوع المحتوى صورة PNG",
+    (imageRes.headers.get("content-type") || "").includes("image/png"),
+    imageRes.headers.get("content-type") || "",
+  );
+  const imageBytes = new Uint8Array(await imageRes.arrayBuffer());
+  check("حجم الصورة صحيح", imageBytes.length === TINY_PNG.length, `${imageBytes.length}`);
+  const landingWithImage = await page("/", false);
+  check(
+    "الصورة تظهر في الموقع العام",
+    landingWithImage.html.includes(`/api/contests/${contestId}/image`),
+  );
 
   /* ── 4) الإعدادات + الويب هوك (mock) ── */
   console.log("\n4) الإعدادات والربط");
@@ -248,9 +280,29 @@ const textTo = (calls, chatId) =>
     inviterMessages.some((t) => t.includes("وصلت للهدف")),
   );
 
+  console.log("\n5أ) صورة المسابقة في البوت");
+  const photoUser = "900009";
+  await update({
+    update_id: 25,
+    callback_query: {
+      id: "cb-photo",
+      from: { id: Number(photoUser), first_name: "زائر" },
+      data: `c:${contestId}`,
+      message: { message_id: 9, chat: { id: Number(photoUser), type: "private" } },
+    },
+  });
+  const photoCalls = (await mockCalls()).filter((c) => c.method === "sendPhoto");
+  check("البوت يرسل صورة المسابقة", photoCalls.length > 0, `count=${photoCalls.length}`);
+  check(
+    "رابط الصورة في رسالة البوت",
+    photoCalls.some((c) => String(c.payload.photo).includes(`/api/contests/${contestId}/image`)),
+    JSON.stringify(photoCalls[0]?.payload?.photo || ""),
+  );
+
   /* ── 5ب) المجموعة + أسرع ضيف ── */
   console.log("\n5ب) ربط المجموعة ونظام أسرع ضيف");
-  const GROUP_ID = -1001234567890;
+  // مجموعة جديدة كل تشغيل حتى تبقى الاختبارات مستقلة (روابط الدعوة تُخزَّن لكل مجموعة)
+  const GROUP_ID = -(1000000000000 + Math.floor(Math.random() * 900000));
   await update({
     update_id: 40,
     my_chat_member: {
@@ -416,6 +468,33 @@ const textTo = (calls, chatId) =>
   check("الصفحة العامة تعمل", landing.status === 200);
   check("تعرض المسابقات", landing.html.includes("مسابقة اختبار"));
   check("لا تُظهر كلمات سر المخزون", !landing.html.includes("Secret1"));
+
+  /* ── 10) الإحصائيات ── */
+  console.log("\n10) الإحصائيات");
+  await page("/", false);
+  await page("/", false);
+  const statsPage = await page("/admin/stats");
+  const statsText = plain(statsPage.html);
+  check("صفحة الإحصائيات تفتح", statsPage.status === 200);
+  const visitors = Number((statsText.match(/(\d+)\s+زوار اليوم/) || [])[1] || 0);
+  check("تُحسب زيارات الموقع", visitors > 0, `visitors=${visitors}`);
+  const activeNow = Number((statsText.match(/(\d+)\s+نشطين في البوت اليوم/) || [])[1] || 0);
+  check("يُحسب نشاط مستخدمي البوت", activeNow > 0, `active=${activeNow}`);
+  const msgs = Number((statsText.match(/(\d+)\s+رسائل البوت اليوم/) || [])[1] || 0);
+  check("تُحسب رسائل البوت", msgs > 0, `messages=${msgs}`);
+  check("تفصيل يومي موجود", statsPage.html.includes("التفصيل اليومي"));
+  const dash = plain((await page("/admin")).html);
+  check("اللوحة تعرض الزوار والنشطين", dash.includes("زائر اليوم") && dash.includes("نشط في البوت اليوم"));
+
+  const resetForm = findForm(extractForms(statsPage.html), "تصفير الإحصائيات");
+  const reset = await submit("/admin/stats", resetForm.id, { days: "30" });
+  check("تصفير الإحصائيات", reset.status === 303, `(${reset.status})`);
+  const afterReset = plain((await page("/admin/stats")).html);
+  check(
+    "الأرقام تصفّرت",
+    /0\s+زوار اليوم/.test(afterReset) || /0\s+زيارات اليوم/.test(afterReset),
+    afterReset.slice(0, 160),
+  );
 
   console.log(`\n${failed === 0 ? "🎉" : "⚠️"} النتيجة: ${passed} ناجح / ${failed} فاشل\n`);
   process.exit(failed === 0 ? 0 : 1);

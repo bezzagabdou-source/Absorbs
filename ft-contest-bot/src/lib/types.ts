@@ -20,6 +20,8 @@ export type Contest = {
   winners: number;
   /** طريقة الحساب (افتراضياً رابط البوت) */
   mode?: ContestMode;
+  /** صورة المسابقة: data:image/... أو رابط https */
+  imageUrl?: string;
   createdAt: number;
   startedAt?: number;
   endedAt?: number;

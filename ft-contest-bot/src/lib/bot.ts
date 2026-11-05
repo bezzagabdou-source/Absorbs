@@ -1,3 +1,4 @@
+import { currentOrigin } from "./botSetup";
 import { claimsCount, getClaim, saveClaim, takeAccount } from "./claims";
 import {
   getContest,
@@ -204,8 +205,30 @@ async function showContest(
     .join("\n");
 
   const kb = contestKeyboard(contest);
-  if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
+  if (messageId) {
+    await editMessage(chatId, messageId, text, kb);
+    return;
+  }
+  // صورة المسابقة تظهر في رسالة جديدة (تيليغرام يحتاج رابطاً عاماً)
+  if (contest.imageUrl) {
+    const origin = await currentOrigin().catch(() => "");
+    const photo = origin
+      ? `${origin}/api/contests/${contest.id}/image`
+      : contest.imageUrl.startsWith("http")
+        ? contest.imageUrl
+        : "";
+    if (photo) {
+      const sent = await tgCall("sendPhoto", {
+        chat_id: chatId,
+        photo,
+        caption: text.slice(0, 1000),
+        parse_mode: "HTML",
+        reply_markup: kb,
+      });
+      if (sent.ok) return;
+    }
+  }
+  await sendMessage(chatId, text, kb);
 }
 
 async function showFastest(

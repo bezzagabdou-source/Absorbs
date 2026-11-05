@@ -1,3 +1,4 @@
+import { trackBotActivity } from "./stats";
 import { getStore } from "./store";
 import type { BotUser } from "./types";
 import type { TgUser } from "./telegram";
@@ -18,6 +19,7 @@ export async function touchUser(from: TgUser): Promise<BotUser> {
   };
   await store.set(`user:${id}`, user);
   if (isNew) await store.zIncr(JOINED_KEY, id, user.joinedAt);
+  await trackBotActivity(id);
   return user;
 }
 

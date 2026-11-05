@@ -139,7 +139,19 @@ export default async function ContestDetailPage({
       <div className="card">
         <div className="card-title">
           <h2>⚙️ تعديل المسابقة</h2>
+          {contest.imageUrl ? (
+            <span className="badge badge-active">🖼 فيها صورة</span>
+          ) : (
+            <span className="badge badge-draft">بدون صورة</span>
+          )}
         </div>
+        {contest.imageUrl ? (
+          <img
+            className="img-preview"
+            src={`/api/contests/${contest.id}/image`}
+            alt={contest.title}
+          />
+        ) : null}
         <form action={updateContestAction}>
           <input type="hidden" name="id" value={contest.id} />
           <div className="grid-2">
@@ -179,6 +191,33 @@ export default async function ContestDetailPage({
             <span>الوصف</span>
             <textarea name="description" rows={2} defaultValue={contest.description} />
           </label>
+          <div className="grid-2">
+            <label className="field">
+              <span>🖼 صورة المسابقة</span>
+              <input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif" />
+              <small>صورة جديدة تبدّل القديمة — حتى 1.5 ميغا (PNG/JPG/WEBP/GIF).</small>
+            </label>
+            <label className="field">
+              <span>أو رابط صورة</span>
+              <input
+                name="imageUrl"
+                defaultValue={contest.imageUrl?.startsWith("http") ? contest.imageUrl : ""}
+                placeholder="https://example.com/ft.png"
+                className="mono"
+              />
+              <small>تُستخدم لو ما رفعتش صورة جديدة.</small>
+            </label>
+          </div>
+          {contest.imageUrl ? (
+            <label className="field">
+              <input
+                type="checkbox"
+                name="removeImage"
+                style={{ width: "auto", marginInlineEnd: 8 }}
+              />
+              <span style={{ display: "inline" }}>🗑 حذف الصورة الحالية</span>
+            </label>
+          ) : null}
           <button className="btn btn-primary" type="submit">
             حفظ التعديلات
           </button>

@@ -44,6 +44,7 @@ export async function createContest(input: {
   status?: ContestStatus;
   winners?: number;
   mode?: ContestMode;
+  imageUrl?: string;
 }): Promise<Contest> {
   const store = getStore();
   const id = newContestId();
@@ -56,6 +57,7 @@ export async function createContest(input: {
     status: input.status || "draft",
     winners: Math.max(1, Math.floor(input.winners || 1)),
     mode: input.mode === "group" ? "group" : "referral",
+    ...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
     createdAt: Date.now(),
     ...(input.status === "active" ? { startedAt: Date.now() } : {}),
   };

@@ -21,6 +21,8 @@ import {
   updateContest,
 } from "@/lib/contests";
 import { ALLOWED_UPDATES, BOT_COMMANDS, resetAutoSetupCache } from "@/lib/botSetup";
+import { normalizeImageUrl, readUploadedImage } from "@/lib/images";
+import { resetStats } from "@/lib/stats";
 import { ensureGroupContest, linkGroup, syncGroupInfo, unlinkGroup } from "@/lib/groups";
 import { ensureWebhookSecret, getSettings, saveSettings } from "@/lib/settings";
 import { sendMessage, tgCall } from "@/lib/telegram";
@@ -186,6 +188,9 @@ export async function createContestAction(form: FormData): Promise<void> {
   const title = str(form, "title");
   if (!title) go("/admin/contests", "err", "اكتب عنوان المسابقة");
   const status = (str(form, "status", "draft") as ContestStatus) || "draft";
+  const upload = await readUploadedImage(form);
+  if (upload.error) go("/admin/contests", "err", upload.error);
+  const imageUrl = upload.dataUrl || normalizeImageUrl(str(form, "imageUrl")) || "";
   const contest = await createContest({
     title,
     description: str(form, "description"),
@@ -194,6 +199,7 @@ export async function createContestAction(form: FormData): Promise<void> {
     winners: int(form, "winners", 1),
     status,
     mode: str(form, "mode") === "group" ? "group" : "referral",
+    imageUrl,
   });
   revalidatePath("/");
   revalidatePath("/admin/contests");
@@ -204,6 +210,12 @@ export async function updateContestAction(form: FormData): Promise<void> {
   await guard();
   const id = str(form, "id");
   if (!id) go("/admin/contests", "err", "مسابقة غير معروفة");
+  const before = await getContest(id);
+  const upload = await readUploadedImage(form);
+  if (upload.error) go(`/admin/contests/${id}`, "err", upload.error);
+  const manual = normalizeImageUrl(str(form, "imageUrl"));
+  const removeImage = str(form, "removeImage") === "on";
+  const imageUrl = upload.dataUrl || manual || (removeImage ? "" : (before?.imageUrl ?? ""));
   await updateContest(id, {
     title: str(form, "title") || "مسابقة",
     description: str(form, "description"),
@@ -212,6 +224,7 @@ export async function updateContestAction(form: FormData): Promise<void> {
     winners: int(form, "winners", 1),
     status: (str(form, "status", "draft") as ContestStatus) || "draft",
     mode: str(form, "mode") === "group" ? "group" : "referral",
+    imageUrl,
   });
   revalidatePath(`/admin/contests/${id}`);
   revalidatePath("/");
@@ -322,6 +335,17 @@ export async function createGroupContestAction(form: FormData): Promise<void> {
   revalidatePath("/admin/group");
   revalidatePath("/admin/contests");
   go("/admin/group", "ok", `مسابقة أسرع ضيف جاهزة: ${contest.title} — ${contest.target} عضو ✅`);
+}
+
+/* ────────────────────────────── الإحصائيات ────────────────────────────── */
+
+export async function resetStatsAction(form: FormData): Promise<void> {
+  await guard();
+  const days = int(form, "days", 30);
+  await resetStats(days);
+  revalidatePath("/admin/stats");
+  revalidatePath("/admin");
+  go("/admin/stats", "ok", "تم تصفير الإحصائيات (الزيارات والنشاط) ✅");
 }
 
 /* ────────────────────────────── البث ────────────────────────────── */

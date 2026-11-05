@@ -83,6 +83,18 @@ export default async function ContestsPage({
             <span>وصف المسابقة (اختياري)</span>
             <textarea name="description" rows={3} placeholder="اكتب تفاصيل إضافية تظهر في البوت..." />
           </label>
+          <div className="grid-2">
+            <label className="field">
+              <span>🖼 صورة المسابقة (اختياري)</span>
+              <input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif" />
+              <small>تظهر في الموقع وكتصويرة الرسالة في البوت — حتى 1.5 ميغا.</small>
+            </label>
+            <label className="field">
+              <span>أو رابط صورة جاهز</span>
+              <input name="imageUrl" placeholder="https://example.com/ft.png" className="mono" />
+              <small>لو حطيت الاثنين، الصورة المرفوعة هي اللي تُعتمد.</small>
+            </label>
+          </div>
           <button className="btn btn-primary" type="submit">
             إنشاء المسابقة
           </button>
@@ -118,6 +130,7 @@ export default async function ContestsPage({
                       <b>{contest.title}</b>
                       <div className="small muted">
                         {contest.mode === "group" ? "🏃 أسرع ضيف" : "🔗 رابط البوت"}
+                        {contest.imageUrl ? " • 🖼 صورة" : ""}
                       </div>
                       <div className="small muted mono">{contest.id}</div>
                     </td>

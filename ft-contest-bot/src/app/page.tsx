@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { after } from "next/server";
 import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
 import { accountsCount, listContests } from "@/lib/contests";
 import { claimsCount } from "@/lib/claims";
 import { linkedGroup } from "@/lib/groups";
 import { getSettings, ownerHandle } from "@/lib/settings";
+import { getStats, trackVisit } from "@/lib/stats";
 import { usersCount } from "@/lib/users";
 import { getStore } from "@/lib/store";
 
@@ -19,15 +21,23 @@ function statusBadge(status: string) {
 export default async function LandingPage() {
   // إصلاح ذاتي: يربط البوت بالموقع تلقائياً بعد إرسال الصفحة (بدون أي أمر يدوي)
   const origin = await currentOrigin();
+  const headerBag = await headers();
+  const ip =
+    headerBag.get("x-forwarded-for")?.split(",")[0]?.trim() || headerBag.get("x-real-ip") || "";
+  const ua = headerBag.get("user-agent") || "";
   after(async () => {
-    await ensureBotReady({ origin }).catch(() => undefined);
+    await Promise.all([
+      ensureBotReady({ origin }).catch(() => undefined),
+      trackVisit({ ip, ua }).catch(() => undefined),
+    ]);
   });
 
-  const [settings, contests, users, totalClaims] = await Promise.all([
+  const [settings, contests, users, totalClaims, stats] = await Promise.all([
     getSettings(),
     listContests(),
     usersCount(),
     getStore().zCount("claims:index"),
+    getStats(1),
   ]);
 
   const visible = contests.filter((c) => c.status !== "draft");
@@ -106,6 +116,10 @@ export default async function LandingPage() {
               <b>{totalClaims}</b>
               <span>جائزة تم تسليمها</span>
             </div>
+            <div className="stat-mini">
+              <b>{stats.visitsTotal}</b>
+              <span>زيارة للموقع</span>
+            </div>
           </div>
         </section>
 
@@ -137,6 +151,14 @@ export default async function LandingPage() {
                 : "";
               return (
                 <article className="land-card" key={contest.id}>
+                  {contest.imageUrl ? (
+                    <img
+                      className="land-image"
+                      src={`/api/contests/${contest.id}/image`}
+                      alt={contest.title}
+                      loading="lazy"
+                    />
+                  ) : null}
                   <div className="row" style={{ justifyContent: "space-between" }}>
                     {statusBadge(contest.status)}
                               <span className="badge badge-gold">
