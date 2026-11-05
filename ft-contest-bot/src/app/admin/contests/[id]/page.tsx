@@ -76,8 +76,9 @@ export default async function ContestDetailPage({
           </div>
           <h1>{contest.title}</h1>
           <p className="muted">
-            <StatusBadge status={contest.status} /> • الهدف {contest.target} جهة • أعلى رصيد حالياً{" "}
-            {topScore}
+            <StatusBadge status={contest.status} /> •{" "}
+            {contest.mode === "group" ? "🏃 أسرع ضيف — أعضاء المجموعة" : "🔗 رابط البوت"} • الهدف{" "}
+            {contest.target} • أعلى رصيد حالياً {topScore}
           </p>
         </div>
         <div className="row">
@@ -157,6 +158,13 @@ export default async function ContestDetailPage({
             <label className="field">
               <span>عدد الفائزين</span>
               <input name="winners" type="number" min={1} defaultValue={contest.winners} />
+            </label>
+            <label className="field">
+              <span>طريقة الحساب</span>
+              <select name="mode" defaultValue={contest.mode === "group" ? "group" : "referral"}>
+                <option value="referral">🔗 رابط البوت</option>
+                <option value="group">🏃 أسرع ضيف (المجموعة)</option>
+              </select>
             </label>
             <label className="field">
               <span>الحالة</span>

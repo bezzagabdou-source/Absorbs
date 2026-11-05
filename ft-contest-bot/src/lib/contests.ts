@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { getStore } from "./store";
-import type { Contest, ContestStatus } from "./types";
+import type { Contest, ContestMode, ContestStatus } from "./types";
 
 const IDS_KEY = "contests:ids";
 
@@ -43,6 +43,7 @@ export async function createContest(input: {
   prize?: string;
   status?: ContestStatus;
   winners?: number;
+  mode?: ContestMode;
 }): Promise<Contest> {
   const store = getStore();
   const id = newContestId();
@@ -54,6 +55,7 @@ export async function createContest(input: {
     prize: (input.prize || "").trim(),
     status: input.status || "draft",
     winners: Math.max(1, Math.floor(input.winners || 1)),
+    mode: input.mode === "group" ? "group" : "referral",
     createdAt: Date.now(),
     ...(input.status === "active" ? { startedAt: Date.now() } : {}),
   };

@@ -205,7 +205,25 @@ const textTo = (calls, chatId) =>
     },
   });
   let inviterMessages = textTo(await mockCalls(), inviter);
-  check("رسالة ترحيب للمستخدم", inviterMessages.some((t) => t.includes("أهلاً")), inviterMessages[0]);
+  check(
+    "رسالة ترحيب قصيرة: مرحبا بكم في بوت مسابقات FT",
+    inviterMessages.some((t) => t.includes("مرحبا بكم في بوت مسابقات FT")),
+    inviterMessages[0],
+  );
+  check("الترحيب ما فيه كلام طويل", (inviterMessages[0] || "").length < 80, inviterMessages[0]);
+  const ownerScreen = await (async () => {
+    await update({
+      update_id: 2,
+      message: {
+        message_id: 2,
+        from: { id: Number(inviter), first_name: "الفائز" },
+        chat: { id: Number(inviter), type: "private" },
+        text: "/owner",
+      },
+    });
+    return textTo(await mockCalls(), inviter).find((t) => t.includes("مالك البوت")) || "";
+  })();
+  check("أمر المالك يعرض @F_Y_Y_T", ownerScreen.includes("@F_Y_Y_T"), ownerScreen.slice(0, 80));
 
   for (let i = 1; i <= 3; i++) {
     await update({
@@ -229,6 +247,97 @@ const textTo = (calls, chatId) =>
     "إشعار الوصول للهدف",
     inviterMessages.some((t) => t.includes("وصلت للهدف")),
   );
+
+  /* ── 5ب) المجموعة + أسرع ضيف ── */
+  console.log("\n5ب) ربط المجموعة ونظام أسرع ضيف");
+  const GROUP_ID = -1001234567890;
+  await update({
+    update_id: 40,
+    my_chat_member: {
+      chat: { id: GROUP_ID, type: "supergroup", title: "مجموعة FT" },
+      from: { id: 900002, first_name: "المشرف" },
+      new_chat_member: { status: "administrator", user: { id: 7000000001, is_bot: true } },
+    },
+  });
+  const groupPage = await page("/admin/group");
+  const groupText = plain(groupPage.html);
+  check("صفحة المجموعة تفتح", groupPage.status === 200);
+  check("تم ربط المجموعة تلقائياً", groupText.includes("مجموعة FT"), groupText.slice(0, 120));
+  check("تم إنشاء مسابقة أسرع ضيف", groupText.includes("أسرع ضيف") && groupText.includes("20"));
+  check(
+    "إشعار الربط في المجموعة",
+    textTo(await mockCalls(), GROUP_ID).some((t) => t.includes("تم ربط المجموعة")),
+  );
+
+  const adder = "900003";
+  await update({
+    update_id: 41,
+    message: {
+      message_id: 41,
+      from: { id: Number(adder), first_name: "أسرع ضيف" },
+      chat: { id: Number(adder), type: "private" },
+      text: "/fastest",
+    },
+  });
+  let adderMessages = textTo(await mockCalls(), adder);
+  check("شاشة أسرع ضيف تعمل", adderMessages.some((t) => t.includes("أسرع ضيف")), adderMessages.at(-1));
+  const fastestButtons = (await mockCalls())
+    .filter((c) => c.method === "sendMessage" && String(c.payload.chat_id) === adder)
+    .map((c) => JSON.stringify(c.payload.reply_markup || {}))
+    .join(" ");
+  check("زر «رابطي — أضف أعضاء» موجود", fastestButtons.includes("رابطي"), fastestButtons.slice(0, 160));
+
+  const gCallsBefore = (await mockCalls()).filter((c) => c.method === "createChatInviteLink").length;
+  await update({
+    update_id: 42,
+    callback_query: {
+      id: "cb-ginv",
+      from: { id: Number(adder), first_name: "أسرع ضيف" },
+      data: "ginv:",
+      message: { message_id: 5, chat: { id: Number(adder), type: "private" } },
+    },
+  });
+  const callsG = await mockCalls();
+  const gInvites = callsG.filter((c) => c.method === "createChatInviteLink");
+  check("تم إنشاء رابط دعوة خاص", gInvites.length > gCallsBefore, `count=${gInvites.length}`);
+  check(
+    "طلب الانضمام مفعّل على الرابط",
+    Boolean(gInvites[0]?.payload.creates_join_request),
+    JSON.stringify(gInvites[0]?.payload),
+  );
+  adderMessages = textTo(await mockCalls(), adder);
+  const gLink = (adderMessages.join("\n").match(/https:\/\/t\.me\/\+[A-Za-z0-9_-]+/) || [])[0] || "";
+  check("الرابط وصل للمشارك", Boolean(gLink), adderMessages.at(-1)?.slice(0, 120));
+
+  const joinRequest = (uid, name) => ({
+    update_id: 50 + uid,
+    chat_join_request: {
+      chat: { id: GROUP_ID, type: "supergroup", title: "مجموعة FT" },
+      from: { id: uid, first_name: name },
+      user_chat_id: uid,
+      date: Math.floor(Date.now() / 1000),
+      invite_link: { invite_link: gLink, creates_join_request: true },
+    },
+  });
+
+  await update(joinRequest(920001, "عضو أول"));
+  await update(joinRequest(920002, "عضو ثاني"));
+  await update(joinRequest(920001, "عضو مكرر")); // نفس العضو — ما يتحسبش مرتين
+  const callsJoin = await mockCalls();
+  adderMessages = textTo(callsJoin, adder);
+  check(
+    "العضو الجديد يتحسب كجهة",
+    adderMessages.filter((t) => t.includes("جهة جديدة")).length === 2,
+    `count=${adderMessages.filter((t) => t.includes("جهة جديدة")).length}`,
+  );
+  check(
+    "قبول طلبات الانضمام تلقائياً",
+    callsJoin.filter((c) => c.method === "approveChatJoinRequest").length === 3,
+    `count=${callsJoin.filter((c) => c.method === "approveChatJoinRequest").length}`,
+  );
+  const groupText2 = plain((await page("/admin/group")).html);
+  check("الترتيب يعرض المشارك", groupText2.includes("أسرع ضيف") && groupText2.includes("900003"));
+  check("سجل المنضمّين يعرضهم", groupText2.includes("عضو أول"));
 
   /* ── 6) استلام الجائزة ── */
   console.log("\n6) استلام الجائزة");

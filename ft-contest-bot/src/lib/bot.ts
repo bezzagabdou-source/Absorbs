@@ -7,10 +7,23 @@ import {
   participantsCount,
   updateContest,
 } from "./contests";
-import { getSettings } from "./settings";
+import {
+  activeGroupContest,
+  creditGroupJoin,
+  ensureGroupContest,
+  groupType,
+  linkGroup,
+  linkedGroup,
+  ownerUrl,
+  personalGroupInvite,
+  recentGroupJoins,
+  unlinkGroup,
+} from "./groups";
+import { getSettings, ownerHandle } from "./settings";
 import { getStore } from "./store";
 import {
   answerCallback,
+  approveJoinRequest,
   editMessage,
   escapeHtml,
   getBotIdentity,
@@ -53,6 +66,10 @@ function referralLink(botUsername: string, contestId: string, userId: string): s
   return `https://t.me/${botUsername}?start=r_${contestId}_${userId}`;
 }
 
+function isGroupMode(contest: Contest | null | undefined): boolean {
+  return contest?.mode === "group";
+}
+
 async function isMember(settings: Settings, userId: number | string): Promise<boolean> {
   if (!settings.requireJoin || !settings.channelChat) return true;
   const res = await tgCall<{ status: string }>("getChatMember", {
@@ -80,74 +97,70 @@ async function gateJoin(
   const url = joinUrl(settings);
   const rows: Button[][] = [];
   if (url) rows.push([{ text: "📢 اشترك في القناة", url }]);
-  rows.push([{ text: "✅ تحقّق من الاشتراك", callback_data: next.callback_data || "home" }]);
-  await sendMessage(
-    chatId,
-    "🔒 <b>لازم تشترك في قناتنا أولاً</b>\n\nاشترك ثم اضغط «تحقّق» 👇",
-    keyboard(rows),
-  );
+  rows.push([{ text: "✅ تحقّق", callback_data: next.callback_data || "home" }]);
+  await sendMessage(chatId, "🔒 اشترك في القناة أولاً 👇", keyboard(rows));
   return false;
 }
 
 /* ───────────────────────────── keyboards ───────────────────────────── */
 
-function homeKeyboard(contests: Contest[], activeId?: string): InlineKeyboard {
+function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   const rows: Button[][] = [];
-  const list = contests.filter((c) => c.status !== "ended").slice(0, 6);
+  const hasGroup = Boolean(linkedGroup(settings));
+
+  if (hasGroup) {
+    rows.push([{ text: "🏃 أسرع ضيف — أضف أعضاء واربح", callback_data: "fastest" }]);
+  }
+
+  const list = contests.filter((c) => c.status !== "ended" && c.mode !== "group").slice(0, 5);
   list.forEach((c) => {
-    rows.push([
-      {
-        text: `${c.id === activeId ? "📍" : "🎯"} ${c.title} • ${c.target} جهة`,
-        callback_data: `c:${c.id}`,
-      },
-    ]);
+    rows.push([{ text: `🎯 ${c.title} • ${c.target} جهة`, callback_data: `c:${c.id}` }]);
   });
+
   rows.push([
     { text: "📊 جهاتي", callback_data: "mine" },
-    { text: "🥇 المتصدّرون", callback_data: "top" },
+    { text: "🥇 الترتيب", callback_data: "top" },
   ]);
   rows.push([
     { text: "📜 الشروط", callback_data: "rules" },
-    { text: "📩 الدعم", callback_data: "support" },
+    { text: `👑 المالك ${ownerHandle(settings)}`, callback_data: "owner" },
   ]);
   return keyboard(rows);
 }
 
-function contestKeyboard(id: string): InlineKeyboard {
+function contestKeyboard(contest: Contest): InlineKeyboard {
+  const main: Button =
+    isGroupMode(contest)
+      ? { text: "🔗 رابط الدعوة الخاص بي", callback_data: `ginv:${contest.id}` }
+      : { text: "🔗 رابط الإحالة الخاص بي", callback_data: `link:${contest.id}` };
   return keyboard([
-    [{ text: "🔗 رابط الإحالة — انسخه وشاركه", callback_data: `link:${id}` }],
+    [main],
     [
-      { text: "📊 جهاتي", callback_data: `mine:${id}` },
-      { text: "🥇 الترتيب", callback_data: `top:${id}` },
+      { text: "📊 جهاتي", callback_data: `mine:${contest.id}` },
+      { text: "🥇 الترتيب", callback_data: `top:${contest.id}` },
     ],
-    [{ text: "🎁 ربح الحساب", callback_data: `claim:${id}` }],
-    [{ text: "⬅️ رجوع للقائمة", callback_data: "home" }],
+    [{ text: "🎁 ربح الحساب", callback_data: `claim:${contest.id}` }],
+    [{ text: "⬅️ رجوع", callback_data: "home" }],
   ]);
+}
+
+function backRow(target = "home"): Button[] {
+  return [{ text: "⬅️ رجوع", callback_data: target }];
 }
 
 /* ───────────────────────────── screens ───────────────────────────── */
 
-async function showHome(chatId: number | string, user: BotUser, settings: Settings, messageId?: number) {
+async function showHome(
+  chatId: number | string,
+  user: BotUser,
+  settings: Settings,
+  messageId?: number,
+) {
   const contests = await listContests();
-  const active = contests.filter((c) => c.status === "active");
-  const intro = settings.welcomeText
+  const text = (settings.welcomeText || "مرحبا بكم في بوت مسابقات FT")
     .replace(/\{name\}/g, nameOf(user))
-    .replace(/\{count\}/g, String(active.length));
-
-  const lines = [intro, ""];
-  if (!active.length) {
-    lines.push("⏳ مفيش مسابقة مفتوحة حالياً — تابعنا، الجديد قريب!");
-  } else {
-    lines.push(`🔥 <b>المسابقات المفتوحة (${active.length})</b>`);
-    for (const c of active) {
-      const mine = await getReferralCount(c.id, user.id);
-      lines.push(`\n🎯 <b>${escapeHtml(c.title)}</b>\n   📊 ${mine}/${c.target} جهة • ${statusLabel(c.status)}`);
-    }
-  }
-  lines.push("\n👇 اختر مسابقة:");
-
-  const text = lines.join("\n");
-  const kb = homeKeyboard(contests);
+    .replace(/\{count\}/g, String(contests.filter((c) => c.status === "active").length));
+  const kb = homeKeyboard(settings, contests);
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else await sendMessage(chatId, text, kb);
 }
@@ -165,30 +178,134 @@ async function showContest(
   ]);
   const remaining = Math.max(0, contest.target - mine);
   const claim = await getClaim(contest.id, user.id);
-
   const medals = ["🥇", "🥈", "🥉"];
   const topLines = top.length
-    ? top.map((t, i) => `${medals[i] || "▫️"} ${t.member === user.id ? "أنت" : `مستخدم ${t.member.slice(-4)}`} — ${t.score}`).join("\n")
-    : "لا يوجد مشاركون بعد — كن الأول!";
+    ? top
+        .map(
+          (t, i) =>
+            `${medals[i] || "▫️"} ${t.member === user.id ? "أنت" : `عضو ${t.member.slice(-4)}`} — ${t.score}`,
+        )
+        .join("\n")
+    : "لا أحد بعد — كن الأول";
 
   const text = [
     `🎯 <b>${escapeHtml(contest.title)}</b>`,
-    contest.description ? `\n${escapeHtml(contest.description)}` : "",
-    `\n🎁 <b>الجائزة:</b> ${escapeHtml(contest.prize || "حساب FT كامل")}`,
-    `🎯 <b>المطلوب:</b> ${contest.target} جهة`,
-    `📊 <b>جهاتك:</b> ${mine}`,
-    `⏳ <b>باقي لك:</b> ${remaining}`,
-    `${progress(mine, contest.target)}`,
-    claim ? "\n✅ <b>أنت من الفائزين — اضغط «ربح الحساب» لاستلام بياناتك مرة أخرى</b>" : "",
-    `\n👥 مشاركين: ${participants} • ${statusLabel(contest.status)}`,
-    `\n🏅 <b>أفضل 3:</b>\n${topLines}`,
+    `🎁 ${escapeHtml(contest.prize || "حساب FT كامل")}`,
+    isGroupMode(contest) ? "👥 الحساب: كل عضو يدخل المجموعة من رابطك = جهة" : "",
+    "",
+    `📊 جهاتك: <b>${mine}</b> / ${contest.target} — باقي <b>${remaining}</b>`,
+    progress(mine, contest.target),
+    claim ? "✅ أنت فائز — اضغط «ربح الحساب» لاستلام بياناتك." : "",
+    `👥 مشاركين: ${participants} • ${statusLabel(contest.status)}`,
+    "",
+    `🏅 <b>أفضل 3</b>\n${topLines}`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const kb = contestKeyboard(contest.id);
+  const kb = contestKeyboard(contest);
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else await sendMessage(chatId, text, kb);
+}
+
+async function showFastest(
+  chatId: number | string,
+  user: BotUser,
+  settings: Settings,
+  messageId?: number,
+) {
+  const group = linkedGroup(settings);
+  if (!group) {
+    const text = "🏃 أسرع ضيف\n\nأضف البوت لمجموعتك ورح يبدأ النظام تلقائياً.";
+    const kb = keyboard([
+      [{ text: `👑 كلّم المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+      backRow(),
+    ]);
+    if (messageId) await editMessage(chatId, messageId, text, kb);
+    else await sendMessage(chatId, text, kb);
+    return;
+  }
+
+  const contest = (await activeGroupContest()) || (await ensureGroupContest(settings.groupTarget));
+  const [mine, top, participants] = await Promise.all([
+    getReferralCount(contest.id, user.id),
+    getLeaderboard(contest.id, 5),
+    participantsCount(contest.id),
+  ]);
+  const names = await Promise.all(
+    top.map(async (t) => {
+      const u = await getUser(t.member);
+      return t.member === user.id ? "🫵 أنت" : escapeHtml(u?.firstName || `عضو ${t.member.slice(-4)}`);
+    }),
+  );
+  const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
+  const board = top.length
+    ? top.map((t, i) => `${medals[i] || "▫️"} ${names[i]} — <b>${t.score}</b>`).join("\n")
+    : "لا أحد بعد — كن أول من يضيف 👇";
+
+  const remaining = Math.max(0, contest.target - mine);
+  const text = [
+    "🏃 <b>أسرع ضيف</b>",
+    `🎯 الهدف: <b>${contest.target}</b> عضو في المجموعة`,
+    `📊 جهاتك: <b>${mine}</b> — باقي <b>${remaining}</b>`,
+    progress(mine, contest.target),
+    "",
+    `🏅 <b>الترتيب</b>\n${board}`,
+    "",
+    `👥 مشاركين: ${participants}`,
+  ].join("\n");
+
+  const kb = keyboard([
+    [{ text: "🔗 رابطي — أضف أعضاء", callback_data: `ginv:${contest.id}` }],
+    [
+      { text: "📊 جهاتي", callback_data: "mine" },
+      { text: "🎁 ربح الحساب", callback_data: `claim:${contest.id}` },
+    ],
+    ...(group.url ? ([[{ text: "👥 المجموعة", url: group.url }]] as Button[][]) : []),
+    backRow(),
+  ]);
+
+  if (messageId) await editMessage(chatId, messageId, text, kb);
+  else await sendMessage(chatId, text, kb);
+}
+
+async function showGroupInvite(chatId: number | string, user: BotUser, contest: Contest) {
+  const invite = await personalGroupInvite(user, contest);
+  const settings = await getSettings();
+  if (!invite) {
+    await sendMessage(
+      chatId,
+      "⚠️ ما قدرتش نصاوب رابط الدعوة. تأكد أن البوت أدمن في المجموعة بصلاحية «دعوة مستخدمين».",
+      keyboard([
+        [{ text: `👑 المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+        backRow(`c:${contest.id}`),
+      ]),
+    );
+    return;
+  }
+
+  const share = `https://t.me/share/url?url=${encodeURIComponent(invite.link)}&text=${encodeURIComponent(
+    `🏃 مسابقة أسرع ضيف — أدخل المجموعة من رابطي واربح معي!`,
+  )}`;
+
+  await sendMessage(
+    chatId,
+    [
+      "🔗 <b>رابط الدعوة الخاص بك</b>",
+      `<code>${escapeHtml(invite.link)}</code>`,
+      "",
+      "كل عضو يدخل المجموعة من هذا الرابط = <b>جهة</b> في رصيدك.",
+      "الطلب يُقبل تلقائياً فوراً ✅",
+    ].join("\n"),
+    keyboard([
+      [{ text: "📣 مشاركة الرابط", url: share }],
+      [
+        { text: "📊 جهاتي", callback_data: `mine:${contest.id}` },
+        { text: "🏃 أسرع ضيف", callback_data: "fastest" },
+      ],
+      backRow(`c:${contest.id}`),
+    ]),
+  );
 }
 
 async function showMine(
@@ -204,38 +321,41 @@ async function showMine(
     : (await listContests()).filter((c) => c.status === "active");
 
   if (!contests.length) {
-    const text = "📊 مفيش مسابقة مفتوحة حالياً.";
-    if (messageId) await editMessage(chatId, messageId, text, homeKeyboard([], undefined));
+    const text = "📊 ما فيه مسابقة مفتوحة حالياً.";
+    if (messageId) await editMessage(chatId, messageId, text, homeKeyboard(settings, []));
     else await sendMessage(chatId, text);
     return;
   }
 
-  const parts: string[] = [`👤 <b>${nameOf(user)}</b> — إحصائياتك\n`];
+  const parts: string[] = [`👤 <b>${nameOf(user)}</b>`];
   for (const c of contests) {
     const mine = await getReferralCount(c.id, user.id);
     const remaining = Math.max(0, c.target - mine);
-    const link = username ? referralLink(username, c.id, user.id) : "—";
+    const link =
+      c.mode === "group"
+        ? (await personalGroupInvite(user, c))?.link || "—"
+        : username
+          ? referralLink(username, c.id, user.id)
+          : "—";
     parts.push(
       [
-        `🎯 <b>${escapeHtml(c.title)}</b>`,
-        `📊 جهاتك: <b>${mine}</b> / ${c.target}`,
-        `⏳ باقي لك: ${remaining}`,
-        `${progress(mine, c.target)}`,
-        username ? `🔗 رابطك:\n<code>${link}</code>` : "",
         "",
-      ]
-        .filter(Boolean)
-        .join("\n"),
+        `🎯 <b>${escapeHtml(c.title)}</b>`,
+        `📊 ${mine} / ${c.target} — باقي ${remaining}`,
+        progress(mine, c.target),
+        `🔗 <code>${escapeHtml(link)}</code>`,
+      ].join("\n"),
     );
   }
-  parts.push("📌 كل شخص يفتح رابطك ويسجّل = جهة واحدة تلقائياً.");
 
   const buttons: Button[][] = [];
-  if (contests.length === 1) {
-    buttons.push([{ text: "🔗 إرسال رابط الإحالة", callback_data: `link:${contests[0].id}` }]);
+  const groupContest = contests.find((c) => c.mode === "group");
+  if (groupContest) {
+    buttons.push([{ text: "🏃 أسرع ضيف", callback_data: "fastest" }]);
+  } else if (contests.length === 1) {
     buttons.push([{ text: "🎁 ربح الحساب", callback_data: `claim:${contests[0].id}` }]);
   }
-  buttons.push([{ text: "⬅️ رجوع", callback_data: "home" }]);
+  buttons.push(backRow());
 
   const text = parts.join("\n");
   if (messageId) await editMessage(chatId, messageId, text, keyboard(buttons));
@@ -243,31 +363,26 @@ async function showMine(
 }
 
 async function showLink(chatId: number | string, user: BotUser, contest: Contest) {
+  if (isGroupMode(contest)) {
+    await showGroupInvite(chatId, user, contest);
+    return;
+  }
   const { username } = await getBotIdentity();
   if (!username) {
-    await sendMessage(chatId, "⚠️ لم يتم ضبط يوزر البوت بعد. كلّم الإدارة.");
+    await sendMessage(chatId, "⚠️ البوت غير مضبوط بعد. كلّم الإدارة.");
     return;
   }
   const link = referralLink(username, contest.id, user.id);
-  const text = [
-    `🔗 <b>رابط الإحالة الخاص بك</b>`,
-    `<code>${link}</code>`,
-    "",
-    `انسخ الرابط وانشره في المجموعات/القنوات.`,
-    `كل شخص جديد يدخل منه = جهة تُضاف تلقائياً لرصيدك. ✅`,
-    "",
-    `🎯 هدف «${escapeHtml(contest.title)}»: ${contest.target} جهة`,
-  ].join("\n");
   const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(
-    `🏆 شارك في مسابقة ${contest.title} — أول من يوصل ${contest.target} جهة يربح الحساب!`,
+    `🏆 مسابقة ${contest.title} — أول من يوصل ${contest.target} جهة يربح!`,
   )}`;
   await sendMessage(
     chatId,
-    text,
+    ["🔗 <b>رابطك</b>", `<code>${link}</code>`, "", "كل شخص يفتحه = جهة في رصيدك ✅"].join("\n"),
     keyboard([
-      [{ text: "📊 جهاتي", callback_data: `mine:${contest.id}` }],
       [{ text: "📣 مشاركة سريعة", url: share }],
-      [{ text: "⬅️ رجوع", callback_data: `c:${contest.id}` }],
+      [{ text: "📊 جهاتي", callback_data: `mine:${contest.id}` }],
+      backRow(`c:${contest.id}`),
     ]),
   );
 }
@@ -281,23 +396,26 @@ async function showTop(
   const contests = (await listContests()).filter((c) => c.status !== "draft");
   const target = contestId ? contests.find((c) => c.id === contestId) : contests[0];
   if (!target) {
-    await sendMessage(chatId, "🥇 مفيش مسابقة مفتوحة حالياً.");
+    await sendMessage(chatId, "🥇 ما فيه مسابقة مفتوحة.");
     return;
   }
-  const top = await getLeaderboard(target.id, 10);
-  const mine = await getReferralCount(target.id, user.id);
+  const [top, mine] = await Promise.all([
+    getLeaderboard(target.id, 10),
+    getReferralCount(target.id, user.id),
+  ]);
   const medals = ["🥇", "🥈", "🥉"];
   const lines = top.length
     ? top
         .map((t, i) => {
-          const who = t.member === user.id ? "🫵 أنت" : `مستخدم ${t.member.slice(-4)}`;
-          return `${medals[i] || `${i + 1}.`} ${who} — <b>${t.score}</b> جهة`;
+          const u = t.member;
+          const who = u === user.id ? "🫵 أنت" : `عضو ${u.slice(-4)}`;
+          return `${medals[i] || `${i + 1}.`} ${who} — <b>${t.score}</b>`;
         })
         .join("\n")
-    : "لا يوجد مشاركون بعد.";
+    : "لا أحد بعد.";
 
   const text = [
-    `🥇 <b>ترتيب «${escapeHtml(target.title)}»</b>`,
+    `🥇 <b>${escapeHtml(target.title)}</b>`,
     "",
     lines,
     "",
@@ -306,10 +424,19 @@ async function showTop(
 
   const kb = keyboard([
     [{ text: "🎁 ربح الحساب", callback_data: `claim:${target.id}` }],
-    [{ text: "⬅️ رجوع", callback_data: `c:${target.id}` }],
+    backRow(`c:${target.id}`),
   ]);
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else await sendMessage(chatId, text, kb);
+}
+
+function ownerText(settings: Settings): string {
+  return [
+    `👑 <b>مالك البوت</b>`,
+    `${ownerHandle(settings)}`,
+    "",
+    "كل شي يخص المسابقات والجوائز يرجع له.",
+  ].join("\n");
 }
 
 /* ───────────────────────────── الفوز ───────────────────────────── */
@@ -323,7 +450,9 @@ type GrantOutcome =
 
 async function notifyAdmins(text: string) {
   const settings = await getSettings();
-  const targets = [...new Set([...settings.adminIds.filter(Boolean), settings.logChatId].filter(Boolean))];
+  const targets = [
+    ...new Set([...settings.adminIds.filter(Boolean), settings.logChatId].filter(Boolean)),
+  ];
   await Promise.all(targets.map((id) => sendMessage(id, text).catch(() => undefined)));
 }
 
@@ -362,14 +491,12 @@ async function attemptGrant(contest: Contest, user: BotUser): Promise<GrantOutco
     user.id,
     [
       "🎉 <b>مبروك! ربحت الحساب</b>",
-      `🏆 المسابقة: ${escapeHtml(contest.title)}`,
+      `🏆 ${escapeHtml(contest.title)}`,
       "",
-      "📧 <b>الإيميل:</b>",
-      `<code>${escapeHtml(claim.email)}</code>`,
-      "🔑 <b>كلمة السر:</b>",
-      `<code>${escapeHtml(claim.password)}</code>`,
+      `📧 <code>${escapeHtml(claim.email)}</code>`,
+      `🔑 <code>${escapeHtml(claim.password)}</code>`,
       "",
-      "⚠️ غيّر كلمة السر فوراً بعد الدخول، واحتفظ بالبيانات عندك.",
+      "⚠️ غيّر كلمة السر فوراً.",
     ].join("\n"),
   );
 
@@ -379,7 +506,6 @@ async function attemptGrant(contest: Contest, user: BotUser): Promise<GrantOutco
       `👤 ${escapeHtml(user.firstName)} (<code>${user.id}</code>)`,
       `🏆 ${escapeHtml(contest.title)} (${contest.id})`,
       `📧 ${escapeHtml(claim.email)}`,
-      `⏱ ${new Date(claim.at).toISOString()}`,
     ].join("\n"),
   );
 
@@ -390,7 +516,12 @@ async function attemptGrant(contest: Contest, user: BotUser): Promise<GrantOutco
   return { status: "granted", claim };
 }
 
-async function handleClaim(chatId: number | string, user: BotUser, contestId: string, settings: Settings) {
+async function handleClaim(
+  chatId: number | string,
+  user: BotUser,
+  contestId: string,
+  settings: Settings,
+) {
   const contest = await getContest(contestId);
   if (!contest) {
     await sendMessage(chatId, "❓ المسابقة غير موجودة.");
@@ -402,59 +533,57 @@ async function handleClaim(chatId: number | string, user: BotUser, contestId: st
 
   const outcome = await attemptGrant(contest, user);
 
-  if (outcome.status === "granted" || outcome.status === "already") {
-    if (outcome.status === "already") {
-      await sendMessage(
-        chatId,
-        [
-          "ℹ️ أنت ربحت هذه المسابقة بالفعل — دي بياناتك مرة أخرى:",
-          "",
-          `📧 <b>الإيميل:</b> <code>${escapeHtml(outcome.claim.email)}</code>`,
-          `🔑 <b>كلمة السر:</b> <code>${escapeHtml(outcome.claim.password)}</code>`,
-        ].join("\n"),
-      );
-    }
+  if (outcome.status === "already") {
+    await sendMessage(
+      chatId,
+      [
+        "ℹ️ ربحت هذه المسابقة بالفعل — بياناتك مرة أخرى:",
+        "",
+        `📧 <code>${escapeHtml(outcome.claim.email)}</code>`,
+        `🔑 <code>${escapeHtml(outcome.claim.password)}</code>`,
+      ].join("\n"),
+    );
     return;
   }
+  if (outcome.status === "granted") return;
 
   if (outcome.status === "not-ready") {
     const mine = await getReferralCount(contest.id, user.id);
     await sendMessage(
       chatId,
       [
-        "⏳ <b>لسه ما وصلتش للهدف</b>",
+        "⏳ <b>ما وصلتش للهدف</b>",
         "",
-        `🎯 المطلوب: ${contest.target} جهة`,
-        `📊 عندك: <b>${mine}</b>`,
-        `🔻 باقي لك: <b>${outcome.remaining}</b>`,
-        "",
-        "شارك رابطك مع أصحابك وارجع اضغط «ربح الحساب» لما تكمّل 👇",
+        `📊 عندك: <b>${mine}</b> / ${contest.target}`,
+        `🔻 باقي: <b>${outcome.remaining}</b>`,
+        progress(mine, contest.target),
       ].join("\n"),
       keyboard([
-        [{ text: "🔗 رابط الإحالة", callback_data: `link:${contest.id}` }],
-        [{ text: "📊 جهاتي", callback_data: `mine:${contest.id}` }],
+        [
+          {
+            text: isGroupMode(contest) ? "🔗 رابط الدعوة" : "🔗 رابط الإحالة",
+            callback_data: isGroupMode(contest) ? `ginv:${contest.id}` : `link:${contest.id}`,
+          },
+        ],
+        backRow(`c:${contest.id}`),
       ]),
     );
     return;
   }
 
   if (outcome.status === "no-stock") {
-    await sendMessage(
-      chatId,
-      "✅ وصلت للهدف، لكن مخزون الحسابات خلص حالياً.\n📩 الإدارة تم إبلاغها وسترسل لك الجائزة قريباً.",
-    );
+    await sendMessage(chatId, "✅ وصلت للهدف، لكن مخزون الحسابات خالي. الإدارة تُبلغت.");
     return;
   }
 
-  await sendMessage(chatId, "🔴 هذه المسابقة مغلقة (تم الفوز فيها بالفعل).");
+  await sendMessage(chatId, "🔴 هاد المسابقة مسدودة.");
 }
 
-/* ───────────────────────── الإحالة (نقطة واحدة) ───────────────────────── */
+/* ───────────────────────── الإحالة عبر رابط البوت ───────────────────────── */
 
 async function creditReferral(contest: Contest, inviterId: string, newUser: BotUser) {
   const store = getStore();
   if (!/^\d+$/.test(inviterId) || inviterId === newUser.id) return { counted: false, count: 0 };
-  // لا تُحسب إحالات بعد نهاية المسابقة أو من صاحب رابط غير مسجّل
   if (contest.status !== "active") return { counted: false, count: 0 };
   const inviterExists = await getUser(inviterId);
   if (!inviterExists) return { counted: false, count: 0 };
@@ -463,48 +592,175 @@ async function creditReferral(contest: Contest, inviterId: string, newUser: BotU
   if (!added) return { counted: false, count: await getReferralCount(contest.id, inviterId) };
 
   const count = await store.zIncr(`contest:${contest.id}:score`, inviterId, 1);
-  const inviter = await getUser(inviterId);
-  if (!inviter) return { counted: true, count };
+  await notifyOwnerOfReferral(contest, inviterExists, count, newUser.firstName);
+  return { counted: true, count };
+}
 
+/** إشعار صاحب الرابط بجهة جديدة (رسالة قصيرة) */
+async function notifyOwnerOfReferral(
+  contest: Contest,
+  owner: BotUser,
+  count: number,
+  joinerName: string,
+) {
   const remaining = Math.max(0, contest.target - count);
-  const progressText = `${progress(count, contest.target)}\n📊 جهاتك: <b>${count}</b> / ${contest.target}`;
-
+  const settings = await getSettings();
   const text =
     remaining > 0
       ? [
-          "➕ <b>جهة جديدة!</b>",
-          `👤 ${escapeHtml(newUser.firstName)} انضم من رابطك في «${escapeHtml(contest.title)}»`,
-          progressText,
-          `⏳ باقي لك: <b>${remaining}</b>`,
+          `➕ <b>جهة جديدة</b> — ${escapeHtml(joinerName || "عضو")}`,
+          `📊 ${count} / ${contest.target} — باقي <b>${remaining}</b>`,
+          progress(count, contest.target),
         ].join("\n")
       : [
-          "🎉 <b>مبروك! وصلت للهدف</b> — «" + escapeHtml(contest.title) + "»",
-          progressText,
-          "",
-          "اضغط «ربح الحساب» لاستلام بيانات الحساب 👇",
+          "🎉 <b>وصلت للهدف</b>",
+          `📊 ${count} / ${contest.target}`,
+          "اضغط «ربح الحساب» 👇",
         ].join("\n");
 
   try {
     await sendMessage(
-      inviterId,
+      owner.id,
       text,
       keyboard([
         ...(remaining === 0
           ? ([[{ text: "🎁 ربح الحساب الآن", callback_data: `claim:${contest.id}` }]] as Button[][])
           : []),
-        [{ text: "📊 جهاتي", callback_data: `mine:${contest.id}` }],
-        [{ text: "🔗 رابطي", callback_data: `link:${contest.id}` }],
+        [
+          {
+            text: isGroupMode(contest) ? "🔗 رابطي" : "🔗 رابطي",
+            callback_data: isGroupMode(contest) ? `ginv:${contest.id}` : `link:${contest.id}`,
+          },
+          { text: "📊 جهاتي", callback_data: `mine:${contest.id}` },
+        ],
       ]),
     );
   } catch {
-    /* المستخدم قد يكون حظر البوت */
+    /* حظر البوت */
   }
 
-  if (remaining === 0) {
-    const settings = await getSettings();
-    if (settings.autoGrant) await attemptGrant(contest, inviter);
+  if (remaining === 0 && settings.autoGrant) await attemptGrant(contest, owner);
+}
+
+/* ───────────────────── المجموعة: ربط + طلبات انضمام ───────────────────── */
+
+async function announceGroupLinked(chatId: number | string, settings: Settings, title: string) {
+  await sendMessage(
+    chatId,
+    [
+      "✅ <b>تم ربط المجموعة بنظام أسرع ضيف</b>",
+      `🏆 المسابقة: ${escapeHtml(title)}`,
+      "",
+      "كل عضو يضيفه المشارك من رابطه الخاص = جهة في رصيده.",
+      "المشارك يفتح البوت ← «🏃 أسرع ضيف» ← ياخذ رابطه وينشره.",
+    ].join("\n"),
+    keyboard([
+      [{ text: "🏃 أسرع ضيف", callback_data: "fastest" }],
+      [{ text: `👑 المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+    ]),
+  );
+}
+
+async function handleMyChatMember(
+  update: NonNullable<TgUpdate["my_chat_member"]>,
+): Promise<void> {
+  const { chat, new_chat_member: member, from } = update;
+  if (!groupType(chat)) return;
+  const status = member?.status || "";
+  const settings = await getSettings();
+
+  if (["member", "administrator", "creator"].includes(status)) {
+    await linkGroup({ id: chat.id, title: chat.title, username: chat.username });
+    const contest = await ensureGroupContest((await getSettings()).groupTarget);
+    await announceGroupLinked(chat.id, await getSettings(), contest.title);
+    if (from?.id) {
+      await sendMessage(
+        from.id,
+        [
+          "✅ ربطت البوت بالمجموعة — نظام <b>أسرع ضيف</b> خدمة تلقائياً.",
+          `🎯 الهدف الحالي: ${contest.target} عضو`,
+          "من اللوحة تقدر تبدّل الهدف والجائزة.",
+        ].join("\n"),
+        keyboard([
+          [{ text: "🏃 أسرع ضيف", callback_data: "fastest" }],
+          [{ text: `👑 المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+        ]),
+      );
+    }
+    return;
   }
-  return { counted: true, count };
+
+  if (["left", "kicked"].includes(status)) {
+    await unlinkGroup(chat.id);
+  }
+}
+
+async function handleJoinRequest(
+  request: NonNullable<TgUpdate["chat_join_request"]>,
+): Promise<void> {
+  const { chat, from } = request;
+  if (!groupType(chat) || !from || from.is_bot) return;
+  const settings = await getSettings();
+  const link = request.invite_link?.invite_link || "";
+
+  const result = await creditGroupJoin({
+    chatId: String(chat.id),
+    joiner: { id: from.id, firstName: from.first_name, username: from.username, isBot: from.is_bot },
+    inviteLink: link,
+  });
+
+  if (settings.autoApproveJoins) {
+    const approved = await approveJoinRequest(chat.id, from.id);
+    if (!approved.ok) console.error("[group] approve failed", approved.description);
+  }
+
+  if (!result.counted || !result.contest) return;
+
+  const owner = await getUser(result.ownerId);
+  if (owner) {
+    await notifyOwnerOfReferral(result.contest, owner, result.count, from.first_name || "عضو");
+  }
+
+  const settingsNow = await getSettings();
+  if (result.contest.target <= result.count) {
+    const text = `🎉 <b>هدف «${escapeHtml(result.contest.title)}» اكتمل</b> — صاحب الجهات: ${escapeHtml(
+      owner?.firstName || result.ownerId,
+    )}`;
+    await notifyAdmins(text);
+    if (settingsNow.logChatId) await sendMessage(settingsNow.logChatId, text).catch(() => undefined);
+  }
+}
+
+async function handleNewChatMembers(message: TgMessage): Promise<void> {
+  const added = message.new_chat_members || [];
+  if (!added.length) return;
+  const chat = message.chat;
+  if (!groupType(chat)) return;
+  const settings = await getSettings();
+  const adder = message.from;
+
+  for (const member of added) {
+    if (member.is_bot) continue;
+    const credit = await creditGroupJoin({
+      chatId: String(chat.id),
+      joiner: { id: member.id, firstName: member.first_name, username: member.username },
+      adderId: adder && adder.id !== member.id ? String(adder.id) : undefined,
+      adderName: adder?.first_name,
+    });
+    if (!credit.counted || !credit.contest) continue;
+    const owner = await getUser(credit.ownerId);
+    if (owner) {
+      await notifyOwnerOfReferral(credit.contest, owner, credit.count, member.first_name || "عضو");
+    }
+    await sendMessage(
+      chat.id,
+      `➕ جهة جديدة لـ ${escapeHtml(owner?.firstName || "مشارك")} — ${credit.count}/${credit.contest.target}`,
+    );
+  }
+
+  if (!settings.groupChat) {
+    await linkGroup({ id: chat.id, title: chat.title, username: chat.username });
+  }
 }
 
 /* ───────────────────────────── entry points ───────────────────────────── */
@@ -514,14 +770,29 @@ export async function handleUpdate(update: TgUpdate): Promise<void> {
     await handleCallback(update.callback_query);
     return;
   }
+  if (update.my_chat_member) {
+    await handleMyChatMember(update.my_chat_member);
+    return;
+  }
+  if (update.chat_join_request) {
+    await handleJoinRequest(update.chat_join_request);
+    return;
+  }
   const message = update.message || update.edited_message;
-  if (message?.text) await handleMessage(message);
+  if (!message) return;
+  if (message.new_chat_members?.length) {
+    await handleNewChatMembers(message);
+    return;
+  }
+  if (message.text) await handleMessage(message);
 }
 
 async function handleMessage(message: TgMessage) {
   const from = message.from;
   if (!from || from.is_bot) return;
-  const chatId = message.chat.id;
+  const chat = message.chat;
+  const chatId = chat.id;
+  const inGroup = groupType(chat);
   const user = await touchUser(from);
   const settings = await getSettings();
   const text = message.text!.trim();
@@ -529,19 +800,31 @@ async function handleMessage(message: TgMessage) {
   const command = rawCommand.split("@")[0].toLowerCase();
   const payload = (args[0] || "").trim();
 
+  const known = [
+    "/start",
+    "/help",
+    "/rules",
+    "/me",
+    "/mystats",
+    "/top",
+    "/leaderboard",
+    "/claim",
+    "/win",
+    "/link",
+    "/invite",
+    "/fastest",
+    "/owner",
+    "/support",
+    "/admin",
+  ];
+  if (inGroup && !known.includes(command)) return;
+
   if (command === "/start") {
     if (payload.startsWith("r_")) {
       const [, contestId, inviterId] = payload.split("_");
       const contest = await getContest(contestId);
       if (contest) {
-        const result = await creditReferral(contest, inviterId, user);
-        // إشعار الشخص الجديد بأنه ساهم
-        if (result.counted) {
-          await sendMessage(
-            chatId,
-            "✅ تم تسجيل دخولك، ورقم جهة صاحب الرابط زاد 1.\nتقدر تشارك أنت كمان وتجمع جهاتك 👇",
-          );
-        }
+        await creditReferral(contest, inviterId, user);
         await showContest(chatId, user, contest);
         return;
       }
@@ -558,7 +841,7 @@ async function handleMessage(message: TgMessage) {
   }
 
   if (command === "/help" || command === "/rules") {
-    await sendMessage(chatId, settings.rulesText, keyboard([[{ text: "⬅️ رجوع", callback_data: "home" }]]));
+    await sendMessage(chatId, settings.rulesText, keyboard([backRow()]));
     return;
   }
   if (command === "/me" || command === "/mystats") {
@@ -569,21 +852,40 @@ async function handleMessage(message: TgMessage) {
     await showTop(chatId, user);
     return;
   }
+  if (command === "/fastest") {
+    await showFastest(chatId, user, settings);
+    return;
+  }
+  if (command === "/owner" || command === "/support") {
+    await sendMessage(
+      chatId,
+      ownerText(settings),
+      keyboard([
+        [{ text: `💬 مراسلة المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+        backRow(),
+      ]),
+    );
+    return;
+  }
   if (command === "/claim" || command === "/win") {
-    const contest = await getContest(payload) || (await listContests()).find((c) => c.status === "active");
+    const contest =
+      (await getContest(payload)) || (await listContests()).find((c) => c.status === "active");
     if (contest) await handleClaim(chatId, user, contest.id, settings);
-    else await sendMessage(chatId, "مفيش مسابقة مفتوحة حالياً.");
+    else await sendMessage(chatId, "ما فيه مسابقة مفتوحة.");
     return;
   }
   if (command === "/link" || command === "/invite") {
-    const contest = await getContest(payload) || (await listContests()).find((c) => c.status === "active");
+    const contest =
+      (await getContest(payload)) ||
+      (await listContests()).find((c) => c.status === "active" && c.mode === "group") ||
+      (await listContests()).find((c) => c.status === "active");
     if (contest) await showLink(chatId, user, contest);
-    else await sendMessage(chatId, "مفيش مسابقة مفتوحة حالياً.");
+    else await sendMessage(chatId, "ما فيه مسابقة مفتوحة.");
     return;
   }
   if (command === "/admin") {
     if (settings.adminIds.includes(user.id)) {
-      await sendMessage(chatId, "🛠 لوحة التحكم: افتح موقع البوت ← /admin");
+      await sendMessage(chatId, "🛠 لوحة التحكم: افتح الموقع ← /admin");
     } else {
       await sendMessage(chatId, "⛔️ هذا الأمر للإدارة فقط.");
     }
@@ -598,8 +900,11 @@ async function handleCallback(query: TgCallbackQuery) {
   const from = query.from;
   if (!from || from.is_bot) return;
   const user = await touchUser(from);
-  const chatId = query.message?.chat.id ?? from.id;
-  const messageId = query.message?.message_id;
+  const chat = query.message?.chat;
+  const inGroup = chat ? groupType(chat) : false;
+  // داخل المجموعة: نرد في الخاص حتى ما نزعجوش الأعضاء
+  const chatId = inGroup ? from.id : (chat?.id ?? from.id);
+  const messageId = inGroup ? undefined : query.message?.message_id;
   const settings = await getSettings();
   const data = query.data || "home";
   const [action, arg] = data.split(":");
@@ -614,29 +919,32 @@ async function handleCallback(query: TgCallbackQuery) {
     case "top":
       await showTop(chatId, user, arg, messageId);
       return;
-    case "rules":
-      await editMessage(chatId, messageId!, settings.rulesText, keyboard([[{ text: "⬅️ رجوع", callback_data: "home" }]]));
+    case "fastest":
+      await showFastest(chatId, user, settings, messageId);
       return;
+    case "rules":
+      if (messageId)
+        await editMessage(chatId, messageId, settings.rulesText, keyboard([backRow()]));
+      else await sendMessage(chatId, settings.rulesText, keyboard([backRow()]));
+      return;
+    case "owner":
     case "support": {
-      const support = settings.supportUsername.replace(/^@/, "");
-      const text = support
-        ? `📩 <b>الدعم</b>\n\nتواصل معنا: @${escapeHtml(support)}`
-        : "📩 <b>الدعم</b>\n\nكلّم الإدارة من حسابها الرسمي.";
-      await editMessage(
-        chatId,
-        messageId!,
-        text,
-        keyboard([
-          ...(support ? ([[{ text: "📩 مراسلة الدعم", url: `https://t.me/${support}` }]] as Button[][]) : []),
-          [{ text: "⬅️ رجوع", callback_data: "home" }],
-        ]),
-      );
+      const kb = keyboard([
+        [{ text: `💬 مراسلة المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+        backRow(),
+      ]);
+      if (messageId) await editMessage(chatId, messageId, ownerText(settings), kb);
+      else await sendMessage(chatId, ownerText(settings), kb);
       return;
     }
     case "c": {
       const contest = await getContest(arg);
       if (!contest) {
         await sendMessage(chatId, "❓ المسابقة غير موجودة.");
+        return;
+      }
+      if (isGroupMode(contest)) {
+        await showFastest(chatId, user, settings, messageId);
         return;
       }
       await showContest(chatId, user, contest, messageId);
@@ -647,9 +955,34 @@ async function handleCallback(query: TgCallbackQuery) {
       if (contest) await showLink(chatId, user, contest);
       return;
     }
+    case "ginv": {
+      const contest = (await getContest(arg)) || (await activeGroupContest());
+      if (!contest) {
+        await sendMessage(chatId, "🏃 ما فيه مسابقة أسرع ضيف مفعّلة.");
+        return;
+      }
+      await showGroupInvite(chatId, user, contest);
+      return;
+    }
     case "claim": {
       const contest = await getContest(arg);
       if (contest) await handleClaim(chatId, user, contest.id, settings);
+      return;
+    }
+    case "gstats": {
+      const group = linkedGroup(settings);
+      if (!group) {
+        await sendMessage(chatId, "ما فيه مجموعة مربوطة.");
+        return;
+      }
+      const joins = await recentGroupJoins(group.chatId, 5);
+      const text = joins.length
+        ? ["📥 <b>آخر المنضمّين</b>"]
+            .concat(joins.map((j) => `• ${escapeHtml(j.userName)} ← ${escapeHtml(j.ownerName)}`))
+            .join("\n")
+        : "📥 لا أحد بعد.";
+      if (messageId) await editMessage(chatId, messageId, text, keyboard([backRow("fastest")]));
+      else await sendMessage(chatId, text, keyboard([backRow("fastest")]));
       return;
     }
     default:

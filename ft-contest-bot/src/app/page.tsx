@@ -3,7 +3,8 @@ import { after } from "next/server";
 import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
 import { accountsCount, listContests } from "@/lib/contests";
 import { claimsCount } from "@/lib/claims";
-import { getSettings } from "@/lib/settings";
+import { linkedGroup } from "@/lib/groups";
+import { getSettings, ownerHandle } from "@/lib/settings";
 import { usersCount } from "@/lib/users";
 import { getStore } from "@/lib/store";
 
@@ -32,6 +33,11 @@ export default async function LandingPage() {
   const visible = contests.filter((c) => c.status !== "draft");
   const active = visible.filter((c) => c.status === "active");
   const botLink = settings.botUsername ? `https://t.me/${settings.botUsername}` : "";
+  const group = linkedGroup(settings);
+  const ownerHref = `https://t.me/${settings.ownerUsername}`;
+  const groupLink = settings.botUsername
+    ? `https://t.me/${settings.botUsername}?start=fastest`
+    : botLink;
 
   const cards = await Promise.all(
     visible.map(async (contest) => ({
@@ -72,8 +78,8 @@ export default async function LandingPage() {
             واربح الحساب كامل 🎁
           </h1>
           <p className="lead">
-            بوت تيليغرام يحوّل كل شخص يدخل من رابطك إلى جهة في رصيدك. أول من يكمل عدد الجهات
-            المطلوب في المسابقة يستلم إيميل وكلمة سر الحساب فوراً — بدون انتظار وبدون واسطة.
+            مسابقات FT على تيليغرام: كل شخص يدخل من رابطك = جهة في رصيدك، وكل عضو تضيفه لمجموعتنا
+            = جهة في مسابقة «أسرع ضيف». أول من يوصل الهدف يستلم إيميل وكلمة سر الحساب فوراً.
           </p>
           <div className="hero-actions">
             {botLink ? (
@@ -133,7 +139,9 @@ export default async function LandingPage() {
                 <article className="land-card" key={contest.id}>
                   <div className="row" style={{ justifyContent: "space-between" }}>
                     {statusBadge(contest.status)}
-                    <span className="badge badge-gold">🎯 {contest.target} جهة</span>
+                              <span className="badge badge-gold">
+                      {contest.mode === "group" ? "🏃" : "🎯"} {contest.target} جهة
+                    </span>
                   </div>
                   <h3>{contest.title}</h3>
                   {contest.description ? <p className="small">{contest.description}</p> : null}
@@ -175,6 +183,14 @@ export default async function LandingPage() {
           </div>
           <div className="step">
             <b>3</b>
+            <h4>أسرع ضيف في المجموعة</h4>
+            <p className="small">
+              البوت مربوط بمجموعة FT: كل مشارك ياخذ رابط دعوة خاص، وكل عضو يدخل منه = جهة. الطلبات
+              تُقبل تلقائياً والترتيب يتحدّث مباشرة.
+            </p>
+          </div>
+          <div className="step">
+            <b>4</b>
             <h4>اضغط «ربح الحساب»</h4>
             <p className="small">
               لما توصل للعدد المطلوب، البوت يسلّمك الإيميل وكلمة السر فوراً (وسجّل الفوز عند الإدارة).
@@ -185,11 +201,16 @@ export default async function LandingPage() {
       </main>
 
       <footer className="footer">
-        <span>© {new Date().getFullYear()} بوت مسابقات FT — كل الحقوق محفوظة.</span>
+        <span>
+          © {new Date().getFullYear()} بوت مسابقات FT — المالك{" "}
+          <a className="small" href={ownerHref} target="_blank" rel="noreferrer">
+            {ownerHandle(settings)} ↗
+          </a>
+        </span>
         <span className="row">
-          {botLink ? (
-            <a className="small" href={botLink} target="_blank" rel="noreferrer">
-              تيليغرام ↗
+          {groupLink ? (
+            <a className="small" href={groupLink} target="_blank" rel="noreferrer">
+              🏃 أسرع ضيف ↗
             </a>
           ) : null}
           <Link className="small" href="/admin">

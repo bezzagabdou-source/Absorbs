@@ -20,6 +20,8 @@ import {
   removeAccountAt,
   updateContest,
 } from "@/lib/contests";
+import { ALLOWED_UPDATES, BOT_COMMANDS, resetAutoSetupCache } from "@/lib/botSetup";
+import { ensureGroupContest, linkGroup, syncGroupInfo, unlinkGroup } from "@/lib/groups";
 import { ensureWebhookSecret, getSettings, saveSettings } from "@/lib/settings";
 import { sendMessage, tgCall } from "@/lib/telegram";
 import type { ContestStatus } from "@/lib/types";
@@ -85,6 +87,9 @@ export async function changePasswordAction(form: FormData): Promise<void> {
 export async function saveSettingsAction(form: FormData): Promise<void> {
   await guard();
   const before = await getSettings();
+  // النموذج الكامل يرسل settingsForm=1 — بهذا نفرّق بين «غير محدد» و«مُلغى»
+  const fullForm = str(form, "settingsForm") === "1";
+  const flag = (name: string, fallback: boolean) => (fullForm ? str(form, name) === "on" : fallback);
   const tokenInput = str(form, "botToken");
   const clearToken = str(form, "clearToken") === "on";
   const botToken = clearToken ? "" : tokenInput || before.botToken;
@@ -97,16 +102,22 @@ export async function saveSettingsAction(form: FormData): Promise<void> {
     channelChat: str(form, "channelChat"),
     channelUrl: str(form, "channelUrl"),
     supportUsername: str(form, "supportUsername").replace(/^@/, ""),
+    ownerUsername: str(form, "ownerUsername").replace(/^@/, "") || before.ownerUsername,
     logChatId: str(form, "logChatId"),
     adminIds: str(form, "adminIds")
       .split(/[,\s]+/)
       .map((x) => x.trim())
       .filter(Boolean),
-    requireJoin: str(form, "requireJoin") === "on",
-    autoGrant: str(form, "autoGrant") === "on",
+    requireJoin: flag("requireJoin", before.requireJoin),
+    autoGrant: flag("autoGrant", before.autoGrant),
+    autoApproveJoins: flag("autoApproveJoins", before.autoApproveJoins),
+    groupTarget: int(form, "groupTarget", before.groupTarget),
+    groupChat: str(form, "groupChat") || before.groupChat,
+    groupUrl: str(form, "groupUrl"),
     welcomeText: str(form, "welcomeText") || before.welcomeText,
     rulesText: str(form, "rulesText") || before.rulesText,
   });
+  resetAutoSetupCache();
 
   revalidatePath("/admin/settings");
   revalidatePath("/");
@@ -142,7 +153,7 @@ export async function connectWebhookAction(): Promise<void> {
   const res = await tgCall("setWebhook", {
     url,
     secret_token: secret,
-    allowed_updates: ["message", "edited_message", "callback_query"],
+    allowed_updates: ALLOWED_UPDATES,
     drop_pending_updates: false,
   });
   if (!res.ok) go("/admin/settings", "err", `فشل ربط الويب هوك: ${res.description}`);
@@ -163,16 +174,7 @@ export async function disconnectWebhookAction(): Promise<void> {
 
 export async function setCommandsAction(): Promise<void> {
   await guard();
-  const res = await tgCall("setMyCommands", {
-    commands: [
-      { command: "start", description: "القائمة الرئيسية والمسابقات" },
-      { command: "me", description: "جهاتي ورابط الإحالة" },
-      { command: "top", description: "ترتيب المتصدّرين" },
-      { command: "claim", description: "استلام الجائزة" },
-      { command: "link", description: "رابط الإحالة" },
-      { command: "rules", description: "شروط المشاركة" },
-    ],
-  });
+  const res = await tgCall("setMyCommands", { commands: BOT_COMMANDS });
   if (!res.ok) go("/admin/settings", "err", `فشل ضبط الأوامر: ${res.description}`);
   go("/admin/settings", "ok", "تم ضبط أوامر البوت ✅");
 }
@@ -191,6 +193,7 @@ export async function createContestAction(form: FormData): Promise<void> {
     prize: str(form, "prize"),
     winners: int(form, "winners", 1),
     status,
+    mode: str(form, "mode") === "group" ? "group" : "referral",
   });
   revalidatePath("/");
   revalidatePath("/admin/contests");
@@ -208,6 +211,7 @@ export async function updateContestAction(form: FormData): Promise<void> {
     prize: str(form, "prize"),
     winners: int(form, "winners", 1),
     status: (str(form, "status", "draft") as ContestStatus) || "draft",
+    mode: str(form, "mode") === "group" ? "group" : "referral",
   });
   revalidatePath(`/admin/contests/${id}`);
   revalidatePath("/");
@@ -268,6 +272,56 @@ export async function clearAccountsAction(form: FormData): Promise<void> {
   await clearAccounts(id);
   revalidatePath(`/admin/contests/${id}`);
   go(`/admin/contests/${id}`, "ok", "تم تفريغ مخزون الحسابات");
+}
+
+/* ─────────────────────── المجموعة / أسرع ضيف ─────────────────────── */
+
+export async function syncGroupAction(): Promise<void> {
+  await guard();
+  const result = await syncGroupInfo();
+  if (!result.ok) go("/admin/group", "err", `تعذّر قراءة المجموعة: ${result.error}`);
+  revalidatePath("/admin/group");
+  go("/admin/group", "ok", `تم تحديث بيانات المجموعة: ${result.title} ✅`);
+}
+
+export async function linkGroupAction(form: FormData): Promise<void> {
+  await guard();
+  const raw = str(form, "groupChat");
+  if (!raw) go("/admin/group", "err", "اكتب آي دي المجموعة أو @username");
+  const res = await tgCall<{ id: number; title?: string; username?: string }>("getChat", {
+    chat_id: raw,
+  });
+  if (!res.ok || !res.result) {
+    go("/admin/group", "err", `تعذّر ربط المجموعة: ${res.description || "تحقق أن البوت أدمن"}`);
+  }
+  await linkGroup({
+    id: res.result.id,
+    title: res.result.title,
+    username: res.result.username,
+  });
+  const contest = await ensureGroupContest();
+  revalidatePath("/admin/group");
+  go(
+    "/admin/group",
+    "ok",
+    `تم ربط المجموعة ${res.result.title || res.result.id} ✅ — مسابقة: ${contest.title} (${contest.target} عضو)`,
+  );
+}
+
+export async function unlinkGroupAction(): Promise<void> {
+  await guard();
+  await unlinkGroup();
+  revalidatePath("/admin/group");
+  go("/admin/group", "ok", "تم فصل المجموعة — نظام أسرع ضيف متوقف حتى تربط واحدة أخرى.");
+}
+
+export async function createGroupContestAction(form: FormData): Promise<void> {
+  await guard();
+  const target = int(form, "target", 20);
+  const contest = await ensureGroupContest(target);
+  revalidatePath("/admin/group");
+  revalidatePath("/admin/contests");
+  go("/admin/group", "ok", `مسابقة أسرع ضيف جاهزة: ${contest.title} — ${contest.target} عضو ✅`);
 }
 
 /* ────────────────────────────── البث ────────────────────────────── */

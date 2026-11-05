@@ -145,6 +145,7 @@ export default async function SettingsPage({
           <h2>⚙️ إعدادات البوت والمسابقات</h2>
         </div>
         <form action={saveSettingsAction}>
+          <input type="hidden" name="settingsForm" value="1" />
           <div className="grid-2">
             <label className="field">
               <span>توكن البوت</span>
@@ -175,11 +176,21 @@ export default async function SettingsPage({
               />
             </label>
             <label className="field">
+              <span>يوزر المالك (يظهر في البوت)</span>
+              <input
+                name="ownerUsername"
+                defaultValue={settings.ownerUsername}
+                placeholder="F_Y_Y_T"
+                className="mono"
+              />
+              <small>يظهر في زر «👑 المالك» وكل رسائل الدعم.</small>
+            </label>
+            <label className="field">
               <span>يوزر الدعم</span>
               <input
                 name="supportUsername"
                 defaultValue={settings.supportUsername}
-                placeholder="support_username"
+                placeholder="F_Y_Y_T"
                 className="mono"
               />
             </label>
@@ -207,6 +218,47 @@ export default async function SettingsPage({
 
           <div className="grid-2">
             <label className="field">
+              <span>آي دي مجموعة أسرع ضيف</span>
+              <input
+                name="groupChat"
+                defaultValue={settings.groupChat}
+                placeholder="-1001234567890"
+                className="mono"
+              />
+              <small>يُملأ تلقائياً عند إضافة البوت للمجموعة. الإدارة الكاملة من صفحة «المجموعة وأسرع ضيف».</small>
+            </label>
+            <label className="field">
+              <span>رابط المجموعة (اختياري)</span>
+              <input
+                name="groupUrl"
+                defaultValue={settings.groupUrl}
+                placeholder="https://t.me/mygroup"
+                className="mono"
+              />
+            </label>
+            <label className="field">
+              <span>هدف مسابقة أسرع ضيف</span>
+              <input
+                name="groupTarget"
+                type="number"
+                min={1}
+                defaultValue={settings.groupTarget}
+              />
+              <small>عدد الأعضاء المطلوب للفوز — يُستخدم عند إنشاء المسابقة تلقائياً.</small>
+            </label>
+          </div>
+
+          <div className="grid-2">
+            <label className="field">
+              <input
+                type="checkbox"
+                name="autoApproveJoins"
+                defaultChecked={settings.autoApproveJoins}
+                style={{ width: "auto", marginInlineEnd: 8 }}
+              />
+              <span style={{ display: "inline" }}>قبول طلبات الانضمام للمجموعة تلقائياً</span>
+            </label>
+            <label className="field">
               <input
                 type="checkbox"
                 name="requireJoin"
@@ -229,8 +281,8 @@ export default async function SettingsPage({
           </div>
 
           <label className="field">
-            <span>رسالة الترحيب (يدعم HTML و {"{name}"} و {"{count}"})</span>
-            <textarea name="welcomeText" rows={6} defaultValue={settings.welcomeText} />
+            <span>رسالة الترحيب القصيرة</span>
+            <textarea name="welcomeText" rows={2} defaultValue={settings.welcomeText} />
           </label>
           <label className="field">
             <span>نص الشروط</span>

@@ -16,6 +16,21 @@ export type TgMessage = {
   chat: TgChat;
   text?: string;
   date?: number;
+  /** أعضاء جدد أُضيفوا للمجموعة */
+  new_chat_members?: TgUser[];
+  left_chat_member?: TgUser;
+};
+
+/** رابط دعوة أنشأه البوت لعضو معيّن داخل المجموعة */
+export type TgChatInviteLink = {
+  invite_link: string;
+  name?: string;
+  creates_join_request?: boolean;
+  is_primary?: boolean;
+  is_revoked?: boolean;
+  expire_date?: number;
+  member_limit?: number;
+  pending_join_request_count?: number;
 };
 
 export type TgCallbackQuery = {
@@ -34,6 +49,14 @@ export type TgUpdate = {
     chat: TgChat;
     from: TgUser;
     new_chat_member: { status: string; user: TgUser };
+  };
+  /** طلب انضمام لمجموعة عبر رابط دعوة (يحمل صاحب الرابط) */
+  chat_join_request?: {
+    chat: TgChat;
+    from: TgUser;
+    user_chat_id?: number;
+    date?: number;
+    invite_link?: TgChatInviteLink;
   };
 };
 
@@ -90,6 +113,31 @@ export async function tgCall<T = unknown>(
     if (method === "getChatMember") {
       const status = process.env.MOCK_NOT_MEMBER === "1" ? "left" : "member";
       return { ok: true, result: { status } as unknown as T };
+    }
+    if (method === "createChatInviteLink") {
+      const seq = mockGlobal.__ftMockSeq;
+      const link = `https://t.me/+ftmock${seq}`;
+      return {
+        ok: true,
+        result: {
+          invite_link: link,
+          name: String(payload.name || ""),
+          creates_join_request: Boolean(payload.creates_join_request),
+          is_primary: false,
+          is_revoked: false,
+        } as unknown as T,
+      };
+    }
+    if (method === "getChat") {
+      return {
+        ok: true,
+        result: {
+          id: Number(payload.chat_id) || -1000000000000,
+          type: "supergroup",
+          title: "مجموعة FT (mock)",
+          username: "ft_mock_group",
+        } as unknown as T,
+      };
     }
     return { ok: true, result: { message_id: 1000 + mockGlobal.__ftMockSeq, ok: true } as unknown as T };
   }
@@ -174,4 +222,35 @@ export async function answerCallback(id: string, text?: string) {
     callback_query_id: id,
     ...(text ? { text, show_alert: false } : {}),
   });
+}
+
+/* ────────────────────── دعوات المجموعة (أسرع ضيف) ────────────────────── */
+
+/** ينشئ رابط دعوة خاص بعضو واحد داخل المجموعة (بطلب انضمام حتى نعرف صاحب الرابط) */
+export async function createChatInviteLink(
+  chatId: number | string,
+  name: string,
+): Promise<TgChatInviteLink | null> {
+  const res = await tgCall<TgChatInviteLink>("createChatInviteLink", {
+    chat_id: chatId,
+    name: name.slice(0, 32),
+    creates_join_request: true,
+  });
+  if (!res.ok || !res.result?.invite_link) {
+    console.error("[tg] createChatInviteLink failed", res.description);
+    return null;
+  }
+  return res.result;
+}
+
+export async function approveJoinRequest(chatId: number | string, userId: number | string) {
+  return tgCall("approveChatJoinRequest", { chat_id: chatId, user_id: userId });
+}
+
+export async function declineJoinRequest(chatId: number | string, userId: number | string) {
+  return tgCall("declineChatJoinRequest", { chat_id: chatId, user_id: userId });
+}
+
+export async function getChatInfo(chatId: number | string) {
+  return tgCall<TgChat>("getChat", { chat_id: chatId });
 }

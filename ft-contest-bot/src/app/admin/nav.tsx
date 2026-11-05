@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { href: "/admin", label: "لوحة المعلومات", icon: "📊" },
   { href: "/admin/contests", label: "المسابقات", icon: "🏆" },
+  { href: "/admin/group", label: "المجموعة وأسرع ضيف", icon: "🏃" },
   { href: "/admin/users", label: "المستخدمون", icon: "👥" },
   { href: "/admin/claims", label: "الجوائز المسلّمة", icon: "🎁" },
   { href: "/admin/broadcast", label: "بث رسالة", icon: "📣" },

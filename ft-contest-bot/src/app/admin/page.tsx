@@ -2,7 +2,8 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { accountsCount, listContests, participantsCount } from "@/lib/contests";
 import { claimsCount, listClaims } from "@/lib/claims";
-import { getSettings } from "@/lib/settings";
+import { activeGroupContest, groupJoinsCount, linkedGroup } from "@/lib/groups";
+import { getSettings, ownerHandle } from "@/lib/settings";
 import { getStore, storageInfo } from "@/lib/store";
 import { currentOrigin, ensureBotReady } from "@/lib/botSetup";
 import { usersCount } from "@/lib/users";
@@ -35,6 +36,10 @@ export default async function DashboardPage({
       participants: await participantsCount(c.id),
     })),
   );
+
+  const group = linkedGroup(settings);
+  const groupContest = group ? await activeGroupContest() : null;
+  const groupJoins = group ? await groupJoinsCount(group.chatId) : 0;
 
   const active = enriched.filter((e) => e.contest.status === "active");
   const totalStock = enriched.reduce((sum, e) => sum + e.stock, 0);
@@ -126,6 +131,32 @@ export default async function DashboardPage({
         <div className="stat">
           <b>{totalClaims}</b>
           <span>جائزة مسلّمة</span>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">
+          <h2>🏃 المجموعة وأسرع ضيف</h2>
+          {group ? (
+            <span className="badge badge-active">✅ {group.title}</span>
+          ) : (
+            <span className="badge badge-ended">غير مربوطة</span>
+          )}
+        </div>
+        <p className="small muted">
+          {group
+            ? groupContest
+              ? `مسابقة «${groupContest.title}» — الهدف ${groupContest.target} عضو • محسوب حالياً ${groupJoins} عضو.`
+              : "المجموعة مربوطة لكن ما فيه مسابقة أسرع ضيف مفتوحة."
+            : "أضف البوت للمجموعة ليتفعّل نظام أسرع ضيف تلقائياً، أو اربطها يدوياً من الصفحة."}
+        </p>
+        <div className="row">
+          <Link className="btn btn-primary btn-sm" href="/admin/group">
+            إدارة المجموعة
+          </Link>
+          <a className="small muted" href={`https://t.me/${settings.ownerUsername}`} target="_blank" rel="noreferrer">
+            👑 المالك {ownerHandle(settings)} ↗
+          </a>
         </div>
       </div>
 

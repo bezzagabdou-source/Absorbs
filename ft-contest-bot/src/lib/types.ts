@@ -1,5 +1,12 @@
 export type ContestStatus = "draft" | "active" | "ended";
 
+/**
+ * طريقة حساب الجهات:
+ *  - referral: كل شخص يفتح رابط البوت = جهة
+ *  - group:    كل شخص يدخل المجموعة من رابطك = جهة (مسابقة أسرع ضيف)
+ */
+export type ContestMode = "referral" | "group";
+
 export type Contest = {
   id: string;
   title: string;
@@ -11,6 +18,8 @@ export type Contest = {
   status: ContestStatus;
   /** كم فائز مسموح في المسابقة */
   winners: number;
+  /** طريقة الحساب (افتراضياً رابط البوت) */
+  mode?: ContestMode;
   createdAt: number;
   startedAt?: number;
   endedAt?: number;
@@ -23,7 +32,10 @@ export type Settings = {
   /** معرف القناة المطلوب الاشتراك فيها (@username أو -100...) */
   channelChat: string;
   channelUrl: string;
+  /** يوزر الدعم (افتراضياً المالك) */
   supportUsername: string;
+  /** يوزر المالك — يظهر في البوت واللوحة */
+  ownerUsername: string;
   /** قناة/شات تُرسل إليه سجلات الفوز (اختياري) */
   logChatId: string;
   /** آي دي الأدمن اللي يستقبلون إشعارات الفوز */
@@ -31,6 +43,14 @@ export type Settings = {
   requireJoin: boolean;
   /** تسليم الحساب تلقائياً لحظة إكمال الهدف */
   autoGrant: boolean;
+  /** مجموعة أسرع ضيف المربوطة بالبوت */
+  groupChat: string;
+  groupTitle: string;
+  groupUrl: string;
+  /** قبول طلبات الانضمام للمجموعة تلقائياً */
+  autoApproveJoins: boolean;
+  /** هدف مسابقة أسرع ضيف الافتراضي عند ربط مجموعة */
+  groupTarget: number;
   welcomeText: string;
   rulesText: string;
   webhookSecret: string;
@@ -53,20 +73,29 @@ export type Claim = {
   at: number;
 };
 
+/** رسالة الترحيب القصيرة — نص واحد فقط كما طلب المالك */
+export const WELCOME_TEXT = "مرحبا بكم في بوت مسابقات FT";
+
+export const OWNER_USERNAME = "F_Y_Y_T";
+
 export const DEFAULT_SETTINGS: Settings = {
   botToken: "",
   botUsername: "",
   botId: null,
   channelChat: "",
   channelUrl: "",
-  supportUsername: "",
+  supportUsername: OWNER_USERNAME,
+  ownerUsername: OWNER_USERNAME,
   logChatId: "",
   adminIds: [],
   requireJoin: false,
   autoGrant: false,
-  welcomeText:
-    "🏆 <b>أهلاً {name}</b> في بوت مسابقات FT\n\nهنا تربح حسابات مجانية بجهدك فقط:\n🎯 كل مسابقة لها عدد <b>جهات</b> مطلوب\n🥇 أوّل من يكمّل العدد يربح الحساب فوراً\n\nاختر من الأزرار 👇",
-  rulesText:
-    "📜 <b>شروط المشاركة</b>\n\n1️⃣ كل شخص جديد يدخل من رابطك = جهة واحدة\n2️⃣ لا يُحسب الحساب الوهمي أو المكرر\n3️⃣ لا يُحسب من يدخل من رابطك ثم يخرج فوراً\n4️⃣ الجائزة تُسلَّم لأول من يكمل العدد المطلوب\n5️⃣ ممنوع استخدام أكثر من حساب للمشاركة\n6️⃣ الإدارة تحقّق من الجهات قبل التسليم عند الشك\n\nبالتوفيق 🍀",
+  groupChat: "",
+  groupTitle: "",
+  groupUrl: "",
+  autoApproveJoins: true,
+  groupTarget: 20,
+  welcomeText: WELCOME_TEXT,
+  rulesText: "📜 <b>الشروط</b>\n\n1️⃣ كل شخص جديد من رابطك = جهة\n2️⃣ ممنوع الحسابات الوهمية\n3️⃣ أول من يوصل الهدف يربح\n\nبالتوفيق 🍀",
   webhookSecret: "",
 };

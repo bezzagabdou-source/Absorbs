@@ -63,6 +63,14 @@ export default async function ContestsPage({
               <small>1 = أول واحد فقط يوصل. أكثر من 1 = كل من يوصل يأخذ حساب.</small>
             </label>
             <label className="field">
+              <span>طريقة حساب الجهات</span>
+              <select name="mode" defaultValue="referral">
+                <option value="referral">🔗 رابط البوت (كل شخص يفتحه = جهة)</option>
+                <option value="group">🏃 أسرع ضيف (أعضاء المجموعة)</option>
+              </select>
+              <small>«أسرع ضيف» يحسب كل عضو يدخل مجموعتك من رابط دعوة المشارك.</small>
+            </label>
+            <label className="field">
               <span>الحالة</span>
               <select name="status" defaultValue="active">
                 <option value="active">مفتوحة الآن</option>
@@ -108,6 +116,9 @@ export default async function ContestsPage({
                   <tr key={contest.id}>
                     <td>
                       <b>{contest.title}</b>
+                      <div className="small muted">
+                        {contest.mode === "group" ? "🏃 أسرع ضيف" : "🔗 رابط البوت"}
+                      </div>
                       <div className="small muted mono">{contest.id}</div>
                     </td>
                     <td>

@@ -3,12 +3,24 @@ import { getSettings, saveSettings } from "./settings";
 import { getMockLog, isMock, tgCall } from "./telegram";
 
 export const BOT_COMMANDS = [
-  { command: "start", description: "القائمة الرئيسية والمسابقات" },
-  { command: "me", description: "جهاتي ورابط الإحالة" },
-  { command: "top", description: "ترتيب المتصدّرين" },
-  { command: "claim", description: "استلام الجائزة" },
-  { command: "link", description: "رابط الإحالة" },
-  { command: "rules", description: "شروط المشاركة" },
+  { command: "start", description: "مرحبا بكم في بوت مسابقات FT" },
+  { command: "fastest", description: "مسابقة أسرع ضيف — رابط الدعوة" },
+  { command: "me", description: "جهاتي ورابطي" },
+  { command: "top", description: "الترتيب" },
+  { command: "claim", description: "ربح الحساب" },
+  { command: "link", description: "رابط الدعوة / الإحالة" },
+  { command: "rules", description: "الشروط" },
+  { command: "owner", description: "مالك البوت" },
+];
+
+/** أنواع التحديثات التي يستقبلها الويب هوك (تشمل طلبات الانضمام للمجموعة) */
+export const ALLOWED_UPDATES = [
+  "message",
+  "edited_message",
+  "callback_query",
+  "my_chat_member",
+  "chat_join_request",
+  "chat_member",
 ];
 
 export type WebhookInfo = {
@@ -127,7 +139,7 @@ export async function ensureBotReady(
     const res = await tgCall("setWebhook", {
       url: expectedUrl,
       ...(settings.webhookSecret ? { secret_token: settings.webhookSecret } : {}),
-      allowed_updates: ["message", "edited_message", "callback_query"],
+      allowed_updates: ALLOWED_UPDATES,
       drop_pending_updates: false,
     });
     if (res.ok) {
