@@ -19,6 +19,14 @@ async function main() {
     const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
     await probe("openrouter", () => fetch("https://openrouter.ai/api/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${openRouterKey}`, "X-Title": "DZ Exchange" }, body: JSON.stringify({ model, temperature: 0, max_tokens: 64, response_format: { type: "json_object" }, messages: [{ role: "user", content: 'Reply with JSON: {"ok":true}' }] }), signal: AbortSignal.timeout(30000) }));
   }
+  if (openRouterKey) {
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/models", { headers: { Authorization: `Bearer ${openRouterKey}` }, signal: AbortSignal.timeout(15000) });
+      const body = await response.json() as { data?: { id?: string; pricing?: { prompt?: string; completion?: string } }[] };
+      const free = (body.data ?? []).filter((model) => model.pricing?.prompt === "0" && model.pricing?.completion === "0").map((model) => model.id).filter(Boolean);
+      console.log(JSON.stringify({ event: "openrouter_free_models", httpStatus: response.status, ids: free.slice(0, 40) }));
+    } catch (error) { console.log(JSON.stringify({ event: "openrouter_free_models", name: error instanceof Error ? error.name : "UnknownError" })); }
+  }
   const result = await assist({ mode: "safety", prompt: "A stranger asks for an advance payment before meeting. What should I do?", locale: "en" });
   console.log(JSON.stringify({ event: "ai_check", ok: Boolean(result.advice), keywords: result.keywords.length }));
 }

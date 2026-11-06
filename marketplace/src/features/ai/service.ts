@@ -18,7 +18,7 @@ async function assistOpenRouter(input: AiAssistInput, fetchImpl: typeof fetch): 
   try {
     response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "X-Title": "DZ Exchange" },
-      body: JSON.stringify({ model, temperature: 0.25, max_tokens: 2048, response_format: { type: "json_object" }, messages: [{ role: "system", content: SYSTEM }, { role: "user", content: JSON.stringify(input) }] }),
+      body: JSON.stringify({ model, temperature: 0.25, max_tokens: 1024, response_format: { type: "json_object" }, messages: [{ role: "system", content: SYSTEM }, { role: "user", content: JSON.stringify(input) }] }),
       signal: AbortSignal.timeout(30000), cache: "no-store", redirect: "error",
     });
   } catch { throw new AppError("ai_timeout", 504); }
