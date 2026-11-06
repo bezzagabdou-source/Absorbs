@@ -1,0 +1,34 @@
+=== aapt dump badging (unsigned release) ===
+package: name='app.dzexchange.marketplace' versionCode='1' versionName='1.0' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+sdkVersion:'23'
+targetSdkVersion:'35'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+application-label:'DZ Exchange'
+application-icon-160:'res/BW.xml'
+application-icon-240:'res/BW.xml'
+application-icon-320:'res/BW.xml'
+application-icon-480:'res/BW.xml'
+application-icon-640:'res/BW.xml'
+application-icon-65534:'res/BW.xml'
+application: label='DZ Exchange' icon='res/BW.xml'
+launchable-activity: name='app.dzexchange.marketplace.MainActivity'  label='' icon=''
+feature-group: label=''
+  uses-feature: name='android.hardware.faketouch'
+  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'
+main
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+supports-any-density: 'true'
+locales: '--_--'
+densities: '160' '240' '320' '480' '640' '65534'
+
+=== aapt dump permissions ===
+package: app.dzexchange.marketplace
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+
+=== debuggable flag check (must be absent) ===
+OK: android:debuggable is not present (release default = false)
+
+=== sha256 ===
+6c55f9f7f84947c10c03ec0c9398cce6e0b298e48361935e42123853d259935c  ci-output/app-release-unsigned.apk
