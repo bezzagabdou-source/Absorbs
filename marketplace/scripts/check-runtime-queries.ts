@@ -5,7 +5,7 @@ import { getPool } from "../src/db";
 async function main() {
   try {
     const reference = await getReferenceData();
-    const listings = await searchListings({ sort: "newest", limit: 1 });
+    const listings = await searchListings({ q: "", sort: "newest", limit: 1 });
     console.log(JSON.stringify({ event: "runtime_queries_check", ok: true, categories: reference.categories.length, wilayas: reference.wilayas.length, listings: listings.total }));
   } catch (error) {
     const e = error as { code?: string; message?: string };
