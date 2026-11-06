@@ -5,7 +5,12 @@ const SYSTEM = `You are DZ Exchange's Algerian marketplace assistant. Reply only
 export function aiConfigured(): boolean { return Boolean(process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY); }
 export function parseAiResponse(text: string): AiAssistOutput {
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  let raw: unknown; try { raw = JSON.parse(cleaned); } catch { throw new AppError("ai_invalid_response", 502); }
+  let raw: unknown;
+  try { raw = JSON.parse(cleaned); } catch {
+    const start = cleaned.indexOf("{"); const end = cleaned.lastIndexOf("}");
+    if (start === -1 || end <= start) throw new AppError("ai_invalid_response", 502);
+    try { raw = JSON.parse(cleaned.slice(start, end + 1)); } catch { throw new AppError("ai_invalid_response", 502); }
+  }
   const parsed = aiAssistOutputSchema.safeParse(raw);
   if (!parsed.success) throw new AppError("ai_invalid_response", 502);
   if (parsed.data.title && !parsed.data.description) throw new AppError("ai_invalid_response", 502);
@@ -13,12 +18,12 @@ export function parseAiResponse(text: string): AiAssistOutput {
 }
 async function assistOpenRouter(input: AiAssistInput, fetchImpl: typeof fetch): Promise<AiAssistOutput> {
   const key = process.env.OPENROUTER_API_KEY; if (!key) throw new AppError("ai_unavailable", 503);
-  const model = process.env.OPENROUTER_MODEL || "openrouter/free";
+  const model = process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free";
   let response: Response;
   try {
     response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, "X-Title": "DZ Exchange" },
-      body: JSON.stringify({ model, temperature: 0.25, max_tokens: 1024, response_format: { type: "json_object" }, messages: [{ role: "system", content: SYSTEM }, { role: "user", content: JSON.stringify(input) }] }),
+      body: JSON.stringify({ model, temperature: 0.25, max_tokens: 1536, response_format: { type: "json_object" }, messages: [{ role: "system", content: SYSTEM }, { role: "user", content: JSON.stringify(input) }] }),
       signal: AbortSignal.timeout(30000), cache: "no-store", redirect: "error",
     });
   } catch { throw new AppError("ai_timeout", 504); }

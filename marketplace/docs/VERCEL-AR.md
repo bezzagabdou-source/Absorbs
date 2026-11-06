@@ -1,43 +1,61 @@
-# النشر على Vercel — خطوات سريعة
+# النشر على Vercel — DZ Exchange
 
-الملف الجاهز للاستيراد: `marketplace-vercel.zip` (موجود في جذر المستودع خارج مجلد التطبيق). فك الضغط؛ مجلد المشروع داخل الأرشيف اسمه `marketplace`.
+الرابط الحي: **https://marketplace-fixed.vercel.app**
 
-## إعداد المشروع الموجود `marketplace-fixed`
+المشروع على Vercel: `marketplace-fixed`، من مجلد `marketplace` في مستودع `bezzagabdou-source/Absorbs`، فرع `arena/f205ded0-absorbs`.
 
-1. اربط مستودع GitHub `bezzagabdou-source/Absorbs` بالمشروع، واجعل الفرع `arena/f205ded0-absorbs` هو مصدر النشر.
-2. في Settings → Build and Deployment:
-   - Root Directory: `marketplace`
-   - Framework Preset: `Next.js`
-   - Node.js: `22.x`
-   - Install Command: `npm ci`
-   - Build Command: `npm run build`
-   - Output Directory: القيمة الافتراضية لـ Next.js (لا تكتب `public`).
-3. أنشئ قاعدة PostgreSQL خارجية تدعم TLS ومتاحة من Vercel. قاعدة المعاينة المحلية ليست قاعدة سحابية ولا تنتقل مع ZIP.
-4. من جهاز موثوق، اضبط متغيرات البيئة المحلية ثم نفّذ مرة واحدة:
-   ```bash
-   npm ci
-   npm run db:migrate
-   npm run db:seed
-   ```
-   لا تنفّذ `db:seed:demo` على قاعدة الإنتاج.
-5. أضف متغيرات البيئة في Vercel مباشرة، وليس في المحادثة:
-   - `DATABASE_URL`: اتصال دور التشغيل `dz_runtime` فقط.
-   - `APP_URL`: أصل HTTPS الأساسي، مثل `https://marketplace-fixed.vercel.app` إذا أبقيت هذا النطاق.
-   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` و`VAPID_PRIVATE_KEY`: زوج جديد خاص بالنشر (`npm run push:keys`).
-   - `VAPID_SUBJECT`: بريد تواصل أمني حقيقي.
-   - `DEMO_MODE=false`.
-   - `TRUST_PROXY_HEADERS=false` إلى أن تتأكد أن الوكيل يكتب `x-real-ip` بنفسه.
-   - `PUSH_ALLOWED_HOSTS` حسب القائمة الموجودة في `.env.example`.
-   متغيرات `DATABASE_MIGRATION_URL` و`DATABASE_MIGRATION_PASSWORD` وكلمات أدوار القاعدة ليست مطلوبة في تطبيق Vercel؛ أبقها في أداة migrations/secret manager.
-6. أعد النشر بعد ضبط المتغيرات، ثم افحص `/api/health`، التسجيل، إنشاء إعلان، المساومة ولوحة البائع.
-7. شغّل `npm run push:worker` في حاوية/VM دائم مع `PUSH_DATABASE_URL` ومفاتيح VAPID. Vercel لا يشغّل هذا العامل الدائم تلقائياً؛ بدونه تبقى التنبيهات داخل الصندوق ولا تصل كـ Push خارجي.
+## ما تم إعداده
 
-## حالة التحقق المحلية
+- Next.js 16 / Node 22.x، البناء `npm run build`، التثبيت `npm ci`.
+- قاعدة Neon مشتركة مع مشاريع أخرى، لكن السوق معزول تماماً في مخطط `dz_marketplace` (ومخطط الهجرات `dz_marketplace_migrations`). لا تكتب أبداً في `public` because فيه جداول مشاريع أخرى.
+- دور التشغيل `dz_runtime` ودور عامل Push `dz_push_worker` غير ممتازين ولا يتجاوزان RLS.
+- تم تطبيق الهجرات وRLS والمنح وبذر 58 ولاية و8分类ات بنجاح من خطوات بناء Vercel، ثم أعيد أمر البناء إلى `npm run build` العادي.
+- `/api/health` و`/api/reference` و`/api/listings` والصفحة الرئيسية تعمل على الرابط الحي.
+- مساعد الذكاء الاصطناعي يستخدم Gemini أولاً (`gemini-3.8-flash`)، ثم OpenRouter كبديل server-side. المفتان لا يصلان إلى المتصفح.
 
-- TypeScript وESLint و19 اختبار وحدة وbuild الإنتاج: ناجحة.
-- 25 فحص PostgreSQL/RLS/push queue: ناجحة.
-- 7 اختبارات Chromium للواجهة وAPI وservice worker: ناجحة.
+## متغيرات البيئة المهمة
+
+أضفها في Vercel مباشرة، وليس في المحادثة أو ZIP:
+
+- `APP_URL=https://marketplace-fixed.vercel.app`
+- `DATABASE_URL`: اتصال دور `dz_runtime` فقط، بقاعدة Neon ومخطط `dz_marketplace` عبر `search_path`.
+- `DB_SCHEMA=dz_marketplace`
+- `DB_POOL_MAX=5`
+- `DEMO_MODE=false`
+- `TRUST_PROXY_HEADERS=false` ما لم يكن الوكيل يكتب `x-real-ip` بنفسه.
+- `GEMINI_API_KEY` و`GEMINI_FLASH_MODEL=gemini-3.8-flash`.
+- `OPENROUTER_API_KEY` و`OPENROUTER_MODEL=google/gemma-4-31b-it:free` كبديل مجاني عند تعطل Gemini أو نفاد الرصيد.
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` و`VAPID_PRIVATE_KEY` و`VAPID_SUBJECT` عند تفعيل Push.
+- `PUSH_DATABASE_URL` لعامل Push الخارجي فقط.
+
+متغيرات الهجرة (`DATABASE_MIGRATION_URL`, `DB_RUNTIME_PASSWORD`, `DB_WORKER_PASSWORD`) استُخدمت لمرة واحدة/خطوات تحقق ولا يحتاجها بناء الويب العادي. أبقها في secret manager ولا تضعها في الأرشيف.
+
+## إعادة الهجرة عند التغيير
+
+من جهاز موثوق أو خطوة CI مؤقتة:
+
+```bash
+npm ci
+npm run db:migrate
+npm run db:seed
+npm run db:inspect
+npm run db:check:runtime
+npm run db:check:queries
+```
+
+لا تنفّذ `db:seed:demo` على الإنتاج. حسابات المعاينة معطلة عندما `NODE_ENV=production`.
+
+## Push
+
+Vercel لا يشغّل عامل Push الدائم. شغّل `npm run push:worker` في حاوية/VM مع `PUSH_DATABASE_URL` ومفاتيح VAPID. بدون ذلك تبقى التنبيهات داخل الصندوق ولا تصل كـ Push خارجي. تم اختبار الطابور بمحاكي مزوّد، وليس بتسليم فعلي من متصفح إلى مزود Push.
+
+## التحقق
+
+- TypeScript وESLint و24 اختبار وحدة: ناجحة.
+- 25 فحص PostgreSQL/RLS/worker و7 اختبارات Chromium: ناجحة محلياً قبل النشر.
+- فحوص قاعدة الإنتاج من بناء Vercel: `runtime_db_check` و`runtime_queries_check` ناجحة.
 - `npm audit` داخل `marketplace`: صفر ثغرات معروفة وقت الفحص.
-- فحص عامل Push استخدم محاكي مزوّد؛ اختبار الوصول الفعلي لمزوّد Push وقاعدة الإنتاج لم يتم بعد.
 
-لا يحتوي الأرشيف على `.env.local` أو كلمات مرور أو `node_modules` أو ملفات البناء. الدفع/الضمان المالي وتوثيق البريد والهوية غير مرتبطة؛ الواجهة توضح ذلك ولا تدّعي تنفيذها. راجع README قبل إطلاق عام.
+## حدود مطلقة
+
+الدفع/الضمان المالي، توثيق البريد/الهوية، تخزين الصور، والإشراف غير مرتبطة. الواجهة توضح ذلك ولا تدّعي تنفيذها. راجع README قبل إطلاق عام.

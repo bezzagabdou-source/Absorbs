@@ -36,7 +36,7 @@ The worker uses at-least-once delivery and a stable notification tag. Provider c
 ## Verification
 
 ```bash
-npm run check                 # types, lint, 19 unit tests, production build
+npm run check                 # types, lint, 24 unit tests, production build
 npm run test:db               # 25 PostgreSQL/RLS/worker integration checks
 npx playwright install chromium
 npm run test:e2e              # 7 browser tests against a running, seeded dev server
