@@ -19,8 +19,8 @@ export async function assist(input: AiAssistInput, fetchImpl: typeof fetch = fet
   try {
     response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: "user", parts: [{ text: JSON.stringify(input) }] }], generationConfig: { temperature: 0.25, maxOutputTokens: 2048, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } } }),
-      signal: AbortSignal.timeout(20000), cache: "no-store", redirect: "error",
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: "user", parts: [{ text: JSON.stringify(input) }] }], generationConfig: { temperature: 0.25, maxOutputTokens: 2048, responseMimeType: "application/json" } }),
+      signal: AbortSignal.timeout(45000), cache: "no-store", redirect: "error",
     });
   } catch { throw new AppError("ai_timeout", 504); }
   if (response.status === 429) throw new AppError("rate_limited", 429);
