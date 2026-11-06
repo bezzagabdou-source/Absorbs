@@ -62,6 +62,9 @@ export const config = {
     paths: djezzyPaths,
     clientId: djezzyClientId,
     clientSecret: djezzyClientSecret,
+    // زوج بديل (بعض نسخ التطبيق القديمة) — يُجرَّب تلقائياً عند رفض الأول
+    legacyClientId: (process.env.DJEZZY_CLIENT_ID_LEGACY || '').trim(),
+    legacyClientSecret: (process.env.DJEZZY_CLIENT_SECRET_LEGACY || '').trim(),
     // هدية 2 جيجا الأسبوعية (Walk Win) والهدية الترويجية عبر QR
     giftWalkCode: process.env.DJEZZY_GIFT_WALK_CODE || 'GIFTWALKWIN2GO',
     scanQr: process.env.DJEZZY_SCAN_QR || 'https://www.djezzy.dz/scanwin-wd26?1',
