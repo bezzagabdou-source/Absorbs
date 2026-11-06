@@ -162,10 +162,28 @@ export function giftsResult(result, { simulated = false } = {}) {
   return lines.join('\n');
 }
 
+const SILENT_DETAIL = new Set(['TIMEOUT', 'NETWORK']);
+
+const GEO_HINT = [
+  '',
+  '🌍 <b>السبب:</b> خوادم جيزي محجوبة على كل شبكات خارج الجزائر',
+  '(Vercel، Railway، أي سيرفر أوروبي/أمريكي).',
+  '',
+  '✅ <b>الحل:</b> شغّل البوت من جهازك داخل الجزائر:',
+  '<code>cd djezzy-bot</code>',
+  '<code>npm install</code>',
+  '<code>npm run poll</code>',
+  '',
+  'التفاصيل الكاملة: /help ← قسم «لماذا لا يعمل؟».',
+].join('\n');
+
 export function errorText(error) {
   const friendly = error?.friendly || 'حدث خطأ غير متوقع.';
-  const detail = error?.message && error.message !== friendly ? `\n\n<i>${escape(error.message)}</i>` : '';
-  return `⚠️ ${escape(friendly)}${detail}`;
+  const silent = SILENT_DETAIL.has(error?.code);
+  const detail =
+    !silent && error?.message && error.message !== friendly ? `\n\n<i>${escape(error.message)}</i>` : '';
+  const hint = silent ? `\n${GEO_HINT}` : '';
+  return `⚠️ ${escape(friendly)}${detail}${hint}`;
 }
 
 export function statusPage({ botConfigured, mode, storage, publicUrl, warnings }) {

@@ -280,6 +280,31 @@ npm run check           # فحص الصياغة
 
 ---
 
+## 🌍 لماذا لا يصل Vercel إلى جيزي؟ (حجب جغرافي)
+
+| الاختبار | النتيجة |
+|---|---|
+| `/api/probe` من Vercel | `timeout` |
+| DNS عام لـ `apim.djezzy.dz` | يعمل → `41.220.159.56` (نطاق جزائري) |
+| 12 عقدة عالمية (DE, FR, TR, PL, US, VN…) | كلها Down |
+
+خوادم جيزي ترفض أي اتصال من خارج الجزائر. لذلك **أي استضافة سحابية** (Vercel, Railway,
+Render, Fly) ستفشل في إرسال رمز التحقق وفي تفعيل الهدايا — وليس العيب في الكود.
+
+### الحل: التشغيل من داخل الجزائر
+
+```bash
+git clone https://github.com/bezzagabdou-source/Absorbs
+cd Absorbs/djezzy-bot
+npm install
+cp .env.example .env     # ضع BOT_TOKEN + DJEZZY_CLIENT_ID/SECRET
+npm run poll             # polling بلا Webhook، مع تخزين دائم في .data/store.json
+```
+
+- `npm run poll` يقرأ `.env` تلقائياً ويحفظ الجلسات على القرص (لا تعيد الرمز عند كل تشغيل).
+- `npm run poll:dry` للتجربة بلا شبكة.
+- على الهاتف: Termux → `pkg install nodejs-lts git` ثم نفس الأوامر.
+
 ## ⚖️ تنبيه مهم
 
 هذا المشروع أداة **أتمتة شخصية** لإدارة أرقام تملكها أنت.
