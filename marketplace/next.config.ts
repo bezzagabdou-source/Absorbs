@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
       ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
     ] },
     { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }] },
+    { source: "/DZ-Exchange.apk", headers: [
+      { key: "Content-Type", value: "application/vnd.android.package-archive" },
+      { key: "Content-Disposition", value: 'attachment; filename="DZ-Exchange.apk"' },
+      { key: "Cache-Control", value: "public, max-age=300" },
+    ] },
   ]; },
 };
 export default nextConfig;
