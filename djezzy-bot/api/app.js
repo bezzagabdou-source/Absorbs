@@ -9,6 +9,7 @@
  *   GET  /api/setup?key=     ← ضبط الـ Webhook
  *   GET  /                   ← صفحة حالة
  */
+import net from 'node:net';
 import express from 'express';
 import { GrammyError, webhookCallback } from 'grammy';
 import config, { validateConfig } from '../src/config.js';
@@ -132,6 +133,45 @@ async function setupHandler(req, res) {
     log.error(`فشل ضبط الـ Webhook: ${error.message}`);
     res.status(500).json({ ok: false, error: error.message, code: error?.error_code ?? null });
   }
+}
+
+const tcpProbe = (host, port, timeoutMs) =>
+  new Promise((resolve) => {
+    const started = Date.now();
+    const socket = new net.Socket();
+    let done = false;
+    const finish = (payload) => {
+      if (done) return;
+      done = true;
+      socket.destroy();
+      resolve({ host, port, ms: Date.now() - started, ...payload });
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finish({ connected: true }));
+    socket.once('timeout', () => finish({ connected: false, error: 'ETIMEDOUT' }));
+    socket.once('error', (error) => finish({ connected: false, error: error.code || error.message }));
+    socket.connect(port, host);
+  });
+
+async function tcpHandler(req, res) {
+  if (!authorized(req)) {
+    res.status(401).json({ ok: false, error: 'مفتاح غير صحيح' });
+    return;
+  }
+
+  const host = String(req.query.host || new URL(config.djezzy.baseUrl).hostname);
+  const port = Number(req.query.port || 443);
+  const timeoutMs = Math.min(Number(req.query.timeout || 20000), 55000);
+
+  const result = await tcpProbe(host, port, timeoutMs);
+  res.status(result.connected ? 200 : 502).json({
+    ok: result.connected,
+    region: process.env.VERCEL_REGION || null,
+    result,
+    hint: result.connected
+      ? 'المسار الشبكي مفتوح — المشكلة قد تكون بطئاً في TLS/الاستجابة. جرّب مهلة أطول.'
+      : 'الحزمة لا تصل (حجب على مستوى الشبكة).',
+  });
 }
 
 async function probeHandler(req, res) {
@@ -285,6 +325,7 @@ export function createApp() {
   app.get(['/api/setup', '/setup'], setupHandler);
   app.get(['/api/diagnose', '/diagnose'], diagnoseHandler);
   app.get(['/api/probe', '/probe'], probeHandler);
+  app.get(['/api/tcp'], tcpHandler);
   app.get(['/', '/api', '/api/index', '/status'], (_req, res) => {
     res
       .status(200)
