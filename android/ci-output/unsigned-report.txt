@@ -31,4 +31,4 @@ uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
 OK: android:debuggable is not present (release default = false)
 
 === sha256 ===
-6c55f9f7f84947c10c03ec0c9398cce6e0b298e48361935e42123853d259935c  ci-output/app-release-unsigned.apk
+8c2316c82703e5480e6f9c5059840da98dce3dc9eb01d2d74f576bdafc5bb84d  ci-output/app-release-unsigned.apk
