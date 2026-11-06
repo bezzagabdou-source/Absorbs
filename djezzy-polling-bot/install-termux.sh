@@ -14,10 +14,19 @@ warn() { printf "%b\n" "${Y}$1${N}"; }
 die()  { printf "%b\n" "${R}$1${N}"; exit 1; }
 
 REPO_URL="https://github.com/bezzagabdou-source/Absorbs"
-BRANCH="${ABSORBS_BRANCH:-main}"
 ROOT="$HOME/Absorbs"
 DIR="$ROOT/djezzy-polling-bot"
 APP="djezzy-bot"
+
+# الفرع: من المتغيّر، وإلا الفرع الحالي للنسخة الموجودة، وإلا main
+if [ -n "${ABSORBS_BRANCH:-}" ]; then
+  BRANCH="$ABSORBS_BRANCH"
+elif [ -d "$ROOT/.git" ]; then
+  BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+  [ "$BRANCH" = "HEAD" ] && BRANCH="main"
+else
+  BRANCH="main"
+fi
 
 say "════════════════════════════════════════════════════"
 say " بوت جيزي — تثبيت كامل (Termux) · الفرع: $BRANCH"
@@ -42,9 +51,14 @@ command -v pm2 >/dev/null 2>&1 && say "    pm2 $(pm2 -v 2>/dev/null | tail -1)"
 say "==> 2/6 تحميل المشروع (الفرع $BRANCH)…"
 if [ -d "$ROOT/.git" ]; then
   cd "$ROOT"
-  git fetch --depth 1 origin "$BRANCH" >/dev/null 2>&1 || die "تعذّر تحميل الكود — تحقّق من الإنترنت."
-  git checkout -q -B "$BRANCH" FETCH_HEAD >/dev/null 2>&1 || git reset --hard FETCH_HEAD >/dev/null 2>&1 || true
-  git reset --hard FETCH_HEAD >/dev/null 2>&1 || true
+  if git fetch --depth 1 origin "$BRANCH" >/dev/null 2>&1; then
+    git checkout -q -B "$BRANCH" FETCH_HEAD >/dev/null 2>&1 || git reset --hard FETCH_HEAD >/dev/null 2>&1 || true
+    git reset --hard FETCH_HEAD >/dev/null 2>&1 || true
+  elif [ -f "$DIR/index.js" ]; then
+    warn "    تعذّر التحديث من GitHub — نُكمل بالنسخة الموجودة محلياً."
+  else
+    die "تعذّر تحميل الكود — تحقّق من الإنترنت ثم أعد المحاولة."
+  fi
 else
   rm -rf "$ROOT"
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$ROOT" >/dev/null 2>&1 || die "تعذّر تحميل المشروع (git clone)."
