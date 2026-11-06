@@ -22,4 +22,4 @@ async function main() {
   const result = await assist({ mode: "safety", prompt: "A stranger asks for an advance payment before meeting. What should I do?", locale: "en" });
   console.log(JSON.stringify({ event: "ai_check", ok: Boolean(result.advice), keywords: result.keywords.length }));
 }
-main().catch((error) => { console.error(JSON.stringify({ event: "ai_check_failed", name: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string }).code })); process.exitCode = 1; });
+main().catch((error) => { console.error(JSON.stringify({ event: "ai_check_failed", name: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string }).code, fields: (error as { fields?: Record<string, string[]> }).fields })); process.exitCode = 1; });

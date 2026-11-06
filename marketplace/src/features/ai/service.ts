@@ -24,7 +24,7 @@ async function assistOpenRouter(input: AiAssistInput, fetchImpl: typeof fetch): 
   } catch { throw new AppError("ai_timeout", 504); }
   if (response.status === 429) throw new AppError("rate_limited", 429);
   if (response.status === 401 || response.status === 403) throw new AppError("ai_auth_failed", 503);
-  if (!response.ok) throw new AppError("ai_unavailable", 503);
+  if (!response.ok) throw new AppError("ai_unavailable", 503, { providerStatus: [String(response.status)] });
   const body = await response.json() as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
   const choice = body.choices?.[0];
   if (choice?.finish_reason && choice.finish_reason !== "stop") throw new AppError("ai_invalid_response", 502);

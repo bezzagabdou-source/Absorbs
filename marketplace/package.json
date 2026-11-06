@@ -21,7 +21,8 @@
     "test:e2e": "playwright test",
     "db:inspect": "tsx -r dotenv/config scripts/inspect-db.ts",
     "ai:check": "tsx --conditions=react-server -r dotenv/config scripts/check-ai.ts",
-    "db:check:runtime": "tsx -r dotenv/config scripts/check-runtime-db.ts"
+    "db:check:runtime": "tsx -r dotenv/config scripts/check-runtime-db.ts",
+    "db:check:queries": "tsx --conditions=react-server -r dotenv/config scripts/check-runtime-queries.ts"
   },
   "dependencies": {
     "dexie": "^4.4.7",
