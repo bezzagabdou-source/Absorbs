@@ -71,7 +71,7 @@ PASS exactly 2 permissions
 ############ curl -I GitHub Releases (primary) ############
 HTTP/2 302 
 content-type: text/html; charset=utf-8
-location: https://release-assets.githubusercontent.com/github-production-release-asset/1404865287/2f2f1525-ea56-44d0-b539-cc01d6796cb2?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-11-06T19%3A36%3A03Z&rscd=attachment%3B+filename%3DDZ-Exchange.apk&rsct=application%2Fvnd.android.package-archive&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-11-06T18%3A35%3A18Z&ske=2026-11-06T19%3A36%3A03Z&sks=b&skv=2018-11-09&sig=Bw%2FADkG5dosFcSu2gXzoUPeAM6SRjb%2BL7iM5deHVjrY%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc5Mzk5MDkzMCwibmJmIjoxNzkzOTkwNjMwLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.yayk66r0c0S5bRiGhX3rP8HUIj4g4DFDG8WWSNVYYVg&response-content-disposition=attachment%3B%20filename%3DDZ-Exchange.apk&response-content-type=application%2Fvnd.android.package-archive
+location: https://release-assets.githubusercontent.com/github-production-release-asset/1404865287/2d9d5996-ae59-449d-af39-e68345ec086e?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-11-06T19%3A25%3A41Z&rscd=attachment%3B+filename%3DDZ-Exchange.apk&rsct=application%2Fvnd.android.package-archive&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-11-06T18%3A25%3A33Z&ske=2026-11-06T19%3A25%3A41Z&sks=b&skv=2018-11-09&sig=yr0VEIIlc0EFZckIdcVJKO0hPldlds1GIxsDNVlbEgI%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc5Mzk5MTE1MSwibmJmIjoxNzkzOTkwODUxLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.TXhlrnI8GX7nCUhjnjJQANXKdReDm_PPN2jSW02WzbQ&response-content-disposition=attachment%3B%20filename%3DDZ-Exchange.apk&response-content-type=application%2Fvnd.android.package-archive
 content-length: 0
 HTTP/2 200 
 content-disposition: attachment; filename=DZ-Exchange.apk
@@ -82,11 +82,11 @@ content-length: 288210
 HTTP/2 200 
 content-disposition: attachment; filename="DZ-Exchange.apk"
 content-type: application/vnd.android.package-archive
-content-length: 284108
+content-length: 288210
 
 ############ byte-for-byte download check ############
 736aaf19d601f794a3084c04858a8bb509fdc4be52a21f76536646bb945b2a9e  marketplace/public/DZ-Exchange.apk
 736aaf19d601f794a3084c04858a8bb509fdc4be52a21f76536646bb945b2a9e  /tmp/gh.apk
-0a37dc3923f886ea6ba63845a50dfe165ff34cfba80762126f0127f17405d861  /tmp/vc.apk
+736aaf19d601f794a3084c04858a8bb509fdc4be52a21f76536646bb945b2a9e  /tmp/vc.apk
 PASS GitHub asset identical
-marketplace/public/DZ-Exchange.apk /tmp/vc.apk differ: byte 5, line 1
+PASS Vercel asset identical
