@@ -1,8 +1,9 @@
-/** أدوات التحقق من أرقام الهاتف الجزائرية (Djezzy: 05x / 06x / 07x) */
+/** أدوات التحقق من أرقام الهاتف الجزائرية — البوت يقبل أرقام جيزي فقط (+2137…) */
 import { createHash } from 'node:crypto';
+import config from '../config.js';
 
-const LOCAL_MOBILE = /^0([567])(\d{8})$/; // 0X XX XX XX XX
-const INTL_MOBILE = /^(?:00213|213|\+213)([567]\d{8})$/;
+const NATIONAL = /^[567]\d{8}$/; // 9 أرقام وطنية
+const LOCAL = /^0([567]\d{8})$/; // 0X XX XX XX XX
 
 /**
  * يطبّع الرقم إلى صيغة دولية بدون + (213XXXXXXXXX)
@@ -24,16 +25,24 @@ export function normalizeMsisdn(raw) {
 
   let national = null;
 
-  if (LOCAL_MOBILE.test(digits)) {
+  if (LOCAL.test(digits)) {
     national = digits.slice(1);
-  } else if (INTL_MOBILE.test(digits)) {
+  } else if (/^(?:\+?213|00213)[567]\d{8}$/.test(digits)) {
     national = digits.replace(/^(?:\+?213|00213)/, '');
-  } else if (/^[567]\d{8}$/.test(digits)) {
+  } else if (NATIONAL.test(digits)) {
     national = digits;
   }
 
   if (!national) {
-    return { valid: false, reason: 'الرقم يجب أن يبدأ بـ 05 أو 06 أو 07 ويتكوّن من 10 أرقام' };
+    return { valid: false, reason: 'أرسل رقم جيزي صحيحاً: 07XXXXXXXX أو +2137XXXXXXXX' };
+  }
+
+  const allowed = config.limits.allowedPrefixes;
+  if (allowed.length > 0 && !allowed.includes(national[0])) {
+    return {
+      valid: false,
+      reason: 'هذا البوت يدعم أرقام جيزي فقط (+2137…) — الأرقام التي تبدأ بـ 05 أو 06 غير مدعومة',
+    };
   }
 
   return {

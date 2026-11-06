@@ -3,7 +3,7 @@
  * تسجيل الأرقام عبر OTP، تفعيل 6 جيغا، استلام الهدايا، وإدارة الأرقام.
  * الحالة تُحفظ في التخزين (KV) لا في الذاكرة — لذلك يعمل البوت على Vercel.
  */
-import { Bot } from 'grammy';
+import { Bot, InlineKeyboard } from 'grammy';
 import config from './config.js';
 import store from './store/index.js';
 import client from './djezzy/client.js';
@@ -290,8 +290,50 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     }
   });
 
-  /* --------------------------- تفعيل 6 جيغا --------------------------- */
+  /* ---------------------- عرض 6 جيجا (مدفوع/باقة) ---------------------- */
+  // عروض 6 جيجا ليست هدية مجانية في جيزي، وتفعيلها قد يخصم رصيداً.
+  // لذلك نطلب تأكيداً صريحاً قبل أي طلب، ولا نفعّلها بلا رمز باقة مضبوط.
   bot.callbackQuery('act:6gb', async (ctx) => {
+    const context = await requireAccount(ctx);
+    if (!context) return;
+    await answer(ctx);
+
+    if (!config.djezzy.paidProductCode) {
+      await render(
+        ctx,
+        [
+          '🔥 <b>عرض 6 جيجا</b>',
+          '',
+          'عروض 6 جيجا في جيزي ليست هدية مجانية — لكل عرض رمز باقة خاص به،',
+          'وتفعيله قد يُخصم من رصيدك.',
+          '',
+          'لهذا لم أفعّل أي شيء تلقائياً. أرسل لي رمز الباقة (packageCode)',
+          'الظاهر في تطبيق جيزي وسأضبطه لك، أو استخدم الأزرار المجانية:',
+          '🎁 هدية 2 جيجا الأسبوعية.',
+        ].join('\n'),
+        ui.afterAction(),
+      );
+      return;
+    }
+
+    await render(
+      ctx,
+      [
+        '⚠️ <b>تأكيد عملية مدفوعة</b>',
+        '',
+        `الباقة: <code>${escapeHtml(config.djezzy.paidProductCode)}</code>`,
+        'سيُرسل طلب تفعيل حقيقي إلى جيزي وقد يُخصم من رصيدك.',
+        '',
+        'هل تريد المتابعة؟',
+      ].join('\n'),
+      new InlineKeyboard()
+        .text('✅ نعم، فعّل', 'act:6gb:confirm')
+        .row()
+        .text('✖️ إلغاء', 'menu:home'),
+    );
+  });
+
+  bot.callbackQuery('act:6gb:confirm', async (ctx) => {
     const context = await requireAccount(ctx);
     if (!context) return;
 
@@ -299,40 +341,13 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     if (wait) return answer(ctx, `⏳ انتظر ${wait} ثانية`);
 
     await answer(ctx, '🔥 جارٍ التفعيل…');
-    await render(ctx, '⏳ <i>جارٍ إرسال طلب تفعيل عرض 6 جيغا…</i>', ui.backHome());
+    await render(ctx, '⏳ <i>جارٍ إرسال طلب التفعيل إلى جيزي…</i>', ui.backHome());
 
     try {
-      const result = await engine.activateSixGb(ctx.from.id, context.msisdn);
-
-      if (result.status === 'pending_challenge') {
-        const user = await loadUser(ctx);
-        user.state = {
-          step: 'awaiting_challenge',
-          temp: {
-            msisdn: context.msisdn,
-            challengeId: result.challengeId,
-            action: '6gb',
-            startedAt: Date.now(),
-          },
-        };
-        await store.saveUser(user);
-        await render(ctx, txt.challengePrompt({ label: 'عرض 6 جيغا', challengeId: result.challengeId }), ui.cancelOnly());
-        return;
-      }
-
-      await render(
-        ctx,
-        txt.activationSuccess({
-          label: 'عرض 6 جيغا',
-          item: result.item,
-          data: result.data,
-          validity: result.validity,
-          simulated: engine.mode === 'simulation',
-        }),
-        ui.afterAction(),
-      );
+      const result = await engine.activatePaidOffer(ctx.from.id, context.msisdn);
+      await render(ctx, txt.activationSuccess({ label: 'العرض المدفوع', item: result.item }), ui.afterAction());
     } catch (error) {
-      log.warn(`فشل تفعيل 6 جيغا: ${error.code || error.message}`);
+      log.warn(`فشل تفعيل العرض: ${error.code || error.message}`);
       await render(ctx, txt.errorText(error), ui.afterAction());
     }
   });
@@ -359,22 +374,6 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
         mode === 'weekly'
           ? await engine.claimWeeklyGift(ctx.from.id, context.msisdn)
           : await engine.claimAllGifts(ctx.from.id, context.msisdn);
-
-      if (result.status === 'pending_challenge') {
-        const user = await loadUser(ctx);
-        user.state = {
-          step: 'awaiting_challenge',
-          temp: {
-            msisdn: context.msisdn,
-            challengeId: result.challengeId,
-            action: 'gifts',
-            startedAt: Date.now(),
-          },
-        };
-        await store.saveUser(user);
-        await render(ctx, txt.challengePrompt({ label: 'استلام الهدايا', challengeId: result.challengeId }), ui.cancelOnly());
-        return;
-      }
 
       const header = result.ok ? '✅' : '⚠️';
       await render(
@@ -469,9 +468,8 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
       }
 
       const msisdn = state.temp?.msisdn;
-      const sessionId = state.temp?.sessionId;
 
-      if (!msisdn || !sessionId) {
+      if (!msisdn) {
         user.state = null;
         await store.saveUser(user);
         await ctx.reply('⚠️ جلسة التحقق ضاعت. ابدأ من جديد: /start', { reply_markup: ui.backHome() });
@@ -480,7 +478,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
 
       await ctx.replyWithChatAction('typing').catch(() => {});
       try {
-        const result = await engine.confirmLogin(ctx.from.id, msisdn, code, sessionId);
+        const result = await engine.confirmLogin(ctx.from.id, msisdn, code);
         const fresh = await loadUser(ctx);
         await ctx.reply(
           [
@@ -506,37 +504,6 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
           user.state = null;
           await store.saveUser(user);
         }
-        await ctx.reply(txt.errorText(error), { parse_mode: 'HTML', reply_markup: ui.cancelOnly() });
-      }
-      return;
-    }
-
-    /* ---------- 3) استقبال إجابة التحقق الإضافي ---------- */
-    if (state.step === 'awaiting_challenge') {
-      const answerText = ctx.message.text.trim().slice(0, 32);
-      const { msisdn, challengeId, action } = state.temp || {};
-
-      if (!msisdn) {
-        user.state = null;
-        await store.saveUser(user);
-        await ctx.reply('⚠️ جلسة غير صالحة. /start', { reply_markup: ui.backHome() });
-        return;
-      }
-
-      await ctx.replyWithChatAction('typing').catch(() => {});
-      try {
-        const result = await engine.submitChallenge(ctx.from.id, msisdn, challengeId, answerText);
-        user.state = null;
-        await store.saveUser(user);
-        await ctx.reply(
-          txt.activationSuccess({
-            label: action === 'gifts' ? 'استلام الهدايا' : 'عرض 6 جيغا',
-            item: result.item,
-            simulated: engine.mode === 'simulation',
-          }),
-          { parse_mode: 'HTML', reply_markup: ui.afterAction() },
-        );
-      } catch (error) {
         await ctx.reply(txt.errorText(error), { parse_mode: 'HTML', reply_markup: ui.cancelOnly() });
       }
       return;

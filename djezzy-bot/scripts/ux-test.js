@@ -120,11 +120,16 @@ await step('زر «إضافة رقم» يطلب الرقم', async () => {
 
 await step('رقم غير صالح يُرفض بلطف', async () => {
   const text = await sendText('123');
-  assert.match(text, /05 أو 06 أو 07/);
+  assert.match(text, /07XXXXXXXX/);
+});
+
+await step('أرقام غير جيزي (05/06) تُرفض', async () => {
+  const text = await sendText('0551234567');
+  assert.match(text, /جيزي فقط|05 أو 06/);
 });
 
 await step('رقم صالح يُرسل رمز تحقق', async () => {
-  const text = await sendText('0551234567');
+  const text = await sendText('0770123456');
   assert.match(text, /رمز التحقق/);
   assert.match(text, /رمز المحاكاة/);
 });
@@ -143,50 +148,47 @@ await step('رمز صحيح يربط الرقم ويحفظ الجلسة', async 
   assert.ok(hasButton('act:6gb'), 'زر 6 جيغا يجب أن يظهر بعد الربط');
 
   const user = await store.getUser(TG_ID);
-  const account = user.accounts['213551234567'];
+  const account = user.accounts['213770123456'];
   assert.ok(account, 'الرقم لم يُحفظ');
   assert.ok(account.tokenEnc.startsWith('v1:'), 'التوكن يجب أن يُخزَّن مشفّراً');
 });
 
-await step('تفعيل 6 جيغا من الزر', async () => {
+await step('زر 6 جيغا لا يفعّل شيئاً مدفوعاً بدون رمز باقة', async () => {
   const text = await click('act:6gb');
-  assert.match(text, /محاكاة ناجحة|تم التفعيل بنجاح/);
-  assert.match(text, /6 جيغا/);
-  // في وضع المحاكاة يجب التنبيه صراحةً أن النتيجة تجريبية
-  assert.match(text, /لم يُرسل أي طلب حقيقي|لا بيانات حقيقية/);
+  assert.match(text, /ليست هدية مجانية/);
+  assert.match(text, /packageCode|رمز الباقة/);
 });
 
-await step('تكرار التفعيل يشرح أنه مُفعّل مسبقاً', async () => {
-  const text = await click('act:6gb');
-  assert.match(text, /مُفعّل بالفعل|مُفعّل مسبقاً|غير قابل للتفعيل/);
-});
-
-await step('هدية 2 جيغا الأسبوعية تُستلم', async () => {
+await step('هدية 2 جيغا تُستلم (لا محاكاة صريحة في الوضع الحقيقي)', async () => {
   const text = await click('act:gift:weekly');
-  assert.match(text, /هدية/);
-  assert.match(text, /2 جيغا/);
+  assert.match(text, /هدية|2 جيجا/);
 });
 
-await step('فحص الحساب يعرض الرصيد والعروض', async () => {
+await step('الاستلام الثاني يُرفض بسبب مهلة الأسبوع', async () => {
+  const text = await click('act:gift:weekly');
+  assert.match(text, /مُستلمة مسبقاً|المتاح التالي|7 أيام/);
+});
+
+await step('فحص الحساب يعرض سجل الهدايا', async () => {
   const text = await click('act:overview');
   assert.match(text, /حالة الحساب/);
-  assert.match(text, /عرض 6 جيغا/);
+  assert.match(text, /هدية 2 جيجا|آخر هدية/);
 });
 
 await step('إدارة الأرقام تعرض الرقم المربوط', async () => {
   const text = await click('acc:menu');
   assert.match(text, /إدارة الأرقام/);
-  assert.ok(hasButton('acc:pick:213551234567'), 'زر اختيار الرقم مفقود');
+  assert.ok(hasButton('acc:pick:213770123456'), 'زر اختيار الرقم مفقود');
 });
 
 await step('حذف رقم بخطوتي تأكيد', async () => {
   await click('acc:remove');
-  assert.ok(hasButton('acc:del:213551234567'));
-  const confirm = await click('acc:del:213551234567');
+  assert.ok(hasButton('acc:del:213770123456'));
+  const confirm = await click('acc:del:213770123456');
   assert.match(confirm, /تأكيد حذف/);
-  await click('acc:del:confirm:213551234567');
+  await click('acc:del:confirm:213770123456');
   const user = await store.getUser(TG_ID);
-  assert.equal(user.accounts['213551234567'], undefined);
+  assert.equal(user.accounts['213770123456'], undefined);
 });
 
 await step('/cancel يصفّر الحالة', async () => {

@@ -134,6 +134,45 @@ async function setupHandler(req, res) {
   }
 }
 
+async function probeHandler(req, res) {
+  if (!authorized(req)) {
+    res.status(401).json({ ok: false, error: 'مفتاح غير صحيح — أضف ?key=<WEBHOOK_SECRET>' });
+    return;
+  }
+
+  const started = Date.now();
+  const target = `${config.djezzy.baseUrl}${config.djezzy.paths.requestOtp}`;
+
+  try {
+    // GET بدون أي معاملات: لا يُرسل رمزاً ولا يمسّ أي حساب — فحص اتصال فقط
+    const response = await fetch(target, {
+      method: 'GET',
+      headers: config.djezzy.headers,
+      signal: AbortSignal.timeout(10_000),
+    });
+    const text = await response.text().catch(() => '');
+    res.json({
+      ok: true,
+      reachable: true,
+      mode: engine.mode,
+      baseUrl: config.djezzy.baseUrl,
+      path: config.djezzy.paths.requestOtp,
+      status: response.status,
+      latencyMs: Date.now() - started,
+      sample: text.slice(0, 200),
+      note: 'الوصول إلى خوادم جيزي من Vercel يعمل. رمز 400/401/405 هنا طبيعي (طلب بلا معاملات).',
+    });
+  } catch (error) {
+    res.status(502).json({
+      ok: false,
+      reachable: false,
+      baseUrl: config.djezzy.baseUrl,
+      latencyMs: Date.now() - started,
+      error: error?.message || String(error),
+    });
+  }
+}
+
 async function diagnoseHandler(req, res) {
   if (!authorized(req)) {
     res.status(401).json({ ok: false, error: 'مفتاح غير صحيح — أضف ?key=<WEBHOOK_SECRET>' });
@@ -245,6 +284,7 @@ export function createApp() {
   app.get(['/health', '/api/health'], healthHandler);
   app.get(['/api/setup', '/setup'], setupHandler);
   app.get(['/api/diagnose', '/diagnose'], diagnoseHandler);
+  app.get(['/api/probe', '/probe'], probeHandler);
   app.get(['/', '/api', '/api/index', '/status'], (_req, res) => {
     res
       .status(200)

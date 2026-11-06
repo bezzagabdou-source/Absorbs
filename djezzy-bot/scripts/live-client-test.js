@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 /**
- * اختبار الوضع المباشر (Live) ضد سيرفر وهمي يحاكي واجهة جيزي عبر HTTP حقيقي.
- * يتحقق من: الترويسات، Bearer، تجديد الجلسة عند 401، وتحويل الأخطاء.
+ * اختبار الوضع المباشر ضد سيرفر وهمي يقلّد واجهة جيزي الحقيقية (HTTP فعلي).
+ * يتحقق من: شكل الطلبات (query/form/JSON)، Bearer، تفسير 402 و900901، والسجل.
  *
  *   node scripts/live-client-test.js
  */
 process.env.SESSION_ENCRYPTION_KEY = 'test-key-0123456789abcdef0123456789abcdef';
+process.env.DJEZZY_CLIENT_ID = 'test-client-id';
+process.env.DJEZZY_CLIENT_SECRET = 'test-client-secret';
+process.env.DJEZZY_DRY_RUN = 'false';
 process.env.ACTION_COOLDOWN_MS = '0';
 process.env.MAX_CLAIMS_PER_DAY = '100';
 
@@ -16,90 +19,117 @@ const { DjezzyEngine } = await import('../src/djezzy/engine.js');
 const { ERROR_CODES } = await import('../src/djezzy/errors.js');
 const store = (await import('../src/store/index.js')).default;
 
-/* ------------------------- سيرفر وهمي لواجهة جيزي ------------------------- */
-const seenHeaders = [];
+/* --------------------- سيرفر وهمي لواجهة جيزي --------------------- */
 const calls = [];
 let validToken = 'live_token_1';
-let claimCount = 0;
+let weeklyClaimed = 0;
+let historyItems = [];
+let ineligible = false;
+let expireNextRewardCall = false;
 
 function readBody(req) {
   return new Promise((resolve) => {
     let data = '';
     req.on('data', (chunk) => (data += chunk));
-    req.on('end', () => {
-      try {
-        resolve(data ? JSON.parse(data) : {});
-      } catch {
-        resolve({});
-      }
-    });
+    req.on('end', () => resolve(data));
   });
 }
 
 const server = http.createServer(async (req, res) => {
-  const body = await readBody(req);
-  calls.push({ method: req.method, url: req.url });
-  seenHeaders.push(req.headers);
+  const raw = await readBody(req);
+  const url = new URL(req.url, 'http://localhost');
+  calls.push({ method: req.method, path: url.pathname, query: url.search, body: raw });
 
   const send = (status, payload) => {
     res.writeHead(status, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(payload));
+    res.end(typeof payload === 'string' ? payload : JSON.stringify(payload));
   };
 
   const auth = req.headers.authorization || '';
+  const okAuth = auth === `Bearer ${validToken}`;
 
-  if (req.url === '/api/request-otp' && req.method === 'POST') {
-    assert.equal(body.msisdn, '213551234567');
-    return send(200, { sessionId: 'live-session-1', expiresIn: 120, masked: '055 *** ** 67' });
+  /* 1) إرسال الرمز */
+  if (url.pathname === '/mobile-api/oauth2/registration' && req.method === 'POST') {
+    assert.equal(url.searchParams.get('scope'), 'smsotp');
+    assert.equal(url.searchParams.get('client_id'), 'test-client-id');
+    assert.match(url.searchParams.get('msisdn'), /^2137\d{8}$/);
+    const body = JSON.parse(raw);
+    assert.equal(body['is-consent'], true);
+    assert.ok(Array.isArray(body['consent-agreement']));
+    assert.match(req.headers['user-agent'], /MobileApp/);
+    return send(200, { message: 'confirmation code has been sent successfully' });
   }
 
-  if (req.url === '/api/verify-otp' && req.method === 'POST') {
-    if (body.otp !== '123456') return send(401, { message: 'OTP invalide' });
-    return send(200, { accessToken: validToken, refreshToken: 'refresh_abc', expiresIn: 3600 });
+  /* 2) التحقق واستخراج التوكن */
+  if (url.pathname === '/oauth2/token' && req.method === 'POST') {
+    const form = new URLSearchParams(raw);
+    if (form.get('grant_type') === 'mobile') {
+      assert.equal(form.get('scope'), 'djezzyAppV2');
+      assert.equal(form.get('client_secret'), 'test-client-secret');
+      assert.equal(form.get('mobileNumber'), '213770123456');
+      if (form.get('otp') !== '123456') {
+        return send(400, { error: 'invalid_grant', error_description: 'Invalid otp' });
+      }
+      return send(200, { access_token: validToken, refresh_token: 'refresh_abc', expires_in: 3600 });
+    }
+    if (form.get('grant_type') === 'refresh_token') {
+      validToken = 'live_token_2';
+      return send(200, { access_token: validToken, refresh_token: 'refresh_xyz', expires_in: 3600 });
+    }
+    return send(400, { error: 'unsupported_grant_type' });
   }
 
-  if (req.url === '/api/refresh-token' && req.method === 'POST') {
-    validToken = 'live_token_2';
-    return send(200, { accessToken: validToken, refreshToken: 'refresh_xyz', expiresIn: 3600 });
+  /* 3) سجل الاشتراكات */
+  if (url.pathname.startsWith('/mobile-api/api/v1/subscribers/subscription-history/')) {
+    if (!okAuth) return send(401, { fault: { code: 900901, message: 'Invalid Credentials' } });
+    return send(200, { status: 200, data: historyItems });
   }
 
-  if (req.url === '/api/offers' && req.method === 'GET') {
-    if (auth !== `Bearer ${validToken}`) return send(401, { message: 'Token expired' });
-    return send(200, { data: { offers: [{ offerId: 'OFF6', name: '6 Go Internet', claimable: true }] } });
+  /* 4) هدية 2 جيجا الأسبوعية */
+  if (url.pathname.includes('/services/walk/activate-reward/')) {
+    if (expireNextRewardCall) {
+      expireNextRewardCall = false;
+      return send(401, { fault: { code: 900901, message: 'Invalid Credentials' } });
+    }
+    if (!okAuth) return send(401, { fault: { code: 900901, message: 'Invalid Credentials' } });
+    const body = JSON.parse(raw);
+    assert.equal(body.packageCode, 'GIFTWALKWIN2GO');
+    if (ineligible) {
+      return send(402, { status: 402, message: { en: 'You must subscribe to a plan' } });
+    }
+    weeklyClaimed += 1;
+    historyItems = [
+      { packageCode: 'GIFTWALKWIN2GO', subscriptionDateTime: new Date().toISOString() },
+      ...historyItems,
+    ];
+    return send(200, { status: 200, message: { en: 'Your request has been processed successfully' } });
   }
 
-  if (req.url === '/api/offers/OFF6/claim' && req.method === 'POST') {
-    if (auth !== `Bearer ${validToken}`) return send(401, { message: 'Token expired' });
-    claimCount += 1;
-    return send(200, claimCount === 1 ? { status: 'ACTIVATED' } : { status: 'ALREADY_ACTIVE' });
+  /* 5) الهدية الترويجية */
+  if (url.pathname.includes('/services/scan/activate-reward/')) {
+    if (!okAuth) return send(401, { fault: { code: 900901 } });
+    const body = JSON.parse(raw);
+    assert.ok(body.qrCode, 'qrCode مطلوب');
+    return send(200, { status: 200, message: { en: 'successfully done' } });
   }
 
-  if (req.url === '/api/gifts' && req.method === 'GET') {
-    if (auth !== `Bearer ${validToken}`) return send(401, { message: 'Token expired' });
-    return send(200, { gifts: [{ giftId: 'G2W', name: '2 Go Hebdomadaire', claimable: true }] });
-  }
-
-  if (req.url === '/api/gifts/G2W/claim' && req.method === 'POST') {
-    if (auth !== `Bearer ${validToken}`) return send(401, { message: 'Token expired' });
-    return send(200, { status: 'CLAIMED' });
-  }
-
-  if (req.url === '/api/me' && req.method === 'GET') {
-    if (auth !== `Bearer ${validToken}`) return send(401, { message: 'Token expired' });
-    return send(200, { plan: 'Prépayé', balance: '120 DZD' });
+  /* 6) باقة مدفوعة */
+  if (url.pathname.includes('/subscribers/activate-product/')) {
+    if (!okAuth) return send(401, { fault: { code: 900901 } });
+    return send(200, { status: 200, message: { en: 'successfully done' } });
   }
 
   return send(404, { message: 'not found' });
 });
 
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-const baseUrl = `http://127.0.0.1:${server.address().port}/api`;
+const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
 const client = new DjezzyClient({ baseUrl, dryRun: false, timeoutMs: 5000 });
 const engine = new DjezzyEngine({ client, store });
 
 const TG_ID = 888000111;
-const MSISDN = '213551234567';
+const MSISDN = '213770123456';
 const steps = [];
 const step = async (name, fn) => {
   try {
@@ -114,73 +144,86 @@ const step = async (name, fn) => {
 
 await step('العميل يعمل في الوضع المباشر', () => assert.equal(client.mode, 'live'));
 
-await step('طلب OTP يرسل الترويسات الصحيحة', async () => {
+await step('طلب OTP حقيقي (query + JSON body + User-Agent)', async () => {
   const started = await engine.startLogin(TG_ID, MSISDN);
-  assert.equal(started.sessionId, 'live-session-1');
-  const headers = seenHeaders.at(-1);
-  assert.match(headers['user-agent'], /Djezzy/);
-  assert.match(headers['content-type'], /application\/json/);
-  assert.match(headers.accept, /application\/json/);
-  assert.ok(headers['x-request-id'], 'يجب إرسال X-Request-Id');
+  assert.equal(started.ok, true);
+  assert.equal(started.sessionId, `otp:${MSISDN}`);
+  const reg = calls.find((call) => call.path === '/mobile-api/oauth2/registration');
+  assert.ok(reg, 'يجب استدعاء مسار registration');
 });
 
-await step('رمز خاطئ يُحوَّل إلى OTP_INVALID', async () => {
-  const user = await store.getUser(TG_ID);
+await step('رمز خاطئ → OTP_INVALID', async () => {
   await assert.rejects(
-    () => engine.confirmLogin(TG_ID, MSISDN, '999999', user.state.temp.sessionId),
+    () => engine.confirmLogin(TG_ID, MSISDN, '999999'),
     (error) => error.code === ERROR_CODES.OTP_INVALID,
   );
 });
 
-await step('رمز صحيح يحفظ التوكن مشفّراً', async () => {
-  const user = await store.getUser(TG_ID);
-  const result = await engine.confirmLogin(TG_ID, MSISDN, '123456', user.state.temp.sessionId);
+await step('رمز صحيح → توكن حقيقي محفوظ مشفّراً', async () => {
+  const result = await engine.confirmLogin(TG_ID, MSISDN, '123456');
   assert.ok(result.account.hasRefresh);
   const saved = await store.getUser(TG_ID);
-  assert.ok(!JSON.stringify(saved).includes('live_token_1'), 'لا يجوز ظهور التوكن صريحاً');
+  assert.ok(!JSON.stringify(saved).includes('live_token_1'), 'لا يجوز تخزين التوكن صريحاً');
 });
 
-await step('قراءة العروض مع Bearer Token', async () => {
+await step('السجل يُقرأ بالتوكن', async () => {
   const overview = await engine.getOverview(TG_ID, MSISDN);
-  assert.equal(overview.sixGbOffer.id, 'OFF6');
-  assert.equal(overview.profile.balance, '120 DZD');
-  const offersCall = calls.find((call) => call.url === '/api/offers');
-  assert.ok(offersCall, 'يجب استدعاء /offers');
-  assert.ok(seenHeaders.some((h) => h.authorization === 'Bearer live_token_1'));
+  assert.equal(overview.lastWeeklyAt, null);
+  assert.equal(overview.canClaimNow, true);
+  const call = calls.find((item) => item.path.includes('subscription-history'));
+  assert.ok(call, 'يجب استدعاء السجل');
 });
 
-await step('تفعيل 6 جيغا مباشر + رفض التكرار', async () => {
-  const result = await engine.activateSixGb(TG_ID, MSISDN);
-  assert.equal(result.status, 'activated');
+await step('استلام هدية 2 جيجا حقيقي (walk/activate-reward)', async () => {
+  const result = await engine.claimWeeklyGift(TG_ID, MSISDN);
+  assert.equal(result.ok, true);
+  assert.equal(weeklyClaimed, 1);
+  const call = calls.find((item) => item.path.includes('/services/walk/activate-reward/'));
+  assert.ok(call?.body.includes('GIFTWALKWIN2GO'));
+});
+
+await step('السجل يمنع الاستلام الثاني (مهلة 7 أيام)', async () => {
+  const before = weeklyClaimed;
+  const result = await engine.claimWeeklyGift(TG_ID, MSISDN);
+  assert.equal(result.status, 'cooldown');
+  assert.equal(weeklyClaimed, before, 'يجب ألا يُرسل طلب ثانٍ');
+  assert.ok(result.nextEligibleAt > Date.now());
+});
+
+await step('402 من جيزي → خطأ أهلية واضح', async () => {
+  // نُفرّغ السجل ونعلن عدم الأهلية
+  historyItems = [];
+  ineligible = true;
   await assert.rejects(
-    () => engine.activateSixGb(TG_ID, MSISDN),
-    (error) => error.code === ERROR_CODES.OFFER_ALREADY_ACTIVE,
+    () => engine.claimWeeklyGift(TG_ID, MSISDN),
+    (error) => error.code === ERROR_CODES.BALANCE,
+  );
+  ineligible = false;
+});
+
+await step('900901 (توكن منتهٍ) → تجديد تلقائي ثم نجاح', async () => {
+  historyItems = [];
+  expireNextRewardCall = true;
+  const result = await engine.claimWeeklyGift(TG_ID, MSISDN);
+  assert.equal(result.ok, true);
+  assert.ok(calls.some((call) => call.body.includes('grant_type=refresh_token')), 'يجب تجديد الجلسة');
+});
+
+await step('الهدية الترويجية (scan) تُستلم', async () => {
+  const result = await engine.claimPromoGift(TG_ID, MSISDN);
+  assert.equal(result.ok, true);
+  assert.ok(calls.some((call) => call.path.includes('/services/scan/activate-reward/')));
+});
+
+await step('الباقة المدفوعة لا تُفعّل بدون رمز مضبوط', async () => {
+  await assert.rejects(
+    () => engine.activatePaidOffer(TG_ID, MSISDN),
+    (error) => error.code === ERROR_CODES.OFFER_NOT_FOUND,
   );
 });
 
-await step('استلام هدية 2 جيغا (مطابقة 2 Go Hebdomadaire)', async () => {
-  const result = await engine.claimWeeklyGift(TG_ID, MSISDN);
-  assert.equal(result.ok, true);
-  assert.equal(result.weeklyClaimed, true);
-});
-
-await step('توكن منتهٍ/غير صالح يُجدَّد تلقائياً ثم يُعاد الطلب', async () => {
-  const user = await store.getUser(TG_ID);
-  user.accounts[MSISDN].tokenExpiresAt = Date.now() + 3600_000; // يبدو صالحاً…
-  user.accounts[MSISDN].tokenEnc = (await import('../src/crypto.js')).encrypt('expired_token');
-  await store.saveUser(user);
-
-  // السيرفر سيرد 401 → المحرّك يجدّد عبر /refresh-token → يعيد الطلب
-  const overview = await engine.getOverview(TG_ID, MSISDN);
-  assert.equal(overview.sixGbOffer.id, 'OFF6');
-
-  const refreshed = await store.getUser(TG_ID);
-  assert.ok(refreshed.accounts[MSISDN].tokenExpiresAt > Date.now());
-  assert.ok(calls.some((call) => call.url === '/api/refresh-token'), 'يجب استدعاء /refresh-token');
-});
-
 await step('خطأ الشبكة يُحوَّل إلى NETWORK', async () => {
-  const deadClient = new DjezzyClient({ baseUrl: 'http://127.0.0.1:1/api', dryRun: false, timeoutMs: 1500 });
+  const deadClient = new DjezzyClient({ baseUrl: 'http://127.0.0.1:1', dryRun: false, timeoutMs: 1200 });
   await assert.rejects(
     () => deadClient.requestOtp({ msisdn: MSISDN }),
     (error) => [ERROR_CODES.NETWORK, ERROR_CODES.TIMEOUT].includes(error.code),
@@ -188,7 +231,7 @@ await step('خطأ الشبكة يُحوَّل إلى NETWORK', async () => {
 });
 
 server.close();
-await new Promise((resolve) => setTimeout(resolve, 100));
+await new Promise((resolve) => setTimeout(resolve, 80));
 
 const failed = steps.filter((item) => !item.ok);
 console.log(`\n${'-'.repeat(52)}`);
@@ -197,5 +240,5 @@ if (failed.length) {
   console.error('خطوات فاشلة:', failed.map((item) => item.name).join(' | '));
   process.exit(1);
 }
-console.log('✅ العميل المباشر (axios) يعمل كما هو متوقع.');
+console.log('✅ العميل المباشر يطابق واجهة جيزي الحقيقية.');
 process.exit(0);

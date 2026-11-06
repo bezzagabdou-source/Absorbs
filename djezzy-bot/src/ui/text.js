@@ -7,8 +7,8 @@ export const loginPrompt = () =>
   [
     '📱 <b>إضافة رقم جديد</b>',
     '',
-    'أرسل رقم جيزي الآن، بصيغة محلية أو دولية:',
-    '<code>05XXXXXXXX</code> أو <code>+2135XXXXXXXX</code>',
+    'أرسل رقم جيزي الآن (أرقام 07 فقط):',
+    '<code>07XXXXXXXX</code> أو <code>+2137XXXXXXXX</code>',
     '',
     'سنرسل إليك رمز تحقق (OTP) على الرقم نفسه.',
     '',
@@ -71,30 +71,36 @@ export function accountsText(accounts, activeMsisdn) {
 }
 
 export function overviewText({ account, overview }) {
-  const profile = overview.profile || {};
   const lines = [
     '📊 <b>حالة الحساب</b>',
     '',
     `الرقم: <code>${escape(account.label)}</code>`,
+    `حالة الجلسة: ${account.sessionValid ? '✅ صالحة' : '⚠️ تحتاج تجديداً'}`,
+    '',
+    overview.lastWeeklyAt
+      ? `🎁 آخر هدية 2 جيجا: ${escape(formatDateTime(overview.lastWeeklyAt))}`
+      : '🎁 لم تستلم هدية 2 جيجا من هذا البوت بعد',
   ];
 
-  const plan = profile.plan || profile.offer || profile.package;
-  const balance = profile.balance ?? profile.credit ?? profile.solde;
-  const dataLeft = profile.dataLeft ?? profile.remainingData ?? profile.data;
+  if (overview.nextEligibleAt) {
+    lines.push(
+      overview.canClaimNow
+        ? '✅ يحق لك استلام هدية جديدة الآن'
+        : `⏳ الهدية القادمة: ${escape(formatDateTime(overview.nextEligibleAt))}`,
+    );
+  }
 
-  if (plan) lines.push(`الباقة: ${escape(plan)}`);
-  if (balance !== undefined) lines.push(`الرصيد: ${escape(balance)}`);
-  if (dataLeft !== undefined) lines.push(`الإنترنت المتبقي: ${escape(dataLeft)}`);
+  if (overview.recent?.length) {
+    lines.push('', '<b>آخر الاشتراكات:</b>');
+    for (const item of overview.recent) {
+      lines.push(`• <code>${escape(item.code)}</code>${item.at ? ` — ${escape(formatDateTime(item.at))}` : ''}`);
+    }
+  }
 
   lines.push(
     '',
-    overview.sixGbOffer
-      ? `🔥 عرض 6 جيغا: <b>${overview.sixGbOffer.claimable ? 'متاح للتفعيل' : 'مُفعّل/غير متاح'}</b>`
-      : '🔥 عرض 6 جيغا: <b>غير ظاهر في حسابك</b>',
-    overview.weeklyGift
-      ? `🎁 هدية 2 جيغا الأسبوعية: <b>${overview.weeklyGift.claimable ? 'متاحة' : 'مُستلمة'}</b>`
-      : '🎁 هدية 2 جيغا الأسبوعية: <b>غير متاحة حالياً</b>',
-    `\n🧪 وضع التشغيل: ${MODE_LABEL[overview.mode] || overview.mode}`,
+    overview.promoConfigured ? '🌟 الهدية الترويجية (QR): متاحة للتجربة' : '🌟 الهدية الترويجية: غير مضبوطة',
+    `🧪 وضع التشغيل: ${MODE_LABEL[overview.mode] || overview.mode}`,
   );
 
   return lines.join('\n');
@@ -118,6 +124,19 @@ export function activationSuccess({ label, item, data, validity, simulated = fal
 }
 
 export function giftsResult(result, { simulated = false } = {}) {
+  if (result.status === 'cooldown') {
+    return [
+      '⏳ <b>الهدية مُستلمة مسبقاً</b>',
+      '',
+      result.lastAt ? `آخر استلام: ${escape(formatDateTime(result.lastAt))}` : '',
+      result.nextEligibleAt ? `المتاح التالي: ${escape(formatDateTime(result.nextEligibleAt))}` : '',
+      '',
+      'هدية 2 جيجا متاحة مرة واحدة كل 7 أيام.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   const lines = [simulated ? '🧪 <b>نتيجة استلام الهدايا (محاكاة)</b>' : '🎁 <b>نتيجة استلام الهدايا</b>', ''];
 
   if (result.claimed?.length) {
@@ -141,17 +160,6 @@ export function giftsResult(result, { simulated = false } = {}) {
   if (simulated) lines.push('', SIMULATION_BANNER);
 
   return lines.join('\n');
-}
-
-export function challengePrompt({ label, challengeId }) {
-  return [
-    '🔐 <b>خطوة تحقّق إضافية</b>',
-    '',
-    `جيزي تطلب تأكيداً لإتمام: ${escape(label)}.`,
-    challengeId ? 'أرسل رمز/إجابة التحقق التي وصلتك الآن.' : 'أرسل رمز التحقق الذي وصلك الآن.',
-    '',
-    'إن لم يصلك شيء، أرسل <code>/cancel</code>.',
-  ].join('\n');
 }
 
 export function errorText(error) {
@@ -194,7 +202,6 @@ export default {
   overviewText,
   activationSuccess,
   giftsResult,
-  challengePrompt,
   errorText,
   statusPage,
   formatDateTime,
