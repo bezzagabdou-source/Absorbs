@@ -13,7 +13,7 @@ export function parseAiResponse(text: string): AiAssistOutput {
 }
 export async function assist(input: AiAssistInput, fetchImpl: typeof fetch = fetch): Promise<AiAssistOutput> {
   const key = process.env.GEMINI_API_KEY; if (!key) throw new AppError("ai_unavailable", 503);
-  const model = process.env.GEMINI_FLASH_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_FLASH_MODEL || "gemini-3.8-flash";
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) throw new AppError("ai_unavailable", 503);
   let response: Response;
   try {

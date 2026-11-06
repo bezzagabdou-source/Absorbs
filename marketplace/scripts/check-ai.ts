@@ -3,7 +3,7 @@ config({ path: ".env.local", quiet: true }); config({ quiet: true });
 async function main() {
   const key = process.env.GEMINI_API_KEY;
   if (!key) { console.error(JSON.stringify({ event: "ai_check_failed", reason: "missing_key" })); process.exitCode = 1; return; }
-  const model = process.env.GEMINI_FLASH_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_FLASH_MODEL || "gemini-3.8-flash";
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Reply with JSON: {\"ok\":true}" }] }], generationConfig: { temperature: 0, maxOutputTokens: 64, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } } }),
