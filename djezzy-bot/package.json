@@ -1,0 +1,31 @@
+{
+  "name": "djezzy-telegram-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "بوت تيليجرام لإدارة أرقام جيزي وتفعيل العروض والهدايا آلياً — جاهز للنشر على Vercel",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "start": "node scripts/dev-server.js",
+    "set-webhook": "node scripts/set-webhook.js",
+    "delete-webhook": "node scripts/set-webhook.js --delete",
+    "webhook-info": "node scripts/set-webhook.js --info",
+    "self-test": "node scripts/self-test.js",
+    "check": "node --check api/index.js && node --check api/app.js && node --check src/bot.js",
+    "test": "node scripts/self-test.js && node scripts/ux-test.js && node scripts/live-client-test.js",
+    "test:engine": "node scripts/self-test.js",
+    "test:ux": "node scripts/ux-test.js",
+    "test:live": "node scripts/live-client-test.js",
+    "doctor": "node scripts/doctor.js",
+    "poll": "USE_POLLING=1 node scripts/dev-server.js",
+    "doctor:fix": "node scripts/doctor.js --fix"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "express": "^4.21.2",
+    "grammy": "^1.32.0"
+  }
+}
