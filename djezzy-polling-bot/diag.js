@@ -6,7 +6,7 @@
  */
 import 'dotenv/config';
 import process from 'node:process';
-import { Djezzy } from './djezzy.js';
+import { Djezzy, resolveHost } from './djezzy.js';
 
 const ok = (label, value) => console.log(`✅ ${label}: ${value}`);
 const bad = (label, value) => console.log(`❌ ${label}: ${value}`);
@@ -45,24 +45,76 @@ try {
   process.exit(1);
 }
 
-console.log(`   الخادم: ${client.meta.baseUrl} · المهلة: ${client.meta.timeoutMs} ms`);
+console.log(`   الخادم: ${client.meta.baseUrl} · المهلة: ${client.meta.timeoutMs} ms · المحاولات: ${client.meta.retries + 1}`);
+console.log(`   الشبكة: ${client.meta.forceIpv4 ? 'IPv4 فقط (DJEZZY_FORCE_IPV4=1)' : 'تلقائي IPv4/IPv6'}`);
+
+const pool = client.meta.pool;
+if (pool.enabled) {
+  console.log(`ℹ️  بروكسي جزائري: ${pool.total} مضبوط — النتيجة تظهر بعد الاختبار`);
+  console.log(
+    pool.text
+      .split('\n')
+      .map((line) => `      ${line}`)
+      .join('\n'),
+  );
+} else {
+  warn('بروكسي جزائري', 'غير مضبوط — الاتصال مباشر (يعمل فقط من داخل الجزائر)');
+}
+
+// سجلات DNS: أوّل سبب لـ ECONNABORTED/ETIMEDOUT هو التعليق على IPv6
+const host = new URL(client.meta.baseUrl).hostname;
+const dnsInfo = await resolveHost(host);
+if (dnsInfo.error) {
+  warn(`DNS ${host}`, `${dnsInfo.error} — جرّب إيقاف Private DNS أو تغيير DNS إلى dns.google`);
+} else {
+  const v4 = dnsInfo.list.filter((item) => item.family === 4).map((item) => item.address);
+  const v6 = dnsInfo.list.filter((item) => item.family === 6).map((item) => item.address);
+  console.log(`ℹ️  DNS ${host}: IPv4 [${v4.join(', ') || '—'}] · IPv6 [${v6.join(', ') || '—'}]`);
+  if (!v4.length) warn('سجل A', 'غير موجود — الاتصال سيفشل إذا كانت IPv6 محجوبة');
+}
+
 const probe = await client.probe();
+
+if (probe.pool && probe.pool.enabled) {
+  const after = probe.pool;
+  console.log(`   حالة البروكسي بعد الاختبار: ${after.healthy}/${after.total} صالح`);
+  console.log(
+    after.text
+      .split('\n')
+      .map((line) => `      ${line}`)
+      .join('\n'),
+  );
+}
 
 if (probe.reachable) {
   ok('الوصول إلى جيزي', `HTTP ${probe.status} في ${probe.ms} ms`);
   console.log('\n🎯 كل شيء جاهز: شغّل البوت بـ npm start');
 } else {
   bad('الوصول إلى جيزي', `${probe.error} بعد ${probe.ms} ms`);
+
+  const code = String(probe.error || '');
+  const timeoutLike = /ECONNABORTED|ETIMEDOUT|ESOCKETTIMEDOUT|timeout/i.test(code);
+  const dnsLike = /ENOTFOUND|EAI_AGAIN/i.test(code);
+
   console.log(
     [
       '',
-      '💡 الحلول:',
-      '   • تأكد أنك داخل الجزائر (شبكة جيزي/جزائرية) وأوقف أي VPN.',
-      '   • جرّب بيانات الهاتف بدل Wi-Fi.',
-      '   • أو اضبط وكيلاً جزائرياً: DJEZZY_PROXY=http://host:port في .env',
+      timeoutLike ? '⏱️  نوع الخطأ: تعليق/مهلة في الشبكة (ليس حجباً جغرافياً بالضرورة)' : '',
+      dnsLike ? '🔤 نوع الخطأ: فشل تحليل الاسم (DNS)' : '',
+      '💡 الحلول بالترتيب:',
+      dnsLike
+        ? '   1. أطفي Private DNS في إعدادات أندرويد (أو اضبطه على dns.google).'
+        : '   1. أوقف أي VPN، ثم بدّل بين Wi-Fi وبيانات جيزي وأعد المحاولة.',
+      '   2. تأكد أنك داخل الجزائر (شبكة جيزي/جزائرية).',
+      '   3. ارفع المهلة والمحاولات: DJEZZY_TIMEOUT_MS=60000 و DJEZZY_RETRIES=3 في .env',
+      '   4. إن كان IPv6 وحدَه متاحاً: DJEZZY_FORCE_IPV4=0 في .env',
+      '   5. أو اضبط بروكسي جزائرياً: DJEZZY_PROXIES=http://user:pass@ip:port[,socks5://…] في .env',
+      '      (من داخل الجزائر لا تحتاج بروكسي — من استضافة سحابية البروكسي إجباري)',
       '',
       '⚠️  Vercel/Railway/Render لن تعمل: خوادم جيزي تحجب الشبكات الأجنبية.',
-    ].join('\n'),
+    ]
+      .filter(Boolean)
+      .join('\n'),
   );
   process.exit(2);
 }

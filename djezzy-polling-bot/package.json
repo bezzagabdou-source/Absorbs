@@ -17,6 +17,8 @@
   "dependencies": {
     "axios": "^1.7.9",
     "dotenv": "^16.4.7",
+    "https-proxy-agent": "^7.0.5",
+    "socks-proxy-agent": "^8.0.4",
     "telegraf": "^4.16.3"
   }
 }

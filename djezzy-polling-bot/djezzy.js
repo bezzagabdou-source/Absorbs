@@ -19,13 +19,98 @@
  * ============================================================================
  */
 import axios from 'axios';
+import dns from 'node:dns';
+import https from 'node:https';
 import process from 'node:process';
+
+import { ProxyPool, parseProxyList } from './proxy.js';
+
+/* ------------------- إصلاح تعليق الشبكة: IPv4 + keepAlive ------------------- */
+// السبب الأشهر لـ ECONNABORTED / ETIMEDOUT على شبكات الهاتف (4G/Wi-Fi جزائرية):
+// يحاول Node الاتصال عبر IPv6 أولاً فيعلق حتى انتهاء المهلة، رغم أن IPv4 يعمل.
+// نفرض IPv4 صراحةً + نُبقي الاتصال مفتوحاً (keepAlive) لتقليل زمن كل طلب.
+// للتعطيل (مثلاً عند وجود IPv6 سليم فقط): DJEZZY_FORCE_IPV4=0
+export const FORCE_IPV4 = String(process.env.DJEZZY_FORCE_IPV4 ?? '1') !== '0';
+
+if (FORCE_IPV4) {
+  try {
+    dns.setDefaultResultOrder('ipv4first');
+  } catch {
+    /* Node قديم — نتجاهل */
+  }
+}
+
+/* ---------- DNS احتياطي: بعض الشبكات تحجب/تُفسد DNS المشغّل ---------- */
+const FALLBACK_DNS = (process.env.DJEZZY_FALLBACK_DNS || '1.1.1.1,8.8.8.8')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+const fallbackResolver = new dns.Resolver({ timeout: 4000, tries: 2 });
+try {
+  if (FALLBACK_DNS.length) fallbackResolver.setServers(FALLBACK_DNS);
+} catch {
+  /* تجاهل */
+}
+
+/** يحلّ الاسم عبر خوادم DNS عامة (يُستعمل فقط عند فشل DNS النظام) */
+const resolve4Fallback = (hostname) =>
+  new Promise((resolve) => {
+    try {
+      fallbackResolver.resolve4(hostname, (error, addresses) =>
+        resolve(error || !addresses || !addresses.length ? null : addresses[0]),
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+
+/** lookup يفرض IPv4، ويجرّب DNS احتياطياً عند فشل DNS النظام (ENOTFOUND/EAI_AGAIN) */
+const ipv4Lookup = (hostname, options, callback) => {
+  if (!FORCE_IPV4) return dns.lookup(hostname, options, callback);
+  const wantAll = Boolean(options && options.all);
+
+  const finish = (error, list) => {
+    const v4 = (list || []).filter((item) => item.family === 4 || item.family === 'IPv4');
+    if (!error && v4.length) {
+      return wantAll ? callback(null, v4) : callback(null, v4[0].address, 4);
+    }
+    return resolve4Fallback(hostname).then((ip) => {
+      if (ip) return wantAll ? callback(null, [{ address: ip, family: 4 }]) : callback(null, ip, 4);
+      return callback(error || Object.assign(new Error('ENOTFOUND ' + hostname), { code: 'ENOTFOUND' }));
+    });
+  };
+
+  return dns.lookup(hostname, { ...options, family: 4, all: true }, finish);
+};
+
+/** وكيل HTTPS موحّد: IPv4 فقط + keepAlive + مهلة سوكت أطول من مهلة الطلب */
+export const ipv4Agent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 1000,
+  maxSockets: 8,
+  lookup: ipv4Lookup,
+  timeout: 60_000,
+});
+
+/** يرجّع سجلات DNS (A/AAAA) — يُستعمل في diag.js لشرح سبب التعليق */
+export const resolveHost = (host) =>
+  new Promise((resolve) => {
+    dns.lookup(host, { all: true }, (error, list) => {
+      if (error) return resolve({ error: error.code || error.message, list: [] });
+      return resolve({
+        error: null,
+        list: (list || []).map((item) => ({ address: item.address, family: item.family })),
+      });
+    });
+  });
 
 /* ------------------------------- الأخطاء ------------------------------- */
 export const KIND = {
   CONFIG: 'CONFIG',
   NETWORK: 'NETWORK',
   GEO: 'GEO',
+  TIMEOUT: 'TIMEOUT',
   SERVER: 'SERVER',
   OTP_INVALID: 'OTP_INVALID',
   OTP_EXPIRED: 'OTP_EXPIRED',
@@ -42,6 +127,9 @@ const FRIENDLY = {
   [KIND.GEO]:
     'تعذّر الوصول إلى خوادم جيزي: جيزي تقبل الاتصال من شبكات داخل الجزائر فقط.\n' +
     'أوقف أي VPN، واستعمل بيانات الهاتف (Djezzy) ثم أعد المحاولة.',
+  [KIND.TIMEOUT]:
+    'انتهت مهلة الاتصال بخوادم جيزي (تعليق في مسار الشبكة).\n' +
+    'جرّب بالترتيب: أوقف أي VPN ← بدّل بين Wi-Fi وبيانات جيزي ← أعد المحاولة.',
   [KIND.SERVER]: 'خوادم جيزي تُعيد خطأ مؤقتاً. أعد المحاولة بعد قليل.',
   [KIND.OTP_INVALID]: 'رمز التحقق غير صحيح. أعد إدخاله.',
   [KIND.OTP_EXPIRED]: 'انتهت صلاحية الرمز — أرسل /start واطلب رمزاً جديداً.',
@@ -131,7 +219,7 @@ export class Djezzy {
 
     this.baseUrl = (options.baseUrl || env.DJEZZY_BASE_URL || 'https://apim.djezzy.dz').replace(/\/+$/, '');
     this.timeoutMs = Number(options.timeoutMs || env.DJEZZY_TIMEOUT_MS || 45000);
-    this.retries = Number(options.retries ?? env.DJEZZY_RETRIES ?? 1);
+    this.retries = Number(options.retries ?? env.DJEZZY_RETRIES ?? 2);
 
     this.paths = {
       requestOtp: '/mobile-api/oauth2/registration',
@@ -174,11 +262,20 @@ export class Djezzy {
     const proxyUrl = options.proxyUrl || env.DJEZZY_PROXY || env.HTTPS_PROXY || env.HTTP_PROXY || '';
     const proxy = options.proxy === false ? false : options.proxy || parseProxy(proxyUrl);
 
+    // تجميع بروكسيات جزائرية (DJEZZY_PROXIES) — طبقة تجاوز الحجب الجغرافي
+    const poolSource =
+      options.proxies ?? env.DJEZZY_PROXIES ?? (env.DJEZZY_PROXY_LIST || '');
+    this.pool = new ProxyPool(parseProxyList(poolSource), {
+      timeoutMs: this.timeoutMs,
+      directFallback: String(options.directFallback ?? env.DJEZZY_DIRECT_FALLBACK ?? '1') !== '0',
+    });
+
     this.http = axios.create({
       baseURL: this.baseUrl,
       timeout: this.timeoutMs,
       proxy,
-      httpsAgent: options.httpsAgent,
+      // عند وجود Proxy لا نضع وكيلاً مخصّصاً (axios يتكفّل بالنفق)
+      httpsAgent: options.httpsAgent || (proxy ? undefined : ipv4Agent),
       httpAgent: options.httpAgent,
       validateStatus: () => true,
       responseType: 'text',
@@ -187,7 +284,16 @@ export class Djezzy {
       headers: { ...this.headers },
     });
 
-    this.meta = { proxy: proxy || null, timeoutMs: this.timeoutMs, baseUrl: this.baseUrl };
+    this.meta = {
+      proxy: proxy || null,
+      pool: this.pool.status(),
+      proxyPool: this.pool,
+      timeoutMs: this.timeoutMs,
+      baseUrl: this.baseUrl,
+      forceIpv4: FORCE_IPV4,
+      retries: this.retries,
+      fallbackDns: FORCE_IPV4 ? FALLBACK_DNS : [],
+    };
   }
 
   /** ينشئ العميل من متغيّرات البيئة */
@@ -216,8 +322,19 @@ export class Djezzy {
     if (token) headers.Authorization = `Bearer ${token}`;
     if (!headers['X-Request-Id']) headers['X-Request-Id'] = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
+    // اختيار بروكسي جزائري لهذه المحاولة (إن وُجد) — مع توجيه إجباري عبره
+    const proxyEntry = this.pool.next();
+    const requestOptions = { method, url: path, params, data: payload, headers };
+    if (proxyEntry) {
+      requestOptions.httpsAgent = proxyEntry.agent;
+      requestOptions.httpAgent = proxyEntry.agent;
+      requestOptions.proxy = false;
+    }
+
+    const startedAt = Date.now();
     try {
-      const response = await this.http.request({ method, url: path, params, data: payload, headers });
+      const response = await this.http.request(requestOptions);
+      if (proxyEntry) this.pool.markOk(proxyEntry, Date.now() - startedAt);
       const text = typeof response.data === 'string' ? response.data : '';
       let json = null;
       try {
@@ -233,13 +350,17 @@ export class Djezzy {
 
       return { status: response.status, json, text };
     } catch (error) {
-      if (attempt < this.retries && isTimeout(error)) {
-        await new Promise((resolve) => setTimeout(resolve, 800));
+      if (proxyEntry) this.pool.markFail(proxyEntry, error?.code || error?.message);
+      // تعليق/انقطاع الشبكة: إعادة محاولة بفاصل متزايد قبل إبلاغ المستخدم
+      // مع بروكسي: أي خطأ شبكة يستدعي تجربة بروكسي آخر
+      if (attempt < this.retries && (isTimeout(error) || Boolean(proxyEntry))) {
+        await new Promise((resolve) => setTimeout(resolve, 900 * (attempt + 1)));
         return this.#send({ method, path, params, data, form, token, attempt: attempt + 1 });
       }
-      throw new DjezzyError(isTimeout(error) || !error?.response ? KIND.GEO : KIND.NETWORK, null, {
-        cause: error?.code || error?.message,
-      });
+      const code = error?.code || '';
+      const timedOut = ['ECONNABORTED', 'ETIMEDOUT', 'ESOCKETTIMEDOUT'].includes(code) || /timeout/i.test(String(error?.message || ''));
+      const kind = timedOut ? KIND.TIMEOUT : isTimeout(error) || !error?.response ? KIND.GEO : KIND.NETWORK;
+      throw new DjezzyError(kind, null, { cause: code || error?.message });
     }
   }
 
@@ -406,17 +527,48 @@ export class Djezzy {
   /** يتحقّق إن كان الوصول إلى جيزي ممكناً من هذا الجهاز (TCP/HTTP حقيقي) */
   async probe() {
     const started = Date.now();
-    try {
-      const response = await this.http.request({
+    const startedAll = started;
+    const attempts = Math.max(1, Math.min(this.pool.size || 1, 3));
+    let lastError = null;
+
+    for (let i = 0; i < attempts; i += 1) {
+      const entry = this.pool.next();
+      const options = {
         method: 'GET',
         url: '/mobile-api/',
-        timeout: Math.min(this.timeoutMs, 20000),
+        timeout: Math.min(this.timeoutMs, 20_000),
         headers: { ...this.headers },
-      });
-      return { reachable: true, status: response.status, ms: Date.now() - started, proxy: this.meta.proxy };
-    } catch (error) {
-      return { reachable: false, error: error?.code || error?.message, ms: Date.now() - started, proxy: this.meta.proxy };
+      };
+      if (entry) {
+        options.httpsAgent = entry.agent;
+        options.httpAgent = entry.agent;
+        options.proxy = false;
+      }
+
+      try {
+        const response = await this.http.request(options);
+        if (entry) this.pool.markOk(entry, Date.now() - startedAll);
+        return {
+          reachable: true,
+          status: response.status,
+          ms: Date.now() - startedAll,
+          viaProxy: entry ? `${entry.protocol}://${entry.host}:${entry.port}` : null,
+          proxy: this.meta.proxy,
+          pool: this.pool.status(),
+        };
+      } catch (error) {
+        lastError = error;
+        if (entry) this.pool.markFail(entry, error?.code || error?.message);
+      }
     }
+
+    return {
+      reachable: false,
+      error: lastError?.code || lastError?.message,
+      ms: Date.now() - startedAll,
+      proxy: this.meta.proxy,
+      pool: this.pool.status(),
+    };
   }
 }
 
