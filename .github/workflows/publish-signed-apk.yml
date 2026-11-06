@@ -5,6 +5,8 @@ on:
     branches: [arena/f205ded0-absorbs]
     paths:
       - 'marketplace/public/DZ-Exchange.apk'
+      - '.github/workflows/publish-signed-apk.yml'
+      - '.github/scripts/emulator-test.sh'
   workflow_dispatch:
 
 permissions:
