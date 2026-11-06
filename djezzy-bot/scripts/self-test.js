@@ -6,6 +6,14 @@
  *   node scripts/self-test.js
  */
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// عزل التخزين حتى لا تتأثر الاختبارات بجلسات حقيقية محفوظة على القرص
+process.env.STORE_FILE = join(tmpdir(), `djezzy-self-${process.pid}.json`);
+process.env.SESSION_ENCRYPTION_KEY = process.env.SESSION_ENCRYPTION_KEY || 'test-key-0123456789abcdef0123456789abcdef';
+
 import { normalizeMsisdn, isOtpCode } from '../src/util/validate.js';
 import { encrypt, decrypt, safeEqual } from '../src/crypto.js';
 import { DjezzyClient } from '../src/djezzy/client.js';
@@ -194,3 +202,5 @@ if (failed.length) {
   process.exit(1);
 }
 console.log('✅ جميع الاختبارات نجحت — المشروع سليم.');
+
+rmSync(process.env.STORE_FILE, { force: true });

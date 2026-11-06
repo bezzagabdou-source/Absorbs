@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+process.env.STORE_FILE = join(tmpdir(), `djezzy-ux-${process.pid}.json`);
+process.env.SESSION_ENCRYPTION_KEY = process.env.SESSION_ENCRYPTION_KEY || 'test-key-0123456789abcdef0123456789abcdef';
+process.env.DJEZZY_DRY_RUN = 'true';
 /**
  * اختبار واجهة تيليجرام كاملة (End-to-End) بدون شبكة:
  * يهيّئ البوت بمعرّف وهمي ويعترض كل نداءات Telegram API،
