@@ -13,7 +13,7 @@ export function parseAiResponse(text: string): AiAssistOutput {
 }
 async function assistOpenRouter(input: AiAssistInput, fetchImpl: typeof fetch): Promise<AiAssistOutput> {
   const key = process.env.OPENROUTER_API_KEY; if (!key) throw new AppError("ai_unavailable", 503);
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+  const model = process.env.OPENROUTER_MODEL || "openrouter/free";
   let response: Response;
   try {
     response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
@@ -41,7 +41,7 @@ export async function assist(input: AiAssistInput, fetchImpl: typeof fetch = fet
     response = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: "user", parts: [{ text: JSON.stringify(input) }] }], generationConfig: { temperature: 0.25, maxOutputTokens: 2048, responseMimeType: "application/json" } }),
-      signal: AbortSignal.timeout(15000), cache: "no-store", redirect: "error",
+      signal: AbortSignal.timeout(10000), cache: "no-store", redirect: "error",
     });
   } catch { return assistOpenRouter(input, fetchImpl); }
   if (response.status === 429 || response.status === 401 || response.status === 403 || !response.ok || response.status >= 500) return assistOpenRouter(input, fetchImpl);
