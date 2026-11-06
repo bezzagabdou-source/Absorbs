@@ -29,17 +29,19 @@ const test = async (name, fn) => {
 };
 
 const TG_ID = 555000111;
-const MSISDN = normalizeMsisdn('0551234567').msisdn;
+const MSISDN = normalizeMsisdn('0770123456').msisdn;
 
 const client = new DjezzyClient({ dryRun: true });
 const engine = new DjezzyEngine({ client, store });
 
-await test('تطبيع أرقام جيزي (محلي/دولي/عربي)', () => {
-  assert.equal(normalizeMsisdn('0551234567').msisdn, '213551234567');
-  assert.equal(normalizeMsisdn('+213551234567').msisdn, '213551234567');
-  assert.equal(normalizeMsisdn('00213 661 22 33 44').msisdn, '213661223344');
+await test('تطبيع أرقام جيزي (+2137 فقط)', () => {
+  assert.equal(normalizeMsisdn('0551234567').valid, false, 'أرقام 05 مرفوضة');
+  assert.equal(normalizeMsisdn('0661234567').valid, false, 'أرقام 06 مرفوضة');
+  assert.equal(normalizeMsisdn('0770123456').msisdn, '213770123456');
+  assert.equal(normalizeMsisdn('+213 77 123 4567').msisdn, '213771234567');
+  assert.equal(normalizeMsisdn('00213 771 234 567').msisdn, '213771234567');
   assert.equal(normalizeMsisdn('0770-11-22-33').msisdn, '213770112233');
-  assert.equal(normalizeMsisdn('٠٦٦١٢٣٤٥٦٧').msisdn, '213661234567');
+  assert.equal(normalizeMsisdn('٠٧٧١٢٣٤٥٦٧').msisdn, '213771234567');
   assert.equal(normalizeMsisdn('12345').valid, false);
   assert.equal(normalizeMsisdn('021234567').valid, false);
   assert.ok(isOtpCode('123456'));
@@ -64,7 +66,7 @@ await test('تسجيل الدخول عبر OTP وتخزين الجلسة مشف�
   assert.equal(user.state.step, 'awaiting_otp');
 
   const code = user.state.temp.debugCode;
-  const result = await engine.confirmLogin(TG_ID, MSISDN, code, started.sessionId);
+  const result = await engine.confirmLogin(TG_ID, MSISDN, code);
   assert.ok(result.account.label.includes('***'));
 
   const saved = await store.getUser(TG_ID);
@@ -75,9 +77,9 @@ await test('تسجيل الدخول عبر OTP وتخزين الجلسة مشف�
 });
 
 await test('رمز خاطئ يُرفض', async () => {
-  const started = await engine.startLogin(TG_ID, MSISDN);
+  await engine.startLogin(TG_ID, MSISDN);
   await assert.rejects(
-    () => engine.confirmLogin(TG_ID, MSISDN, '000000', started.sessionId),
+    () => engine.confirmLogin(TG_ID, MSISDN, '000000'),
     (error) => error.code === ERROR_CODES.OTP_INVALID,
   );
   const user = await store.getUser(TG_ID);
@@ -85,33 +87,38 @@ await test('رمز خاطئ يُرفض', async () => {
   await store.saveUser(user);
 });
 
-await test('نظرة عامة على الحساب', async () => {
+await test('نظرة عامة على الحساب (سجل الاشتراكات)', async () => {
   const overview = await engine.getOverview(TG_ID, MSISDN);
   assert.equal(overview.mode, 'simulation');
-  assert.ok(overview.sixGbOffer, 'يجب إيجاد عرض 6 جيغا');
-  assert.ok(overview.weeklyGift, 'يجب إيجاد هدية 2 جيغا الأسبوعية');
+  assert.equal(overview.lastWeeklyAt, null);
+  assert.equal(overview.canClaimNow, true);
 });
 
-await test('تفعيل عرض 6 جيغا + منع التكرار', async () => {
-  const result = await engine.activateSixGb(TG_ID, MSISDN);
-  assert.equal(result.status, 'activated');
+await test('العرض المدفوع لا يُفعّل بدون رمز مضبوط', async () => {
   await assert.rejects(
-    () => engine.activateSixGb(TG_ID, MSISDN),
-    (error) => error instanceof DjezzyError && error.code === ERROR_CODES.OFFER_ALREADY_ACTIVE,
+    () => engine.activatePaidOffer(TG_ID, MSISDN),
+    (error) => error instanceof DjezzyError && error.code === ERROR_CODES.OFFER_NOT_FOUND,
   );
 });
 
-await test('استلام هدية 2 جيغا الأسبوعية', async () => {
+await test('استلام هدية 2 جيغا الأسبوعية (حقيقية)', async () => {
   const result = await engine.claimWeeklyGift(TG_ID, MSISDN);
   assert.equal(result.ok, true);
   assert.equal(result.claimed.length, 1);
   assert.equal(result.weeklyClaimed, true);
 });
 
+await test('منع الاستلام الثاني قبل 7 أيام', async () => {
+  const result = await engine.claimWeeklyGift(TG_ID, MSISDN);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 'cooldown');
+  assert.ok(result.nextEligibleAt > Date.now());
+});
+
 await test('استلام كل الهدايا المتاحة', async () => {
   const result = await engine.claimAllGifts(TG_ID, MSISDN);
-  // في المحاكاة: الهدية الأسبوعية مستلمة بالفعل، والليلية غير متاحة
-  assert.equal(result.ok, false);
+  // الهدية الأسبوعية مستلمة هذا الأسبوع + الهدية الترويجية تُستلم الآن
+  assert.ok(result.claimed.some((item) => /ترويجية/.test(item.name)));
   assert.ok(result.failed.some((item) => /مُستلمة/.test(item.reason)));
 });
 
@@ -127,10 +134,10 @@ await test('تجديد الجلسة عند انتهاء التوكن', async () 
 });
 
 await test('بديل الأرقام + الحذف', async () => {
-  const second = normalizeMsisdn('0661334455').msisdn;
-  const started = await engine.startLogin(TG_ID, second);
+  const second = normalizeMsisdn('0781334455').msisdn;
+  await engine.startLogin(TG_ID, second);
   const user = await store.getUser(TG_ID);
-  await engine.confirmLogin(TG_ID, second, user.state.temp.debugCode, started.sessionId);
+  await engine.confirmLogin(TG_ID, second, user.state.temp.debugCode);
 
   const active = await engine.setActive(TG_ID, second);
   assert.equal(active.msisdn, second);

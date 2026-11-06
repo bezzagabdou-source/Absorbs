@@ -17,27 +17,25 @@ const int = (value, fallback) => {
 const stripSlash = (value) => String(value ?? '').trim().replace(/\/+$/, '');
 
 const vercelUrl = () => {
-  const host =
-    process.env.VERCEL_PROJECT_PRODUCTION_URL ||
-    process.env.VERCEL_URL ||
-    '';
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL || '';
   return host ? `https://${host}` : '';
 };
 
-/** مسارات محرّك جيزي — قابلة للتغيير بالكامل من البيئة */
+/* ------------------------- محرّك جيزي (الواجهة الحقيقية) ------------------------- */
+const djezzyBaseUrl = stripSlash(process.env.DJEZZY_BASE_URL || 'https://apim.djezzy.dz');
+
 const djezzyPaths = {
-  requestOtp: process.env.DJEZZY_PATH_REQUEST_OTP || '/request-otp',
-  verifyOtp: process.env.DJEZZY_PATH_VERIFY_OTP || '/verify-otp',
-  refresh: process.env.DJEZZY_PATH_REFRESH || '/refresh-token',
-  profile: process.env.DJEZZY_PATH_PROFILE || '/me',
-  offers: process.env.DJEZZY_PATH_OFFERS || '/offers',
-  claimOffer: process.env.DJEZZY_PATH_CLAIM_OFFER || '/offers/{id}/claim',
-  gifts: process.env.DJEZZY_PATH_GIFTS || '/gifts',
-  claimGift: process.env.DJEZZY_PATH_CLAIM_GIFT || '/gifts/{id}/claim',
-  challenge: process.env.DJEZZY_PATH_CHALLENGE || '/challenges/{id}/verify',
+  requestOtp: process.env.DJEZZY_PATH_REQUEST_OTP || '/mobile-api/oauth2/registration',
+  verifyOtp: process.env.DJEZZY_PATH_VERIFY_OTP || '/oauth2/token',
+  refresh: process.env.DJEZZY_PATH_REFRESH || '/oauth2/token',
+  history: process.env.DJEZZY_PATH_HISTORY || '/mobile-api/api/v1/subscribers/subscription-history/{msisdn}',
+  walkReward: process.env.DJEZZY_PATH_WALK_REWARD || '/mobile-api/api/v1/services/walk/activate-reward/{msisdn}',
+  scanReward: process.env.DJEZZY_PATH_SCAN_REWARD || '/mobile-api/api/v1/services/scan/activate-reward/{msisdn}',
+  activateProduct: process.env.DJEZZY_PATH_ACTIVATE_PRODUCT || '/mobile-api/api/v1/subscribers/activate-product/{msisdn}',
 };
 
-const djezzyBaseUrl = stripSlash(process.env.DJEZZY_BASE_URL);
+const djezzyClientId = (process.env.DJEZZY_CLIENT_ID || '').trim();
+const djezzyClientSecret = (process.env.DJEZZY_CLIENT_SECRET || '').trim();
 
 export const config = {
   isVercel: Boolean(process.env.VERCEL),
@@ -56,37 +54,39 @@ export const config = {
     kvUrl: (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '').trim(),
     kvToken: (process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '').trim(),
     encryptionKey: (process.env.SESSION_ENCRYPTION_KEY || '').trim(),
-    userTtlSeconds: int(process.env.USER_TTL_SECONDS, 60 * 60 * 24 * 180), // 180 يوماً
+    userTtlSeconds: int(process.env.USER_TTL_SECONDS, 60 * 60 * 24 * 180),
   },
 
   djezzy: {
     baseUrl: djezzyBaseUrl,
     paths: djezzyPaths,
-    // محاكاة تلقائية طالما لم يُضبط عنوان الـ API الحقيقي
-    dryRun: bool(process.env.DJEZZY_DRY_RUN, !djezzyBaseUrl),
+    clientId: djezzyClientId,
+    clientSecret: djezzyClientSecret,
+    // هدية 2 جيجا الأسبوعية (Walk Win) والهدية الترويجية عبر QR
+    giftWalkCode: process.env.DJEZZY_GIFT_WALK_CODE || 'GIFTWALKWIN2GO',
+    scanQr: process.env.DJEZZY_SCAN_QR || 'https://www.djezzy.dz/scanwin-wd26?1',
+    // عرض مدفوع اختياري — لا يُفعّل تلقائياً أبداً (قد يُخصم من الرصيد)
+    paidProductCode: (process.env.OFFER_PAID_CODE || '').trim(),
+    // الوضع المباشر يعمل فقط عند توفّر بيانات التطبيق
+    dryRun: bool(process.env.DJEZZY_DRY_RUN, !(djezzyClientId && djezzyClientSecret)),
     timeoutMs: int(process.env.DJEZZY_TIMEOUT_MS, 15000),
     headers: {
-      'User-Agent':
-        process.env.DJEZZY_USER_AGENT ||
-        'Djezzy/7.2.1 (Android 13; SM-A525F) okhttp/4.9.3',
-      Accept: 'application/json, text/plain, */*',
-      'Content-Type': 'application/json;charset=UTF-8',
-      'Accept-Language': process.env.DJEZZY_ACCEPT_LANGUAGE || 'fr-DZ',
-      'X-Client-Id': process.env.DJEZZY_CLIENT_ID || '',
-      'X-App-Version': process.env.DJEZZY_APP_VERSION || '7.2.1',
-      'X-Platform': process.env.DJEZZY_PLATFORM || 'android',
+      'User-Agent': process.env.DJEZZY_USER_AGENT || 'MobileApp/3.0.9',
+      Accept: 'application/json',
+      'Accept-Encoding': 'gzip',
+      'Accept-Language': process.env.DJEZZY_ACCEPT_LANGUAGE || 'fr',
     },
   },
 
   limits: {
-    maxNumbersPerUser: int(process.env.MAX_NUMBERS_PER_USER, 3),
+    maxNumbersPerUser: int(process.env.MAX_NUMBERS_PER_USER, 2),
     actionCooldownMs: int(process.env.ACTION_COOLDOWN_MS, 15000),
     maxClaimsPerDay: int(process.env.MAX_CLAIMS_PER_DAY, 6),
-  },
-
-  offerCodes: {
-    sixGb: (process.env.OFFER_6GB_MATCH || '6').trim(),
-    weeklyGift: (process.env.GIFT_WEEKLY_MATCH || '2').trim(),
+    // أرقام جيزي فقط (+2137) — يمكن فتحها لأرقام أخرى عبر ALLOWED_PREFIXES
+    allowedPrefixes: (process.env.ALLOWED_PREFIXES || '7')
+      .split(',')
+      .map((prefix) => prefix.trim())
+      .filter(Boolean),
   },
 };
 
@@ -101,12 +101,13 @@ export function validateConfig() {
     );
   }
   if (!config.storage.encryptionKey || config.storage.encryptionKey.length < 32) {
-    warnings.push(
-      'SESSION_ENCRYPTION_KEY مفقود أو أقصر من 32 حرفاً — سيُستخدم مفتاح مؤقت (غير آمن للتشغيل الحقيقي).',
-    );
+    warnings.push('SESSION_ENCRYPTION_KEY مفقود أو أقصر من 32 حرفاً — سيُستخدم مفتاح مؤقت (غير آمن للتشغيل الحقيقي).');
   }
   if (!config.bot.webhookSecret || !/^[A-Za-z0-9_-]{16,256}$/.test(config.bot.webhookSecret)) {
     warnings.push('WEBHOOK_SECRET مفقود أو غير صالح (16–256 حرفاً من A-Z a-z 0-9 _ -).');
+  }
+  if (!config.djezzy.clientId || !config.djezzy.clientSecret) {
+    warnings.push('DJEZZY_CLIENT_ID / DJEZZY_CLIENT_SECRET غير مضبوطين — سيعمل البوت في وضع المحاكاة فقط.');
   }
   if (config.djezzy.dryRun) {
     warnings.push('محرّك جيزي في وضع المحاكاة (DJEZZY_DRY_RUN) — لن تُنفَّذ طلبات حقيقية.');
