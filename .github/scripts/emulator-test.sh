@@ -39,11 +39,19 @@ sdkmanager "platform-tools" "emulator" "system-images;android-$API;google_apis;x
   exit 1
 }
 
-echo no | avdmanager create avd --force --name "test$API" \
+# avdmanager and the emulator disagree about the default AVD directory when
+# ANDROID_SDK_HOME is set (GitHub runners set it), so pin it explicitly for both.
+export ANDROID_SDK_HOME="$HOME"
+export ANDROID_AVD_HOME="$HOME/.android/avd"
+mkdir -p "$ANDROID_AVD_HOME"
+AVD_PATH="$ANDROID_AVD_HOME/test$API.avd"
+echo no | avdmanager create avd --force --name "test$API" --path "$AVD_PATH" \
   --package "system-images;android-$API;google_apis;x86_64" --device pixel_5 || {
   note "FAIL avdmanager create avd"
   exit 1
 }
+test -f "$ANDROID_AVD_HOME/test$API.ini" || { note "FAIL AVD ini missing"; exit 1; }
+"$SDK/emulator/emulator" -list-avds
 
 ls -l /dev/kvm || true
 EMU="$SDK/emulator/emulator"
@@ -58,7 +66,7 @@ start_emulator() { # start_emulator <gpu-mode>
 }
 
 start_emulator swiftshader_indirect
-sleep 25
+sleep 30
 if ! kill -0 "$EMU_PID" 2>/dev/null; then
   echo "swiftshader_indirect died; retrying with -gpu off"
   tail -40 "$CONSOLE"
