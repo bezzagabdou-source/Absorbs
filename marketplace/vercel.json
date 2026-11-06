@@ -2,5 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "buildCommand": "npm run build"
+  "buildCommand": "DB_SKIP_ROLE_SETUP=true npm run db:migrate && npm run build"
 }

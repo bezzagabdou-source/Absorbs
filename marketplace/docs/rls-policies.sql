@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION app_role() RETURNS text LANGUAGE sql STABLE SET searc
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['users','wilayas','categories','products','offers','escrow_transactions','disputes','conversations','messages','price_history','push_subscriptions','sessions','rate_limits','product_views','saved_searches','notifications','notification_jobs'] LOOP
+  FOREACH t IN ARRAY ARRAY['users','wilayas','categories','products','offers','escrow_transactions','disputes','conversations','messages','price_history','push_subscriptions','sessions','rate_limits','product_views','saved_searches','notifications','notification_jobs','media'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS migration_owner ON %I', t);
@@ -36,10 +36,12 @@ CREATE POLICY products_insert ON products FOR INSERT WITH CHECK (seller_id = app
 DROP POLICY IF EXISTS products_update ON products;
 CREATE POLICY products_update ON products FOR UPDATE USING (seller_id = app_user_id() OR app_role() = 'admin') WITH CHECK (seller_id = app_user_id() OR app_role() = 'admin');
 GRANT SELECT ON products TO dz_runtime;
-GRANT INSERT, UPDATE ON products TO dz_runtime;
+GRANT INSERT ON products TO dz_runtime;
+-- View counters are incremented only by the pinned SECURITY DEFINER record_product_view RPC.
+GRANT UPDATE (title,description,price_dzd,cost_dzd,category_id,wilaya_id,commune,condition,status,images,attributes,delivery_available,latitude,longitude,updated_at) ON products TO dz_runtime;
 CREATE OR REPLACE FUNCTION protect_product_fields() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 BEGIN
-  IF NEW.seller_id IS DISTINCT FROM OLD.seller_id OR NEW.view_count IS DISTINCT FROM OLD.view_count OR NEW.created_at IS DISTINCT FROM OLD.created_at OR (NEW.escrow_eligible IS DISTINCT FROM OLD.escrow_eligible AND app_role() <> 'admin') THEN RAISE EXCEPTION 'immutable_field'; END IF;
+  IF NEW.seller_id IS DISTINCT FROM OLD.seller_id OR NEW.created_at IS DISTINCT FROM OLD.created_at OR (NEW.escrow_eligible IS DISTINCT FROM OLD.escrow_eligible AND app_role() <> 'admin') THEN RAISE EXCEPTION 'immutable_field'; END IF;
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS products_protect_fields ON products;
@@ -74,9 +76,20 @@ CREATE TRIGGER offers_protect_fields BEFORE UPDATE ON offers FOR EACH ROW EXECUT
 GRANT SELECT ON product_views TO dz_runtime;
 DROP POLICY IF EXISTS product_views_seller_read ON product_views;
 CREATE POLICY product_views_seller_read ON product_views FOR SELECT USING (EXISTS (SELECT 1 FROM products p WHERE p.id=product_id AND p.seller_id=app_user_id()));
-GRANT SELECT ON price_history TO dz_runtime;
+GRANT SELECT, INSERT ON price_history TO dz_runtime;
 DROP POLICY IF EXISTS price_history_read ON price_history;
 CREATE POLICY price_history_read ON price_history FOR SELECT USING (EXISTS (SELECT 1 FROM products p WHERE p.id = product_id));
+DROP POLICY IF EXISTS price_history_insert ON price_history;
+CREATE POLICY price_history_insert ON price_history FOR INSERT WITH CHECK (price_dzd > 0 AND EXISTS (SELECT 1 FROM products p WHERE p.id = product_id AND (p.seller_id = app_user_id() OR app_role() = 'admin')));
+
+-- Uploaded listing media. Public bytes are served only through /api/media/[id]; owners may insert/delete their own rows.
+DROP POLICY IF EXISTS media_public_read ON media;
+CREATE POLICY media_public_read ON media FOR SELECT USING (true);
+DROP POLICY IF EXISTS media_owner_insert ON media;
+CREATE POLICY media_owner_insert ON media FOR INSERT WITH CHECK (owner_id = app_user_id() AND app_role() IN ('seller','admin') AND byte_size > 0 AND byte_size <= 2097152 AND content_type IN ('image/webp','image/jpeg','image/png'));
+DROP POLICY IF EXISTS media_owner_delete ON media;
+CREATE POLICY media_owner_delete ON media FOR DELETE USING (owner_id = app_user_id() OR app_role() = 'admin');
+GRANT SELECT, INSERT, DELETE ON media TO dz_runtime;
 
 -- Participant-only private records. No client write path to financial state.
 DROP POLICY IF EXISTS escrow_read ON escrow_transactions;

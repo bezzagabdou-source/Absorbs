@@ -18,9 +18,11 @@ try {
   const workerPassword = process.env.DB_WORKER_PASSWORD;
   if (!runtimePassword || !workerPassword || runtimePassword.length < 24 || workerPassword.length < 24) throw new Error("Strong DB_RUNTIME_PASSWORD and DB_WORKER_PASSWORD (24+ chars) required");
   const escape = (v: string) => v.replace(/'/g, "''");
-  for (const [role, password] of [["dz_runtime", runtimePassword], ["dz_push_worker", workerPassword]]) {
-    await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='${role}') THEN CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS PASSWORD '${escape(password)}'; ELSE ALTER ROLE ${role} PASSWORD '${escape(password)}'; END IF; END $$;`);
-    await pool.query(`GRANT CONNECT ON DATABASE ${JSON.stringify((await pool.query("select current_database() as name")).rows[0].name)} TO ${role}`);
+  if (process.env.DB_SKIP_ROLE_SETUP !== "true") {
+    for (const [role, password] of [["dz_runtime", runtimePassword], ["dz_push_worker", workerPassword]]) {
+      await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='${role}') THEN CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS PASSWORD '${escape(password)}'; ELSE ALTER ROLE ${role} PASSWORD '${escape(password)}'; END IF; END $$;`);
+      await pool.query(`GRANT CONNECT ON DATABASE ${JSON.stringify((await pool.query("select current_database() as name")).rows[0].name)} TO ${role}`);
+    }
   }
   if (schema !== "public") {
     await pool.query(`CREATE SCHEMA IF NOT EXISTS ${JSON.stringify(schema)}`);

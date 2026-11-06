@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -12,7 +13,6 @@ import {
   timestamp,
   uniqueIndex,
   check,
-  customType,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -176,6 +176,17 @@ export const messages = pgTable("messages", {
   readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
   createdAt: createdAt(),
 }, (table) => [index("messages_conversation_created_idx").on(table.conversationId, table.createdAt)]);
+
+export const media = pgTable("media", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  contentType: varchar("content_type", { length: 64 }).notNull(),
+  byteSize: integer("byte_size").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  data: customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" })("data").notNull(),
+  createdAt: createdAt(),
+}, (table) => [index("media_owner_created_idx").on(table.ownerId, table.createdAt), check("media_byte_size_positive", sql`${table.byteSize} > 0 AND ${table.byteSize} <= 2097152`)]);
 
 export const priceHistory = pgTable("price_history", {
   id: uuid("id").defaultRandom().primaryKey(),

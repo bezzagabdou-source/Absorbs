@@ -5,10 +5,11 @@ export const uuidSchema = z.uuid();
 export const conditionSchema = z.enum(["new", "like_new", "good", "fair", "for_parts"]);
 export const sortSchema = z.enum(["relevance", "newest", "price_asc", "price_desc"]);
 export const moneySchema = z.number().finite().positive().max(999999999999).multipleOf(0.01);
-export const imageSchema = z.url().max(2048).refine((value) => {
-  const url = new URL(value);
-  return url.protocol === "https:" && !url.username && !url.password;
-}, "HTTPS image URL required");
+export const uploadedMediaPathSchema = z.string().regex(/^\/api\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+export const imageSchema = z.string().max(2048).refine((value) => {
+  if (uploadedMediaPathSchema.safeParse(value).success) return true;
+  try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password; } catch { return false; }
+}, "HTTPS image URL or uploaded media path required");
 const emptyToUndefined = (value: unknown) => value === "" || value === null ? undefined : value;
 export const listingFiltersSchema = z.object({
   q: z.string().trim().max(100).default(""),

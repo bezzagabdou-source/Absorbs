@@ -1,12 +1,23 @@
-import { and, eq } from "drizzle-orm";
-import { products, categories, wilayas, priceHistory } from "@/db/schema";
-import { withActor } from "@/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { products, categories, wilayas, priceHistory, media } from "@/db/schema";
+import { withActor, type Transaction } from "@/db";
 import type { SessionUser } from "@/lib/auth/session";
 import type { z } from "zod";
 import { listingInputSchema, listingUpdateSchema } from "@/lib/validation/schemas";
 import { AppError, assertFound } from "@/lib/server/errors";
+import { isUploadedMediaUrl } from "@/lib/server/media";
+
+async function assertOwnUploads(tx: Transaction, actor: SessionUser, images: string[] | undefined) {
+  if (!images?.length) return;
+  const ids = [...new Set(images.filter(isUploadedMediaUrl).map((value) => value.slice("/api/media/".length)))];
+  if (!ids.length) return;
+  const owned = await tx.select({ id: media.id }).from(media).where(and(inArray(media.id, ids), eq(media.ownerId, actor.id)));
+  if (owned.length !== ids.length) throw new AppError("invalid_input", 400, { images: ["media_owner"] });
+}
+
 export async function createListing(actor: SessionUser, input: z.infer<typeof listingInputSchema>) {
   return withActor(actor, async (tx) => {
+    await assertOwnUploads(tx, actor, input.images);
     const [category] = await tx.select({ id: categories.id }).from(categories).where(and(eq(categories.id, input.categoryId), eq(categories.active, true)));
     const [wilaya] = await tx.select({ id: wilayas.id }).from(wilayas).where(and(eq(wilayas.code, input.wilayaCode), eq(wilayas.active, true)));
     if (!category || !wilaya) throw new AppError("invalid_input", 400);
@@ -20,6 +31,7 @@ export async function updateListing(actor: SessionUser, id: string, input: z.inf
   return withActor(actor, async (tx) => {
     const [owned] = await tx.select().from(products).where(and(eq(products.id, id), eq(products.sellerId, actor.id))).for("update");
     assertFound(owned, "listing_owner");
+    await assertOwnUploads(tx, actor, input.images);
     const { wilayaCode, priceDzd, costDzd, ...rest } = input;
     let wilayaId: string | undefined;
     if (wilayaCode) { const [w] = await tx.select().from(wilayas).where(eq(wilayas.code, wilayaCode)); assertFound(w); wilayaId = w.id; }
