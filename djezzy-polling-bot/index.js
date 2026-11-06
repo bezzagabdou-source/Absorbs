@@ -185,6 +185,9 @@ bot.command('diag', async (ctx) => {
     probe.proxy ? `الوكيل (Proxy): <code>${escapeHtml(JSON.stringify(probe.proxy))}</code>` : 'الوكيل: مباشر (بدون Proxy)',
     `المهلة: ${djezzy.meta.timeoutMs} ms · المحاولات: ${djezzy.meta.retries + 1} · الزمن: ${probe.ms} ms`,
     djezzy.meta.forceIpv4 ? 'الشبكة: IPv4 فقط (يُصلح تعليق بعض شبكات الهاتف)' : 'الشبكة: تلقائي (IPv4/IPv6)',
+    djezzy.meta.pool.enabled
+      ? `البروكسي: ${djezzy.meta.pool.healthy}/${djezzy.meta.pool.total} صالح\n<code>${escapeHtml(djezzy.meta.pool.text)}</code>`
+      : 'البروكسي: غير مضبوط (اتصال مباشر)',
     probe.status ? `HTTP: ${probe.status}` : `الخطأ: <code>${escapeHtml(probe.error || '—')}</code>`,
     '',
     probe.reachable

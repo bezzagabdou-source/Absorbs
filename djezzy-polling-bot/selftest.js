@@ -7,6 +7,7 @@
  *   npm run selftest
  */
 import http from 'node:http';
+import net from 'node:net';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import { rmSync } from 'node:fs';
 
 process.chdir(tmpdir());
 const { Djezzy, DjezzyError, KIND, parsePhone } = await import('./djezzy.js');
+const { ProxyPool, parseProxyList } = await import('./proxy.js');
 const { store, encrypt, decrypt } = await import('./store.js');
 
 const results = [];
@@ -279,6 +281,63 @@ await test('Proxy يُقرأ من متغيّر البيئة', () => {
   assert.equal(withProxy.meta.proxy.port, 8080);
   assert.equal(withProxy.meta.proxy.auth.username, 'user');
   assert.equal(withProxy.meta.proxy.auth.password, 'pa@ss');
+});
+
+await test('ProxyPool: تحليل القائمة + إزالة المكرّر + المصادقة', () => {
+  const list = parseProxyList(
+    'http://user:pa%40ss@41.1.1.1:8080, 41.2.2.2:3128 , socks5://u:p@41.3.3.3:1080, http://41.1.1.1:8080, باطل',
+  );
+  assert.equal(list.length, 3);
+  assert.equal(list[0].username, 'user');
+  assert.equal(list[0].password, 'pa@ss');
+  assert.equal(list[1].protocol, 'http');
+  assert.equal(list[1].port, 3128);
+  assert.equal(list[2].protocol, 'socks5');
+  const pool = new ProxyPool(list);
+  assert.equal(pool.enabled, true);
+  assert.equal(pool.status().total, 3);
+});
+
+await test('بروكسي جزائري: توجيه الطلبات عبر CONNECT + failover لبروكسي ميت', async () => {
+  const hits = [];
+  const proxy = net.createServer((socket) => {
+    socket.once('data', (buffer) => {
+      const match = /^CONNECT ([^:]+):(\d+)/.exec(buffer.toString());
+      if (!match) {
+        socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+        return;
+      }
+      hits.push(`${match[1]}:${match[2]}`);
+      const upstream = net.connect(Number(match[2]), match[1], () => {
+        socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        upstream.pipe(socket);
+        socket.pipe(upstream);
+      });
+      upstream.on('error', () => socket.destroy());
+      socket.on('error', () => upstream.destroy());
+    });
+  });
+  await new Promise((resolve) => proxy.listen(0, '127.0.0.1', resolve));
+
+  try {
+    const dead = 'http://127.0.0.1:1';
+    const alive = `http://127.0.0.1:${proxy.address().port}`;
+    const proxied = new Djezzy({
+      baseUrl,
+      timeoutMs: 3000,
+      retries: 1,
+      clientId: 'a',
+      clientSecret: 'b',
+      proxies: `${dead},${alive}`,
+    });
+
+    assert.equal(proxied.pool.size, 2);
+    await proxied.requestOtp(MSISDN); // يمرّ رغم أن أول بروكسي ميت
+    assert.ok(hits.length >= 1, 'يجب أن تمرّ الطلبات عبر البروكسي');
+    assert.ok(proxied.pool.status().healthy >= 1);
+  } finally {
+    proxy.close();
+  }
 });
 
 await test('تخزين الحسابات + التشفير على القرص', () => {

@@ -96,8 +96,9 @@ DJEZZY_FORCE_IPV4=1
 DJEZZY_FALLBACK_DNS=1.1.1.1,8.8.8.8
 DJEZZY_WATCH_MS=300000
 
-# وكيل جزائري (اختياري) إن لم تكن على شبكة جزائرية:
-# DJEZZY_PROXY=http://user:pass@host:port
+# بروكسي جزائري (إجباري إن شغّلت البوت على استضافة خارج الجزائر):
+# DJEZZY_PROXIES=http://user:pass@IP:PORT,socks5://user:pass@IP:PORT
+# DJEZZY_DIRECT_FALLBACK=1
 
 DJEZZY_GIFT_WALK_CODE=GIFTWALKWIN2GO
 DJEZZY_SCAN_QR=https://www.djezzy.dz/scanwin-wd26?1

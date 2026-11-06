@@ -48,6 +48,19 @@ try {
 console.log(`   الخادم: ${client.meta.baseUrl} · المهلة: ${client.meta.timeoutMs} ms · المحاولات: ${client.meta.retries + 1}`);
 console.log(`   الشبكة: ${client.meta.forceIpv4 ? 'IPv4 فقط (DJEZZY_FORCE_IPV4=1)' : 'تلقائي IPv4/IPv6'}`);
 
+const pool = client.meta.pool;
+if (pool.enabled) {
+  ok('بروكسي جزائري', `${pool.healthy}/${pool.total} صالح`);
+  console.log(
+    pool.text
+      .split('\n')
+      .map((line) => `      ${line}`)
+      .join('\n'),
+  );
+} else {
+  warn('بروكسي جزائري', 'غير مضبوط — الاتصال مباشر (يعمل فقط من داخل الجزائر)');
+}
+
 // سجلات DNS: أوّل سبب لـ ECONNABORTED/ETIMEDOUT هو التعليق على IPv6
 const host = new URL(client.meta.baseUrl).hostname;
 const dnsInfo = await resolveHost(host);
@@ -84,7 +97,8 @@ if (probe.reachable) {
       '   2. تأكد أنك داخل الجزائر (شبكة جيزي/جزائرية).',
       '   3. ارفع المهلة والمحاولات: DJEZZY_TIMEOUT_MS=60000 و DJEZZY_RETRIES=3 في .env',
       '   4. إن كان IPv6 وحدَه متاحاً: DJEZZY_FORCE_IPV4=0 في .env',
-      '   5. أو اضبط وكيلاً جزائرياً: DJEZZY_PROXY=http://host:port في .env',
+      '   5. أو اضبط بروكسي جزائرياً: DJEZZY_PROXIES=http://user:pass@ip:port[,socks5://…] في .env',
+      '      (من داخل الجزائر لا تحتاج بروكسي — من استضافة سحابية البروكسي إجباري)',
       '',
       '⚠️  Vercel/Railway/Render لن تعمل: خوادم جيزي تحجب الشبكات الأجنبية.',
     ]

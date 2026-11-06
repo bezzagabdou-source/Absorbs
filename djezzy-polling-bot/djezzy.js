@@ -23,6 +23,8 @@ import dns from 'node:dns';
 import https from 'node:https';
 import process from 'node:process';
 
+import { ProxyPool, parseProxyList } from './proxy.js';
+
 /* ------------------- إصلاح تعليق الشبكة: IPv4 + keepAlive ------------------- */
 // السبب الأشهر لـ ECONNABORTED / ETIMEDOUT على شبكات الهاتف (4G/Wi-Fi جزائرية):
 // يحاول Node الاتصال عبر IPv6 أولاً فيعلق حتى انتهاء المهلة، رغم أن IPv4 يعمل.
@@ -260,6 +262,14 @@ export class Djezzy {
     const proxyUrl = options.proxyUrl || env.DJEZZY_PROXY || env.HTTPS_PROXY || env.HTTP_PROXY || '';
     const proxy = options.proxy === false ? false : options.proxy || parseProxy(proxyUrl);
 
+    // تجميع بروكسيات جزائرية (DJEZZY_PROXIES) — طبقة تجاوز الحجب الجغرافي
+    const poolSource =
+      options.proxies ?? env.DJEZZY_PROXIES ?? (env.DJEZZY_PROXY_LIST || '');
+    this.pool = new ProxyPool(parseProxyList(poolSource), {
+      timeoutMs: this.timeoutMs,
+      directFallback: String(options.directFallback ?? env.DJEZZY_DIRECT_FALLBACK ?? '1') !== '0',
+    });
+
     this.http = axios.create({
       baseURL: this.baseUrl,
       timeout: this.timeoutMs,
@@ -276,6 +286,8 @@ export class Djezzy {
 
     this.meta = {
       proxy: proxy || null,
+      pool: this.pool.status(),
+      proxyPool: this.pool,
       timeoutMs: this.timeoutMs,
       baseUrl: this.baseUrl,
       forceIpv4: FORCE_IPV4,
@@ -310,8 +322,19 @@ export class Djezzy {
     if (token) headers.Authorization = `Bearer ${token}`;
     if (!headers['X-Request-Id']) headers['X-Request-Id'] = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
+    // اختيار بروكسي جزائري لهذه المحاولة (إن وُجد) — مع توجيه إجباري عبره
+    const proxyEntry = this.pool.next();
+    const requestOptions = { method, url: path, params, data: payload, headers };
+    if (proxyEntry) {
+      requestOptions.httpsAgent = proxyEntry.agent;
+      requestOptions.httpAgent = proxyEntry.agent;
+      requestOptions.proxy = false;
+    }
+
+    const startedAt = Date.now();
     try {
-      const response = await this.http.request({ method, url: path, params, data: payload, headers });
+      const response = await this.http.request(requestOptions);
+      if (proxyEntry) this.pool.markOk(proxyEntry, Date.now() - startedAt);
       const text = typeof response.data === 'string' ? response.data : '';
       let json = null;
       try {
@@ -327,8 +350,10 @@ export class Djezzy {
 
       return { status: response.status, json, text };
     } catch (error) {
+      if (proxyEntry) this.pool.markFail(proxyEntry, error?.code || error?.message);
       // تعليق/انقطاع الشبكة: إعادة محاولة بفاصل متزايد قبل إبلاغ المستخدم
-      if (attempt < this.retries && isTimeout(error)) {
+      // مع بروكسي: أي خطأ شبكة يستدعي تجربة بروكسي آخر
+      if (attempt < this.retries && (isTimeout(error) || Boolean(proxyEntry))) {
         await new Promise((resolve) => setTimeout(resolve, 900 * (attempt + 1)));
         return this.#send({ method, path, params, data, form, token, attempt: attempt + 1 });
       }
@@ -509,9 +534,21 @@ export class Djezzy {
         timeout: Math.min(this.timeoutMs, 20000),
         headers: { ...this.headers },
       });
-      return { reachable: true, status: response.status, ms: Date.now() - started, proxy: this.meta.proxy };
+      return {
+        reachable: true,
+        status: response.status,
+        ms: Date.now() - started,
+        proxy: this.meta.proxy,
+        pool: this.pool.status(),
+      };
     } catch (error) {
-      return { reachable: false, error: error?.code || error?.message, ms: Date.now() - started, proxy: this.meta.proxy };
+      return {
+        reachable: false,
+        error: error?.code || error?.message,
+        ms: Date.now() - started,
+        proxy: this.meta.proxy,
+        pool: this.pool.status(),
+      };
     }
   }
 }
