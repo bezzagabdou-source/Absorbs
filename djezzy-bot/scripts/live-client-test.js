@@ -236,6 +236,50 @@ await step('خطأ الشبكة يُحوَّل إلى NETWORK', async () => {
 });
 
 server.close();
+
+await step('بيانات عميل مرفوضة → تبديل تلقائي للزوج البديل', async () => {
+  const seen = [];
+  const fallbackServer = http.createServer((req, res) => {
+    const body = [];
+    req.on('data', (chunk) => body.push(chunk));
+    req.on('end', () => {
+      const url = new URL(req.url, 'http://localhost');
+      const clientId = url.searchParams.get('client_id');
+      seen.push(clientId);
+      if (clientId !== 'legacy-id') {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'invalid_client', error_description: 'Client authentication failed' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: 'code sent' }));
+    });
+  });
+
+  await new Promise((resolve) => fallbackServer.listen(0, '127.0.0.1', resolve));
+  const fallbackUrl = `http://127.0.0.1:${fallbackServer.address().port}`;
+
+  const fallbackClient = new DjezzyClient({
+    baseUrl: fallbackUrl,
+    dryRun: false,
+    timeoutMs: 5000,
+    clientId: 'new-id',
+    clientSecret: 'new-secret',
+    legacyClientId: 'legacy-id',
+    legacyClientSecret: 'legacy-secret',
+  });
+
+  const started = await fallbackClient.requestOtp({ msisdn: MSISDN });
+  assert.ok(started.sessionId);
+  assert.deepEqual(seen, ['new-id', 'legacy-id'], 'يجب تجربة الزوج الثاني بعد الرفض');
+
+  // الطلب التالي يستخدم الزوج الناجح مباشرة
+  await fallbackClient.requestOtp({ msisdn: MSISDN });
+  assert.equal(seen.at(-1), 'legacy-id');
+
+  fallbackServer.close();
+});
+
 rmSync(process.env.STORE_FILE, { force: true });
 await new Promise((resolve) => setTimeout(resolve, 80));
 

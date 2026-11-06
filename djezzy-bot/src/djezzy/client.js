@@ -32,6 +32,9 @@ export class DjezzyClient {
     this.dryRun = options.dryRun ?? config.djezzy.dryRun;
     this.clientId = options.clientId ?? config.djezzy.clientId;
     this.clientSecret = options.clientSecret ?? config.djezzy.clientSecret;
+    this.legacyClientId = options.legacyClientId ?? config.djezzy.legacyClientId;
+    this.legacyClientSecret = options.legacyClientSecret ?? config.djezzy.legacyClientSecret;
+    this.activePair = null;
     this.giftCode = options.giftCode ?? config.djezzy.giftWalkCode;
     this.scanQr = options.scanQr ?? config.djezzy.scanQr;
 
@@ -111,16 +114,58 @@ export class DjezzyClient {
     return message.ar || message.fr || message.en || Object.values(message)[0] || null;
   }
 
+  /* --------------------- أزواج بيانات التطبيق --------------------- */
+  #pairs() {
+    const pairs = [];
+    if (this.clientId && this.clientSecret) pairs.push({ id: this.clientId, secret: this.clientSecret, tag: 'app' });
+    if (this.legacyClientId && this.legacyClientSecret) {
+      pairs.push({ id: this.legacyClientId, secret: this.legacyClientSecret, tag: 'legacy' });
+    }
+    return pairs;
+  }
+
+  /** هل رفضت جيزي بيانات العميل؟ (وقتها نجرّب الزوج البديل) */
+  #isInvalidClient(response) {
+    if (![400, 401, 403].includes(response.status)) return false;
+    const text = `${response.text || ''}`.toLowerCase();
+    return /invalid_client|unauthorized_client|client_id|client is not|client not/.test(text);
+  }
+
+  /** ينفّذ الطلب بزوج بيانات صالح ويحفظ الزوج الناجح للطلبات اللاحقة */
+  async #withCredentials(run) {
+    const candidates = this.activePair ? [this.activePair] : this.#pairs();
+    if (candidates.length === 0) {
+      throw new DjezzyError(ERROR_CODES.CONFIG, 'بيانات تطبيق جيزي (client id/secret) غير مضبوطة.');
+    }
+
+    let lastResponse = null;
+    for (let index = 0; index < candidates.length; index += 1) {
+      const pair = candidates[index];
+      const response = await run(pair);
+      lastResponse = response;
+      if (this.#isInvalidClient(response) && index < candidates.length - 1) {
+        log.warn('رفضت جيزي بيانات العميل الحالية — تجربة الزوج البديل…');
+        this.activePair = null;
+        continue;
+      }
+      this.activePair = pair;
+      return response;
+    }
+    return lastResponse;
+  }
+
   /* ------------------------------ OTP ------------------------------ */
   async requestOtp({ msisdn }) {
     if (this.dryRun) return simulator.requestOtp({ msisdn });
 
-    const response = await this.#send({
-      method: 'POST',
-      path: this.paths.requestOtp,
-      query: { msisdn, client_id: this.clientId, scope: 'smsotp' },
-      body: { 'consent-agreement': [{ 'marketing-notifications': false }], 'is-consent': true },
-    });
+    const response = await this.#withCredentials((pair) =>
+      this.#send({
+        method: 'POST',
+        path: this.paths.requestOtp,
+        query: { msisdn, client_id: pair.id, scope: 'smsotp' },
+        body: { 'consent-agreement': [{ 'marketing-notifications': false }], 'is-consent': true },
+      }),
+    );
 
     if (response.status === 429) {
       throw new DjezzyError(ERROR_CODES.RATE_LIMITED, 'طلبات كثيرة على إرسال الرمز — انتظر دقائق.', { status: 429 });
@@ -141,14 +186,15 @@ export class DjezzyClient {
   async verifyOtp({ msisdn, code }) {
     if (this.dryRun) return simulator.verifyOtp({ msisdn, code, sessionId: `otp:${msisdn}` });
 
+    const pair = this.activePair ?? this.#pairs()[0] ?? { id: this.clientId, secret: this.clientSecret };
     const response = await this.#send({
       method: 'POST',
       path: this.paths.verifyOtp,
       form: true,
       body: {
         scope: 'djezzyAppV2',
-        client_secret: this.clientSecret,
-        client_id: this.clientId,
+        client_secret: pair.secret,
+        client_id: pair.id,
         otp: String(code),
         mobileNumber: msisdn,
         grant_type: 'mobile',
@@ -176,14 +222,15 @@ export class DjezzyClient {
   async refreshSession({ refreshToken }) {
     if (this.dryRun) return simulator.refresh();
 
+    const pair = this.activePair ?? this.#pairs()[0] ?? { id: this.clientId, secret: this.clientSecret };
     const response = await this.#send({
       method: 'POST',
       path: this.paths.refresh,
       form: true,
       body: {
         scope: 'djezzyAppV2',
-        client_secret: this.clientSecret,
-        client_id: this.clientId,
+        client_secret: pair.secret,
+        client_id: pair.id,
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       },
