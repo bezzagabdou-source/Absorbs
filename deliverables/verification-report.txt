@@ -1,0 +1,92 @@
+############ apksigner verify --verbose --print-certs ############
+Verifies
+Verified using v1 scheme (JAR signing): true
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): true
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Verified for SourceStamp: false
+Number of signers: 1
+Signer #1 certificate DN: CN=DZ Exchange, OU=Mobile, O=DZ Exchange, L=Algiers, ST=Algiers, C=DZ
+Signer #1 certificate SHA-256 digest: a6d2c21bbec76c6335d1e113270ae7969947de565efb80607df16145d2f832c3
+Signer #1 certificate SHA-1 digest: e8280ebe6bbfde5ee641598d4291092a68e87350
+Signer #1 certificate MD5 digest: befe94fe815d0674d6b5f1376ab91806
+Signer #1 key algorithm: RSA
+Signer #1 key size (bits): 4096
+Signer #1 public key SHA-256 digest: aa41d25028f550e0b8d74687b2b8fa1be6d43d7d3c7c2bfbdebbade201d0f863
+Signer #1 public key SHA-1 digest: 3e182192a7a12f2a4a7d595294ce5032ab9f2eb5
+Signer #1 public key MD5 digest: b94392376dc961615704bdaeba0e0cdc
+
+############ zipalign -c -v 4 ############
+  271122 META-INF/DZ-EXCHA.SF (OK - compressed)
+  272173 META-INF/DZ-EXCHA.RSA (OK - compressed)
+  274106 META-INF/MANIFEST.MF (OK - compressed)
+Verification succesful
+
+############ aapt dump badging ############
+package: name='app.dzexchange.marketplace' versionCode='1' versionName='1.0' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+sdkVersion:'23'
+targetSdkVersion:'35'
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+application-label:'DZ Exchange'
+application-icon-160:'res/BW.xml'
+application-icon-240:'res/BW.xml'
+application-icon-320:'res/BW.xml'
+application-icon-480:'res/BW.xml'
+application-icon-640:'res/BW.xml'
+application-icon-65534:'res/BW.xml'
+application: label='DZ Exchange' icon='res/BW.xml'
+launchable-activity: name='app.dzexchange.marketplace.MainActivity'  label='' icon=''
+feature-group: label=''
+  uses-feature: name='android.hardware.faketouch'
+  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'
+main
+supports-screens: 'small' 'normal' 'large' 'xlarge'
+supports-any-density: 'true'
+locales: '--_--'
+densities: '160' '240' '320' '480' '640' '65534'
+
+############ aapt dump permissions ############
+package: app.dzexchange.marketplace
+uses-permission: name='android.permission.INTERNET'
+uses-permission: name='android.permission.ACCESS_NETWORK_STATE'
+
+############ manifest flags ############
+    E: application (line=15)
+      A: android:label(0x01010001)="DZ Exchange" (Raw: "DZ Exchange")
+      A: android:icon(0x01010002)=@0x7f020000
+      A: android:allowBackup(0x01010280)=(type 0x12)0x0
+      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0
+
+############ assertions ############
+PASS v2 signature
+PASS v3 signature
+PASS debuggable=false (flag absent)
+PASS exactly 2 permissions
+
+############ SHA-256 ############
+736aaf19d601f794a3084c04858a8bb509fdc4be52a21f76536646bb945b2a9e  marketplace/public/DZ-Exchange.apk
+288210 bytes
+############ curl -I GitHub Releases (primary) ############
+HTTP/2 302 
+content-type: text/html; charset=utf-8
+location: https://release-assets.githubusercontent.com/github-production-release-asset/1404865287/2d9d5996-ae59-449d-af39-e68345ec086e?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-11-06T19%3A25%3A41Z&rscd=attachment%3B+filename%3DDZ-Exchange.apk&rsct=application%2Fvnd.android.package-archive&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-11-06T18%3A25%3A33Z&ske=2026-11-06T19%3A25%3A41Z&sks=b&skv=2018-11-09&sig=yr0VEIIlc0EFZckIdcVJKO0hPldlds1GIxsDNVlbEgI%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc5Mzk5MTE1MSwibmJmIjoxNzkzOTkwODUxLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.TXhlrnI8GX7nCUhjnjJQANXKdReDm_PPN2jSW02WzbQ&response-content-disposition=attachment%3B%20filename%3DDZ-Exchange.apk&response-content-type=application%2Fvnd.android.package-archive
+content-length: 0
+HTTP/2 200 
+content-disposition: attachment; filename=DZ-Exchange.apk
+content-type: application/vnd.android.package-archive
+content-length: 288210
+
+############ curl -I Vercel public (mirror) ############
+HTTP/2 200 
+content-disposition: attachment; filename="DZ-Exchange.apk"
+content-type: application/vnd.android.package-archive
+content-length: 288210
+
+############ byte-for-byte download check ############
+736aaf19d601f794a3084c04858a8bb509fdc4be52a21f76536646bb945b2a9e  marketplace/public/DZ-Exchange.apk
+736aaf19d601f794a3084c04858a8bb509fdc4be52a21f76536646bb945b2a9e  /tmp/gh.apk
+736aaf19d601f794a3084c04858a8bb509fdc4be52a21f76536646bb945b2a9e  /tmp/vc.apk
+PASS GitHub asset identical
+PASS Vercel asset identical
