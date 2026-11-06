@@ -25,20 +25,20 @@ try {
   if (schema !== "public") await pool.query(`CREATE SCHEMA IF NOT EXISTS ${JSON.stringify(schema)}`);
   await pool.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
   let migrationsFolder = "./drizzle";
-  let临时 = "";
+  let tempDir = "";
   if (schema !== "public") {
-    临时 = await mkdtemp(join(tmpdir(), "dz-migrations-"));
-    await cp("./drizzle", 临时, { recursive: true });
-    for (const file of await readdir(join(临时))) {
+    tempDir = await mkdtemp(join(tmpdir(), "dz-migrations-"));
+    await cp("./drizzle", tempDir, { recursive: true });
+    for (const file of await readdir(join(tempDir))) {
       if (!file.endsWith(".sql")) continue;
-      const path = join(临时, file);
+      const path = join(tempDir, file);
       await writeFile(path, (await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
     }
-    migrationsFolder = 临时;
+    migrationsFolder = tempDir;
   }
   try {
     await migrate(drizzle(pool), { migrationsFolder, migrationsSchema: schema === "public" ? "drizzle" : `${schema}_migrations` });
-  } finally { if (临时) await rm(临时, { recursive: true, force: true }); }
+  } finally { if (tempDir) await rm(tempDir, { recursive: true, force: true }); }
   const policies = (await readFile("./docs/rls-policies.sql", "utf8")).replaceAll("pg_catalog, public", `pg_catalog, ${schema}, public`).replaceAll("pg_catalog,public", `pg_catalog,${schema},public`);
   await pool.query(policies);
   console.log("Schema, RLS, grants and worker policies applied.");
