@@ -58,6 +58,7 @@ const mainMenu = () =>
     [Markup.button.callback('📱 إضافة رقم', 'add'), Markup.button.callback('📊 حالة الرقم', 'status')],
     [Markup.button.callback('🎁 هدية 2 جيجا', 'gift:weekly'), Markup.button.callback('🌟 هدية QR', 'gift:scan')],
     [Markup.button.callback('🗂 أرقامي', 'accounts'), Markup.button.callback('🩺 فحص الاتصال', 'diag')],
+    [Markup.button.callback('🧪 اختبار حقيقي (SMS + هدية)', 'test')],
   ]);
 
 const cancelOnly = () => Markup.inlineKeyboard([[Markup.button.callback('✖️ إلغاء', 'cancel')]]);
@@ -163,7 +164,7 @@ bot.command('help', (ctx) =>
       '3️⃣ 🌟 هدية QR → الهدية الترويجية الحالية.',
       '4️⃣ 🩺 فحص الاتصال → يتحقّق أن جهازك يصل إلى خوادم جيزي.',
       '',
-      '⚙️ الأوامر: /start · /menu · /cancel · /help · /diag',
+      '⚙️ الأوامر: /start · /menu · /cancel · /help · /diag · /test',
       '',
       '🌍 <b>مهم:</b> جيزي تقبل الاتصال من داخل الجزائر فقط —',
       'لهذا لا يعمل على Vercel/Railway. شغّله على هاتفك (Termux) أو سيرفر جزائري.',
@@ -192,6 +193,77 @@ bot.command('diag', async (ctx) => {
         'وإذا كان <code>ENOTFOUND</code>: أطفي Private DNS في إعدادات أندرويد.',
   ];
   return ctx.reply(lines.join('\n'), { parse_mode: 'HTML', ...mainMenu() });
+});
+
+/* --------------------- اختبار حقيقي من طرف إلى طرف --------------------- */
+/**
+ * يتحقّق من ثلاث طبقات ويقول للمستخدم بالضبط أين توقّف:
+ *   1) الشبكة → خوادم جيزي
+ *   2) إرسال رمز SMS حقيقي (إن كان هناك رقم مربوط)
+ *   3) جاهزية الهدية الأسبوعية
+ */
+async function endToEndReport(userId) {
+  const user = store.getUser(userId);
+  const msisdn = user.active || Object.keys(user.accounts)[0] || null;
+  const lines = ['🧪 <b>اختبار حقيقي</b>', ''];
+
+  const probe = await djezzy.probe();
+  if (!probe.reachable) {
+    lines.push(
+      '❌ <b>1) الشبكة:</b> تعذّر الوصول إلى جيزي',
+      `السبب: <code>${escapeHtml(probe.error || '—')}</code> بعد ${probe.ms} ms`,
+      '',
+      '💡 الخطوات:',
+      '• أوقف أي VPN (حتى لو كان مطفي شكله).',
+      '• بدّل بين Wi‑Fi وبيانات جيزي (4G) — هذا يحلّ أغلب الحالات.',
+      '• أطفي Private DNS في إعدادات أندرويد.',
+      '• أعد المحاولة بعد 30 ثانية.',
+    );
+    return { ok: false, text: lines.join('\n') };
+  }
+
+  lines.push(`✅ <b>1) الشبكة:</b> تعمل (HTTP ${probe.status} · ${probe.ms} ms)`);
+  if (!msisdn) {
+    lines.push('', '➡️ <b>2) الرمز:</b> ما من رقم مربوط — اضغط 📱 إضافة رقم ثم أعد الاختبار.');
+    return { ok: true, text: lines.join('\n') };
+  }
+
+  const account = user.accounts[msisdn];
+  const label = account?.label || msisdn;
+  try {
+    await djezzy.requestOtp(msisdn);
+    lines.push(
+      `✅ <b>2) إرسال الرمز:</b> جيزي قبلت الطلب وأرسلت SMS إلى <code>${escapeHtml(label)}</code>`,
+      '',
+      'إذا وصلك SMS فعلاً فالاتصال سليم 100%.',
+      '(لا تدخل الرمز من هنا — استعمل 📱 إضافة رقم لتسجيل الجلسة.)',
+    );
+  } catch (error) {
+    lines.push(
+      '❌ <b>2) إرسال الرمز:</b> فشل',
+      escapeHtml(error?.friendly || error?.message || 'خطأ غير معروف'),
+    );
+    return { ok: false, text: lines.join('\n') };
+  }
+
+  lines.push(
+    '',
+    '3) <b>الهدية:</b> جاهزة — اضغط 🎁 هدية 2 جيجا، وإذا استلمتها في آخر 7 أيام سيخبرك بالتاريخ.',
+  );
+  return { ok: true, text: lines.join('\n') };
+}
+
+bot.command('test', async (ctx) => {
+  await ctx.reply('🧪 جارٍ اختبار حقيقي (شبكة + إرسال رمز)…');
+  const report = await endToEndReport(ctx.from.id);
+  return ctx.reply(report.text, { parse_mode: 'HTML', ...mainMenu() });
+});
+
+bot.action('test', async (ctx) => {
+  await ctx.answerCbQuery('جارٍ الاختبار…');
+  const report = await endToEndReport(ctx.from.id);
+  const options = { parse_mode: 'HTML', ...mainMenu() };
+  return ctx.editMessageText(report.text, options).catch(() => ctx.reply(report.text, options));
 });
 
 /* ------------------------------- الأزرار ------------------------------- */
@@ -443,7 +515,26 @@ async function main() {
     console.warn(`⚠️ تعذّر حذف الـ Webhook: ${error.message}`);
   }
 
-  await bot.launch({ dropPendingUpdates: true });
+  // تشغيل مقاوم للانقطاع: يعيد المحاولة بدل أن يموت البوت
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await bot.launch({ dropPendingUpdates: true });
+      break; // توقّف طبيعي (SIGINT/SIGTERM)
+    } catch (error) {
+      const message = String(error?.message || error);
+      console.error(`❌ فشل الـ polling (محاولة ${attempt}): ${message}`);
+      if (/401|Unauthorized/i.test(message)) throw error; // توكن خاطئ — لا فائدة من التكرار
+      const wait = Math.min(30_000, 3_000 * attempt);
+      console.error(`   إعادة المحاولة بعد ${Math.round(wait / 1000)} ثانية…`);
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      try {
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+      } catch {
+        /* تجاهل */
+      }
+    }
+  }
+
   const me = await bot.telegram.getMe();
   console.log(`🤖 البوت @${me.username} يعمل الآن بالـ polling`);
   console.log('   ➜ افتح تيليجرام وأرسل /start');
@@ -451,6 +542,24 @@ async function main() {
 
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
+  // مراقب دوري لخوادم جيزي — يسجّل أي انقطاع في pm2 logs بدون إسقاط البوت
+  const watchMs = Number(process.env.DJEZZY_WATCH_MS || 300_000);
+  let lastState = null;
+  const timer = setInterval(async () => {
+    try {
+      const current = await djezzy.probe();
+      const state = current.reachable ? 'up' : 'down';
+      if (state !== lastState) {
+        if (state === 'up') console.log(`✅ خوادم جيزي متاحة (HTTP ${current.status} · ${current.ms} ms)`);
+        else console.warn(`⚠️ خوادم جيزي غير متاحة (${current.error}) — سيُعاد الفحص تلقائياً`);
+        lastState = state;
+      }
+    } catch {
+      /* تجاهل */
+    }
+  }, watchMs);
+  timer.unref?.();
 }
 
 main().catch((error) => {

@@ -38,17 +38,48 @@ if (FORCE_IPV4) {
   }
 }
 
-/** lookup يفرض family=4 ويتعامل مع الحالتين (with/without all) */
+/* ---------- DNS احتياطي: بعض الشبكات تحجب/تُفسد DNS المشغّل ---------- */
+const FALLBACK_DNS = (process.env.DJEZZY_FALLBACK_DNS || '1.1.1.1,8.8.8.8')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+const fallbackResolver = new dns.Resolver({ timeout: 4000, tries: 2 });
+try {
+  if (FALLBACK_DNS.length) fallbackResolver.setServers(FALLBACK_DNS);
+} catch {
+  /* تجاهل */
+}
+
+/** يحلّ الاسم عبر خوادم DNS عامة (يُستعمل فقط عند فشل DNS النظام) */
+const resolve4Fallback = (hostname) =>
+  new Promise((resolve) => {
+    try {
+      fallbackResolver.resolve4(hostname, (error, addresses) =>
+        resolve(error || !addresses || !addresses.length ? null : addresses[0]),
+      );
+    } catch {
+      resolve(null);
+    }
+  });
+
+/** lookup يفرض IPv4، ويجرّب DNS احتياطياً عند فشل DNS النظام (ENOTFOUND/EAI_AGAIN) */
 const ipv4Lookup = (hostname, options, callback) => {
   if (!FORCE_IPV4) return dns.lookup(hostname, options, callback);
-  if (options && options.all) {
-    return dns.lookup(hostname, { ...options, family: 4, all: true }, (error, list) => {
-      if (error) return callback(error);
-      const v4 = (list || []).filter((item) => item.family === 4 || item.family === 'IPv4');
-      return callback(null, v4.length ? v4 : list);
+  const wantAll = Boolean(options && options.all);
+
+  const finish = (error, list) => {
+    const v4 = (list || []).filter((item) => item.family === 4 || item.family === 'IPv4');
+    if (!error && v4.length) {
+      return wantAll ? callback(null, v4) : callback(null, v4[0].address, 4);
+    }
+    return resolve4Fallback(hostname).then((ip) => {
+      if (ip) return wantAll ? callback(null, [{ address: ip, family: 4 }]) : callback(null, ip, 4);
+      return callback(error || Object.assign(new Error('ENOTFOUND ' + hostname), { code: 'ENOTFOUND' }));
     });
-  }
-  return dns.lookup(hostname, { ...options, family: 4 }, callback);
+  };
+
+  return dns.lookup(hostname, { ...options, family: 4, all: true }, finish);
 };
 
 /** وكيل HTTPS موحّد: IPv4 فقط + keepAlive + مهلة سوكت أطول من مهلة الطلب */
@@ -243,7 +274,14 @@ export class Djezzy {
       headers: { ...this.headers },
     });
 
-    this.meta = { proxy: proxy || null, timeoutMs: this.timeoutMs, baseUrl: this.baseUrl, forceIpv4: FORCE_IPV4, retries: this.retries };
+    this.meta = {
+      proxy: proxy || null,
+      timeoutMs: this.timeoutMs,
+      baseUrl: this.baseUrl,
+      forceIpv4: FORCE_IPV4,
+      retries: this.retries,
+      fallbackDns: FORCE_IPV4 ? FALLBACK_DNS : [],
+    };
   }
 
   /** ينشئ العميل من متغيّرات البيئة */
