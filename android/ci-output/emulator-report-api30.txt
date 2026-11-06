@@ -1,11 +1,89 @@
 ############ emulator ############
 api-level: 30
 List of devices attached
+emulator-5554	device
 
-FAIL emulator did not finish booting
---- emulator console (tail) ---
-INFO         | Android emulator version 37.2.13.0 (build_id 16740729) (CL:N/A)
-INFO         | Graphics backend: gfxstream
-ERROR        | Unknown AVD name [test30], use -list-avds to see valid list.
-ERROR        | HOME is defined but there is no file test30.ini in $HOME/.android/avd
-ERROR        | (Note: Directories are searched in the order $ANDROID_AVD_HOME, $ANDROID_SDK_HOME/avd and $HOME/.android/avd)
+PASS emulator booted (API 30)
+
+############ adb install -r ############
+Performing Streamed Install
+Success
+PASS adb install exit 0
+
+############ am start -W ############
+Starting: Intent { cmp=app.dzexchange.marketplace/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: app.dzexchange.marketplace/.MainActivity
+TotalTime: 1474
+WaitTime: 1497
+Complete
+
+############ process ############
+3122
+
+############ foreground activity ############
+    mResumedActivity: ActivityRecord{ff57a1f u0 app.dzexchange.marketplace/.MainActivity t9}
+  ResumedActivity: ActivityRecord{ff57a1f u0 app.dzexchange.marketplace/.MainActivity t9}
+  mFocusedApp=ActivityRecord{ff57a1f u0 app.dzexchange.marketplace/.MainActivity t9}
+
+############ installed package ############
+    versionCode=1 minSdk=23 targetSdk=35
+    versionName=1.0
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+
+############ crash buffer ############
+
+############ app logcat (chromium / errors) ############
+11-06 18:49:16.511  2755  2755 I AndroidRuntime: Leaving lock profiling enabled
+11-06 18:49:16.918  2755  2755 D AndroidRuntime: Calling main entry com.android.commands.svc.Svc
+11-06 18:49:17.207  2755  2755 D AndroidRuntime: Shutting down VM
+11-06 18:49:17.876   493   534 I ActivityManager: Start proc 2873:com.google.android.webview:webview_service/u0a145 for service {com.google.android.webview/org.chromium.android_webview.services.VariationsSeedServer}
+11-06 18:49:18.845   493   550 I PackageDexOptimizer: Running dexopt (dexoptNeeded=1) on: /data/app/~~8DGPMSXqSHOPCt2l1PqlIg==/app.dzexchange.marketplace-UYQCfSis170MHQvmuVHFyA==/base.apk pkg=app.dzexchange.marketplace isa=x86_64 dexoptFlags=boot_complete,profile_guided,public,enable_hidden_api_checks targetFilter=speed-profile oatDir=/data/app/~~8DGPMSXqSHOPCt2l1PqlIg==/app.dzexchange.marketplace-UYQCfSis170MHQvmuVHFyA==/oat classLoaderContext=PCL[]{}
+11-06 18:49:18.845   425  1634 V installd: DexInv: --- BEGIN '/data/app/~~8DGPMSXqSHOPCt2l1PqlIg==/app.dzexchange.marketplace-UYQCfSis170MHQvmuVHFyA==/base.apk' ---
+11-06 18:49:19.352  2948  2948 I dex2oat32: /apex/com.android.art/bin/dex2oat32 --input-vdex-fd=-1 --output-vdex-fd=9 --updatable-bcp-packages-file=/system/etc/updatable-bcp-packages.txt --resolve-startup-const-strings=true --max-image-block-size=524288 --compiler-filter=speed-profile --classpath-dir=/data/app/~~8DGPMSXqSHOPCt2l1PqlIg==/app.dzexchange.marketplace-UYQCfSis170MHQvmuVHFyA== --class-loader-context=PCL[]{} --generate-mini-debug-info --compact-dex-level=none --compilation-reason=install
+11-06 18:49:20.559  2948  2948 W dex2oat32: Compilation of boolean app.dzexchange.marketplace.MainActivity.isInternal(android.net.Uri) took 114.641ms
+11-06 18:49:20.767   425  1634 V installd: DexInv: --- END '/data/app/~~8DGPMSXqSHOPCt2l1PqlIg==/app.dzexchange.marketplace-UYQCfSis170MHQvmuVHFyA==/base.apk' (success) ---
+11-06 18:49:20.860  1658  1658 I GsaVoiceInteractionSrv: O received Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 (has extras) }
+11-06 18:49:20.861  1637  1637 I MediaProvider: Invalidating LocalCallingIdentity cache for package app.dzexchange.marketplace. Reason: package android.intent.action.PACKAGE_ADDED
+11-06 18:49:20.869   688   688 D AvrcpMediaPlayerList: Name of package changed: app.dzexchange.marketplace
+11-06 18:49:20.919   493  1915 I ActivityTaskManager: START u0 {flg=0x10000000 cmp=app.dzexchange.marketplace/.MainActivity} from uid 2000
+11-06 18:49:21.043   493   534 I ActivityManager: Start proc 3122:app.dzexchange.marketplace/u0a167 for pre-top-activity {app.dzexchange.marketplace/app.dzexchange.marketplace.MainActivity}
+11-06 18:49:21.136   688   688 D AvrcpMediaPlayerList: Name of package changed: app.dzexchange.marketplace
+11-06 18:49:21.488  1160  2130 W GCM     : Unexpected forwarded intent: Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService (has extras) }
+11-06 18:49:21.489  1160  3078 W GCM     : Unexpected forwarded intent: Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService (has extras) }
+11-06 18:49:21.579  1160  3078 I Fitness : OnPackageChangedOperation got intent: Intent { act=android.intent.action.PACKAGE_CHANGED dat=package:app.dzexchange.marketplace flg=0x5000010 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService (has extras) } [CONTEXT service_id=17 ]
+11-06 18:49:21.607  3122  3122 I TetheringManager: registerTetheringEventCallback:app.dzexchange.marketplace
+11-06 18:49:21.637   493   534 I ActivityManager: Start proc 3174:com.google.android.webview:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0/u0ai9000 for  {app.dzexchange.marketplace/org.chromium.content.app.SandboxedProcessService0:0}
+11-06 18:49:21.642  3122  3122 E chromium: [ERROR:filesystem_posix.cc(62)] mkdir /data/user/0/app.dzexchange.marketplace/cache/WebView/Crashpad: No such file or directory (2)
+11-06 18:49:21.753   493  1922 D ConnectivityService: requestNetwork for uid/pid:10167/3122 NetworkRequest [ TRACK_DEFAULT id=27, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10167 AdministratorUids: [] RequestorUid: 10167 RequestorPackageName: app.dzexchange.marketplace] ]
+11-06 18:49:21.754  1031  1031 D PhoneSwitcherNetworkRequstListener: got request NetworkRequest [ TRACK_DEFAULT id=27, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10167 AdministratorUids: [] RequestorUid: 10167 RequestorPackageName: app.dzexchange.marketplace] ] with score 60 and providerId 3
+11-06 18:49:21.754   493   636 D UntrustedWifiNetworkFactory: got request NetworkRequest [ TRACK_DEFAULT id=27, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10167 AdministratorUids: [] RequestorUid: 10167 RequestorPackageName: app.dzexchange.marketplace] ] with score 60 and providerId 3
+11-06 18:49:21.754   493   636 D WifiNetworkFactory: got request NetworkRequest [ TRACK_DEFAULT id=27, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED Uid: 10167 AdministratorUids: [] RequestorUid: 10167 RequestorPackageName: app.dzexchange.marketplace] ] with score 60 and providerId 3
+11-06 18:49:22.626   493  2100 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 (has extras) } to com.google.android.packageinstaller/com.android.packageinstaller.PackageInstalledReceiver
+11-06 18:49:22.626   493   533 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 (has extras) } to com.google.android.gms/.games.chimera.GamesSystemBroadcastReceiverProxy
+11-06 18:49:22.626   493   533 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 (has extras) } to com.google.android.gms/.gass.chimera.PackageChangeBroadcastReceiver
+11-06 18:49:22.626   493   533 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 (has extras) } to com.google.android.gms/.chimera.GmsIntentOperationService$PersistentTrustedReceiver
+11-06 18:49:22.626   493   533 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 (has extras) } to com.google.android.googlequicksearchbox/com.google.android.apps.gsa.googlequicksearchbox.GelStubAppWatcher
+11-06 18:49:22.626   493   533 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 (has extras) } to com.google.android.ims/.receivers.RcsAutoStartReceiver
+11-06 18:49:22.638  1369  3244 I ChromeSync: [Sync,SyncIntentOperation] Handling the intent: Intent { act=android.intent.action.PACKAGE_ADDED dat=package:app.dzexchange.marketplace flg=0x4000010 cmp=com.google.android.gms/.chimera.GmsIntentOperationService (has extras) }.
+11-06 18:49:22.640  1369  2624 I FontsPackageChangeOp: Package app.dzexchange.marketplace has no metadata
+11-06 18:49:22.707  1369  3244 I ChromeSync: [Persistence,AffiliationManager] One of affiliation or grouping data for android://UULC_abWpKc7xSCRgGw0YU1JJuSDASnSStlifR0i1ep9gmPhdAQnLAcgYEfDdD74EM_SwIIKkTl3cUZx8Dg-vg==@app.dzexchange.marketplace/ was not found. Marking affiliation data as stale...
+11-06 18:49:23.226  1160  2509 I Fitness : OnPackageChangedOperation got intent: Intent { act=android.intent.action.PACKAGE_CHANGED dat=package:app.dzexchange.marketplace flg=0x5000010 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService (has extras) } [CONTEXT service_id=17 ]
+11-06 18:49:26.810   493   532 D ArtManagerInternalImpl: /data/misc/iorapd/app.dzexchange.marketplace/1/app.dzexchange.marketplace.MainActivity/compiled_traces/compiled_trace.pb doesn't exist
+11-06 18:49:26.811   493   532 I ActivityTaskManager: Displayed app.dzexchange.marketplace/.MainActivity: +1s474ms
+11-06 18:49:28.397  3122  3122 I chromium: [INFO:CONSOLE(1)] "Uncaught SyntaxError: Unexpected token '{'", source: https://marketplace-fixed.vercel.app/_next/static/immutable/chunks/1_fpglkswi38r.js (1)
+11-06 18:49:37.166   493   534 I ActivityManager: Start proc 4522:com.android.chrome/u0a131 for service {com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabsConnectionService}
+11-06 18:49:37.957  1160  2254 I anhw    : Scheduling Phenotype for a PhenotypeSyncImmediately(6, org.chromium.net.cronet) one off with window [1, 2] in seconds [CONTEXT service_id=51 ]
+PASS process alive after launch
+PASS app is the foreground activity
+PASS no crash logged for the app
+PASS screenshot captured (274199 bytes)
+PASS still alive after navigation + Back
+
+############ result ############
+failures: 0
+Success
+OK: killing emulator, bye bye
+OK
