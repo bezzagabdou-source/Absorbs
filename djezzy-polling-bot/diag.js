@@ -50,7 +50,7 @@ console.log(`   الشبكة: ${client.meta.forceIpv4 ? 'IPv4 فقط (DJEZZY_FOR
 
 const pool = client.meta.pool;
 if (pool.enabled) {
-  ok('بروكسي جزائري', `${pool.healthy}/${pool.total} صالح`);
+  console.log(`ℹ️  بروكسي جزائري: ${pool.total} مضبوط — النتيجة تظهر بعد الاختبار`);
   console.log(
     pool.text
       .split('\n')
@@ -74,6 +74,17 @@ if (dnsInfo.error) {
 }
 
 const probe = await client.probe();
+
+if (probe.pool && probe.pool.enabled) {
+  const after = probe.pool;
+  console.log(`   حالة البروكسي بعد الاختبار: ${after.healthy}/${after.total} صالح`);
+  console.log(
+    after.text
+      .split('\n')
+      .map((line) => `      ${line}`)
+      .join('\n'),
+  );
+}
 
 if (probe.reachable) {
   ok('الوصول إلى جيزي', `HTTP ${probe.status} في ${probe.ms} ms`);

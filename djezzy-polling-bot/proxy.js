@@ -118,15 +118,19 @@ export class ProxyPool {
   next(now = Date.now()) {
     if (!this.entries.length) return null;
 
-    const healthy = this.entries.filter((entry) => entry.blockedUntil <= now);
-    if (!healthy.length) {
+    const available = this.entries.filter((entry) => entry.blockedUntil <= now);
+    if (!available.length) {
       // الكل مستبعَد: جرّب الأقرب لانتهاء الـ cooldown بدل الاستسلام
       const soonest = [...this.entries].sort((a, b) => a.blockedUntil - b.blockedUntil)[0];
       return this.directFallback ? null : soonest;
     }
 
-    const entry = healthy[this.index % healthy.length];
-    this.index = (this.index + 1) % Math.max(healthy.length, 1);
+    // نفضّل البروكسيات التي لم تفشل بعد، ونُبقي الفاشلة كخيار أخير
+    const clean = available.filter((entry) => !entry.lastError);
+    const candidates = clean.length ? clean : available;
+
+    const entry = candidates[this.index % candidates.length];
+    this.index = (this.index + 1) % candidates.length;
     return entry;
   }
 
@@ -154,10 +158,10 @@ export class ProxyPool {
     if (!this.entries.length) {
       return { enabled: false, total: 0, healthy: 0, text: 'بدون بروكسي — اتصال مباشر' };
     }
-    const healthy = this.entries.filter((entry) => entry.blockedUntil <= now).length;
+    const healthy = this.entries.filter((entry) => entry.blockedUntil <= now && !entry.lastError).length;
     const text = this.entries
       .map((entry) => {
-        const state = entry.blockedUntil > now ? '⛔' : '✅';
+        const state = entry.blockedUntil > now ? '⛔' : entry.lastError ? '⚠️' : '✅';
         const latency = entry.lastLatency ? ` ${entry.lastLatency}ms` : '';
         const fails = entry.lastError ? ` (${entry.lastError})` : '';
         return `${state} ${entry.protocol}://${entry.host}:${entry.port}${latency}${fails}`;

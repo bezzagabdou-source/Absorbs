@@ -527,29 +527,48 @@ export class Djezzy {
   /** يتحقّق إن كان الوصول إلى جيزي ممكناً من هذا الجهاز (TCP/HTTP حقيقي) */
   async probe() {
     const started = Date.now();
-    try {
-      const response = await this.http.request({
+    const startedAll = started;
+    const attempts = Math.max(1, Math.min(this.pool.size || 1, 3));
+    let lastError = null;
+
+    for (let i = 0; i < attempts; i += 1) {
+      const entry = this.pool.next();
+      const options = {
         method: 'GET',
         url: '/mobile-api/',
-        timeout: Math.min(this.timeoutMs, 20000),
+        timeout: Math.min(this.timeoutMs, 20_000),
         headers: { ...this.headers },
-      });
-      return {
-        reachable: true,
-        status: response.status,
-        ms: Date.now() - started,
-        proxy: this.meta.proxy,
-        pool: this.pool.status(),
       };
-    } catch (error) {
-      return {
-        reachable: false,
-        error: error?.code || error?.message,
-        ms: Date.now() - started,
-        proxy: this.meta.proxy,
-        pool: this.pool.status(),
-      };
+      if (entry) {
+        options.httpsAgent = entry.agent;
+        options.httpAgent = entry.agent;
+        options.proxy = false;
+      }
+
+      try {
+        const response = await this.http.request(options);
+        if (entry) this.pool.markOk(entry, Date.now() - startedAll);
+        return {
+          reachable: true,
+          status: response.status,
+          ms: Date.now() - startedAll,
+          viaProxy: entry ? `${entry.protocol}://${entry.host}:${entry.port}` : null,
+          proxy: this.meta.proxy,
+          pool: this.pool.status(),
+        };
+      } catch (error) {
+        lastError = error;
+        if (entry) this.pool.markFail(entry, error?.code || error?.message);
+      }
     }
+
+    return {
+      reachable: false,
+      error: lastError?.code || lastError?.message,
+      ms: Date.now() - startedAll,
+      proxy: this.meta.proxy,
+      pool: this.pool.status(),
+    };
   }
 }
 
