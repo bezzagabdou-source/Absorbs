@@ -10,6 +10,10 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -49,8 +53,11 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // targetSdk 35 forces edge-to-edge on Android 15+: pad the content by the
+        // real system-bar / cutout / keyboard insets so nothing hides under them.
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.WHITE);
+        applyWindowInsets(root);
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.WHITE);
@@ -71,7 +78,9 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
+        applySystemBarAppearance();
         configureWebView();
+        registerBackHandler();
 
         if (savedInstanceState != null) {
             String restored = savedInstanceState.getString(STATE_URL);
@@ -82,6 +91,91 @@ public class MainActivity extends Activity {
         }
         if (webView.getUrl() == null) {
             webView.loadUrl(pendingUrl);
+        }
+    }
+
+    /**
+     * Android 15 (targetSdk 35) draws the app edge-to-edge and no longer honours
+     * adjustResize, so the shell pads itself with the live system-bar, display-cutout
+     * and keyboard insets. On older releases the same listener is a no-op for bars
+     * the platform already insets, which keeps one code path for every API level.
+     */
+    private void applyWindowInsets(final View root) {
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int left;
+            int top;
+            int right;
+            int bottom;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets safe = insets.getInsets(
+                        WindowInsets.Type.systemBars()
+                                | WindowInsets.Type.displayCutout()
+                                | WindowInsets.Type.ime());
+                left = safe.left;
+                top = safe.top;
+                right = safe.right;
+                bottom = safe.bottom;
+            } else {
+                left = insets.getSystemWindowInsetLeft();
+                top = insets.getSystemWindowInsetTop();
+                right = insets.getSystemWindowInsetRight();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(left, top, right, bottom);
+            return insets;
+        });
+        root.requestApplyInsets();
+    }
+
+    /** White shell ⇒ dark system-bar icons on every supported API level. */
+    private void applySystemBarAppearance() {
+        android.view.Window window = getWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(light, light);
+            }
+        } else {
+            int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                window.setNavigationBarColor(Color.WHITE);
+            }
+            window.setStatusBarColor(Color.WHITE);
+            window.getDecorView().setSystemUiVisibility(flags);
+        }
+    }
+
+    /**
+     * Predictive back (Android 13+, default-on at targetSdk 35) stops delivering
+     * onBackPressed, so register a real callback and keep the legacy override for
+     * API 23–32. The API 33 types live in a nested class that is only loaded there.
+     */
+    private void registerBackHandler() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            BackHandler33.register(getOnBackInvokedDispatcher(), this::goBackOrFinish);
+        }
+    }
+
+    private static final class BackHandler33 {
+        static void register(OnBackInvokedDispatcher dispatcher, Runnable action) {
+            OnBackInvokedCallback callback = action::run;
+            dispatcher.registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback);
+        }
+    }
+
+    private void goBackOrFinish() {
+        if (errorPanel != null && errorPanel.getVisibility() == View.VISIBLE) {
+            errorPanel.setVisibility(View.GONE);
+            return;
+        }
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            finish();
         }
     }
 
@@ -341,8 +435,10 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        // API 23–32 path. API 33+ uses the OnBackInvokedCallback registered above.
         if (errorPanel != null && errorPanel.getVisibility() == View.VISIBLE) {
             errorPanel.setVisibility(View.GONE);
+            return;
         }
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
