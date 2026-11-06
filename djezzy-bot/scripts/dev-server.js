@@ -26,9 +26,18 @@ if (usePolling) {
     log.error('BOT_TOKEN غير مضبوط — لا يمكن التشغيل بالـ polling.');
     process.exit(1);
   }
+  // إزالة أي Webhook سابق: يتعارض مع الـ polling (خطأ 409 Conflict)
+  try {
+    await bot.api.deleteWebhook({ drop_pending_updates: true });
+    log.info('أُزيل الـ Webhook السابق (وضع polling).');
+  } catch (error) {
+    log.warn(`تعذّر إزالة الـ Webhook: ${error.message} — أكمل على أي حال.`);
+  }
+
   bot.start({
     drop_pending_updates: true,
-    onStart: (me) => log.info(`البوت @${me.username} يعمل بالـ polling (وضع جيزي: ${config.djezzy.dryRun ? 'محاكاة' : 'مباشر'})`),
+    onStart: (me) =>
+      log.info(`البوت @${me.username} يعمل بالـ polling (وضع جيزي: ${config.djezzy.dryRun ? 'محاكاة' : 'مباشر'})`),
   });
 } else {
   const app = createApp();
