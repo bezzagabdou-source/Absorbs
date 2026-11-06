@@ -100,21 +100,25 @@ export function overviewText({ account, overview }) {
   return lines.join('\n');
 }
 
-export function activationSuccess({ label, item, data, validity }) {
+export const SIMULATION_BANNER =
+  '🧪 <b>وضع المحاكاة:</b> هذه النتيجة تجريبية — لم يُرسل أي طلب حقيقي إلى جيزي ولم تُضف أي بيانات.\nللتشغيل الحقيقي: يلزم ضبط مسارات API الخاصة بحسابك (DJEZZY_BASE_URL / DJEZZY_PATH_*) و DJEZZY_DRY_RUN=false.';
+
+export function activationSuccess({ label, item, data, validity, simulated = false }) {
   return [
-    '✅ <b>تم التفعيل بنجاح</b>',
+    simulated ? '🧪 <b>محاكاة ناجحة</b> (لا بيانات حقيقية)' : '✅ <b>تم التفعيل بنجاح</b>',
     '',
     `العملية: ${escape(label)}`,
     item ? `العرض: ${escape(item)}` : '',
     data ? `الحجم: <b>${escape(data)}</b>` : '',
     validity ? `الصلاحية: ${escape(validity)}` : '',
+    simulated ? `\n${SIMULATION_BANNER}` : '',
   ]
     .filter(Boolean)
     .join('\n');
 }
 
-export function giftsResult(result) {
-  const lines = ['🎁 <b>نتيجة استلام الهدايا</b>', ''];
+export function giftsResult(result, { simulated = false } = {}) {
+  const lines = [simulated ? '🧪 <b>نتيجة استلام الهدايا (محاكاة)</b>' : '🎁 <b>نتيجة استلام الهدايا</b>', ''];
 
   if (result.claimed?.length) {
     lines.push('<b>تم الاستلام:</b>');
@@ -133,6 +137,8 @@ export function giftsResult(result) {
   if (!result.claimed?.length && !result.failed?.length) {
     lines.push('لا توجد هدايا متاحة الآن.');
   }
+
+  if (simulated) lines.push('', SIMULATION_BANNER);
 
   return lines.join('\n');
 }
