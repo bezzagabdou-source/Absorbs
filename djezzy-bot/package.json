@@ -18,7 +18,10 @@
     "test": "node scripts/self-test.js && node scripts/ux-test.js && node scripts/live-client-test.js",
     "test:engine": "node scripts/self-test.js",
     "test:ux": "node scripts/ux-test.js",
-    "test:live": "node scripts/live-client-test.js"
+    "test:live": "node scripts/live-client-test.js",
+    "doctor": "node scripts/doctor.js",
+    "poll": "USE_POLLING=1 node scripts/dev-server.js",
+    "doctor:fix": "node scripts/doctor.js --fix"
   },
   "dependencies": {
     "axios": "^1.7.9",

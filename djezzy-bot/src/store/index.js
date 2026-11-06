@@ -12,6 +12,7 @@ import { createLogger } from '../util/logger.js';
 
 const log = createLogger('store');
 const KEY_PREFIX = 'djezzy:user:';
+const META_PREFIX = 'djezzy:meta:';
 const TTL = config.storage.userTtlSeconds;
 
 /* ------------------------------ محوّل KV ------------------------------ */
@@ -152,6 +153,24 @@ export const store = {
     } catch (error) {
       log.warn(`فشل فحص التخزين: ${error.message}`);
       return false;
+    }
+  },
+
+  /* ------ بيانات تشخيصية (آخر تحديث وصل، عدّاد…) ------ */
+  async getMeta(name) {
+    try {
+      const raw = await adapter.get(`${META_PREFIX}${name}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async setMeta(name, value, ttlSeconds = 60 * 60 * 24 * 7) {
+    try {
+      await adapter.set(`${META_PREFIX}${name}`, JSON.stringify(value), ttlSeconds);
+    } catch (error) {
+      log.debug(`تعذّر حفظ الميتا ${name}: ${error.message}`);
     }
   },
 };
