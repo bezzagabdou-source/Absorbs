@@ -12,7 +12,7 @@ export function getPool(): Pool {
   if (!globalDb.dzPool) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) throw new Error("DATABASE_URL is required");
-    globalDb.dzPool = new Pool({ connectionString, max: Math.min(20, Math.max(1, Number(process.env.DB_POOL_MAX) || 5)), connectionTimeoutMillis: 5000, idleTimeoutMillis: 30000, statement_timeout: 10000, application_name: "dz-exchange-runtime" });
+    globalDb.dzPool = new Pool({ connectionString, max: Math.min(20, Math.max(1, Number(process.env.DB_POOL_MAX) || 5)), connectionTimeoutMillis: 5000, idleTimeoutMillis: 30000, statement_timeout: 10000, application_name: "dz-exchange-runtime", options: `-c search_path=${/^[a-z_][a-z0-9_]*$/.test(process.env.DB_SCHEMA || "public") ? (process.env.DB_SCHEMA || "public") : "public"},public` });
     globalDb.dzPool.on("error", () => console.error(JSON.stringify({ event: "database_pool_error" })));
   }
   return globalDb.dzPool;

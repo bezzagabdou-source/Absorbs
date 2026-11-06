@@ -16,7 +16,7 @@ export const categoryRows = [
 ];
 export async function seedReferenceData() {
   const url = process.env.DATABASE_MIGRATION_URL; if (!url) throw new Error("DATABASE_MIGRATION_URL required");
-  const pool = new Pool({ connectionString: url });
+  const schema = process.env.DB_SCHEMA || "public"; if (!/^[a-z_][a-z0-9_]*$/.test(schema)) throw new Error("Invalid DB_SCHEMA"); const pool = new Pool({ connectionString: url, options: `-c search_path=${schema},public` });
   try { await drizzle(pool).transaction(async (tx) => { await tx.insert(wilayaTable).values(wilayas.map(([code, name, nameAr]) => ({ code, nameEn: name, nameFr: name, nameAr }))).onConflictDoNothing(); await tx.insert(categories).values(categoryRows).onConflictDoNothing(); }); } finally { await pool.end(); }
 }
 if (process.argv[1]?.endsWith("seed-reference-data.ts")) seedReferenceData().then(() => console.log("58 wilayas and 8 categories seeded")).catch((error) => { console.error(error); process.exitCode = 1; });

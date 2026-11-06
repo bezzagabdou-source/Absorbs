@@ -19,7 +19,8 @@
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "push:keys": "node scripts/generate-vapid.mjs",
     "test:e2e": "playwright test",
-    "db:inspect": "tsx -r dotenv/config scripts/inspect-db.ts"
+    "db:inspect": "tsx -r dotenv/config scripts/inspect-db.ts",
+    "ai:check": "tsx --conditions=react-server -r dotenv/config scripts/check-ai.ts"
   },
   "dependencies": {
     "dexie": "^4.4.7",
