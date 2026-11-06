@@ -148,18 +148,33 @@ function createFileAdapter(filePath = resolve(process.cwd(), '.data', 'store.jso
 }
 
 /* ------------------------------ الواجهة ------------------------------ */
-const adapter =
-  config.storage.kvUrl && config.storage.kvToken
-    ? createKvAdapter({ url: config.storage.kvUrl, token: config.storage.kvToken })
-    : !config.isVercel
-      ? createFileAdapter(process.env.STORE_FILE)
-      : createMemoryAdapter();
+/**
+ * المحوّل يُختار عند أول استخدام (وليس عند الاستيراد) حتى تصل متغيّرات البيئة
+ * التي تضبطها سكربتات الاختبار قبل التحميل — مثل STORE_FILE.
+ */
+let adapterRef = null;
 
-if (adapter.name === 'memory') {
-  log.warn('تخزين مؤقت في الذاكرة — الجلسات ستُفقد عند إعادة تشغيل الدالة. اضبط KV_REST_API_URL/TOKEN للإنتاج.');
-} else if (adapter.name === 'file') {
-  log.info(`تخزين على القرص: ${adapter.path} — الجلسات تبقى بعد إعادة التشغيل.`);
+function resolveAdapter() {
+  if (adapterRef) return adapterRef;
+
+  if (config.storage.kvUrl && config.storage.kvToken) {
+    adapterRef = createKvAdapter({ url: config.storage.kvUrl, token: config.storage.kvToken });
+  } else if (!config.isVercel) {
+    adapterRef = createFileAdapter(process.env.STORE_FILE);
+  } else {
+    adapterRef = createMemoryAdapter();
+  }
+
+  if (adapterRef.name === 'memory') {
+    log.warn('تخزين مؤقت في الذاكرة — الجلسات ستُفقد عند إعادة تشغيل الدالة. اضبط KV_REST_API_URL/TOKEN للإنتاج.');
+  } else if (adapterRef.name === 'file') {
+    log.info(`تخزين على القرص: ${adapterRef.path} — الجلسات تبقى بعد إعادة التشغيل.`);
+  }
+
+  return adapterRef;
 }
+
+const adapter = () => resolveAdapter();
 
 function emptyUser(id) {
   return {
@@ -187,11 +202,15 @@ function normalizeUser(user, id) {
 }
 
 export const store = {
-  adapter: adapter.name,
-  adapterPath: adapter.path ?? null,
+  get adapter() {
+    return resolveAdapter().name;
+  },
+  get adapterPath() {
+    return resolveAdapter().path ?? null;
+  },
 
   async getUser(id) {
-    const raw = await adapter.get(`${KEY_PREFIX}${id}`);
+    const raw = await adapter().get(`${KEY_PREFIX}${id}`);
     if (!raw) return emptyUser(id);
     try {
       return normalizeUser(JSON.parse(raw), id);
@@ -203,17 +222,17 @@ export const store = {
 
   async saveUser(user) {
     const record = { ...user, updatedAt: Date.now() };
-    await adapter.set(`${KEY_PREFIX}${record.id}`, JSON.stringify(record), TTL);
+    await adapter().set(`${KEY_PREFIX}${record.id}`, JSON.stringify(record), TTL);
     return record;
   },
 
   async deleteUser(id) {
-    await adapter.del(`${KEY_PREFIX}${id}`);
+    await adapter().del(`${KEY_PREFIX}${id}`);
   },
 
   async ping() {
     try {
-      return await adapter.ping();
+      return await adapter().ping();
     } catch (error) {
       log.warn(`فشل فحص التخزين: ${error.message}`);
       return false;
@@ -223,7 +242,7 @@ export const store = {
   /* ------ بيانات تشخيصية (آخر تحديث وصل، عدّاد…) ------ */
   async getMeta(name) {
     try {
-      const raw = await adapter.get(`${META_PREFIX}${name}`);
+      const raw = await adapter().get(`${META_PREFIX}${name}`);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -232,7 +251,7 @@ export const store = {
 
   async setMeta(name, value, ttlSeconds = 60 * 60 * 24 * 7) {
     try {
-      await adapter.set(`${META_PREFIX}${name}`, JSON.stringify(value), ttlSeconds);
+      await adapter().set(`${META_PREFIX}${name}`, JSON.stringify(value), ttlSeconds);
     } catch (error) {
       log.debug(`تعذّر حفظ الميتا ${name}: ${error.message}`);
     }

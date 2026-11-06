@@ -5,6 +5,11 @@
  *
  *   node scripts/live-client-test.js
  */
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { rmSync } from 'node:fs';
+
+process.env.STORE_FILE = join(tmpdir(), `djezzy-live-${process.pid}.json`);
 process.env.SESSION_ENCRYPTION_KEY = 'test-key-0123456789abcdef0123456789abcdef';
 process.env.DJEZZY_CLIENT_ID = 'test-client-id';
 process.env.DJEZZY_CLIENT_SECRET = 'test-client-secret';
@@ -231,6 +236,7 @@ await step('خطأ الشبكة يُحوَّل إلى NETWORK', async () => {
 });
 
 server.close();
+rmSync(process.env.STORE_FILE, { force: true });
 await new Promise((resolve) => setTimeout(resolve, 80));
 
 const failed = steps.filter((item) => !item.ok);

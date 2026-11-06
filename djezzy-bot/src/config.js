@@ -95,7 +95,8 @@ export function validateConfig() {
   const warnings = [];
 
   if (!config.bot.token) warnings.push('BOT_TOKEN غير مضبوط — لن يعمل البوت.');
-  if (!config.storage.kvUrl || !config.storage.kvToken) {
+  // على Vercel بلا KV تُفقد الجلسات؛ أما محلياً فالتخزين ملفي دائم (.data/store.json)
+  if (config.isVercel && (!config.storage.kvUrl || !config.storage.kvToken)) {
     warnings.push(
       'KV_REST_API_URL / KV_REST_API_TOKEN غير مضبوطين — سيُستخدم تخزين مؤقت في الذاكرة وستُفقد الجلسات بعد كل إعادة تشغيل.',
     );
