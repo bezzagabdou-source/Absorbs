@@ -1,7 +1,9 @@
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
-import { readFile } from "node:fs/promises";
+import { readFile, mkdtemp, cp, rm, readdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
@@ -22,7 +24,21 @@ try {
   }
   if (schema !== "public") await pool.query(`CREATE SCHEMA IF NOT EXISTS ${JSON.stringify(schema)}`);
   await pool.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
-  await migrate(drizzle(pool), { migrationsFolder: "./drizzle", migrationsSchema: schema === "public" ? "drizzle" : `${schema}_migrations` });
+  let migrationsFolder = "./drizzle";
+  let临时 = "";
+  if (schema !== "public") {
+    临时 = await mkdtemp(join(tmpdir(), "dz-migrations-"));
+    await cp("./drizzle", 临时, { recursive: true });
+    for (const file of await readdir(join(临时))) {
+      if (!file.endsWith(".sql")) continue;
+      const path = join(临时, file);
+      await writeFile(path, (await readFile(path, "utf8")).replaceAll('"public".', `"${schema}".`));
+    }
+    migrationsFolder = 临时;
+  }
+  try {
+    await migrate(drizzle(pool), { migrationsFolder, migrationsSchema: schema === "public" ? "drizzle" : `${schema}_migrations` });
+  } finally { if (临时) await rm(临时, { recursive: true, force: true }); }
   const policies = (await readFile("./docs/rls-policies.sql", "utf8")).replaceAll("pg_catalog, public", `pg_catalog, ${schema}, public`).replaceAll("pg_catalog,public", `pg_catalog,${schema},public`);
   await pool.query(policies);
   console.log("Schema, RLS, grants and worker policies applied.");
