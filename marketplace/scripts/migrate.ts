@@ -22,7 +22,10 @@ try {
     await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='${role}') THEN CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS PASSWORD '${escape(password)}'; ELSE ALTER ROLE ${role} PASSWORD '${escape(password)}'; END IF; END $$;`);
     await pool.query(`GRANT CONNECT ON DATABASE ${JSON.stringify((await pool.query("select current_database() as name")).rows[0].name)} TO ${role}`);
   }
-  if (schema !== "public") await pool.query(`CREATE SCHEMA IF NOT EXISTS ${JSON.stringify(schema)}`);
+  if (schema !== "public") {
+    await pool.query(`CREATE SCHEMA IF NOT EXISTS ${JSON.stringify(schema)}`);
+    await pool.query(`GRANT USAGE ON SCHEMA ${JSON.stringify(schema)} TO dz_runtime, dz_push_worker`);
+  }
   await pool.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
   let migrationsFolder = "./drizzle";
   let tempDir = "";
@@ -41,6 +44,13 @@ try {
   } finally { if (tempDir) await rm(tempDir, { recursive: true, force: true }); }
   const policies = (await readFile("./docs/rls-policies.sql", "utf8")).replaceAll("pg_catalog, public", `pg_catalog, ${schema}, public`).replaceAll("pg_catalog,public", `pg_catalog,${schema},public`);
   await pool.query(policies);
+  if (schema !== "public") {
+    const quoted = JSON.stringify(schema);
+    await pool.query(`GRANT USAGE ON SCHEMA ${quoted} TO dz_runtime, dz_push_worker`);
+    await pool.query(`REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA ${quoted} FROM PUBLIC`);
+    await pool.query(`REVOKE EXECUTE ON FUNCTION protect_product_fields(),notify_offer_change(),notify_matching_listing(),protect_offer_fields() FROM PUBLIC`);
+    await pool.query(`ALTER DEFAULT PRIVILEGES IN SCHEMA ${quoted} REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC`);
+  }
   console.log("Schema, RLS, grants and worker policies applied.");
 } finally { await pool.end(); }
 
