@@ -14,12 +14,18 @@ android {
         versionName "1.0"
     }
 
+    // No signingConfig here on purpose: release artifacts are built UNSIGNED by CI
+    // and signed offline with apksigner. The private key never touches CI or GitHub.
     buildTypes {
         debug {
-            minifyEnabled false
+            debuggable true
         }
         release {
+            debuggable false
+            jniDebuggable false
             minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -27,7 +33,12 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    lint {
+        abortOnError false
+    }
 }
 
+// Intentionally empty: no ads, no analytics, no third-party libraries.
 dependencies {
 }

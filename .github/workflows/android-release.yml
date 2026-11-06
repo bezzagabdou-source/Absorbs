@@ -1,0 +1,90 @@
+name: Android Release (unsigned)
+
+on:
+  push:
+    branches: [arena/f205ded0-absorbs]
+    paths:
+      - 'android/app/**'
+      - 'android/*.gradle'
+      - 'android/gradle.properties'
+      - '.github/workflows/android-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build unsigned release APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Prepare Android SDK
+        run: |
+          SDK="${RUNNER_TEMP:-/tmp}/android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          if [ ! -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+            curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/commandlinetools.zip
+            unzip -q /tmp/commandlinetools.zip -d "$SDK/cmdline-tools"
+            mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          fi
+          export PATH="$SDK/cmdline-tools/latest/bin:$SDK/platform-tools:$PATH"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          echo "BUILD_TOOLS=$SDK/build-tools/35.0.0" >> "$GITHUB_ENV"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build RELEASE (unsigned, debuggable=false)
+        run: gradle --no-daemon assembleRelease
+
+      - name: Align and inspect
+        run: |
+          mkdir -p ci-output
+          RAW=app/build/outputs/apk/release/app-release-unsigned.apk
+          test -f "$RAW"
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$RAW" ci-output/app-release-unsigned.apk
+          "$BUILD_TOOLS/zipalign" -c -v 4 ci-output/app-release-unsigned.apk | tail -3
+          {
+            echo "=== aapt dump badging (unsigned release) ==="
+            "$BUILD_TOOLS/aapt" dump badging ci-output/app-release-unsigned.apk
+            echo
+            echo "=== aapt dump permissions ==="
+            "$BUILD_TOOLS/aapt" dump permissions ci-output/app-release-unsigned.apk
+            echo
+            echo "=== debuggable flag check (must be absent) ==="
+            if "$BUILD_TOOLS/aapt" dump xmltree ci-output/app-release-unsigned.apk AndroidManifest.xml | grep -q 'android:debuggable'; then
+              echo "FOUND android:debuggable -- FAIL"
+              "$BUILD_TOOLS/aapt" dump xmltree ci-output/app-release-unsigned.apk AndroidManifest.xml | grep 'android:debuggable'
+              exit 1
+            else
+              echo "OK: android:debuggable is not present (release default = false)"
+            fi
+            echo
+            echo "=== sha256 ==="
+            sha256sum ci-output/app-release-unsigned.apk
+          } | tee ci-output/unsigned-report.txt
+
+      - name: Commit unsigned artifact for offline signing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f ci-output/app-release-unsigned.apk ci-output/unsigned-report.txt
+          git commit -m "ci(android): unsigned release artifact [skip ci]" || { echo "nothing to commit"; exit 0; }
+          git push origin HEAD:${{ github.ref_name }}

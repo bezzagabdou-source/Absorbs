@@ -25,3 +25,11 @@ PRO-CODES-V*.txt
 .v11-build/
 .v13-build/
 .v14-build/
+
+# Android signing material must never be committed
+*.keystore
+*.jks
+*.p12
+*.pem
+signing/
+android/ci-output/*.idsig
