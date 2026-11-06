@@ -322,7 +322,13 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
 
       await render(
         ctx,
-        txt.activationSuccess({ label: 'عرض 6 جيغا', item: result.item, data: result.data, validity: result.validity }),
+        txt.activationSuccess({
+          label: 'عرض 6 جيغا',
+          item: result.item,
+          data: result.data,
+          validity: result.validity,
+          simulated: engine.mode === 'simulation',
+        }),
         ui.afterAction(),
       );
     } catch (error) {
@@ -371,7 +377,11 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
       }
 
       const header = result.ok ? '✅' : '⚠️';
-      await render(ctx, `${header} ${txt.giftsResult(result)}`, ui.afterAction());
+      await render(
+        ctx,
+        `${header} ${txt.giftsResult(result, { simulated: engine.mode === 'simulation' })}`,
+        ui.afterAction(),
+      );
     } catch (error) {
       log.warn(`فشل استلام الهدايا: ${error.code || error.message}`);
       await render(ctx, txt.errorText(error), ui.afterAction());
@@ -519,7 +529,11 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
         user.state = null;
         await store.saveUser(user);
         await ctx.reply(
-          txt.activationSuccess({ label: action === 'gifts' ? 'استلام الهدايا' : 'عرض 6 جيغا', item: result.item }),
+          txt.activationSuccess({
+            label: action === 'gifts' ? 'استلام الهدايا' : 'عرض 6 جيغا',
+            item: result.item,
+            simulated: engine.mode === 'simulation',
+          }),
           { parse_mode: 'HTML', reply_markup: ui.afterAction() },
         );
       } catch (error) {

@@ -150,8 +150,10 @@ await step('رمز صحيح يربط الرقم ويحفظ الجلسة', async 
 
 await step('تفعيل 6 جيغا من الزر', async () => {
   const text = await click('act:6gb');
-  assert.match(text, /تم التفعيل بنجاح/);
+  assert.match(text, /محاكاة ناجحة|تم التفعيل بنجاح/);
   assert.match(text, /6 جيغا/);
+  // في وضع المحاكاة يجب التنبيه صراحةً أن النتيجة تجريبية
+  assert.match(text, /لم يُرسل أي طلب حقيقي|لا بيانات حقيقية/);
 });
 
 await step('تكرار التفعيل يشرح أنه مُفعّل مسبقاً', async () => {
