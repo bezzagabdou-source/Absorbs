@@ -1,11 +1,89 @@
 ############ emulator ############
 api-level: 35
 List of devices attached
+emulator-5554	device
 
-FAIL emulator did not finish booting
---- emulator console (tail) ---
-INFO         | Android emulator version 37.2.13.0 (build_id 16740729) (CL:N/A)
-INFO         | Graphics backend: gfxstream
-ERROR        | Unknown AVD name [test35], use -list-avds to see valid list.
-ERROR        | HOME is defined but there is no file test35.ini in $HOME/.android/avd
-ERROR        | (Note: Directories are searched in the order $ANDROID_AVD_HOME, $ANDROID_SDK_HOME/avd and $HOME/.android/avd)
+PASS emulator booted (API 35)
+
+############ adb install -r ############
+Performing Streamed Install
+Success
+PASS adb install exit 0
+
+############ am start -W ############
+Starting: Intent { cmp=app.dzexchange.marketplace/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: app.dzexchange.marketplace/.MainActivity
+TotalTime: 3233
+WaitTime: 3317
+Complete
+
+############ process ############
+2667
+
+############ foreground activity ############
+    topResumedActivity=ActivityRecord{7e54d32 u0 app.dzexchange.marketplace/.MainActivity t8}
+  ResumedActivity: ActivityRecord{7e54d32 u0 app.dzexchange.marketplace/.MainActivity t8}
+  mFocusedApp=ActivityRecord{7e54d32 u0 app.dzexchange.marketplace/.MainActivity t8}
+
+############ installed package ############
+    versionCode=1 minSdk=23 targetSdk=35
+    versionName=1.0
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+
+############ crash buffer ############
+
+############ app logcat (chromium / errors) ############
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Default/HTTP Cache/Code Cache/js: No such file or directory (2)
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Default/HTTP Cache/Code Cache/wasm: No such file or directory (2)
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-06 18:49:24.627  1386  1394 W gle.android.gms: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/base.apk' with 1 weak references
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:37.293  3389  4044 I cr_CronetUrlRequestContext: destroyNativeStreamLocked org.chromium.net.impl.CronetBidirectionalStream@341c471
+11-06 18:49:38.589  1386  3709 I cr_CronetUrlRequestContext: destroyNativeStreamLocked org.chromium.net.impl.CronetBidirectionalStream@de6f9d2
+11-06 18:49:38.764  3389  4044 I cr_CronetUrlRequestContext: destroyNativeStreamLocked org.chromium.net.impl.CronetBidirectionalStream@1bdaeea
+11-06 18:49:47.598  4158  4160 I artd    : Dex parent of /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/base.apk is not writable: Permission denied
+11-06 18:49:47.598  4158  4160 I artd    : GetBestInfo checking odex in dalvik-cache (/data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.dex)
+11-06 18:49:47.598  4158  4160 I artd    : Loading /data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.dex with executable: 0
+11-06 18:49:47.598  4158  4160 I artd    : OatFileAssistant test for existing oat file /data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.dex: File /data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.vdex does not exist.
+11-06 18:49:47.598  4158  4160 I artd    : GetBestInfo checking odex next to the dex file (/data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex)
+11-06 18:49:47.598  4158  4160 I artd    : Loading /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex with executable: 0
+11-06 18:49:47.598  4158  4160 I artd    : Successfully loaded /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex with executable: 0
+11-06 18:49:47.599  4158  4160 I artd    : /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex is kOatUpToDate with filter verify
+PASS process alive after launch
+PASS app is the foreground activity
+PASS no crash logged for the app
+PASS screenshot captured (267609 bytes)
+PASS still alive after navigation + Back
+
+############ result ############
+failures: 0
+Success
+OK: killing emulator, bye bye
+OK

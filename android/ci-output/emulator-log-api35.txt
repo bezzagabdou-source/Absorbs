@@ -16,55 +16,217 @@ yes: standard output: Broken pipe
 + sdkmanager platform-tools emulator 'system-images;android-35;google_apis;x86_64'
 Loading package information...                                                  Loading local repository...                                                     [                                       ] 3% Loading local repository...        [                                       ] 3% Fetch remote repository...         [=                                      ] 3% Fetch remote repository...         [=                                      ] 4% Fetch remote repository...         [=                                      ] 5% Fetch remote repository...         [==                                     ] 5% Fetch remote repository...         [==                                     ] 6% Fetch remote repository...         [==                                     ] 7% Fetch remote repository...         [==                                     ] 7% Computing updates...               [===                                    ] 8% Computing updates...               [===                                    ] 10% Computing updates...              [===                                    ] 10% Installing Android Emulator       [===                                    ] 10% Downloading emulator-linux_x64-167[====                                   ] 10% Downloading emulator-linux_x64-167[====                                   ] 11% Downloading emulator-linux_x64-167[====                                   ] 12% Downloading emulator-linux_x64-167[=====                                  ] 13% Downloading emulator-linux_x64-167[=====                                  ] 14% Downloading emulator-linux_x64-167[=====                                  ] 15% Downloading emulator-linux_x64-167[======                                 ] 15% Downloading emulator-linux_x64-167[======                                 ] 16% Downloading emulator-linux_x64-167[======                                 ] 17% Downloading emulator-linux_x64-167[=======                                ] 18% Downloading emulator-linux_x64-167[=======                                ] 18% Unzipping...                      [=======                                ] 18% Unzipping... emulator/            [=======                                ] 18% Unzipping... emulator/resources/  [=======                                ] 18% Unzipping... emulator/qsn         [=======                                ] 18% Unzipping... emulator/emulator    [=======                                ] 18% Unzipping... emulator/netsimd     [=======                                ] 18% Unzipping... emulator/bin64/      [=======                                ] 18% Unzipping... emulator/qemu/       [=======                                ] 18% Unzipping... emulator/NOTICE.txt  [=======                                ] 18% Unzipping... emulator/crashpad_han[=======                                ] 18% Unzipping... emulator/source.prope[=======                                ] 18% Unzipping... emulator/nimble_bridg[=======                                ] 18% Unzipping... emulator/LICENSE     [=======                                ] 18% Unzipping... emulator/lib/        [=======                                ] 18% Unzipping... emulator/qemu-img    [=======                                ] 18% Unzipping... emulator/include/    [=======                                ] 18% Unzipping... emulator/NOTICE.csv  [=======                                ] 18% Unzipping... emulator/lib64/      [=======                                ] 18% Unzipping... emulator/emulator-che[=======                                ] 18% Unzipping... emulator/crashreport [=======                                ] 18% Unzipping... emulator/mksdcard    [=======                                ] 18% Unzipping... emulator/resources/To[=======                                ] 18% Unzipping... emulator/resources/de[=======                                ] 18% Unzipping... emulator/resources/To[=======                                ] 18% Unzipping... emulator/resources/de[=======                                ] 18% Unzipping... emulator/resources/To[=======                                ] 18% Unzipping... emulator/resources/ma[=======                                ] 18% Unzipping... emulator/resources/de[=======                                ] 18% Unzipping... emulator/resources/sk[=======                                ] 18% Unzipping... emulator/resources/de[=======                                ] 18% Unzipping... emulator/resources/ma[=======                                ] 18% Unzipping... emulator/resources/po[=======                                ] 18% Unzipping... emulator/resources/ma[=======                                ] 18% Unzipping... emulator/resources/sk[=======                                ] 18% Unzipping... emulator/resources/ma[=======                                ] 18% Unzipping... emulator/bin64/e2fsck[=======                                ] 18% Unzipping... emulator/bin64/fsck.e[=======                                ] 18% Unzipping... emulator/bin64/tune2f[=======                                ] 18% Unzipping... emulator/bin64/resize[=======                                ] 18% Unzipping... emulator/bin64/mkfs.e[=======                                ] 18% Unzipping... emulator/qemu/linux-x[=======                                ] 19% Unzipping... emulator/qemu/linux-x[=======                                ] 20% Unzipping... emulator/qemu/linux-x[========                               ] 20% Unzipping... emulator/qemu/linux-x[========                               ] 20% Unzipping... emulator/lib/emulator[========                               ] 20% Unzipping... emulator/lib/rtc_serv[========                               ] 20% Unzipping... emulator/lib/advanced[========                               ] 20% Unzipping... emulator/lib/cmake/  [========                               ] 20% Unzipping... emulator/lib/emulator[========                               ] 20% Unzipping... emulator/lib/control_[========                               ] 20% Unzipping... emulator/lib/emulated[========                               ] 20% Unzipping... emulator/lib/rtc_serv[========                               ] 20% Unzipping... emulator/lib/emu-orig[========                               ] 20% Unzipping... emulator/lib/hardware[========                               ] 20% Unzipping... emulator/lib/pkgconfi[========                               ] 20% Unzipping... emulator/lib/pc-bios/[========                               ] 20% Unzipping... emulator/lib/snapshot[========                               ] 20% Unzipping... emulator/lib/adb_serv[========                               ] 20% Unzipping... emulator/lib/hostapd.[========                               ] 20% Unzipping... emulator/lib/grpc_end[========                               ] 20% Unzipping... emulator/lib/ca-bundl[========                               ] 20% Unzipping... emulator/lib/ui_contr[========                               ] 20% Unzipping... emulator/lib/snapshot[========                               ] 20% Unzipping... emulator/lib/ice_conf[========                               ] 20% Unzipping... emulator/lib/libflatb[========                               ] 20% Unzipping... emulator/lib/emulator[========                               ] 20% Unzipping... emulator/lib/waterfal[========                               ] 20% Unzipping... emulator/lib/emulated[========                               ] 20% Unzipping... emulator/lib/cmake/fl[========                               ] 20% Unzipping... emulator/lib/pkgconfi[========                               ] 20% Unzipping... emulator/lib/pc-bios/[========                               ] 20% Unzipping... emulator/include/flat[========                               ] 20% Unzipping... emulator/lib64/libgli[========                               ] 20% Unzipping... emulator/lib64/libpro[========                               ] 20% Unzipping... emulator/lib64/qt/   [========                               ] 20% Unzipping... emulator/lib64/liband[========                               ] 20% Unzipping... emulator/lib64/libgfx[========                               ] 21% Unzipping... emulator/lib64/libgfx[========                               ] 21% Unzipping... emulator/lib64/gles_l[========                               ] 21% Unzipping... emulator/lib64/liband[========                               ] 21% Unzipping... emulator/lib64/vulkan[========                               ] 21% Unzipping... emulator/lib64/gles_s[========                               ] 21% Unzipping... emulator/lib64/libemu[========                               ] 21% Unzipping... emulator/lib64/libpro[========                               ] 21% Unzipping... emulator/lib64/liband[========                               ] 21% Unzipping... emulator/lib64/libtcm[========                               ] 21% Unzipping... emulator/lib64/libima[========                               ] 21% Unzipping... emulator/lib64/libc++[========                               ] 21% Unzipping... emulator/lib64/liband[========                               ] 21% Unzipping... emulator/lib64/libabs[========                               ] 21% Unzipping... emulator/lib64/gles_a[========                               ] 21% Unzipping... emulator/lib64/libsha[========                               ] 21% Unzipping... emulator/lib64/libc++[========                               ] 21% Unzipping... emulator/lib64/qt/res[========                               ] 21% Unzipping... emulator/lib64/qt/lib[========                               ] 21% Unzipping... emulator/lib64/qt/tra[========                               ] 21% Unzipping... emulator/lib64/qt/plu[========                               ] 21% Unzipping... emulator/lib64/qt/res[========                               ] 21% Unzipping... emulator/lib64/qt/lib[========                               ] 22% Unzipping... emulator/lib64/qt/lib[=========                              ] 23% Unzipping... emulator/lib64/qt/lib[=========                              ] 23% Unzipping... emulator/lib64/qt/tra[=========                              ] 24% Unzipping... emulator/lib64/qt/tra[=========                              ] 24% Unzipping... emulator/lib64/qt/plu[=========                              ] 24% Unzipping... emulator/lib64/gles_l[=========                              ] 24% Unzipping... emulator/lib64/vulkan[=========                              ] 25% Unzipping... emulator/lib64/vulkan[=========                              ] 25% Unzipping... emulator/lib64/gles_s[=========                              ] 25% Unzipping... emulator/lib64/gles_a[===============                        ] 40% Unzipping... emulator/lib64/gles_a[===============                        ] 40% Installing Google APIs Intel x86_6[===============                        ] 40% Downloading x86_64-35_r09.zip... e[================                       ] 40% Downloading x86_64-35_r09.zip... e[================                       ] 41% Downloading x86_64-35_r09.zip... e[================                       ] 42% Downloading x86_64-35_r09.zip... e[=================                      ] 43% Downloading x86_64-35_r09.zip... e[=================                      ] 44% Downloading x86_64-35_r09.zip... e[=================                      ] 45% Downloading x86_64-35_r09.zip... e[==================                     ] 45% Downloading x86_64-35_r09.zip... e[==================                     ] 46% Downloading x86_64-35_r09.zip... e[==================                     ] 47% Downloading x86_64-35_r09.zip... e[==================                     ] 48% Downloading x86_64-35_r09.zip... e[==================                     ] 48% Unzipping... emulator/lib64/gles_a[==================                     ] 48% Unzipping... x86_64/NOTICE.txt    [===================                    ] 48% Unzipping... x86_64/NOTICE.txt    [===================                    ] 48% Unzipping... x86_64/VerifiedBootPa[===================                    ] 48% Unzipping... x86_64/advancedFeatur[===================                    ] 48% Unzipping... x86_64/build.prop    [===================                    ] 48% Unzipping... x86_64/encryptionkey.[===================                    ] 48% Unzipping... x86_64/kernel-ranchu [===================                    ] 48% Unzipping... x86_64/kernel_cmdline[===================                    ] 48% Unzipping... x86_64/ramdisk.img   [===================                    ] 48% Unzipping... x86_64/source.propert[===================                    ] 48% Unzipping... x86_64/system.img    [===================                    ] 49% Unzipping... x86_64/system.img    [===================                    ] 50% Unzipping... x86_64/system.img    [====================                   ] 50% Unzipping... x86_64/system.img    [====================                   ] 51% Unzipping... x86_64/system.img    [====================                   ] 52% Unzipping... x86_64/system.img    [=====================                  ] 53% Unzipping... x86_64/system.img    [=====================                  ] 54% Unzipping... x86_64/system.img    [=====================                  ] 55% Unzipping... x86_64/system.img    [=====================                  ] 55% Unzipping... x86_64/vendor.img    [=====================                  ] 55% Unzipping... x86_64/data/empty_dat[=====================                  ] 55% Unzipping... x86_64/data/local.pro[=====================                  ] 55% Unzipping... x86_64/data/misc/Gold[=====================                  ] 55% Unzipping... x86_64/data/misc/apns[=====================                  ] 55% Unzipping... x86_64/data/misc/emul[=====================                  ] 55% Unzipping... x86_64/data/misc/mode[=====================                  ] 55% Unzipping... x86_64/data/misc/pixe[===========================            ] 70% Unzipping... x86_64/data/misc/pixe[===========================            ] 70% Installing Android SDK Platform-To[===========================            ] 70% Downloading platform-tools_r37.0.1[============================           ] 70% Downloading platform-tools_r37.0.1[============================           ] 71% Downloading platform-tools_r37.0.1[============================           ] 72% Downloading platform-tools_r37.0.1[=============================          ] 73% Downloading platform-tools_r37.0.1[=============================          ] 74% Downloading platform-tools_r37.0.1[=============================          ] 75% Downloading platform-tools_r37.0.1[==============================         ] 75% Downloading platform-tools_r37.0.1[==============================         ] 76% Downloading platform-tools_r37.0.1[==============================         ] 77% Downloading platform-tools_r37.0.1[==============================         ] 77% Unzipping... x86_64/data/misc/pixe[==============================         ] 77% Unzipping... platform-tools/NOTICE[===============================        ] 78% Unzipping... platform-tools/NOTICE[===============================        ] 78% Unzipping... platform-tools/adb   [===============================        ] 79% Unzipping... platform-tools/adb   [===============================        ] 80% Unzipping... platform-tools/adb   [================================       ] 80% Unzipping... platform-tools/adb   [================================       ] 81% Unzipping... platform-tools/adb   [================================       ] 81% Unzipping... platform-tools/etc1to[================================       ] 82% Unzipping... platform-tools/etc1to[================================       ] 82% Unzipping... platform-tools/fastbo[=================================      ] 83% Unzipping... platform-tools/fastbo[=================================      ] 83% Unzipping... platform-tools/hprof-[=================================      ] 83% Unzipping... platform-tools/lib64/[=================================      ] 83% Unzipping... platform-tools/make_f[=================================      ] 83% Unzipping... platform-tools/mke2fs[=================================      ] 84% Unzipping... platform-tools/mke2fs[=================================      ] 84% Unzipping... platform-tools/source[=================================      ] 84% Unzipping... platform-tools/sqlite[=================================      ] 85% Unzipping... platform-tools/sqlite[=======================================] 100% Unzipping... platform-tools/sqlit
 
++ export ANDROID_SDK_HOME=/home/runner
++ ANDROID_SDK_HOME=/home/runner
++ export ANDROID_AVD_HOME=/home/runner/.android/avd
++ ANDROID_AVD_HOME=/home/runner/.android/avd
++ mkdir -p /home/runner/.android/avd
++ AVD_PATH=/home/runner/.android/avd/test35.avd
 + echo no
-+ avdmanager create avd --force --name test35 --package 'system-images;android-35;google_apis;x86_64' --device pixel_5
++ avdmanager create avd --force --name test35 --path /home/runner/.android/avd/test35.avd --package 'system-images;android-35;google_apis;x86_64' --device pixel_5
 Loading local repository...                                                     [=========                              ] 25% Loading local repository...       [=========                              ] 25% Fetch remote repository...        [=======================================] 100% Fetch remote repository...       
 Auto-selecting single ABI x86_64
++ test -f /home/runner/.android/avd/test35.ini
++ /home/runner/work/_temp/android-sdk/emulator/emulator -list-avds
+test35
 + ls -l /dev/kvm
-crw-rw-rw- 1 root kvm 10, 232 Nov  6 18:44 /dev/kvm
+crw-rw-rw- 1 root kvm 10, 232 Nov  6 18:47 /dev/kvm
 + EMU=/home/runner/work/_temp/android-sdk/emulator/emulator
 + CONSOLE=android/ci-output/emulator-console-api35.txt
 + start_emulator swiftshader_indirect
-+ EMU_PID=2349
-+ echo 'emulator pid=2349 gpu=swiftshader_indirect'
-emulator pid=2349 gpu=swiftshader_indirect
++ EMU_PID=2360
++ echo 'emulator pid=2360 gpu=swiftshader_indirect'
+emulator pid=2360 gpu=swiftshader_indirect
 + /home/runner/work/_temp/android-sdk/emulator/emulator -avd test35 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on -memory 3072 -cores 2 -camera-back none -camera-front none
-+ sleep 25
-+ kill -0 2349
-+ echo 'swiftshader_indirect died; retrying with -gpu off'
-swiftshader_indirect died; retrying with -gpu off
-+ tail -40 android/ci-output/emulator-console-api35.txt
-INFO         | Android emulator version 37.2.13.0 (build_id 16740729) (CL:N/A)
-INFO         | Graphics backend: gfxstream
-ERROR        | Unknown AVD name [test35], use -list-avds to see valid list.
-ERROR        | HOME is defined but there is no file test35.ini in $HOME/.android/avd
-ERROR        | (Note: Directories are searched in the order $ANDROID_AVD_HOME, $ANDROID_SDK_HOME/avd and $HOME/.android/avd)
-+ start_emulator off
-+ EMU_PID=2362
-+ echo 'emulator pid=2362 gpu=off'
-emulator pid=2362 gpu=off
-+ sleep 25
-+ /home/runner/work/_temp/android-sdk/emulator/emulator -avd test35 -no-window -no-audio -no-boot-anim -no-snapshot -gpu off -accel on -memory 3072 -cores 2 -camera-back none -camera-front none
++ sleep 30
++ kill -0 2360
 + BOOTED=0
 ++ seq 1 100
 + for i in $(seq 1 100)
-+ kill -0 2362
-+ echo 'emulator process died'
-emulator process died
++ kill -0 2360
+++ adb shell getprop sys.boot_completed
+++ tr -d '\r\n'
++ STATE=1
++ '[' 1 = 1 ']'
++ BOOTED=1
 + break
 + echo '############ emulator ############'
 + echo 'api-level: 35'
 + /home/runner/work/_temp/android-sdk/emulator/emulator -version
 + head -3
 + adb devices
-* daemon not running; starting now at tcp:5037
-* daemon started successfully
-+ '[' 0 '!=' 1 ']'
-+ note 'FAIL emulator did not finish booting'
-+ echo 'FAIL emulator did not finish booting'
-+ echo '--- emulator console (tail) ---'
-+ tail -60 android/ci-output/emulator-console-api35.txt
-+ kill 2362
-+ true
++ '[' 1 '!=' 1 ']'
++ note 'PASS emulator booted (API 35)'
++ echo 'PASS emulator booted (API 35)'
++ adb shell settings put global window_animation_scale 0
++ adb shell settings put global transition_animation_scale 0
++ adb shell settings put global animator_duration_scale 0
++ adb shell input keyevent 82
++ adb shell svc power stayon true
++ APK=marketplace/public/DZ-Exchange.apk
++ echo
++ echo '############ adb install -r ############'
++ adb install -r marketplace/public/DZ-Exchange.apk
++ INSTALL_RC=0
++ '[' 0 = 0 ']'
++ note 'PASS adb install exit 0'
++ echo 'PASS adb install exit 0'
++ echo
++ echo '############ am start -W ############'
++ adb shell am start -W -n app.dzexchange.marketplace/.MainActivity
++ sleep 35
++ echo
++ echo '############ process ############'
++ adb shell pidof app.dzexchange.marketplace
++ echo
++ echo '############ foreground activity ############'
++ adb shell dumpsys activity activities
++ grep -E 'ResumedActivity|mFocusedApp|topResumedActivity'
++ head -5
++ echo
++ echo '############ installed package ############'
++ adb shell dumpsys package app.dzexchange.marketplace
++ grep -E 'versionName|versionCode|targetSdk|minSdk|flags=|pkgFlags='
++ head -8
++ echo
++ echo '############ crash buffer ############'
++ adb logcat -d -b crash
++ tail -40
++ echo
++ echo '############ app logcat (chromium / errors) ############'
++ adb logcat -d
++ grep -iE 'dzexchange|chromium|ERR_|AndroidRuntime'
++ tail -40
++ check 'process alive after launch' bash -c 'adb shell pidof app.dzexchange.marketplace | grep -q '\''[0-9]'\'''
++ local 'label=process alive after launch'
++ shift
++ bash -c 'adb shell pidof app.dzexchange.marketplace | grep -q '\''[0-9]'\'''
++ note 'PASS process alive after launch'
++ echo 'PASS process alive after launch'
++ check 'app is the foreground activity' bash -c 'adb shell dumpsys activity activities | grep -E '\''ResumedActivity|topResumedActivity'\'' | grep -q dzexchange'
++ local 'label=app is the foreground activity'
++ shift
++ bash -c 'adb shell dumpsys activity activities | grep -E '\''ResumedActivity|topResumedActivity'\'' | grep -q dzexchange'
++ note 'PASS app is the foreground activity'
++ echo 'PASS app is the foreground activity'
++ check 'no crash logged for the app' bash -c '! adb logcat -d -b crash | grep -q '\''app.dzexchange.marketplace'\'''
++ local 'label=no crash logged for the app'
++ shift
++ bash -c '! adb logcat -d -b crash | grep -q '\''app.dzexchange.marketplace'\'''
++ note 'PASS no crash logged for the app'
++ echo 'PASS no crash logged for the app'
++ adb exec-out screencap -p
++ '[' -s android/ci-output/emulator-screen-api35.png ']'
+++ stat -c %s android/ci-output/emulator-screen-api35.png
++ note 'PASS screenshot captured (267609 bytes)'
++ echo 'PASS screenshot captured (267609 bytes)'
++ adb shell input tap 540 1200
++ sleep 8
++ adb shell input keyevent 4
++ sleep 6
++ adb exec-out screencap -p
++ check 'still alive after navigation + Back' bash -c 'adb shell pidof app.dzexchange.marketplace | grep -q '\''[0-9]'\'''
++ local 'label=still alive after navigation + Back'
++ shift
++ bash -c 'adb shell pidof app.dzexchange.marketplace | grep -q '\''[0-9]'\'''
++ note 'PASS still alive after navigation + Back'
++ echo 'PASS still alive after navigation + Back'
++ echo
++ echo '############ result ############'
++ echo 'failures: 0'
++ adb uninstall app.dzexchange.marketplace
++ adb emu kill
 + sleep 3
-+ exit 1
++ kill 2360
++ true
++ set +x
+=== API 35 report ===
+############ emulator ############
+api-level: 35
+List of devices attached
+emulator-5554	device
+
+PASS emulator booted (API 35)
+
+############ adb install -r ############
+Performing Streamed Install
+Success
+PASS adb install exit 0
+
+############ am start -W ############
+Starting: Intent { cmp=app.dzexchange.marketplace/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: app.dzexchange.marketplace/.MainActivity
+TotalTime: 3233
+WaitTime: 3317
+Complete
+
+############ process ############
+2667
+
+############ foreground activity ############
+    topResumedActivity=ActivityRecord{7e54d32 u0 app.dzexchange.marketplace/.MainActivity t8}
+  ResumedActivity: ActivityRecord{7e54d32 u0 app.dzexchange.marketplace/.MainActivity t8}
+  mFocusedApp=ActivityRecord{7e54d32 u0 app.dzexchange.marketplace/.MainActivity t8}
+
+############ installed package ############
+    versionCode=1 minSdk=23 targetSdk=35
+    versionName=1.0
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ]
+
+############ crash buffer ############
+
+############ app logcat (chromium / errors) ############
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Default/HTTP Cache/Code Cache/js: No such file or directory (2)
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_file_enumerator.cc(21)] opendir /data/user/0/com.google.android.googlequicksearchbox/cache/WebView/Default/HTTP Cache/Code Cache/wasm: No such file or directory (2)
+11-06 18:49:23.005  1476  3595 E chromium: [ERROR:simple_index_file.cc(614)] Could not reconstruct index from disk
+11-06 18:49:24.627  1386  1394 W gle.android.gms: ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/base.apk' with 1 weak references
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.761  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.768  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.772  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.getEnabledCronetProviders(PG:25)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.createBuilderDelegate(PG:16)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.CronetEngine$Builder.<init>(PG:1)
+11-06 18:49:36.773  3389  3513 D StrictMode: 	at org.chromium.net.ExperimentalCronetEngine$Builder.<init>(PG:1)
+11-06 18:49:37.293  3389  4044 I cr_CronetUrlRequestContext: destroyNativeStreamLocked org.chromium.net.impl.CronetBidirectionalStream@341c471
+11-06 18:49:38.589  1386  3709 I cr_CronetUrlRequestContext: destroyNativeStreamLocked org.chromium.net.impl.CronetBidirectionalStream@de6f9d2
+11-06 18:49:38.764  3389  4044 I cr_CronetUrlRequestContext: destroyNativeStreamLocked org.chromium.net.impl.CronetBidirectionalStream@1bdaeea
+11-06 18:49:47.598  4158  4160 I artd    : Dex parent of /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/base.apk is not writable: Permission denied
+11-06 18:49:47.598  4158  4160 I artd    : GetBestInfo checking odex in dalvik-cache (/data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.dex)
+11-06 18:49:47.598  4158  4160 I artd    : Loading /data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.dex with executable: 0
+11-06 18:49:47.598  4158  4160 I artd    : OatFileAssistant test for existing oat file /data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.dex: File /data/dalvik-cache/x86_64/data@app@~~28zCVFl6h76fG2hnHAQnFA==@app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==@base.apk@classes.vdex does not exist.
+11-06 18:49:47.598  4158  4160 I artd    : GetBestInfo checking odex next to the dex file (/data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex)
+11-06 18:49:47.598  4158  4160 I artd    : Loading /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex with executable: 0
+11-06 18:49:47.598  4158  4160 I artd    : Successfully loaded /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex with executable: 0
+11-06 18:49:47.599  4158  4160 I artd    : /data/app/~~28zCVFl6h76fG2hnHAQnFA==/app.dzexchange.marketplace-yw0YnCZhE9N-u4SlBFLHxg==/oat/x86_64/base.odex is kOatUpToDate with filter verify
+PASS process alive after launch
+PASS app is the foreground activity
+PASS no crash logged for the app
+PASS screenshot captured (267609 bytes)
+PASS still alive after navigation + Back
+
+############ result ############
+failures: 0
+Success
+OK: killing emulator, bye bye
+OK
