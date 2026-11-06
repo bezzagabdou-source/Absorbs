@@ -43,7 +43,10 @@ const errorText = (error) => {
     const hint =
       error.kind === KIND.GEO
         ? '\n\n💡 <b>السبب:</b> جيزي تحجب أي اتصال من خارج الجزائر.\nشغّل البوت من هاتفك/جهازك داخل الجزائر، وأوقف VPN.'
-        : '';
+        : error.kind === KIND.TIMEOUT
+          ? '\n\n💡 <b>الخطوة التالية:</b> أوقف VPN، ثم بدّل بين Wi-Fi وبيانات جيزي وأعد المحاولة.\n' +
+            'إذا تكرّر: نفّذ <code>DJEZZY_FORCE_IPV4=1</code> و<code>DJEZZY_TIMEOUT_MS=45000</code> في <code>.env</code> ثم <code>pm2 restart djezzy-bot</code>.'
+          : '';
     return `⚠️ ${escapeHtml(error.friendly)}${hint}`;
   }
   return `⚠️ ${escapeHtml(error?.message || 'خطأ غير متوقع.')}`;
@@ -179,12 +182,14 @@ bot.command('diag', async (ctx) => {
     '',
     `الخادم: <code>${escapeHtml(djezzy.meta.baseUrl)}</code>`,
     probe.proxy ? `الوكيل (Proxy): <code>${escapeHtml(JSON.stringify(probe.proxy))}</code>` : 'الوكيل: مباشر (بدون Proxy)',
-    `المهلة: ${djezzy.meta.timeoutMs} ms · الزمن: ${probe.ms} ms`,
+    `المهلة: ${djezzy.meta.timeoutMs} ms · المحاولات: ${djezzy.meta.retries + 1} · الزمن: ${probe.ms} ms`,
+    djezzy.meta.forceIpv4 ? 'الشبكة: IPv4 فقط (يُصلح تعليق بعض شبكات الهاتف)' : 'الشبكة: تلقائي (IPv4/IPv6)',
     probe.status ? `HTTP: ${probe.status}` : `الخطأ: <code>${escapeHtml(probe.error || '—')}</code>`,
     '',
     probe.reachable
       ? 'يمكنك الآن إضافة رقمك واستلام رمز التحقق.'
-      : '💡 تأكد أنك داخل الجزائر، وأوقف أي VPN، ثم أعد المحاولة.',
+      : '💡 إذا كان الخطأ <code>ECONNABORTED</code> أو <code>ETIMEDOUT</code>: أوقف VPN وبدّل بين Wi-Fi وبيانات جيزي.\n' +
+        'وإذا كان <code>ENOTFOUND</code>: أطفي Private DNS في إعدادات أندرويد.',
   ];
   return ctx.reply(lines.join('\n'), { parse_mode: 'HTML', ...mainMenu() });
 });

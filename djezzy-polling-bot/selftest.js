@@ -240,6 +240,39 @@ await test('خادم غير قابل للوصول → GEO', async () => {
   );
 });
 
+await test('تعليق الشبكة (لا رد) → TIMEOUT وليس GEO', async () => {
+  const silent = http.createServer(() => {
+    /* لا يُرسل أي رد — يحاكي تعليق IPv6/شبكة الهاتف */
+  });
+  await new Promise((resolve) => silent.listen(0, '127.0.0.1', resolve));
+  const hanging = new Djezzy({
+    baseUrl: `http://127.0.0.1:${silent.address().port}`,
+    timeoutMs: 300,
+    retries: 0,
+    clientId: 'a',
+    clientSecret: 'b',
+  });
+  try {
+    await assert.rejects(
+      () => hanging.requestOtp(MSISDN),
+      (error) => error.kind === KIND.TIMEOUT && error.kind !== KIND.GEO,
+    );
+  } finally {
+    silent.closeAllConnections?.();
+    silent.close();
+  }
+});
+
+await test('فرض IPv4 + keepAlive مفعّل افتراضياً', () => {
+  const defaulted = new Djezzy({ baseUrl, clientId: 'a', clientSecret: 'b' });
+  assert.equal(typeof defaulted.meta.forceIpv4, 'boolean');
+  assert.ok(defaulted.meta.retries >= 2, 'عدد المحاولات الافتراضي 2 على الأقل');
+  const agent = defaulted.http.defaults.httpsAgent;
+  assert.ok(agent, 'يجب أن يوجد httpsAgent مخصّص');
+  assert.equal(agent.options.keepAlive, true);
+  assert.equal(typeof agent.options.lookup, 'function', 'lookup مخصّص لفرض IPv4');
+});
+
 await test('Proxy يُقرأ من متغيّر البيئة', () => {
   const withProxy = new Djezzy({ env: { DJEZZY_PROXY: 'http://user:pa%40ss@127.0.0.1:8080' }, clientId: 'a', clientSecret: 'b' });
   assert.equal(withProxy.meta.proxy.host, '127.0.0.1');

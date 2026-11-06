@@ -13,12 +13,18 @@ die()  { printf "%b\n" "${R}$1${N}"; exit 1; }
 REPO="https://github.com/bezzagabdou-source/Absorbs"
 DIR="$HOME/Absorbs/djezzy-polling-bot"
 
-say "==> 1/5 تجهيز Node.js و git…"
+say "==> 1/5 تجهيز Node.js و git و pm2…"
 if ! command -v node >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
   pkg update -y >/dev/null 2>&1 || true
   pkg install -y nodejs-lts git || die "تعذّر التثبيت — تحقّق من الإنترنت."
 fi
 say "    Node.js $(node -v)"
+
+# pm2: تشغيل 24/7 في الخلفية (يبقى يعمل بعد إغلاق Termux)
+if ! command -v pm2 >/dev/null 2>&1; then
+  npm install -g pm2 --no-audit --no-fund >/dev/null 2>&1 || npm install -g pm2 || warn "⚠️ تعذّر تثبيت pm2 — سيُشغَّل البوت في المقدّمة."
+fi
+command -v pm2 >/dev/null 2>&1 && say "    pm2 $(pm2 -v 2>/dev/null | tail -1)"
 
 say "==> 2/5 تحميل المشروع…"
 if [ -d "$DIR/.git" ]; then cd "$DIR" && git pull --ff-only >/dev/null 2>&1 || true; else
@@ -42,7 +48,8 @@ DJEZZY_CLIENT_SECRET_LEGACY=uf82p68Bgisp8Yg1Uz8Pf6_v1XYa
 DJEZZY_USER_AGENT=MobileApp/3.0.9 (Android 13; DalilDjezzy)
 DJEZZY_ACCEPT_LANGUAGE=ar-DZ
 DJEZZY_TIMEOUT_MS=45000
-DJEZZY_RETRIES=1
+DJEZZY_RETRIES=2
+DJEZZY_FORCE_IPV4=1
 DJEZZY_GIFT_WALK_CODE=GIFTWALKWIN2GO
 DJEZZY_SCAN_QR=https://www.djezzy.dz/scanwin-wd26?1
 ALLOWED_PREFIXES=7
@@ -54,6 +61,35 @@ fi
 
 say "==> 5/5 فحص الاتصال ثم التشغيل…"
 command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock || true
-node diag.js || warn "⚠️ فشل فحص الاتصال — أكمل على أي حال (سيظهر السبب داخل البوت)."
+node diag.js || warn "⚠️ فشل فحص الاتصال — أكمل على أي حال (سيظهر السبب داخل البوت عبر 🩺)."
 
-exec node index.js
+if ! command -v pm2 >/dev/null 2>&1; then
+  warn "pm2 غير متاح — تشغيل في المقدّمة (يتوقف عند إغلاق Termux)."
+  exec node index.js
+fi
+
+pm2 delete djezzy-bot >/dev/null 2>&1 || true
+pm2 start index.js --name djezzy-bot --restart-delay=5000 --max-restarts=1000 >/dev/null
+pm2 save >/dev/null 2>&1 || true
+
+sleep 5
+say "════════ الحالة ════════"
+pm2 list | sed -n '1,12p'
+echo
+say "════════ آخر السجلات ════════"
+pm2 logs djezzy-bot --lines 15 --nostream 2>/dev/null || pm2 logs djezzy-bot --lines 15
+
+cat <<'DONE'
+
+ ✅ البوت يعمل في الخلفية عبر pm2 ولا يتوقف عند إغلاق Termux
+    (لا تغلقه من قائمة التطبيقات الحديثة · البطارية = Unrestricted)
+
+ 📌 أوامر تحتاجها:
+    pm2 logs djezzy-bot        # السجلات
+    pm2 restart djezzy-bot     # بعد تعديل .env
+    pm2 stop djezzy-bot        # إيقاف
+    pm2 startup && pm2 save    # تشغيل تلقائي بعد إعادة تشغيل الهاتف
+    nano .env                  # الإعدادات
+
+ 🎯 افتح @Djezzynetbot → /start → 📱 إضافة رقم (رقم +2137 فقط)
+DONE
