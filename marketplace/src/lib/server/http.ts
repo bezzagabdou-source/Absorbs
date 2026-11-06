@@ -38,10 +38,3 @@ export async function api(request: NextRequest, options: Options, handler: (acto
 }
 export async function publicQuery<T>(fn: Parameters<typeof withActor<T>>[1]): Promise<T> { return withActor(null, fn); }
 
-export function pushEndpointAllowed(endpoint: string): boolean {
-  try {
-    const url = new URL(endpoint);
-    const hosts = (process.env.PUSH_ALLOWED_HOSTS || "fcm.googleapis.com,updates.push.services.mozilla.com,web.push.apple.com,notify.windows.com").split(",").map((v) => v.trim().toLowerCase()).filter(Boolean);
-    return url.protocol === "https:" && !url.port && !url.username && !url.password && hosts.includes(url.hostname.toLowerCase());
-  } catch { return false; }
-}
