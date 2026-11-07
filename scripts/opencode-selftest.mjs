@@ -1,0 +1,164 @@
+#!/usr/bin/env node
+/**
+ * opencode-selftest.mjs
+ *
+ * Proves the whole chain works (session -> prompt -> streamed answer) and prints a
+ * single machine-readable line the supervisor can publish:
+ *
+ *   SELFTEST llm=ok model=opencode/iceman-free text="pong"
+ *   SELFTEST llm=fail model=opencode/x error="..."
+ *
+ * usage: node scripts/opencode-selftest.mjs [--upstream http://127.0.0.1:8081] [--timeout 75]
+ */
+const args = process.argv.slice(2);
+const getArg = (name, fallback) => {
+  const i = args.indexOf(`--${name}`);
+  return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
+};
+
+const UP = getArg("upstream", "http://127.0.0.1:8081").replace(/\/$/, "");
+const TIMEOUT = Number(getArg("timeout", "75")) * 1000;
+const PROMPT = getArg("prompt", "Reply with exactly one word: pong");
+
+const say = (...p) => console.log(...p);
+const out = (line) => {
+  say("SELFTEST " + line);
+};
+
+async function json(path, init) {
+  const res = await fetch(UP + path, init);
+  if (!res.ok) throw new Error(`${res.status} ${path}: ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
+function pickModels(list) {
+  const ok = list.filter((m) => m.enabled && m.status !== "deprecated");
+  const free = ok.filter((m) => (m.cost?.[0]?.input ?? 1) === 0);
+  const pool = free.length ? free : ok;
+  // prefer the provider that ships with a public key (works on a bare runner)
+  pool.sort((a, b) => {
+    const score = (m) => (m.providerID === "opencode" ? 0 : 1) + (m.api?.type === "aisdk" ? 0 : 0.5);
+    return score(a) - score(b);
+  });
+  return pool.slice(0, 3);
+}
+
+async function tryModel(model) {
+  const started = Date.now();
+  const { data: session } = await json("/api/session", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ model: { providerID: model.providerID, id: model.id } }),
+  });
+  const sid = session.id;
+
+  let text = "";
+  let error = "";
+  let done = false;
+
+  const ctrl = new AbortController();
+  const killIn = setTimeout(() => ctrl.abort(), TIMEOUT);
+
+  // stream the session events
+  const stream = await fetch(`${UP}/api/session/${sid}/event`, {
+    signal: ctrl.signal,
+    headers: { accept: "text/event-stream" },
+  });
+
+  const reader = stream.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  const pump = (async () => {
+    try {
+      for (;;) {
+        const { value, done: eof } = await reader.read();
+        if (eof) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) !== -1) {
+          const chunk = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          for (const line of chunk.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
+            let ev;
+            try {
+              ev = JSON.parse(line.slice(6));
+            } catch {
+              continue;
+            }
+            const t = ev.type || "";
+            const d = ev.data || {};
+            if (t.endsWith("text.delta")) {
+              text += d.delta ?? d.text ?? d.content ?? "";
+            } else if (t.endsWith("text.ended")) {
+              if (!text && typeof d.text === "string") text += d.text;
+            } else if (t.endsWith("step.failed") || t === "session.error") {
+              error = d.error?.message || d.error?.type || "step failed";
+              done = true;
+            } else if (t.endsWith("step.ended") && text) {
+              done = true;
+            } else if (t === "session.idle") {
+              if (text) done = true;
+              else if (!error) error = "idle without text";
+            }
+            if (done) return;
+          }
+        }
+      }
+    } catch (e) {
+      if (!error) error = e.name === "AbortError" ? "timeout" : String(e.message || e);
+    }
+  })();
+
+  await json(`/api/session/${sid}/prompt`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ prompt: { text: PROMPT }, model: { providerID: model.providerID, id: model.id } }),
+  });
+
+  await Promise.race([pump, new Promise((r) => setTimeout(r, TIMEOUT))]);
+  clearTimeout(killIn);
+  ctrl.abort().valueOf?.();
+  try {
+    await fetch(`${UP}/api/session/${sid}/interrupt`, { method: "POST" });
+  } catch {}
+
+  const ms = Date.now() - started;
+  const clean = text.replace(/\s+/g, " ").trim().slice(0, 120);
+  return { ok: Boolean(clean), text: clean, error, ms, sid, label: `${model.providerID}/${model.id}` };
+}
+
+(async () => {
+  let list;
+  try {
+    list = (await json("/api/model")).data || [];
+  } catch (e) {
+    out(`llm=fail reason="model list failed: ${String(e.message).slice(0, 80)}"`);
+    process.exit(1);
+  }
+
+  const candidates = pickModels(list);
+  if (!candidates.length) {
+    out('llm=fail reason="no enabled model"');
+    process.exit(1);
+  }
+
+  for (const m of candidates) {
+    say(`trying ${m.providerID}/${m.id} (${m.name || ""}) …`);
+    let r;
+    try {
+      r = await tryModel(m);
+    } catch (e) {
+      r = { ok: false, error: String(e.message || e).slice(0, 120) };
+    }
+    if (r.ok) {
+      out(`llm=ok model=${r.label} ms=${r.ms} text="${r.text}"`);
+      process.exit(0);
+    }
+    say(`  failed: ${r.error || "no text"}`);
+  }
+
+  out(`llm=fail model=${candidates[0].providerID}/${candidates[0].id} error="no answer from any model"`);
+  process.exit(1);
+})();

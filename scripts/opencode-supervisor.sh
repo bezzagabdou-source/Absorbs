@@ -12,6 +12,7 @@
 set -u
 
 WS="${GITHUB_WORKSPACE:-$(pwd)}"
+LLM_STATE="unknown"   # llm=ok|fail from the self-test, published in the status
 OUT=/tmp/tunnel
 mkdir -p "$OUT"
 touch "$OUT/cf.log" "$OUT/oc.log" "$OUT/gw.log"
@@ -87,12 +88,13 @@ site_ok() {
 publish() {
   local verify="$1"
   [ -n "$URL" ] || return 1
-  [ "$URL" = "$LAST_PUBLISHED" ] && [ "$verify" = "200" ] && return 0
+  [ "$URL" = "$LAST_PUBLISHED" ] && [ "$LLM_STATE" != "unknown" ] && [ "${LAST_STATE:-}" = "success" ] && return 0
   local host state desc web
   host="${URL#https://}"
-  if [ "$verify" = "200" ]; then state=success; else state=failure; fi
   if site_ok; then web=ok; else web=down; fi
-  desc="$host api=$verify web=$web"
+  # green only when the site and the API answer; the llm flag is informational
+  if [ "$verify" = "200" ] && [ "$web" = "ok" ]; then state=success; else state=failure; fi
+  desc="api=$verify web=$web llm=$LLM_STATE ${host}"
   printf 'URL=%s\nHTTP=%s\n' "$URL" "$verify" > "$OUT/connect.txt"
   log "publishing $desc"
   if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_SHA:-}" ]; then
@@ -113,10 +115,24 @@ publish() {
       echo "| Password | (none) |"
       echo "| public /config | $verify |"
       echo "| chat site | $web |"
+      echo "| llm self-test | $LLM_STATE |"
       echo "| updated | $(date -u +%H:%M:%S) utc |"
     } > "$GITHUB_STEP_SUMMARY"
   fi
   LAST_PUBLISHED="$URL"
+  LAST_STATE="$state"
+}
+
+# asks the runner side server for a real answer, prints "SELFTEST llm=ok|fail ..."
+run_selftest() {
+  local line
+  line="$(timeout 300 node "$WS/scripts/opencode-selftest.mjs" --upstream "http://127.0.0.1:$upstream_port" --timeout 90 2>>"$OUT/selftest.log" | grep '^SELFTEST' | tail -1)"
+  [ -n "$line" ] || line="SELFTEST llm=fail error=\"no output\""
+  echo "$(date -u +%H:%M:%S) $line" | tee -a "$OUT/selftest.log"
+  case "$line" in
+    *llm=ok*)   LLM_STATE="ok" ;;
+    *)          LLM_STATE="fail" ;;
+  esac
 }
 
 # ---------------- boot ----------------
@@ -131,11 +147,15 @@ for _ in $(seq 1 10); do
   sleep 5
 done
 publish "$verify"
+run_selftest
+publish "$verify"
 
 # ---------------- supervise ----------------
 fails=0
+ticks=0
 while true; do
   sleep 30
+  ticks=$((ticks + 1))
 
   if ! curl -fsS -m 5 -o /dev/null "http://127.0.0.1:$upstream_port/config"; then
     log "upstream unhealthy -> restart"
@@ -150,6 +170,11 @@ while true; do
     log "cloudflared process gone -> new tunnel"
     start_tunnel && { verify="000"; for _ in $(seq 1 10); do public_ok && { verify="200"; break; }; sleep 5; done; publish "$verify"; }
     continue
+  fi
+
+  # re-prove the LLM path every ~10 minutes, and keep the status fresh
+  if [ $((ticks % 20)) -eq 0 ]; then
+    run_selftest
   fi
 
   if public_ok; then
