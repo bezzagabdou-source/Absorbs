@@ -40,7 +40,7 @@ function pickModels(list) {
     const score = (m) => (m.providerID === "opencode" ? 0 : 1) + (m.api?.type === "aisdk" ? 0 : 0.5);
     return score(a) - score(b);
   });
-  return pool.slice(0, 3);
+  return pool.slice(0, 2);
 }
 
 async function tryModel(model) {
@@ -188,7 +188,7 @@ async function tryModel(model) {
     say(`  failed: ${r.error || "no text"}`);
     if (/429|rate|abort/i.test(r.error || "")) {
       say("  backing off 25s before the next attempt");
-      await new Promise((r) => setTimeout(r, 25000));
+      await new Promise((r) => setTimeout(r, 15000));
     }
   }
 
