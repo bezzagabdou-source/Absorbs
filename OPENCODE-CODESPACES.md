@@ -1,124 +1,62 @@
-# OpenCode — التشغيل عبر GitHub Codespaces (أسرع طريقة)
+# Nexus Chat — موقع HTML مربوط بسيرفر OpenCode
 
-الهدف: تشغيل سيرفر OpenCode على GitHub، وبعدها تدخل له من تطبيق **OpenCode Mobile**
-بصيغة: `https://<codespace>-8080.app.github.dev`
-
----
-
-## 1) أنشئ الـ Codespace (مرة واحدة)
-
-1. افتح الريبو: https://github.com/bezzagabdou-source/Absorbs
-2. اضغط الزر الأخضر **Code** ← تبويب **Codespaces** ← **Create codespace on main**
-3. اختر الآلة **4-core / 8 GB** (كافية) وانتظر 1–2 دقيقة.
-   ملفات `.devcontainer/` في هذا الريبو تثبّت OpenCode وتشغّل السيرفر تلقائيًا على المنفذ `8080`،
-   والمفتاح الافتراضي: `nexus-opencode-change-me`
-
-> إذا ظهرت رسالة أن Codespaces غير مفعّلة: لازم تفعّل **Codespaces** من إعدادات حسابك
-> (GitHub Settings → Codespaces) — الحساب المجاني عنده ساعات شهرية مجانية.
-
----
-
-## 2) اجعل المنفذ عامًا (Public) — خطوة مهمة
-
-1. في الـ Codespace، في الأسفل جنب كلمة **Ports** اضغط على المنفذ **8080**
-2. كليك يمين ← **Port Visibility** ← **Public**
-3. انسخ الرابط، شكله:
+## الرابط الحالي (شغّال)
 
 ```
-https://<codespace-name>-8080.app.github.dev
+https://experience-markers-tech-myself.trycloudflare.com
 ```
 
----
+- افتحه من أي متصفح/تليفون → تلقى واجهة شات عربية RTL.
+- نفس الأصل يخدم أيضاً API الخاص بـ OpenCode (بلا CORS نهائياً).
+- للتطبيق OpenCode Mobile: نفس الرابط كـ **Server URL**، والباسورد فارغ.
 
-## 3) اربط التطبيق
+> الرابط يتبدّل كل مرة يتعاود الـ workflow. الحديث دايمًا:
+> `gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses --jq '.[]|select(.context=="opencode/url")|.description'`
 
-في تطبيق OpenCode Mobile:
+## كيفاش مربوط (البنية)
 
-| الخانة | القيمة |
-|---|---|
-| Server URL | `https://<codespace-name>-8080.app.github.dev` |
-| Password | `nexus-opencode-change-me` |
+```
+المتصفح / التطبيق
+      │  https://<tunnel>
+      ▼
+cloudflare quick tunnel (http2)
+      ▼
+gateway  scripts/opencode-gateway.mjs   ← 0.0.0.0:8080
+   ├── GET /            → web/index.html   (موقع الشات)
+   └── /api/* /session /event …  → opencode serve (127.0.0.1:8081)
+```
 
-اضغط **Connect**، وفعّل بعدها **Auto-connect on startup**.
+- **نفس الأصل** = صفر مشاكل CORS (وهذا كان سبب "Connecting…" في التطبيق).
+- الـ gateway يعيد بث `text/event-stream` بلا buffering وبلا timeout، ويقبل preflight.
+- `scripts/opencode-supervisor.sh` يراقب كل 30 ثانية: السيرفر / الـ gateway / النفق،
+  يعيد تشغيل الميّت، ويولّد نفق جديد إذا لزم، وينشر الرابط كـ commit status
+  (`opencode/url` مع `api=200 web=ok`).
 
-> إذا التطبيق سألك عن username: اكتب `opencode` (أو أي اسم) — المصادقة هنا بالـ password فقط.
+## الموقع (web/index.html)
 
----
+- HTML/CSS/JS خام بلا أي framework ولا build — صفحة واحدة.
+- ينشئ session (`POST /api/session`)، يبثّ الأحداث (`EventSource /api/session/:id/event`)،
+  ويرسل (`POST /api/session/:id/prompt`).
+- يقرأ النماذج من `GET /api/model` ويعرض المتاحة المجانية فقط.
+- ستريمنغ حرف بحرف + إيقاف + اقتراحات جاهزة + دعم كود (``` blocks).
 
-## 4) إذا احتجت إعادة التشغيل يدويًا
-
-داخل طرفية الـ Codespace:
+## تشغيل محلي
 
 ```bash
-bash .devcontainer/start-opencode.sh          # يشغّل السيرفر من جديد
-tail -f /tmp/opencode-server.log              # تشوف اللوغ
+npm i -g opencode-ai
+opencode serve --hostname 127.0.0.1 --port 8081 &
+node scripts/opencode-gateway.mjs --listen 0.0.0.0:8080 --upstream 127.0.0.1:8081
+# http://localhost:8080
 ```
 
-فحص سريع من داخل الـ Codespace:
+## ملاحظات مهمة
 
-```bash
-curl -s http://127.0.0.1:8080/config | head -c 120
-```
-
----
-
-## 5) تغيير كلمة السر
-
-في طرفية الـ Codespace:
-
-```bash
-export OPENCODE_SERVER_PASSWORD='كلمة-سر-قوية-عندك'
-bash .devcontainer/start-opencode.sh
-```
-
-أو أضفها كـ **Codespaces secret** باسم `OPENCODE_SERVER_PASSWORD` من:
-GitHub → Settings → Codespaces → Secrets، وبعدها أعد بناء الـ Codespace.
-
----
-
-## ملاحظات
-
-- الـ Codespace يتوقف تلقائيًا بعد 30 دقيقة خمول (Idle timeout). ترجع تشغّله من
-  https://github.com/codespaces واضغط على اسمه — نفس الرابط يبقى صالح.
-- لا تشارك الرابط ولا كلمة السر مع أحد: من يملكهم يملك طرفية كاملة على الكود.
-- بديل محلي على حاسوبك: `npm i -g opencode-ai` ثم `opencode serve --hostname 0.0.0.0 --port 8080`
-  واستعمل نفق مثل `cloudflared tunnel --url http://localhost:8080` لو احتجت دخول من خارج الشبكة.
-
----
-
-# ✅ جاهز الآن — رابط مباشر (بدون Codespace)
-
-OpenCode يخدم على GitHub Actions: `opencode serve` (127.0.0.1:8081) ← **gateway يصلّح CORS/SSE**
-(0.0.0.0:8080) ← نفق Cloudflare. الـ supervisor في `scripts/opencode-supervisor.sh` يعاود
-يشغّل أي عملية تموت ويولّد نفق جديد، وينشر الرابط كـ commit status باسم `opencode/url`.
-
-| | |
-|---|---|
-| **Server URL** | `https://electricity-teens-viewer-competing.trycloudflare.com` |
-| **Password** | لا يوجد (اتركه فارغ) |
-| **QR** | `opencode-qr.png` |
-
-## علاش كان يعلّق على "Connecting..."
-
-سيرفر opencode ما يرجّعش `access-control-allow-origin` لأصل غير مسجّل، فالتطبيق (WebView)
-يقرا REST عادي — لهذا كان يبان "Project: Absorbs" و"Big Pickle" — لكن قناة البث
-`GET /event` (text/event-stream) تتسدّ، فيبقى "Connecting..." بلا نهاية.
-الـ gateway يردّ على preflight، يعكس `Origin`، ويخلي SSE بلا buffering وبلا timeout.
-
-فحص سريع لأي رابط:
-
-```bash
-curl -s -o /dev/null -w '%{http_code}\n' "$URL/config"                    # 200
-curl -sN -m 5 -H 'Origin: https://app.example' "$URL/event" | head -c 120  # server.connected
-```
-
-## تبديل الرابط
-
-- كل مرة يتعاود الـ workflow يتولّد نفق جديد.
-- الرابط الحالي دائمًا: **Actions → opencode server tunnel → آخر run → Summary**،
-  أو commit status `opencode/url` على الفرع `arena/3d01ef96-absorbs`:
-  ```bash
-  gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses \
-    --jq '.[] | select(.context=="opencode/url") | .target_url' | head -1
-  ```
-- من Actions اضغط **Run workflow** إذا توقّف (المهمة تبقى ~5 ساعات كحد أقصى).
+1. **المزوّد (LLM):** الحساب يحتاج مزوّد مفعّل. إذا ما كانش، الأحداث توصل
+   (`prompt.admitted` / `prompted`) لكن الرد يفشل بـ `UnsupportedApiError` أو
+   `HTTP transport failed`. الحل: داخل الـ Codespace/runner نفّذ
+   `opencode auth login` لـ `opencode` (المجاني) أو `github-copilot`، أو ضع المفتاح
+   كـ Actions secret.
+2. **بلا كلمة سر** على السيرفر — أي حد عندو الرابط يقدر يستعمل الـ agent على الكود.
+   بدّل كلمة السر لو بغيت (`OPENCODE_SERVER_PASSWORD` في supervisor).
+3. **مدة الحياة:** المهمة تبقى حتى ~5 ساعات (حد Actions)؛ أعد التشغيل من
+   **Actions → opencode server tunnel → Run workflow**.
