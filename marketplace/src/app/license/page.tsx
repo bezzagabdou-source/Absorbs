@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Licence du logiciel · DZ Exchange",
+  title: "Licence du logiciel",
   description: "Licence propriétaire du logiciel DZ Exchange (application Android et site web).",
   alternates: { canonical: "/license" },
   robots: { index: true, follow: true },
@@ -81,10 +81,11 @@ export default function LicensePage() {
         <section>
           <h2>5. Composants tiers</h2>
           <p>
-            L’application intègre des bibliothèques open source, chacune régie par sa propre licence (MIT,
-            Apache 2.0, BSD, ISC, MPL 2.0). La liste complète, les titulaires de droits et les textes applicables
-            figurent sur <Link href="/notices">la page des mentions des composants tiers</Link>. Ces licences
-            prévalent sur la présente licence pour les éléments concernés.
+            Le site web distribué avec l’application utilise des bibliothèques open source (MIT, Apache 2.0,
+            BSD 2-Clause, MPL 2.0). L’APK Android lui-même ne contient aucune bibliothèque tierce. La liste
+            complète, les titulaires de droits et les textes applicables figurent sur{" "}
+            <Link href="/notices">la page des mentions des composants tiers</Link>. Ces licences prévalent sur la
+            présente licence pour les éléments concernés.
           </p>
         </section>
 

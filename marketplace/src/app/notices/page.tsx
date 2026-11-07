@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Composants tiers et notices · DZ Exchange",
+  title: "Composants tiers et notices",
   description: "Licences open source des composants utilisés par l’application DZ Exchange et le site web.",
   alternates: { canonical: "/notices" },
   robots: { index: true, follow: true },
