@@ -18,7 +18,9 @@ export default async function DownloadPage() {
   const locale = await getLocale();
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   const apk = await readApkInfo();
-  const size = apk ? `${(apk.bytes / (1024 * 1024)).toFixed(1)} MB` : "—";
+  const size = apk ? `${Math.max(1, Math.round(apk.bytes / 1024))} KB` : "—";
+  // Real captures shipped with the site (store/screenshots, 1080×1920).
+  const shots = ["s1-home", "s2-explore", "s3-product", "s4-ai", "s5-download"];
   return <main className="market-container download-page">
     <section className="download-hero">
       <div className="download-copy">
@@ -30,7 +32,7 @@ export default async function DownloadPage() {
         <ul className="download-facts">
           <li><span>{t("appVersion")}</span><b>{apk?.versionName ?? "—"}</b></li>
           <li><span>{t("appSize")}</span><b>{size}</b></li>
-          <li><span>{t("appUpdated")}</span><b>{apk?.updated ?? "—"}</b></li>
+          <li><span>{t("appUpdated")}</span><b>{apk ? new Date(`${apk.updated}T00:00:00Z`).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" }) : "—"}</b></li>
           <li><span>{t("appPermissions")}</span><b>{t("appPermissionsValue")}</b></li>
         </ul>
         <p className="download-checksum"><span>{t("appChecksum")}</span><code dir="ltr">{apk?.sha256 ?? "—"}</code></p>
@@ -38,16 +40,16 @@ export default async function DownloadPage() {
       <div className="download-visual">
         <div className="phone-frame">
           {/* eslint-disable-next-line @next/next/no-img-element -- static store screenshot */}
-          <img src="/store/screenshot-1.webp" alt={t("appTitle")} width={1080} height={1920} />
+          <img src={`/store/screenshots/${shots[0]}.png`} alt={t("appTitle")} width={1080} height={1920} />
         </div>
       </div>
     </section>
     <section className="download-gallery">
       <h2>{t("appTitle")}</h2>
       <div className="download-shots">
-        {[2, 3, 4].map((index) => (
+        {shots.slice(1).map((shot, index) => (
           // eslint-disable-next-line @next/next/no-img-element -- static store screenshots
-          <img key={index} src={`/store/screenshot-${index}.webp`} alt={`${t("appTitle")} ${index}`} width={1080} height={1920} loading="lazy" />
+          <img key={shot} src={`/store/screenshots/${shot}.png`} alt={`${t("appTitle")} ${index + 2}`} width={1080} height={1920} loading="lazy" />
         ))}
       </div>
     </section>
