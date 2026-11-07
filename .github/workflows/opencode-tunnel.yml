@@ -56,6 +56,15 @@ jobs:
       - name: supervise server + gateway + tunnel
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # optional: add any of these as repository secrets and opencode enables that
+          # provider automatically (keyless opencode free tier is used when none is set)
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: bash scripts/opencode-supervisor.sh
 
       - name: logs on failure

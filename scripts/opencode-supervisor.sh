@@ -137,7 +137,7 @@ run_selftest() {
   esac
   # full selftest line as its own status, so the reason travels with it
   local detail
-  detail="$(printf '%s' "${line#SELFTEST }" | tr -cd 'A-Za-z0-9=._/ ":-' | cut -c1-135)"
+  detail="$(printf '%s' "${line#SELFTEST }" | tr -cd 'A-Za-z0-9=._/: -' | cut -c1-135)"
   if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_SHA:-}" ]; then
     curl -sS -m 20 -X POST \
       -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -148,8 +148,24 @@ run_selftest() {
   fi
 }
 
+# ---------------- provider credentials ----------------
+# opencode enables a provider automatically when its API key is present in the env.
+# The workflow forwards these from repository secrets, so nothing is baked in here.
+provider_env() {
+  local found=""
+  for v in OPENROUTER_API_KEY GROQ_API_KEY OPENAI_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY            DEEPSEEK_API_KEY XAI_API_KEY CEREBRAS_API_KEY TOGETHER_API_KEY; do
+    if [ -n "${!v:-}" ]; then found="$found ${v%%_API_KEY}"; fi
+  done
+  if [ -n "$found" ]; then
+    log "provider keys detected:$found"
+  else
+    log "no provider keys in env -> only keyless providers (opencode free tier) can answer"
+  fi
+}
+
 # ---------------- boot ----------------
 log "booting stack in $WS"
+provider_env
 start_upstream || { log "giving up"; exit 1; }
 start_gateway  || { log "giving up"; exit 1; }
 start_tunnel   || { log "tunnel down, will retry in the loop"; }
