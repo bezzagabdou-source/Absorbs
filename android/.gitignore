@@ -1,0 +1,13 @@
+# Build output
+build/
+*.apk
+*.idsig
+
+# Permanent signing material — never commit, keep an offline backup
+release.keystore
+signing.properties
+*.keystore
+*.jks
+
+# Throwaway debug keys
+debug.keystore

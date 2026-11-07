@@ -1,0 +1,22 @@
+"use client";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
+import { Icon } from "./Icon";
+import { useMarketplace } from "./marketplace-provider";
+import { useI18n } from "@/lib/i18n/client";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { initials } from "@/lib/format";
+export function MarketplaceHeader() {
+  const router = useRouter(); const pathname = usePathname(); const [query, setQuery] = useState(""); const [location, setLocation] = useState(""); const [menuOpen, setMenuOpen] = useState(false);
+  const { favorites, installAvailable, installApp, reference, user } = useMarketplace(); const { t, locale } = useI18n();
+  const submit = (event: FormEvent) => { event.preventDefault(); const params = new URLSearchParams(); if (query.trim()) params.set("q", query.trim().slice(0, 100)); if (location) params.set("wilaya", location); router.push(`/explore?${params}`); setMenuOpen(false); };
+  const nav = [{ href: "/explore", label: t("explore") }, ...reference.categories.slice(0, 4).map((c) => ({ href: `/explore?category=${c.slug}`, label: c.name[locale] }))];
+  return <header className="site-header"><div className="header-main market-container"><Link className="brand" href="/" aria-label={`DZ Exchange · ${t("home")}`}><span className="brand-mark"><span /><span /><span /></span><span className="brand-copy"><b dir="ltr">dz<span>exchange</span></b><small>{t("brandTag")}</small></span></Link>
+    <form className="header-search" onSubmit={submit}><Icon name="search" size={19} className="search-leading" /><input aria-label={t("search")} maxLength={100} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("searchPlaceholder")} /><span className="search-divider" /><label className="location-select"><Icon name="pin" size={16} /><select aria-label={t("wilaya")} value={location} onChange={(e) => setLocation(e.target.value)}><option value="">{t("allWilayas")}</option>{reference.wilayas.map((w) => <option key={w.code} value={w.code}>{w.code} · {w.name[locale]}</option>)}</select></label><button className="search-submit" aria-label={t("search")}><Icon name="arrow" className="directional" size={18} /></button></form>
+    <div className="header-actions"><LanguageSwitcher />{installAvailable && <button className="header-icon" onClick={() => void installApp()} aria-label={t("install")}><Icon name="download" size={19} /></button>}<Link className="header-icon" href="/settings?section=notifications" aria-label={t("notifications")}><Icon name="bell" size={20} /></Link><Link className="header-icon saved-link" href="/explore?favorites=true" aria-label={t("favorites")}><Icon name="heart" size={20} />{favorites.length > 0 && <span className="count-dot">{favorites.length}</span>}</Link><Link className="account-chip" href={user ? "/dashboard" : "/login"}><span className="account-avatar">{user ? initials(user.displayName) : <Icon name="user" size={15} />}</span><span>{t(user ? "account" : "login")}</span></Link><Link className="sell-button" href="/dashboard?create=true"><Icon name="plus" size={18} />{t("sell")}</Link></div><button className="mobile-menu-button" aria-label={t("menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><Icon name={menuOpen ? "close" : "menu"} size={22} /></button></div>
+    <div className="header-categories market-container"><nav aria-label={t("menu")}>{nav.map((item) => <Link key={item.href} className={pathname === item.href ? "active" : ""} href={item.href}>{item.label}</Link>)}</nav><div className="header-trust"><span className="trust-live-dot" />{t("trustTitle")}<Icon name="shieldCheck" size={15} /></div></div>
+    <form className="mobile-search market-container" onSubmit={submit}><Icon name="search" size={18} /><input aria-label={t("search")} maxLength={100} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("searchPlaceholder")} /><button aria-label={t("search")}><Icon name="arrow" className="directional" size={18} /></button></form>
+    {menuOpen && <div className="mobile-menu"><Link href="/explore" onClick={() => setMenuOpen(false)}>{t("explore")}</Link><Link href="/dashboard" onClick={() => setMenuOpen(false)}>{t("dashboard")}</Link><Link href="/chat" onClick={() => setMenuOpen(false)}>{t("messages")}</Link><Link href="/settings" onClick={() => setMenuOpen(false)}>{t("settings")}</Link><LanguageSwitcher /></div>}
+  </header>;
+}

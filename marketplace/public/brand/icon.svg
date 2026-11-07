@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#1C4636"/>
+          <stop offset="0.55" stop-color="#14342A"/>
+          <stop offset="1" stop-color="#0F2A20"/>
+        </linearGradient>
+      </defs>
+      <rect width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
+  <g>
+    <!-- price tag (back, lighter) -->
+    <g transform="translate(700 196) rotate(16)">
+      <rect x="0" y="0" width="210" height="106" rx="21" fill="#D5F07B" opacity="0.55"/>
+    </g>
+    <!-- price tag (front) -->
+    <g transform="translate(636 316) rotate(7)">
+      <rect x="0" y="0" width="238" height="118" rx="23" fill="#D5F07B"/>
+      <circle cx="44" cy="62" r="15" fill="#0F2A20"/>
+      <rect x="72" y="48" width="122" height="12" rx="6" fill="#0F2A20" opacity="0.35"/>
+      <rect x="72" y="70" width="84" height="10" rx="5" fill="#0F2A20" opacity="0.22"/>
+    </g>
+    <!-- shopping bag -->
+    <path d="M412 336a100 100 0 0 1 200 0" fill="none" stroke="#FFFFFF" stroke-width="48" stroke-linecap="round"/>
+    <path d="M306 372h412l-24 396a46 46 0 0 1-46 43H376a46 46 0 0 1-46-43Z" fill="#FFFFFF"/>
+    <!-- the Z: exchange + Dz -->
+    <path d="M382 452h264v70L508 630h138v70H382v-70l138-108H382Z" fill="#D5F07B"/>
+  </g>
+</svg>
