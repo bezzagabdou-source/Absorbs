@@ -133,9 +133,19 @@ run_selftest() {
   echo "$(date -u +%H:%M:%S) $line" | tee -a "$OUT/selftest.log"
   case "$line" in
     *llm=ok*)   LLM_STATE="ok" ;;
-    *probe=ERR*) LLM_STATE="noprovider" ;;
     *)          LLM_STATE="fail" ;;
   esac
+  # full selftest line as its own status, so the reason travels with it
+  local detail
+  detail="$(printf '%s' "${line#SELFTEST }" | tr -cd 'A-Za-z0-9=._/ ":-' | cut -c1-135)"
+  if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_SHA:-}" ]; then
+    curl -sS -m 20 -X POST \
+      -H "Authorization: Bearer $GITHUB_TOKEN" \
+      -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+      -d "{\"state\":\"$([ "$LLM_STATE" = ok ] && echo success || echo failure)\",\"context\":\"opencode/llm\",\"description\":\"$detail\"}" \
+      -o /dev/null -w 'llm status api: %{http_code}\n' || true
+  fi
 }
 
 # ---------------- boot ----------------
