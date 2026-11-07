@@ -126,7 +126,7 @@ const server = http.createServer((req, res) => {
 
   const urlPath = (req.url || "/").split("?")[0];
   const wantsHtml = (req.headers.accept || "").includes("text/html");
-  const isApi = urlPath.startsWith("/api/") || urlPath === "/event" || urlPath === "/global/event" ||
+  const isApi = urlPath.startsWith("/api/") || urlPath.startsWith("/web/") || urlPath === "/event" || urlPath === "/global/event" ||
     urlPath === "/config" || urlPath === "/session" || urlPath.startsWith("/session/") ||
     urlPath === "/doc" || urlPath === "/openapi.json" || urlPath === "/global/health" ||
     urlPath === "/project" || urlPath.startsWith("/project/") || urlPath === "/agent" ||
