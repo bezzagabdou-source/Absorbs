@@ -1,19 +1,22 @@
 # Nexus Chat — موقع HTML مربوط بسيرفر OpenCode
 
-## الرابط الحالي (شغّال)
+## ✅ الرابط (شغّال الآن)
 
 ```
-https://experience-markers-tech-myself.trycloudflare.com
+https://gets-simultaneously-managed-referenced.trycloudflare.com
 ```
 
-- افتحه من أي متصفح/تليفون → تلقى واجهة شات عربية RTL.
-- نفس الأصل يخدم أيضاً API الخاص بـ OpenCode (بلا CORS نهائياً).
-- للتطبيق OpenCode Mobile: نفس الرابط كـ **Server URL**، والباسورد فارغ.
+افتحه في أي متصفح أو تليفون → واجهة شات عربية RTL، تكلّم السيرفر مباشرة وتشوف الجواب
+يتكتب حرف بحرف. نفس الرابط يصلح كـ **Server URL** في تطبيق OpenCode Mobile (بلا باسورد).
 
-> الرابط يتبدّل كل مرة يتعاود الـ workflow. الحديث دايمًا:
-> `gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses --jq '.[]|select(.context=="opencode/url")|.description'`
+> الرابط يتبدّل كل مرة يتعاود الـ workflow. الحديث دايمًا من:
+> ```bash
+> gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses \
+>   --jq '.[]|select(.context=="opencode/url")|.target_url' | head -1
+> ```
+> وحالة الذكاء الاصطناعي في status مستقل اسمه `opencode/llm`.
 
-## كيفاش مربوط (البنية)
+## البنية (كلش على أصل واحد = صفر CORS)
 
 ```
 المتصفح / التطبيق
@@ -22,23 +25,42 @@ https://experience-markers-tech-myself.trycloudflare.com
 cloudflare quick tunnel (http2)
       ▼
 gateway  scripts/opencode-gateway.mjs   ← 0.0.0.0:8080
-   ├── GET /            → web/index.html   (موقع الشات)
-   └── /api/* /session /event …  → opencode serve (127.0.0.1:8081)
+   ├── GET /                      → web/index.html      (موقع الشات)
+   ├── GET /api/session/:id/event → SSE (بلا buffering ولا timeout)
+   └── /api/* /session /config …  → opencode serve (127.0.0.1:8081)
 ```
 
-- **نفس الأصل** = صفر مشاكل CORS (وهذا كان سبب "Connecting…" في التطبيق).
-- الـ gateway يعيد بث `text/event-stream` بلا buffering وبلا timeout، ويقبل preflight.
-- `scripts/opencode-supervisor.sh` يراقب كل 30 ثانية: السيرفر / الـ gateway / النفق،
-  يعيد تشغيل الميّت، ويولّد نفق جديد إذا لزم، وينشر الرابط كـ commit status
-  (`opencode/url` مع `api=200 web=ok`).
+| ملف | وظيفته |
+|---|---|
+| `web/index.html` | الموقع: صفحة واحدة، بلا framework ولا build، ستريمنغ + إيقاف + اختيار النموذج |
+| `scripts/opencode-gateway.mjs` | proxy + CORS + SSE + passthrough للـ WebSocket + يخدم الموقع |
+| `scripts/opencode-supervisor.sh` | يراقب كل 30 ثانية، يعيد تشغيل الميّت، يبدّل النفق، ينشر الرابط |
+| `scripts/opencode-selftest.mjs` | يجرّب شات حقيقي (session → prompt → SSE) ويطبع `SELFTEST llm=ok/fail` |
+| `.github/workflows/opencode-tunnel.yml` | يشغّل الكل على runner مجاني (يبقى ~5 ساعات) |
 
-## الموقع (web/index.html)
+## الموقع كيفاش يخدم
 
-- HTML/CSS/JS خام بلا أي framework ولا build — صفحة واحدة.
-- ينشئ session (`POST /api/session`)، يبثّ الأحداث (`EventSource /api/session/:id/event`)،
-  ويرسل (`POST /api/session/:id/prompt`).
-- يقرأ النماذج من `GET /api/model` ويعرض المتاحة المجانية فقط.
-- ستريمنغ حرف بحرف + إيقاف + اقتراحات جاهزة + دعم كود (``` blocks).
+1. `POST /api/session` → session جديدة
+2. `EventSource /api/session/:id/event` → بث حيّ
+3. `POST /api/session/:id/prompt` → يرسل السؤال
+4. يستقبل `session.next.text.delta` ويرسم الجواب حرف بحرف
+5. النماذج من `GET /api/model` (يعرض المجانية فقط)
+
+## الـ LLM — اقرأ هذا
+
+السيرفر، الموقع، والبث كلهم مثبتين (status: `api=200 web=ok`).
+الجواب النهائي يحتاج **مزوّد نماذج**:
+
+- الحساب المجاني عندو مزوّدون بلا مفتاح (`opencode/...-free`) لكن ما نجحوش في اختبارنا
+  (الـ runner يرجّع `llm=fail`).
+- الحل: أضف مفتاح واحد كـ **repository secret** (Settings → Secrets → Actions):
+
+  `OPENROUTER_API_KEY` أو `GROQ_API_KEY` أو `OPENAI_API_KEY` أو `ANTHROPIC_API_KEY`
+  أو `GEMINI_API_KEY` أو `DEEPSEEK_API_KEY` أو `XAI_API_KEY`
+
+  الـ workflow يمرّرها تلقائيًا، و opencode يفعّل المزوّد وحدو. بعدها:
+  **Actions → opencode server tunnel → Run workflow**.
+- تلقى النتيجة في status `opencode/llm` (fيه سبب الفشل إذا بقى).
 
 ## تشغيل محلي
 
@@ -49,14 +71,7 @@ node scripts/opencode-gateway.mjs --listen 0.0.0.0:8080 --upstream 127.0.0.1:808
 # http://localhost:8080
 ```
 
-## ملاحظات مهمة
+## تنبيه أمني
 
-1. **المزوّد (LLM):** الحساب يحتاج مزوّد مفعّل. إذا ما كانش، الأحداث توصل
-   (`prompt.admitted` / `prompted`) لكن الرد يفشل بـ `UnsupportedApiError` أو
-   `HTTP transport failed`. الحل: داخل الـ Codespace/runner نفّذ
-   `opencode auth login` لـ `opencode` (المجاني) أو `github-copilot`، أو ضع المفتاح
-   كـ Actions secret.
-2. **بلا كلمة سر** على السيرفر — أي حد عندو الرابط يقدر يستعمل الـ agent على الكود.
-   بدّل كلمة السر لو بغيت (`OPENCODE_SERVER_PASSWORD` في supervisor).
-3. **مدة الحياة:** المهمة تبقى حتى ~5 ساعات (حد Actions)؛ أعد التشغيل من
-   **Actions → opencode server tunnel → Run workflow**.
+بلا كلمة سر: أي حد عندو الرابط يقدر يستعمل الـ agent على الكود. الرابط مؤقت (نفق عشوائي)،
+لكن ما تشاركوش. لتقييده أضف `OPENCODE_SERVER_PASSWORD` في `scripts/opencode-supervisor.sh`.
