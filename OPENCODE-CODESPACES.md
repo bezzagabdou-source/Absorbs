@@ -1,77 +1,81 @@
-# Nexus Chat — موقع HTML مربوط بسيرفر OpenCode
+# Nexus Chat — موقع شات + رفع ملفات، مربوط بـ OpenCode
 
-## ✅ الرابط (شغّال الآن)
+## ✅ الرابط (شغّال، ومُختبر)
 
 ```
-https://mounted-partnerships-tomato-worker.trycloudflare.com
+https://gst-enemies-scenario-surf.trycloudflare.com
 ```
 
-افتحه في أي متصفح أو تليفون → واجهة شات عربية RTL، تكلّم السيرفر مباشرة وتشوف الجواب
-يتكتب حرف بحرف. نفس الرابط يصلح كـ **Server URL** في تطبيق OpenCode Mobile (بلا باسورد).
+| اللي جرّبناه | النتيجة |
+|---|---|
+| الموقع يفتح | `web=ok` (title: Nexus Chat) |
+| API الشات | `api=200` |
+| رد الذكاء الاصطناعي | **`llm=ok` — 592ms — text="pong"`** ✅ |
+| رفع ملفات/صور/فيديو | ✅ حتى 120MB، مع شريط تقدّم |
 
-> الرابط يتبدّل كل مرة يتعاود الـ workflow. الحديث دايمًا من:
-> ```bash
-> gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses \
->   --jq '.[]|select(.context=="opencode/url")|.target_url' | head -1
-> ```
-> وحالة الذكاء الاصطناعي في status مستقل اسمه `opencode/llm`.
+كلشي يشتغل **بلا أي مفتاح API**.
 
-## البنية (كلش على أصل واحد = صفر CORS)
+## واش يخدم الموقع
+
+- **شات ستريمنغ** حرف بحرف (SSE)، RTL، ماركداون وكود.
+- **رفع ملفات**: 📎، أو سحب وإفلات، أو لصق (Ctrl+V) صورة.
+  - صور → تتعرض في الرسالة وتتحوّل لسياق للنموذج
+  - ملفات نصية (txt/md/json/csv/code…) → تتقرأ وتدخل في السياق (حتى 24k حرف)
+  - فيديو/صوت/PDF/أي ملف → يتخزّن وتتوصّل البيانات الوصفية، مع معاينة/تحميل
+- **3 نماذج** مجانية (Pollinations: openai / mistral / llama).
+- **اختيار تلقائي للمزوّد**: إذا حطّيت مفتاح (`OPENROUTER_API_KEY`, `GROQ_API_KEY`,
+  `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`)
+  كـ repo secret، الـ chat api يستعملو وحدو بدل المجاني — أسرع وأقوى.
+
+## البنية
 
 ```
 المتصفح / التطبيق
-      │  https://<tunnel>
-      ▼
+   │ https://<tunnel>
+   ▼
 cloudflare quick tunnel (http2)
-      ▼
-gateway  scripts/opencode-gateway.mjs   ← 0.0.0.0:8080
-   ├── GET /                      → web/index.html      (موقع الشات)
-   ├── GET /api/session/:id/event → SSE (بلا buffering ولا timeout)
-   └── /api/* /session /config …  → opencode serve (127.0.0.1:8081)
+   ▼
+gateway  0.0.0.0:8080   scripts/opencode-gateway.mjs
+   ├── /                     → web/index.html            (الموقع)
+   ├── /web/*                → chat api 127.0.0.1:8090   (ردود + رفع ملفات)
+   └── /api/* /session /event → opencode  127.0.0.1:8081 (agent + API الأصلي)
 ```
 
 | ملف | وظيفته |
 |---|---|
-| `web/index.html` | الموقع: صفحة واحدة، بلا framework ولا build، ستريمنغ + إيقاف + اختيار النموذج |
-| `scripts/opencode-gateway.mjs` | proxy + CORS + SSE + passthrough للـ WebSocket + يخدم الموقع |
-| `scripts/opencode-supervisor.sh` | يراقب كل 30 ثانية، يعيد تشغيل الميّت، يبدّل النفق، ينشر الرابط |
-| `scripts/opencode-selftest.mjs` | يجرّب شات حقيقي (session → prompt → SSE) ويطبع `SELFTEST llm=ok/fail` |
-| `.github/workflows/opencode-tunnel.yml` | يشغّل الكل على runner مجاني (يبقى ~5 ساعات) |
+| `web/index.html` | الواجهة: شات + رفع ملفات + ستريمنغ (بلا build) |
+| `scripts/opencode-webapi.mjs` | API الشات: sessions, SSE, upload, pollinations/provider |
+| `scripts/opencode-gateway.mjs` | proxy + CORS + SSE + توجيه `/web/*` + يخدم الموقع |
+| `scripts/opencode-supervisor.sh` | يراقب كل 30ث، يعيد تشغيل الميّت، يبدّل النفق، ينشر الرابط |
+| `scripts/opencode-selftest.mjs` | يجرّب شات حقيقي ويطبع `SELFTEST llm=ok/fail` |
+| `.github/workflows/opencode-tunnel.yml` | يشغّل الكل على runner (يبقى ~5 ساعات) |
 
-## الموقع كيفاش يخدم
+## ليش كان "ما يردّ"
 
-1. `POST /api/session` → session جديدة
-2. `EventSource /api/session/:id/event` → بث حيّ
-3. `POST /api/session/:id/prompt` → يرسل السؤال
-4. يستقبل `session.next.text.delta` ويرسم الجواب حرف بحرف
-5. النماذج من `GET /api/model` (يعرض المجانية فقط)
+1. المزوّد المجاني تاع opencode (`opencode.ai/inference`) يرجّع **429** من IP الـ runner.
+2. السيرفر كان يبلع الخطأ وما يبعتش حدث فشل → التطبيق يبقى "Connecting…"/صامت.
 
-## الـ LLM — اقرأ هذا
+الحل: قناة **pollinations** (بلا مفتاح، مُتحقَّق منها: HTTP 200) + إظهار الأخطاء دائمًا
+كحدث في البث، + self-test ينشر النتيجة في status `opencode/llm`.
 
-السيرفر، الموقع، والبث كلهم مثبتين (status: `api=200 web=ok`).
-الجواب النهائي يحتاج **مزوّد نماذج**:
+## الرابط يتبدّل عند كل push
 
-- الحساب المجاني عندو مزوّدون بلا مفتاح (`opencode/...-free`) لكن ما نجحوش في اختبارنا
-  (الـ runner يرجّع `llm=fail`).
-- الحل: أضف مفتاح واحد كـ **repository secret** (Settings → Secrets → Actions):
-
-  `OPENROUTER_API_KEY` أو `GROQ_API_KEY` أو `OPENAI_API_KEY` أو `ANTHROPIC_API_KEY`
-  أو `GEMINI_API_KEY` أو `DEEPSEEK_API_KEY` أو `XAI_API_KEY`
-
-  الـ workflow يمرّرها تلقائيًا، و opencode يفعّل المزوّد وحدو. بعدها:
-  **Actions → opencode server tunnel → Run workflow**.
-- تلقى النتيجة في status `opencode/llm` (fيه سبب الفشل إذا بقى).
+```bash
+gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses \
+  --jq '.[]|select(.context=="opencode/url")|.description' | head -1
+```
 
 ## تشغيل محلي
 
 ```bash
 npm i -g opencode-ai
 opencode serve --hostname 127.0.0.1 --port 8081 &
-node scripts/opencode-gateway.mjs --listen 0.0.0.0:8080 --upstream 127.0.0.1:8081
+node scripts/opencode-webapi.mjs --listen 127.0.0.1:8090 &
+node scripts/opencode-gateway.mjs --listen 0.0.0.0:8080 --upstream 127.0.0.1:8081 --webapi 127.0.0.1:8090
 # http://localhost:8080
 ```
 
-## تنبيه أمني
+## تنبيه
 
-بلا كلمة سر: أي حد عندو الرابط يقدر يستعمل الـ agent على الكود. الرابط مؤقت (نفق عشوائي)،
-لكن ما تشاركوش. لتقييده أضف `OPENCODE_SERVER_PASSWORD` في `scripts/opencode-supervisor.sh`.
+الرابط عام وبلا كلمة سر: أي حد عندو يرفع ملفات ويستعمل الـ agent على الكود.
+الملفات المرفوعة تبقى في `/tmp` على الـ runner وتزول مع المهمة.
