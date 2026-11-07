@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b14">
+<title>لوحة تحكم برق ⚡</title>
+<link rel="stylesheet" href="/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+
+<!-- شاشة الدخول -->
+<div id="gate" class="gate">
+  <form class="gate-card" id="loginForm" autocomplete="off">
+    <div class="gate-bolt">⚡</div>
+    <h1>لوحة تحكم برق</h1>
+    <p class="muted">إدارة المسابقات، الإحالات، والحماية</p>
+    <label class="sr">كلمة السر</label>
+    <input id="pw" type="password" placeholder="كلمة السر" required minlength="1" autocomplete="current-password">
+    <button type="submit" id="loginBtn">دخول</button>
+    <div id="loginErr" class="err" role="alert"></div>
+    <div class="gate-foot muted small">جلسة آمنة · HttpOnly · 8 ساعات</div>
+  </form>
+</div>
+
+<!-- التطبيق -->
+<div id="app" class="app" hidden>
+  <aside class="side">
+    <div class="brand"><span class="bolt">⚡</span><span class="brand-txt">برق</span></div>
+    <nav id="nav">
+      <button class="nav-btn active" data-tab="overview"><span>📊</span> نظرة عامة</button>
+      <button class="nav-btn" data-tab="referrals"><span>🔗</span> الإحالات <em class="badge" id="bRefs"></em></button>
+      <button class="nav-btn" data-tab="users"><span>👥</span> المستخدمون</button>
+      <button class="nav-btn" data-tab="security"><span>🛡️</span> الحماية <em class="badge warn" id="bRisk"></em></button>
+      <button class="nav-btn" data-tab="settings"><span>⚙️</span> الإعدادات</button>
+    </nav>
+    <div class="side-foot">
+      <div class="pill" id="levelPill">—</div>
+      <button class="ghost" id="logoutBtn">خروج</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title" id="pageTitle">نظرة عامة</div>
+      <div class="topbar-right">
+        <span class="live"><i></i> مباشر</span>
+        <button class="ghost sm" id="refreshBtn" title="تحديث">↻</button>
+      </div>
+    </header>
+
+    <div id="views">
+      <!-- نظرة عامة -->
+      <section class="view active" id="view-overview">
+        <div class="cards" id="statCards"></div>
+        <div class="grid2">
+          <div class="panel">
+            <div class="panel-head"><h2>آخر 14 يوم</h2><span class="muted small">دخول · إحالات · أسئلة</span></div>
+            <div class="chart" id="chart"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>أعلى اللاعبين</h2></div>
+            <div class="mini-list" id="topList"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>آخر الإحالات — شكون دخل ومن طرف شكون</h2>
+            <button class="ghost sm" data-goto="referrals">الكل ←</button>
+          </div>
+          <div class="flow" id="recentFlow"></div>
+        </div>
+      </section>
+
+      <!-- الإحالات -->
+      <section class="view" id="view-referrals">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>سلسلة الإحالات</h2>
+            <div class="seg" id="refSeg">
+              <button class="on" data-status="all">الكل</button>
+              <button data-status="confirmed">مفعّلة</button>
+              <button data-status="pending">في الانتظار</button>
+              <button data-status="flagged">مشبوهة</button>
+            </div>
+          </div>
+          <div class="flow big" id="refFlow"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>أكثر الناس لي جابو أعضاء</h2></div>
+          <div class="mini-list" id="referrersList"></div>
+        </div>
+      </section>
+
+      <!-- المستخدمون -->
+      <section class="view" id="view-users">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>المستخدمون</h2>
+            <div class="tools">
+              <input id="userSearch" class="search" placeholder="🔎 اسم، @مستخدم، ID، رمز إحالة…" autocomplete="off">
+              <div class="seg" id="userSeg">
+                <button class="on" data-filter="all">الكل</button>
+                <button data-filter="active">نشط</button>
+                <button data-filter="risk">خطر</button>
+                <button data-filter="flagged">مشبوه</button>
+                <button data-filter="blocked">محظور</button>
+              </div>
+            </div>
+          </div>
+          <div id="userList" class="user-list"></div>
+          <div class="pager" id="userPager"></div>
+        </div>
+      </section>
+
+      <!-- الحماية -->
+      <section class="view" id="view-security">
+        <div class="cards" id="secCards"></div>
+        <div class="grid2">
+          <div class="panel">
+            <div class="panel-head"><h2>طابور تيليغرام</h2><span class="muted small">ضد الحظر</span></div>
+            <div id="queueBox" class="kv"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>أكثر الأحداث (7 أيام)</h2></div>
+            <div id="eventKinds" class="bars"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>شبكات محظورة</h2></div>
+          <div id="netsList" class="list-rows"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>فحص الإعدادات السرّية</h2><span class="muted small">أسماء فقط، بلا قيم</span></div>
+          <div id="envListSec" class="env-list"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>سجل الأحداث</h2><span class="muted small">آخر 100</span></div>
+          <div id="eventsList" class="events"></div>
+        </div>
+      </section>
+
+      <!-- الإعدادات -->
+      <section class="view" id="view-settings">
+        <div class="panel">
+          <div class="panel-head"><h2>إعدادات النقاط والحماية</h2></div>
+          <form id="settingsForm" class="settings-grid"></form>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>بثّ رسالة</h2><span class="muted small">يُرسل تدريجياً</span></div>
+          <textarea id="bcText" rows="4" maxlength="3500" placeholder="نص الرسالة…"></textarea>
+          <div class="row">
+            <button id="bcBtn" class="primary">إرسال للجميع</button>
+            <span id="bcStatus" class="muted small"></span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>فحص الإعدادات</h2></div>
+          <div id="envListSettings" class="env-list"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- درج الملف الشخصي -->
+<div id="drawer" class="drawer" hidden>
+  <div class="drawer-bg" data-close></div>
+  <aside class="drawer-card" id="drawerCard"></aside>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="/app.js" defer></script>
+</body>
+</html>
