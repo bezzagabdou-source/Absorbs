@@ -83,3 +83,24 @@ GitHub → Settings → Codespaces → Secrets، وبعدها أعد بناء ا
 - لا تشارك الرابط ولا كلمة السر مع أحد: من يملكهم يملك طرفية كاملة على الكود.
 - بديل محلي على حاسوبك: `npm i -g opencode-ai` ثم `opencode serve --hostname 0.0.0.0 --port 8080`
   واستعمل نفق مثل `cloudflared tunnel --url http://localhost:8080` لو احتجت دخول من خارج الشبكة.
+
+---
+
+# ✅ جاهز الآن — رابط مباشر (بدون Codespace)
+
+تم تشغيل OpenCode على GitHub Actions مع نفق Cloudflare، والـ runner تحقّق بنفسه أن
+`GET /config` يرجّع **200** من الإنترنت العام.
+
+| | |
+|---|---|
+| **Server URL** | `https://couple-tariff-earnings-obligation.trycloudflare.com` |
+| **Password** | لا يوجد (اتركه فارغًا) |
+
+QR جاهز في `opencode-qr.png` (امسحه من التطبيق).
+
+مهم:
+- الرابط يتغيّر كل مرة يعاود الـ workflow يشتغل (`opencode server tunnel`).
+  الرابط الحديث دائمًا في: **Actions → opencode server tunnel → latest run → Summary**،
+  وكذلك في commit status باسم `opencode/url` على الفرع `arena/3d01ef96-absorbs`.
+- المهمة تبقى حيّة ~5 ساعات (حد Actions)، وبعدها أعد التشغيل من **Run workflow**.
+- يمكن تطبيق OpenCode Mobile يحتاج إضافات (مثل مستمع إشعارات المتصفح) عبر نفس الرابط.
