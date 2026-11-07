@@ -88,13 +88,14 @@ site_ok() {
 publish() {
   local verify="$1"
   [ -n "$URL" ] || return 1
-  [ "$URL" = "$LAST_PUBLISHED" ] && [ "$LLM_STATE" != "unknown" ] && [ "${LAST_STATE:-}" = "success" ] && return 0
   local host state desc web
   host="${URL#https://}"
   if site_ok; then web=ok; else web=down; fi
   # green only when the site and the API answer; the llm flag is informational
   if [ "$verify" = "200" ] && [ "$web" = "ok" ]; then state=success; else state=failure; fi
   desc="api=$verify web=$web llm=$LLM_STATE ${host}"
+  # only touch the API when something actually changed
+  [ "${LAST_DESC:-}" = "$desc" ] && return 0
   printf 'URL=%s\nHTTP=%s\n' "$URL" "$verify" > "$OUT/connect.txt"
   log "publishing $desc"
   if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_SHA:-}" ]; then
@@ -121,6 +122,7 @@ publish() {
   fi
   LAST_PUBLISHED="$URL"
   LAST_STATE="$state"
+  LAST_DESC="$desc"
 }
 
 # asks the runner side server for a real answer, prints "SELFTEST llm=ok|fail ..."
