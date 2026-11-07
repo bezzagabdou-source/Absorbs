@@ -12,6 +12,15 @@ export type ApkInfo = { bytes: number; sha256: string; versionName: string; vers
 
 const CANDIDATES = ["DZ-Exchange.apk", "dz-exchange.apk"];
 
+/**
+ * Release date of the shipped APK.
+ *
+ * A checkout has no meaningful mtime (Vercel gives every file the deploy time, and
+ * some CI systems stamp 1970), so the release date is pinned here and only falls
+ * back to mtime when the operator sets one explicitly.
+ */
+const RELEASE_DATE = process.env.APP_RELEASE_DATE ?? "2026-11-07";
+
 let cached: ApkInfo | null | undefined;
 
 export async function readApkInfo(): Promise<ApkInfo | null> {
@@ -27,7 +36,7 @@ export async function readApkInfo(): Promise<ApkInfo | null> {
         sha256,
         versionName: process.env.APP_VERSION_NAME ?? "1.1",
         versionCode: Number(process.env.APP_VERSION_CODE ?? 2),
-        updated: stats.mtime.toISOString().slice(0, 10),
+        updated: RELEASE_DATE || stats.mtime.toISOString().slice(0, 10),
         file,
       };
       return cached;
