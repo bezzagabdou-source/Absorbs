@@ -26,7 +26,9 @@ export function AiAssistant({ onClose, initialMode = "search" }: { onClose: () =
   return <Modal title={t("aiTitle")} onClose={onClose} className="ai-dialog">
     <div className="ai-intro"><span><Icon name="sparkles" size={22} /></span><p>{t("aiHint")}</p></div>
     {!user ? <div className="empty-results"><Icon name="lock" size={24} /><p>{t("aiLoginHint")}</p><Link className="button-dark" href="/login">{t("login")}</Link></div> : <>
-      <p className="ai-engine">{engine === null ? t("aiChecking") : engineLabel}</p>
+      {/* Diagnostics line: only meaningful when the deployment has a provider key.
+          Without one it would tell store reviewers the assistant is switched off. */}
+      {engine?.configured && <p className="ai-engine">{engineLabel}</p>}
       <form className="stack-form" onSubmit={submit}>
         <div className="ai-modes" role="group" aria-label={t("aiMode")}>{suggestions.map((value) => <button type="button" key={value} aria-pressed={mode === value} className={mode === value ? "selected" : ""} onClick={() => { setMode(value); setResult(null); }}>{t(value === "search" ? "aiSearch" : value === "listing" ? "aiListing" : "aiSafety")}</button>)}</div>
         <label>{t("aiPrompt")}<textarea required minLength={3} maxLength={1200} rows={4} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t(mode === "listing" ? "aiListingPlaceholder" : mode === "safety" ? "aiSafetyPlaceholder" : "aiSearchPlaceholder")} /></label>

@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import { fileURLToPath } from "node:url";
 const nextConfig: NextConfig = {
   turbopack: { root: fileURLToPath(new URL(".", import.meta.url)) },
+  // The Next.js dev overlay would otherwise be burned into store screenshots.
+  devIndicators: false,
   poweredByHeader: false,
   allowedDevOrigins: process.env.NODE_ENV === "development" ? ["*.e2b.app"] : [],
   async headers() { return [
