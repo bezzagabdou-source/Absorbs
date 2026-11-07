@@ -1,0 +1,26 @@
+name: net probe
+
+# One-shot diagnostic: which outbound hosts can a runner actually reach?
+on:
+  push:
+    branches: [arena/3d01ef96-absorbs]
+    paths:
+      - '.github/workflows/opencode-probe.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: reachability
+        run: |
+          set -u
+          for h in https://example.com https://api.trycloudflare.com https://registry.npmjs.org https://loca.lt https://api.ngrok.com https://api.github.com https://smee.io; do
+            printf '%-34s %s\n' "$h" "$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$h" || echo FAIL)"
+          done
+          echo "=== cloudflared quick tunnel (http2, 40s cap) ==="
+          curl -fsSL -o /tmp/cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x /tmp/cf
+          timeout 40 /tmp/cf tunnel --url http://127.0.0.1:9 --no-autoupdate --protocol http2 > /tmp/cf.log 2>&1 || echo "cloudflared exit=$?"
+          tail -30 /tmp/cf.log
