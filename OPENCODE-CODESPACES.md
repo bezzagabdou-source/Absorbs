@@ -88,19 +88,37 @@ GitHub → Settings → Codespaces → Secrets، وبعدها أعد بناء ا
 
 # ✅ جاهز الآن — رابط مباشر (بدون Codespace)
 
-تم تشغيل OpenCode على GitHub Actions مع نفق Cloudflare، والـ runner تحقّق بنفسه أن
-`GET /config` يرجّع **200** من الإنترنت العام.
+OpenCode يخدم على GitHub Actions: `opencode serve` (127.0.0.1:8081) ← **gateway يصلّح CORS/SSE**
+(0.0.0.0:8080) ← نفق Cloudflare. الـ supervisor في `scripts/opencode-supervisor.sh` يعاود
+يشغّل أي عملية تموت ويولّد نفق جديد، وينشر الرابط كـ commit status باسم `opencode/url`.
 
 | | |
 |---|---|
-| **Server URL** | `https://couple-tariff-earnings-obligation.trycloudflare.com` |
-| **Password** | لا يوجد (اتركه فارغًا) |
+| **Server URL** | `https://electricity-teens-viewer-competing.trycloudflare.com` |
+| **Password** | لا يوجد (اتركه فارغ) |
+| **QR** | `opencode-qr.png` |
 
-QR جاهز في `opencode-qr.png` (امسحه من التطبيق).
+## علاش كان يعلّق على "Connecting..."
 
-مهم:
-- الرابط يتغيّر كل مرة يعاود الـ workflow يشتغل (`opencode server tunnel`).
-  الرابط الحديث دائمًا في: **Actions → opencode server tunnel → latest run → Summary**،
-  وكذلك في commit status باسم `opencode/url` على الفرع `arena/3d01ef96-absorbs`.
-- المهمة تبقى حيّة ~5 ساعات (حد Actions)، وبعدها أعد التشغيل من **Run workflow**.
-- يمكن تطبيق OpenCode Mobile يحتاج إضافات (مثل مستمع إشعارات المتصفح) عبر نفس الرابط.
+سيرفر opencode ما يرجّعش `access-control-allow-origin` لأصل غير مسجّل، فالتطبيق (WebView)
+يقرا REST عادي — لهذا كان يبان "Project: Absorbs" و"Big Pickle" — لكن قناة البث
+`GET /event` (text/event-stream) تتسدّ، فيبقى "Connecting..." بلا نهاية.
+الـ gateway يردّ على preflight، يعكس `Origin`، ويخلي SSE بلا buffering وبلا timeout.
+
+فحص سريع لأي رابط:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$URL/config"                    # 200
+curl -sN -m 5 -H 'Origin: https://app.example' "$URL/event" | head -c 120  # server.connected
+```
+
+## تبديل الرابط
+
+- كل مرة يتعاود الـ workflow يتولّد نفق جديد.
+- الرابط الحالي دائمًا: **Actions → opencode server tunnel → آخر run → Summary**،
+  أو commit status `opencode/url` على الفرع `arena/3d01ef96-absorbs`:
+  ```bash
+  gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses \
+    --jq '.[] | select(.context=="opencode/url") | .target_url' | head -1
+  ```
+- من Actions اضغط **Run workflow** إذا توقّف (المهمة تبقى ~5 ساعات كحد أقصى).
