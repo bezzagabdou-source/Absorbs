@@ -1,0 +1,73 @@
+{
+  "name": "dz-exchange-marketplace",
+  "private": true,
+  "scripts": {
+    "dev": "npm run build:sw && next dev --hostname 0.0.0.0",
+    "build": "npm run build:sw && next build",
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "build:sw": "node scripts/build-sw.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx -r dotenv/config scripts/migrate.ts",
+    "db:seed": "tsx -r dotenv/config src/db/seed-reference-data.ts",
+    "db:seed:demo": "tsx -r dotenv/config scripts/seed-demo.ts",
+    "db:local": "node scripts/local-db.mjs",
+    "push:worker": "tsx --conditions=react-server -r dotenv/config scripts/push-worker.ts",
+    "test": "vitest run",
+    "test:db": "tsx --conditions=react-server -r dotenv/config scripts/test-db.ts",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "push:keys": "node scripts/generate-vapid.mjs",
+    "test:e2e": "playwright test",
+    "db:inspect": "tsx -r dotenv/config scripts/inspect-db.ts",
+    "ai:check": "tsx --conditions=react-server -r dotenv/config scripts/check-ai.ts",
+    "db:check:runtime": "tsx -r dotenv/config scripts/check-runtime-db.ts",
+    "db:check:queries": "tsx --conditions=react-server -r dotenv/config scripts/check-runtime-queries.ts"
+  },
+  "dependencies": {
+    "dexie": "^4.4.7",
+    "dotenv": "17.3.1",
+    "drizzle-orm": "0.45.2",
+    "firebase": "^12.19.0",
+    "framer-motion": "^14.9.1",
+    "next": "^16.4.5",
+    "pg": "8.20.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
+    "tsx": "^4.23.15",
+    "web-push": "^3.6.7",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@sparticuz/chromium": "^153.0.0",
+    "@tailwindcss/postcss": "4.1.17",
+    "@types/node": "22.19.15",
+    "@types/pg": "8.18.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/web-push": "^3.6.4",
+    "drizzle-kit": "0.31.11",
+    "embedded-postgres": "^18.6.0-beta.19",
+    "esbuild": "^0.28.2",
+    "eslint": "9.39.4",
+    "eslint-config-next": "^16.4.5",
+    "postcss": "^8.5.32",
+    "tailwindcss": "4.1.17",
+    "typescript": "5.9.3",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.28.2"
+    },
+    "minimatch": "^11.0.5",
+    "esbuild": "^0.28.2"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
