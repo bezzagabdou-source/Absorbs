@@ -121,7 +121,9 @@ async function tryModel(model) {
 
   await Promise.race([pump, new Promise((r) => setTimeout(r, TIMEOUT))]);
   clearTimeout(killIn);
-  ctrl.abort().valueOf?.();
+  try {
+    ctrl.abort();
+  } catch {}
   try {
     await fetch(`${UP}/api/session/${sid}/interrupt`, { method: "POST" });
   } catch {}
@@ -192,7 +194,9 @@ async function testWebApi() {
 
   await Promise.race([pump, new Promise((r) => setTimeout(r, TIMEOUT))]);
   clearTimeout(timer);
-  ctrl.abort().valueOf?.();
+  try {
+    ctrl.abort();
+  } catch {}
 
   const ms = Date.now() - started;
   const clean = text.replace(/\s+/g, " ").trim().slice(0, 120);
