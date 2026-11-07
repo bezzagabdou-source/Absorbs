@@ -17,6 +17,8 @@ const getArg = (name, fallback) => {
 };
 
 const UP = getArg("upstream", "http://127.0.0.1:8081").replace(/\/$/, "");
+// when --webapi is given, test the chat api the website uses (pollinations or a keyed provider)
+const WEBAPI = getArg("webapi", "").replace(/\/$/, "");
 const TIMEOUT = Number(getArg("timeout", "75")) * 1000;
 const PROMPT = getArg("prompt", "Reply with exactly one word: pong");
 
@@ -129,7 +131,92 @@ async function tryModel(model) {
   return { ok: Boolean(clean), text: clean, error, ms, sid, label: `${model.providerID}/${model.id}` };
 }
 
+async function testWebApi() {
+  const started = Date.now();
+  const { id } = await (await fetch(`${WEBAPI}/web/session`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model: "openai" }),
+  })).json();
+
+  let text = "";
+  let error = "";
+  let done = false;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
+  const stream = await fetch(`${WEBAPI}/web/session/${id}/event`, { signal: ctrl.signal });
+
+  const reader = stream.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  const pump = (async () => {
+    try {
+      for (;;) {
+        const { value, done: eof } = await reader.read();
+        if (eof) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n\n")) !== -1) {
+          const chunk = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          for (const line of chunk.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
+            let ev;
+            try {
+              ev = JSON.parse(line.slice(6));
+            } catch {
+              continue;
+            }
+            const d = ev.data || {};
+            if (ev.type === "session.next.text.delta") text += d.delta || "";
+            else if (ev.type === "session.error" || ev.type === "session.next.step.failed") {
+              error = d.error?.message || d.message || "error";
+              done = true;
+            } else if (ev.type === "session.idle") {
+              if (text) done = true;
+              else if (!error) error = "idle without text";
+            }
+            if (done) return;
+          }
+        }
+      }
+    } catch (e) {
+      if (!error) error = e.name === "AbortError" ? "timeout" : String(e.message || e);
+    }
+  })();
+
+  await fetch(`${WEBAPI}/web/session/${id}/prompt`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ prompt: { text: "Reply with exactly one word: pong" }, model: "openai" }),
+  });
+
+  await Promise.race([pump, new Promise((r) => setTimeout(r, TIMEOUT))]);
+  clearTimeout(timer);
+  ctrl.abort().valueOf?.();
+
+  const ms = Date.now() - started;
+  const clean = text.replace(/\s+/g, " ").trim().slice(0, 120);
+  return { ok: Boolean(clean), text: clean, error, ms };
+}
+
 (async () => {
+  if (WEBAPI) {
+    try {
+      const cfg = await (await fetch(`${WEBAPI}/web/config`)).json();
+      say(`web api llm=${cfg.llm} provider=${cfg.provider} model=${cfg.model}`);
+      const r = await testWebApi();
+      if (r.ok) {
+        out(`llm=ok web=${cfg.provider}/${cfg.model} ms=${r.ms} text="${r.text}"`);
+        process.exit(0);
+      }
+      out(`llm=fail web=${cfg.provider}/${cfg.model} error="${(r.error || "no text").slice(0, 90)}"`);
+      process.exit(1);
+    } catch (e) {
+      out(`llm=fail web=${WEBAPI} error="${String(e.message || e).slice(0, 90)}"`);
+      process.exit(1);
+    }
+  }
+
   let list;
   try {
     list = (await json("/api/model")).data || [];

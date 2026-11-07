@@ -35,6 +35,8 @@ function parseHostPort(value) {
 
 const listen = parseHostPort(arg("listen", "0.0.0.0:8080"));
 const upstream = parseHostPort(arg("upstream", "127.0.0.1:8081"));
+// the chat site's own API (instant answers + uploads) lives on its own port
+const webapi = parseHostPort(arg("webapi", process.env.OPENCODE_WEBAPI || "127.0.0.1:8090"));
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -135,11 +137,14 @@ const server = http.createServer((req, res) => {
     if (wantsHtml && serveStatic(req, res, "/index.html")) return;
   }
 
+  // /web/* goes to the chat api, everything else to opencode
+  const target = urlPath.startsWith("/web/") ? webapi : upstream;
+
   const headers = {};
   for (const [k, v] of Object.entries(req.headers)) {
     if (!HOP_BY_HOP.has(k.toLowerCase())) headers[k] = v;
   }
-  headers.host = `${upstream.host}:${upstream.port}`;
+  headers.host = `${target.host}:${target.port}`;
   headers["x-forwarded-host"] = req.headers.host || "";
   headers["x-forwarded-proto"] = req.headers["x-forwarded-proto"] || "https";
   // always ask the upstream for an uncompressed stream: SSE must not sit in a gzip buffer
@@ -147,8 +152,8 @@ const server = http.createServer((req, res) => {
 
   const proxied = http.request(
     {
-      host: upstream.host,
-      port: upstream.port,
+      host: target.host,
+      port: target.port,
       method: req.method,
       path: req.url,
       headers,
@@ -193,7 +198,7 @@ const server = http.createServer((req, res) => {
   proxied.setTimeout(0);
   // forward the request body (POST/PATCH) - without this the upstream waits forever
   proxied.on("error", (err) => {
-    log("upstream error", req.method, req.url, err.message);
+    log("upstream error", req.method, req.url, target.host + ":" + target.port, err.message);
     if (!res.headersSent) {
       res.writeHead(502, { ...corsHeaders(req), "content-type": "application/json" });
     }
@@ -225,5 +230,5 @@ server.on("upgrade", (req, socket, head) => {
 });
 
 server.listen(listen.port, listen.host, () => {
-  log(`gateway listening on http://${listen.host}:${listen.port} -> http://${upstream.host}:${upstream.port}`);
+  log(`gateway on http://${listen.host}:${listen.port} | api -> ${upstream.host}:${upstream.port} | web -> ${webapi.host}:${webapi.port}`);
 });

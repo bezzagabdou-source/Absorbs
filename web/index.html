@@ -4,90 +4,94 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0b0f14" />
-<title>Nexus Chat — OpenCode</title>
+<title>Nexus Chat</title>
 <style>
   :root{
     --bg:#0b0f14; --panel:#111823; --panel2:#0e141d; --line:#1e2a3a;
-    --txt:#e8eef7; --muted:#8ba0b8; --accent:#2f81f7; --accent2:#22c55e;
-    --user:#1b2a3f; --bot:#131c28;
+    --txt:#e8eef7; --muted:#8ba0b8; --accent:#2f81f7; --ok:#22c55e;
+    --user:#1b2a3f;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
-    margin:0; background:radial-gradient(1200px 600px at 50% -200px,#16233a 0%,var(--bg) 60%);
-    color:var(--txt); font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
-    display:flex; flex-direction:column; height:100dvh; overscroll-behavior:none;
+    margin:0;background:radial-gradient(1200px 600px at 50% -200px,#16233a,var(--bg) 60%);
+    color:var(--txt);font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
+    display:flex;flex-direction:column;height:100dvh;overscroll-behavior:none;
   }
-  header{
-    display:flex; align-items:center; gap:10px; padding:12px 16px;
-    border-bottom:1px solid var(--line); background:rgba(11,15,20,.85); backdrop-filter:blur(10px);
-    position:sticky; top:0; z-index:5;
-  }
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);
+    background:rgba(11,15,20,.86);backdrop-filter:blur(10px);position:sticky;top:0;z-index:9}
   .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:grid;place-items:center;font-weight:800;font-size:14px}
-  .brand{font-weight:800; letter-spacing:.2px}
-  .brand small{display:block; font-weight:500; color:var(--muted); font-size:11px}
-  .status{margin-inline-start:auto; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted)}
-  .dot{width:8px;height:8px;border-radius:50%;background:#64748b;transition:.2s}
-  .dot.on{background:var(--accent2); box-shadow:0 0 0 4px rgba(34,197,94,.15)}
+  .brand{font-weight:800;line-height:1.1}
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:11px}
+  .spacer{margin-inline-start:auto}
+  .badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 10px}
+  .dot{width:7px;height:7px;border-radius:50%;background:#64748b}
+  .dot.on{background:var(--ok);box-shadow:0 0 0 3px rgba(34,197,94,.15)}
   .dot.err{background:#ef4444}
-  select{
-    background:var(--panel2); color:var(--txt); border:1px solid var(--line); border-radius:10px;
-    padding:8px 10px; font-size:13px; max-width:46vw;
-  }
-  main{flex:1; overflow-y:auto; padding:18px 14px 8px; scroll-behavior:smooth}
-  .wrap{max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:14px}
-  .msg{display:flex; gap:10px; align-items:flex-start; animation:in .18s ease-out}
-  @keyframes in{from{opacity:0; transform:translateY(4px)}to{opacity:1;transform:none}}
-  .avatar{flex:0 0 28px; width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:700}
-  .u .avatar{background:var(--user); color:#9ec2ff}
-  .a .avatar{background:linear-gradient(135deg,#1f3b2e,#14532d); color:#86efac}
-  .bubble{
-    background:var(--panel); border:1px solid var(--line); border-radius:14px;
-    padding:12px 14px; max-width:calc(100% - 44px); white-space:pre-wrap; word-break:break-word;
-  }
-  .u .bubble{background:var(--user); border-color:#24374f}
-  .bubble code{background:#0a0f16; padding:2px 5px; border-radius:5px; font-size:.9em}
-  .bubble pre{background:#0a0f16; padding:10px; border-radius:10px; overflow:auto; margin:8px 0}
-  .bubble pre code{background:none;padding:0}
-  .meta{font-size:11px; color:var(--muted); margin-top:6px}
-  .cursor::after{content:"▍"; color:var(--accent); animation:blink 1s steps(2) infinite}
+  select{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:12px;max-width:38vw}
+  main{flex:1;overflow-y:auto;padding:16px 12px 6px}
+  .wrap{max-width:840px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  .msg{display:flex;gap:9px;align-items:flex-start;animation:in .16s ease-out}
+  @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .avatar{flex:0 0 28px;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:11px;font-weight:700}
+  .u .avatar{background:var(--user);color:#9ec2ff}
+  .a .avatar{background:linear-gradient(135deg,#1f3b2e,#14532d);color:#86efac}
+  .bubble{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:11px 13px;
+    max-width:calc(100% - 44px);white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
+  .u .bubble{background:var(--user);border-color:#24374f}
+  .bubble pre{background:#0a0f16;padding:10px;border-radius:10px;overflow:auto;margin:8px 0;direction:ltr;text-align:left}
+  .bubble code{background:#0a0f16;padding:2px 5px;border-radius:5px;font-size:.9em;direction:ltr;display:inline-block}
+  .bubble pre code{background:none;padding:0;display:block}
+  .cursor::after{content:"▍";color:var(--accent);animation:blink 1s steps(2) infinite}
   @keyframes blink{50%{opacity:0}}
-  footer{padding:10px 14px calc(12px + env(safe-area-inset-bottom)); background:linear-gradient(180deg,transparent,rgba(11,15,20,.9))}
-  .composer{max-width:820px; margin:0 auto; display:flex; gap:8px; align-items:flex-end;
-    background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:8px; }
-  textarea{
-    flex:1; resize:none; border:0; outline:0; background:transparent; color:var(--txt);
-    font:inherit; padding:8px; max-height:40dvh; min-height:24px;
-  }
-  button{font:inherit; border:0; cursor:pointer; border-radius:12px}
-  #send{background:var(--accent); color:#fff; padding:10px 18px; font-weight:700; min-width:76px}
-  #send:disabled{opacity:.5; cursor:not-allowed}
-  #stop{background:#7f1d1d; color:#fff; padding:10px 14px; display:none}
-  .hint{max-width:820px;margin:8px auto 0;color:var(--muted);font-size:11px;text-align:center}
-  .empty{color:var(--muted); text-align:center; padding:36px 10px}
+  .atts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .att{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0a0f16;max-width:150px}
+  .att img,.att video{display:block;width:150px;height:100px;object-fit:cover}
+  .att .fname{padding:6px 8px;font-size:11px;color:var(--muted);word-break:break-all}
+  footer{padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,rgba(11,15,20,.92))}
+  .composer{max-width:840px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px}
+  .pending{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  .chip-x{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:999px;padding:5px 10px;font-size:11px;max-width:100%}
+  .chip-x b{font-weight:600;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip-x button{background:none;border:0;color:#fca5a5;cursor:pointer;font-size:14px;line-height:1}
+  .bar{display:flex;gap:8px;align-items:flex-end}
+  textarea{flex:1;resize:none;border:0;outline:0;background:transparent;color:var(--txt);font:inherit;padding:8px;max-height:38dvh;min-height:26px}
+  button{font:inherit;border:0;cursor:pointer;border-radius:12px}
+  .icon{background:var(--panel2);color:var(--txt);border:1px solid var(--line);width:40px;height:40px;display:grid;place-items:center;font-size:17px}
+  .icon:hover{border-color:var(--accent)}
+  #send{background:var(--accent);color:#fff;padding:10px 16px;font-weight:700}
+  #send:disabled{opacity:.5;cursor:not-allowed}
+  .hint{max-width:840px;margin:6px auto 0;color:var(--muted);font-size:11px;text-align:center}
+  .empty{color:var(--muted);text-align:center;padding:30px 8px}
   .empty h1{font-size:20px;color:var(--txt);margin:0 0 6px}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
   .chip{background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:8px 12px;border-radius:999px;font-size:13px}
-  .err{color:#fca5a5;font-size:13px;text-align:center;padding:6px}
+  .drop{position:fixed;inset:0;background:rgba(47,129,247,.14);border:3px dashed var(--accent);z-index:20;display:none;place-items:center;font-size:20px;font-weight:800}
+  .drop.on{display:grid}
+  .progress{height:3px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-bottom:6px;display:none}
+  .progress.on{display:block}
+  .progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 </style>
 </head>
 <body>
 <header>
   <div class="logo">N</div>
-  <div class="brand">Nexus Chat <small>على سيرفر OpenCode</small></div>
+  <div class="brand">Nexus Chat <small>OpenCode · رفع ملفات وصور</small></div>
+  <div class="spacer"></div>
   <select id="model" title="النموذج"></select>
-  <div class="status"><span id="dot" class="dot"></span><span id="statusTxt">جارٍ الاتصال…</span></div>
+  <div class="badge"><span id="dot" class="dot"></span><span id="statusTxt">جارٍ…</span></div>
 </header>
 
 <main id="main">
   <div class="wrap" id="wrap">
     <div class="empty" id="empty">
       <h1>مرحبا 👋</h1>
-      <div>اكتب سؤالك وسيرفر OpenCode يجاوبك مباشرة هنا.</div>
+      <div>اسأل أي حاجة، وارفع صور/ملفات/فيديو مع سؤالك.</div>
       <div class="chips">
-        <button class="chip" data-q="اشرح لي الفرق بين TCP و UDP باختصار">TCP vs UDP</button>
+        <button class="chip" data-q="اشرح الفرق بين TCP و UDP باختصار">TCP vs UDP</button>
         <button class="chip" data-q="أعطني فكرة مشروع بسيط بـ HTML و JavaScript">فكرة مشروع</button>
-        <button class="chip" data-q="اكتب لي دالة بايثون تحسب الأعداد الأولية">كود بايثون</button>
+        <button class="chip" data-q="اكتب دالة بايثون تحسب الأعداد الأولية">كود بايثون</button>
         <button class="chip" data-q="قولي حاجة مليحة نعملها اليوم في الجزائر">نصيحة</button>
       </div>
     </div>
@@ -96,204 +100,214 @@
 
 <footer>
   <div class="composer">
-    <textarea id="input" rows="1" placeholder="اكتب رسالتك هنا…" enterkeyhint="send"></textarea>
-    <button id="stop" title="إيقاف">■</button>
-    <button id="send" title="إرسال (Enter)">إرسال</button>
+    <div class="progress" id="progress"><i></i></div>
+    <div class="pending" id="pending"></div>
+    <div class="bar">
+      <button class="icon" id="attach" title="إرفاق ملفات/صور/فيديو">📎</button>
+      <input type="file" id="file" multiple hidden accept="*/*" />
+      <textarea id="input" rows="1" placeholder="اكتب رسالتك… أو الصق/اسحب صورة هنا"></textarea>
+      <button id="send">إرسال</button>
+    </div>
   </div>
-  <div class="hint" id="hint">Enter يرسل · Shift+Enter سطر جديد</div>
+  <div class="hint" id="hint">Enter يرسل · Shift+Enter سطر جديد · 📎 أو سحب وإفلات للملفات</div>
 </footer>
+<div class="drop" id="drop">أفلت الملفات هنا</div>
 
 <script type="module">
 const $ = (s) => document.querySelector(s);
-const wrap = $("#wrap"), main = $("#main"), input = $("#input");
-const sendBtn = $("#send"), stopBtn = $("#stop");
-const modelSel = $("#model"), dot = $("#dot"), statusTxt = $("#statusTxt"), hint = $("#hint");
+const wrap = $("#wrap"), main = $("#main"), input = $("#input"), sendBtn = $("#send");
+const modelSel = $("#model"), dot = $("#dot"), statusTxt = $("#statusTxt");
+const fileInput = $("#file"), pending = $("#pending"), progress = $("#progress"), drop = $("#drop");
 
-const API = ""; // same origin: the gateway proxies to opencode
-let sessionID = null;
-let model = null;
-let streaming = false;
-let es = null;
-let currentMsgEl = null;
+let sessionID = null, model = "openai", es = null, streaming = false;
+let currentEl = null, acc = "", cfg = null;
+const attachments = []; // { id, name, type, size, url }
 
-// ---------- tiny markdown-ish renderer (fast, safe) ----------
-function esc(s){ return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function render(text){
-  const parts = [];
-  const re = /```([\w-]*)\n?([\s\S]*?)```/g;
-  let last = 0, m;
-  while ((m = re.exec(text))){
-    if (m.index > last) parts.push({code:false, text: text.slice(last, m.index)});
-    parts.push({code:true, text:m[2], lang:m[1]});
-    last = re.lastIndex;
-  }
-  if (last < text.length) parts.push({code:false, text:text.slice(last)});
-  return parts.map(p => {
-    if (p.code) return `<pre><code>${esc(p.text)}</code></pre>`;
-    return esc(p.text)
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-  }).join("");
+  const out = []; const re = /```([\w-]*)\n?([\s\S]*?)```/g; let last = 0, m;
+  while ((m = re.exec(text))){ if (m.index > last) out.push({ c: 0, t: text.slice(last, m.index) }); out.push({ c: 1, t: m[2] }); last = re.lastIndex; }
+  if (last < text.length) out.push({ c: 0, t: text.slice(last) });
+  return out.map((p) => p.c ? `<pre><code>${esc(p.t)}</code></pre>`
+    : esc(p.t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")).join("");
 }
+const scroll = () => (main.scrollTop = main.scrollHeight);
 
-function scroll(){ main.scrollTop = main.scrollHeight; }
+function setStatus(kind, label){ dot.className = "dot" + (kind==="on"?" on":kind==="err"?" err":""); statusTxt.textContent = label; }
 
 function addMsg(role, text){
   $("#empty")?.remove();
   const el = document.createElement("div");
   el.className = "msg " + (role === "user" ? "u" : "a");
-  el.innerHTML = `<div class="avatar">${role === "user" ? "أنت" : "AI"}</div>
-                  <div class="bubble"><div class="content"></div></div>`;
+  el.innerHTML = `<div class="avatar">${role==="user"?"أنت":"AI"}</div><div class="bubble"><div class="content"></div></div>`;
   el.querySelector(".content").innerHTML = role === "user" ? esc(text) : "";
-  wrap.appendChild(el);
-  scroll();
-  return el;
+  wrap.appendChild(el); scroll(); return el;
 }
-
 function setText(el, text, done){
   const c = el.querySelector(".content");
-  c.innerHTML = render(text);
-  c.classList.toggle("cursor", !done);
-  scroll();
+  c.innerHTML = render(text); c.classList.toggle("cursor", !done); scroll();
 }
 
-function setStatus(kind, label){
-  dot.className = "dot" + (kind === "on" ? " on" : kind === "err" ? " err" : "");
-  statusTxt.textContent = label;
+/* ---------- files ---------- */
+function fmt(size){ return size > 1048576 ? (size/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(size/1024))+" KB"; }
+function iconFor(type){ if(/^image\//.test(type)) return "🖼️"; if(/^video\//.test(type)) return "🎬"; if(/^audio\//.test(type)) return "🎵"; if(/pdf/.test(type)) return "📄"; return "📁"; }
+
+function renderPending(){
+  pending.innerHTML = attachments.map((a) => `
+    <span class="chip-x">${iconFor(a.type)} <b title="${esc(a.name)}">${esc(a.name)}</b>
+    <span style="color:var(--muted)">${fmt(a.size)}</span>
+    <button data-rm="${a.id}" title="إزالة">×</button></span>`).join("");
+}
+pending.onclick = (e) => {
+  const id = e.target?.dataset?.rm; if (!id) return;
+  const i = attachments.findIndex((a) => a.id === id); if (i >= 0) attachments.splice(i, 1);
+  renderPending();
+};
+
+async function uploadOne(file){
+  const bar = progress.querySelector("i");
+  progress.classList.add("on");
+  bar.style.width = "5%";
+  // XMLHttpRequest gives us real progress (fetch does not, yet)
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/web/upload?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || "application/octet-stream")}`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) bar.style.width = Math.round((e.loaded/e.total)*95) + "%"; };
+    xhr.onload = () => {
+      bar.style.width = "100%";
+      setTimeout(() => progress.classList.remove("on"), 250);
+      if (xhr.status >= 200 && xhr.status < 300) { try { resolve(JSON.parse(xhr.responseText)); } catch (e) { reject(e); } }
+      else reject(new Error(xhr.responseText?.slice(0,200) || "upload failed"));
+    };
+    xhr.onerror = () => { progress.classList.remove("on"); reject(new Error("network error")); };
+    xhr.send(file);
+  });
 }
 
-// ---------- boot ----------
+async function handleFiles(list){
+  const filesArr = [...list].slice(0, 10);
+  for (const f of filesArr){
+    try {
+      const r = await uploadOne(f);
+      attachments.push({ id: r.id, name: r.name, type: r.type, size: r.size, url: r.url });
+      renderPending();
+    } catch (err) {
+      const el = addMsg("assistant", "");
+      setText(el, `⚠️ فشل رفع ${f.name}: ${err.message}`, true);
+    }
+  }
+}
+$("#attach").onclick = () => fileInput.click();
+fileInput.onchange = () => { handleFiles(fileInput.files); fileInput.value = ""; };
+["dragenter","dragover"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("on"); }));
+["dragleave","drop"].forEach((ev) => document.addEventListener(ev, (e) => {
+  e.preventDefault();
+  if (ev === "drop" && e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
+  drop.classList.remove("on");
+}));
+document.addEventListener("paste", (e) => {
+  const items = [...(e.clipboardData?.items || [])].filter((i) => i.kind === "file");
+  if (items.length) handleFiles(items.map((i) => i.getAsFile()).filter(Boolean));
+});
+
+/* ---------- chat ---------- */
 async function jget(url, opts){
-  const r = await fetch(API + url, opts);
+  const r = await fetch(url, opts);
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.json();
 }
 
 async function boot(){
-  try{
-    const health = await jget("/api/health");
-    setStatus("on", "متصل");
-  }catch(e){
-    setStatus("err", "السيرفر ما جاوبش"); 
-    console.error(e);
+  try {
+    cfg = await jget("/web/config");
+    setStatus("on", `متصل · ${cfg.llm === "pollinations" ? "مجاني" : cfg.provider}`);
+    model = cfg.model || "openai";
+    if (cfg.models?.length){
+      modelSel.innerHTML = cfg.models.map((m) => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+      modelSel.value = model;
+    }
+  } catch (e) {
+    setStatus("err", "السيرفر ما جاوبش"); console.error(e);
   }
-  // models
-  try{
-    const { data } = await jget("/api/model");
-    const usable = data.filter(m => m.enabled && m.status !== "deprecated");
-    const free = usable.filter(m => (m.cost?.[0]?.input ?? 1) === 0);
-    const list = (free.length ? free : usable);
-    modelSel.innerHTML = list.map(m => `<option value="${m.providerID}|${m.id}">${esc(m.name || m.id)}</option>`).join("");
-    const pref = list.find(m => m.id === "big-pickle") || list.find(m => /free/.test(m.id)) || list[0];
-    if (pref){ model = { providerID: pref.providerID, id: pref.id }; modelSel.value = `${pref.providerID}|${pref.id}`; }
-  }catch(e){ console.warn("models failed", e); }
-
-  modelSel.onchange = () => {
-    const [providerID, id] = modelSel.value.split("|");
-    model = { providerID, id };
-  };
+  modelSel.onchange = () => { model = modelSel.value; if (sessionID) sessionID = null, es?.close(); };
 }
 
 async function ensureSession(){
   if (sessionID) return sessionID;
-  const { data } = await jget("/api/session", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ model: model || undefined }),
+  const { id } = await jget("/web/session", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model }),
   });
-  sessionID = data.id;
-  return sessionID;
-}
-
-function subscribe(sid){
+  sessionID = id;
   es?.close();
-  es = new EventSource(`/api/session/${sid}/event`);
+  es = new EventSource(`/web/session/${id}/event`);
   es.onopen = () => setStatus("on", "متصل · بث حي");
-  es.onerror = () => setStatus("err", "انقطع البث، نعيد…");
-  es.onmessage = (ev) => {
-    let e; try { e = JSON.parse(ev.data); } catch { return; }
-    handleEvent(e);
-  };
+  es.onerror = () => setStatus("err", "انقطاع، نعيد…");
+  es.onmessage = (ev) => { try { handleEvent(JSON.parse(ev.data)); } catch {} };
+  return id;
 }
 
-let acc = "";
 function handleEvent(e){
-  const t = e.type || "";
-  const d = e.data || {};
-  if (t.endsWith("step.started")){
-    if (!currentMsgEl) currentMsgEl = addMsg("assistant", "");
-    acc = ""; setText(currentMsgEl, "…", false);
-  } else if (t.endsWith("text.delta") || t.endsWith("reasoning.delta")){
-    const chunk = d.delta ?? d.text ?? d.content ?? "";
-    if (!chunk) return;
-    if (!currentMsgEl) currentMsgEl = addMsg("assistant", "");
-    acc += chunk; setText(currentMsgEl, acc, false);
-  } else if (t.endsWith("text.ended") || t.endsWith("step.ended")){
-    if (currentMsgEl) setText(currentMsgEl, acc, true);
-  } else if (t.endsWith("step.failed")){
-    const msg = d.error?.message || d.error?.type || "خطأ";
-    if (!currentMsgEl) currentMsgEl = addMsg("assistant", "");
-    setText(currentMsgEl, `⚠️ ${msg}`, true);
+  const t = e.type || "", d = e.data || {};
+  if (t === "session.next.step.started"){ if (!currentEl) currentEl = addMsg("assistant", ""); acc = ""; setText(currentEl, "…", false); }
+  else if (t === "session.next.text.delta"){
+    if (!currentEl) currentEl = addMsg("assistant", "");
+    acc += d.delta || ""; setText(currentEl, acc, false);
+  }
+  else if (t === "session.next.step.failed" || t === "session.error"){
+    if (!currentEl) currentEl = addMsg("assistant", "");
+    setText(currentEl, acc + (acc ? "\n\n" : "") + `⚠️ ${d.error?.message || d.message || "خطأ"}`, true);
     finish();
-  } else if (t === "session.idle" || t === "session.next.idle"){
-    if (currentMsgEl) setText(currentMsgEl, acc, true);
+  }
+  else if (t === "session.idle" || t === "session.next.step.ended"){
+    if (currentEl) setText(currentEl, acc, true);
     finish();
   }
 }
 
-function finish(){
-  streaming = false;
-  sendBtn.disabled = false;
-  stopBtn.style.display = "none";
-  currentMsgEl = null;
-  acc = "";
-}
+function finish(){ streaming = false; sendBtn.disabled = false; currentEl = null; acc = ""; }
 
 async function send(text){
-  if (streaming || !text.trim()) return;
-  streaming = true;
-  sendBtn.disabled = true;
-  stopBtn.style.display = "block";
-  addMsg("user", text);
-  input.value = ""; input.style.height = "auto";
-  currentMsgEl = null; acc = "";
+  if (streaming) return;
+  const hasFiles = attachments.length > 0;
+  if (!text.trim() && !hasFiles) return;
+  streaming = true; sendBtn.disabled = true;
 
-  try{
+  const el = addMsg("user", text || "(ملفات)");
+  if (hasFiles){
+    const box = document.createElement("div");
+    box.className = "atts";
+    box.innerHTML = attachments.map((a) => {
+      if (/^image\//.test(a.type)) return `<a class="att" href="${a.url}" target="_blank"><img src="${a.url}" alt="${esc(a.name)}"></a>`;
+      if (/^video\//.test(a.type)) return `<span class="att"><video src="${a.url}" controls preload="metadata"></video><div class="fname">${esc(a.name)}</div></span>`;
+      return `<a class="att" href="${a.url}" target="_blank" style="text-decoration:none"><div class="fname">${iconFor(a.type)} ${esc(a.name)}<br>${fmt(a.size)}</div></a>`;
+    }).join("");
+    el.querySelector(".bubble").appendChild(box);
+  }
+  scroll();
+
+  input.value = ""; input.style.height = "auto";
+  currentEl = null; acc = "";
+
+  try {
     const sid = await ensureSession();
-    subscribe(sid);
-    const body = { prompt: { text } };
-    if (model) body.model = model;
-    const r = await fetch(`/api/session/${sid}/prompt`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    const r = await fetch(`/web/session/${sid}/prompt`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: { text }, model, files: attachments.map((a) => a.id) }),
     });
     if (!r.ok) throw new Error(await r.text());
+    attachments.length = 0; renderPending();
     setStatus("on", "يفكر…");
-  }catch(err){
-    const el = addMsg("assistant", "");
-    setText(el, `⚠️ ما قدرتش نرسل: ${err.message}`, true);
-    finish();
-    setStatus("err", "خطأ في الإرسال");
+  } catch (err) {
+    const el2 = addMsg("assistant", "");
+    setText(el2, `⚠️ ما قدرتش نرسل: ${err.message}`, true);
+    finish(); setStatus("err", "خطأ في الإرسال");
   }
 }
 
-// ---------- ui ----------
-input.addEventListener("input", () => {
-  input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, innerHeight * 0.4) + "px";
-});
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); send(input.value); }
-});
+input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, innerHeight*0.38)+"px"; });
+input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); send(input.value); } });
 sendBtn.onclick = () => send(input.value);
-stopBtn.onclick = async () => {
-  if (!sessionID) return;
-  try{ await fetch(`/api/session/${sessionID}/interrupt`, { method: "POST" }); }catch{}
-  finish();
-};
-document.addEventListener("click", (e) => {
-  const c = e.target.closest(".chip");
-  if (c) send(c.dataset.q);
-});
+document.addEventListener("click", (e) => { const c = e.target.closest(".chip"); if (c) send(c.dataset.q); });
 
 boot();
 </script>

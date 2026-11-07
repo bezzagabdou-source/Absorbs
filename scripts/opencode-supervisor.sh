@@ -18,6 +18,7 @@ mkdir -p "$OUT"
 touch "$OUT/cf.log" "$OUT/oc.log" "$OUT/gw.log"
 
 upstream_port=8081
+webapi_port=8090
 gateway_port=8080
 URL=""
 LAST_PUBLISHED=""
@@ -38,11 +39,26 @@ start_upstream() {
   log "upstream FAILED to start"; return 1
 }
 
+start_webapi() {
+  pkill -f "opencode-webapi.mjs" 2>/dev/null || true
+  sleep 1
+  node "$WS/scripts/opencode-webapi.mjs" --listen "127.0.0.1:$webapi_port" >>"$OUT/webapi.log" 2>&1 &
+  for _ in $(seq 1 20); do
+    if curl -fsS -m 3 -o /dev/null "http://127.0.0.1:$webapi_port/web/config"; then
+      log "web api ready on :$webapi_port"
+      return 0
+    fi
+    sleep 1
+  done
+  log "web api FAILED to start"; tail -15 "$OUT/webapi.log"; return 1
+}
+
 start_gateway() {
   pkill -f "opencode-gateway.mjs" 2>/dev/null || true
   sleep 1
   node "$WS/scripts/opencode-gateway.mjs" \
-    --listen "0.0.0.0:$gateway_port" --upstream "127.0.0.1:$upstream_port" >>"$OUT/gw.log" 2>&1 &
+    --listen "0.0.0.0:$gateway_port" --upstream "127.0.0.1:$upstream_port" \
+    --webapi "127.0.0.1:$webapi_port" >>"$OUT/gw.log" 2>&1 &
   for _ in $(seq 1 20); do
     if curl -fsS -m 3 -o /dev/null "http://127.0.0.1:$gateway_port/config"; then
       log "gateway ready on :$gateway_port"
@@ -128,7 +144,10 @@ publish() {
 # asks the runner side server for a real answer, prints "SELFTEST llm=ok|fail ..."
 run_selftest() {
   local line
-  line="$(SELFTEST_EXTRA_ROUND=1 timeout 330 node "$WS/scripts/opencode-selftest.mjs" --upstream "http://127.0.0.1:$upstream_port" --timeout 45 2>>"$OUT/selftest.log" | grep '^SELFTEST' | tail -1)"
+  local webcheck
+  webcheck="$(curl -s -m 20 -X POST "http://127.0.0.1:$webapi_port/web/session" -H 'content-type: application/json' -d '{}' | head -c 200)"
+  echo "$(date -u +%H:%M:%S) web session: $webcheck" >> "$OUT/selftest.log"
+  line="$(timeout 200 node "$WS/scripts/opencode-selftest.mjs" --webapi "http://127.0.0.1:$webapi_port" --timeout 90 2>>"$OUT/selftest.log" | grep '^SELFTEST' | tail -1)"
   [ -n "$line" ] || line="SELFTEST llm=fail error=\"no output\""
   echo "$(date -u +%H:%M:%S) $line" | tee -a "$OUT/selftest.log"
   case "$line" in
@@ -167,6 +186,7 @@ provider_env() {
 log "booting stack in $WS"
 provider_env
 start_upstream || { log "giving up"; exit 1; }
+start_webapi   || log "chat api down, the site will show a warning"
 start_gateway  || { log "giving up"; exit 1; }
 start_tunnel   || { log "tunnel down, will retry in the loop"; }
 
@@ -185,6 +205,12 @@ ticks=0
 while true; do
   sleep 30
   ticks=$((ticks + 1))
+
+  if ! curl -fsS -m 5 -o /dev/null "http://127.0.0.1:$webapi_port/web/config"; then
+    log "web api unhealthy -> restart"
+    start_webapi || true
+    start_gateway || true
+  fi
 
   if ! curl -fsS -m 5 -o /dev/null "http://127.0.0.1:$upstream_port/config"; then
     log "upstream unhealthy -> restart"

@@ -2,7 +2,9 @@ name: opencode server tunnel
 
 # Public, self-healing endpoint: a small chat website + the OpenCode API on ONE origin.
 #
-#   opencode serve (127.0.0.1:8081)  ->  gateway that also serves web/ (0.0.0.0:8080)  ->  cloudflare tunnel
+#   opencode serve (127.0.0.1:8081)  ->  gateway serving web/ + the chat api (0.0.0.0:8080)
+#   opencode-webapi (127.0.0.1:8090) ->  instant answers (pollinations / keyed provider) + uploads
+#   cloudflare quick tunnel exposes the gateway on https
 #
 # The tunnel root ( https://<host>/ ) is the chat page; the same origin proxies
 # /api/*, /session, /event ... to opencode, so there is no cross-origin problem at all.
