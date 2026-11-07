@@ -27,7 +27,7 @@ log() { echo "$(date -u +%H:%M:%S) $*"; }
 
 start_upstream() {
   pkill -f "opencode serve --hostname 127.0.0.1 --port $upstream_port" 2>/dev/null || true
-  sleep 1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "opencode serve --hostname 127.0.0.1 --port $upstream_port" >/dev/null || break; sleep 0.3; done
   opencode serve --hostname 127.0.0.1 --port "$upstream_port" --print-logs >>"$OUT/oc.log" 2>&1 &
   for _ in $(seq 1 40); do
     if curl -fsS -m 3 -o /dev/null "http://127.0.0.1:$upstream_port/config"; then
@@ -41,7 +41,7 @@ start_upstream() {
 
 start_webapi() {
   pkill -f "opencode-webapi.mjs" 2>/dev/null || true
-  sleep 1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "opencode-webapi.mjs" >/dev/null || break; sleep 0.3; done
   node "$WS/scripts/opencode-webapi.mjs" --listen "127.0.0.1:$webapi_port" >>"$OUT/webapi.log" 2>&1 &
   for _ in $(seq 1 20); do
     if curl -fsS -m 3 -o /dev/null "http://127.0.0.1:$webapi_port/web/config"; then
@@ -55,7 +55,7 @@ start_webapi() {
 
 start_gateway() {
   pkill -f "opencode-gateway.mjs" 2>/dev/null || true
-  sleep 1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "opencode-gateway.mjs" >/dev/null || break; sleep 0.3; done
   node "$WS/scripts/opencode-gateway.mjs" \
     --listen "0.0.0.0:$gateway_port" --upstream "127.0.0.1:$upstream_port" \
     --webapi "127.0.0.1:$webapi_port" >>"$OUT/gw.log" 2>&1 &
@@ -71,7 +71,7 @@ start_gateway() {
 
 start_tunnel() {
   pkill -f "cloudflared tunnel" 2>/dev/null || true
-  sleep 1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "cloudflared tunnel" >/dev/null || break; sleep 0.3; done
   : > "$OUT/cf.log"
   cloudflared tunnel --url "http://127.0.0.1:$gateway_port" \
     --no-autoupdate --protocol http2 --loglevel info >>"$OUT/cf.log" 2>&1 &
