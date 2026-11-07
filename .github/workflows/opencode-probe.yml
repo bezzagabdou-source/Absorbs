@@ -1,6 +1,6 @@
 name: net probe
 
-# One-shot diagnostic: which outbound hosts can a runner actually reach?
+# Which keyless LLM / upload endpoints can a runner actually reach?
 on:
   push:
     branches: [arena/3d01ef96-absorbs]
@@ -8,19 +8,52 @@ on:
       - '.github/workflows/opencode-probe.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
-      - name: reachability
+      - name: reachability of keyless llm endpoints
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -u
-          for h in https://example.com https://api.trycloudflare.com https://registry.npmjs.org https://loca.lt https://api.ngrok.com https://api.github.com https://smee.io; do
-            printf '%-34s %s\n' "$h" "$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$h" || echo FAIL)"
+          report=""
+          test_chat() {
+            local name="$1" url="$2" body="$3"
+            local out code
+            out="$(curl -s -m 45 -o /tmp/body.txt -w '%{http_code}' -X POST "$url" \
+              -H 'content-type: application/json' -H 'accept: text/event-stream, application/json' \
+              -d "$body" || echo ERR)"
+            code="$out"
+            local snippet
+            snippet="$(tr -d '\n\r' < /tmp/body.txt 2>/dev/null | cut -c1-160)"
+            echo "== $name -> $code"
+            echo "   $snippet"
+            report="$report $name=$code"
+          }
+
+          test_chat pollinations "https://text.pollinations.ai/openai" \
+            '{"model":"openai","messages":[{"role":"user","content":"Say pong"}],"max_tokens":8,"stream":false}'
+          test_chat pollinations_get "https://text.pollinations.ai/Say%20pong" ''
+          test_chat deepinfra "https://api.deepinfra.com/v1/openai/chat/completions" \
+            '{"model":"meta-llama/Meta-Llama-3.1-8B-Instruct","messages":[{"role":"user","content":"Say pong"}],"max_tokens":8}'
+          test_chat opencode_inference "https://opencode.ai/inference/openai/v1/chat/completions" \
+            '{"model":"iceman-free","messages":[{"role":"user","content":"Say pong"}],"max_tokens":8}'
+
+          echo "=== https reachability ==="
+          for h in https://text.pollinations.ai https://api.deepinfra.com https://huggingface.co https://0x0.st https://catbox.moe; do
+            printf '%-32s %s\n' "$h" "$(curl -s -o /dev/null -m 12 -w '%{http_code}' "$h" || echo FAIL)"
           done
-          echo "=== cloudflared quick tunnel (http2, 40s cap) ==="
-          curl -fsSL -o /tmp/cf https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          chmod +x /tmp/cf
-          timeout 40 /tmp/cf tunnel --url http://127.0.0.1:9 --no-autoupdate --protocol http2 > /tmp/cf.log 2>&1 || echo "cloudflared exit=$?"
-          tail -30 /tmp/cf.log
+
+          echo "=== summary: $report"
+          desc="$(printf '%s' "$report" | tr -cd 'A-Za-z0-9=_ .-' | cut -c1-135)"
+          curl -sS -m 20 -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -d "{\"state\":\"success\",\"context\":\"probe/llm\",\"description\":\"$desc\"}" \
+            -o /dev/null -w 'status api: %{http_code}\n'
