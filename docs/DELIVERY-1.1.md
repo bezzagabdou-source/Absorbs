@@ -107,6 +107,26 @@ DZ Exchange لا يتعامل مع الدفع. عاين السلعة في مكا
 - [x] 36 اختبارًا آليًا ناجحًا + بناء إنتاجي ناجح.
 - [x] `https://marketplace-fixed.vercel.app/download/apk` يعيد الملف الصحيح ببصمة مطابقة.
 - [x] `assetlinks.json` منشور للروابط العميقة.
+- [x] صفحة ترخيص التطبيق + صفحة المكوّنات الخارجية (مطلوبتان في لوحة Uptodown).
+
+## 3.1 إدارة ترخيص التطبيق في Uptodown — الإجابات الجاهزة
+
+| الحقل | القيمة |
+|---|---|
+| نموذج التوزيع (Distribution Model) | **حر / Free** |
+| المشتريات داخل التطبيق (IAP) | **لا** — لا يوجد أي دفع داخل التطبيق |
+| الاشتراك (Subscription) | **لا** |
+| الإعلانات (Ads) | **لا** |
+| نوع الترخيص (License Type) | **ملكية / Proprietary** |
+| رابط نص الترخيص (License Text URL) | `https://marketplace-fixed.vercel.app/license` |
+| رابط الكود المصدري (Source Code URL) | **اتركه فارغًا** |
+| رابط الإشعارات (Notice URL) | `https://marketplace-fixed.vercel.app/notices` |
+
+**لماذا:** الترخيص ملكية خاصة، لكن الموقع يستعمل مكوّنات Apache 2.0
+(Drizzle ORM، Firebase SDK، Dexie.js، sharp) والمادة 4(د) من Apache 2.0
+تفرض إرفاق ملف NOTICE، ولهذا يُذكر رابط الإشعارات. تطبيق الأندرويد نفسه
+مكتوب بلغة Java فقط فوق `android.jar` ولا يحزم أي مكتبة خارجية — لا AndroidX
+ولا Kotlin ولا Play Services ولا خطوط — لذلك لا يحتاج إشعارات خاصة به.
 
 ## 4. ملاحظات تقنية
 
