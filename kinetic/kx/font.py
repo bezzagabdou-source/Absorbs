@@ -10,9 +10,16 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
-import freetype
 import numpy as np
-import uharfbuzz as hb
+
+try:  # full engine (Linux / macOS / server)
+    import freetype
+    import uharfbuzz as hb
+    BACKEND = "harfbuzz"
+except Exception:  # Termux / minimal env: shape with arabic_reshaper + Pillow
+    freetype = None
+    hb = None
+    BACKEND = "pillow"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONT_DIR = os.path.join(os.path.dirname(HERE), "assets", "fonts")
@@ -21,12 +28,19 @@ FONT_DIR = os.path.join(os.path.dirname(HERE), "assets", "fonts")
 class Face:
     def __init__(self, path: str):
         self.path = path
-        self.ft = freetype.Face(path)
-        blob = hb.Blob.from_file_path(path)
-        self.hb = hb.Font(hb.Face(blob))
+        if BACKEND == "harfbuzz":
+            self.ft = freetype.Face(path)
+            blob = hb.Blob.from_file_path(path)
+            self.hb = hb.Font(hb.Face(blob))
+        else:
+            from PIL import ImageFont
+            self._pil = {}
+            self._ImageFont = ImageFont
 
     @lru_cache(maxsize=64)
     def shaped(self, text: str, size: int):
+        if BACKEND != "harfbuzz":
+            raise RuntimeError("shaping needs the harfbuzz backend")
         ft = self.ft
         ft.set_pixel_sizes(0, size)
         hb_font = self.hb
@@ -37,7 +51,9 @@ class Face:
         hb.shape(hb_font, buf, {"kern": True, "liga": True, "calt": True})
         return list(zip(buf.glyph_infos, buf.glyph_positions)), buf.direction
 
-    def glyph_bitmap(self, gid: int, size: int):
+    def glyph_bitmap(self, gid: int, size: int):  # harfbuzz backend only
+        if BACKEND != "harfbuzz":
+            raise RuntimeError("glyph_bitmap needs the harfbuzz backend")
         ft = self.ft
         ft.set_pixel_sizes(0, size)
         flags = freetype.FT_LOAD_RENDER | freetype.FT_LOAD_TARGET_NORMAL
@@ -85,6 +101,98 @@ class Mask:
         return out
 
 
+@lru_cache(maxsize=1)
+def _isolated_map() -> dict:
+    """Presentation-form -> base-letter map (for fonts without isolated forms)."""
+    import unicodedata
+    out = {}
+    for cp in range(0xFE70, 0xFF00):
+        try:
+            name = unicodedata.name(chr(cp))
+        except ValueError:
+            continue
+        for suffix in (" ISOLATED FORM", " FINAL FORM", " INITIAL FORM", " MEDIAL FORM"):
+            if name.endswith(suffix):
+                base = name[: -len(suffix)]
+                try:
+                    out[cp] = unicodedata.lookup(base)
+                except KeyError:
+                    pass
+                break
+    return out
+
+
+def _fix_coverage(shaped: str, path: str) -> str:
+    """Swap presentation forms the font does not map to their base letters."""
+    from fontTools.ttLib import TTFont  # optional: only used for the check
+    try:
+        cmap = _cmap_cache(path)
+    except Exception:
+        return shaped
+    m = _isolated_map()
+    out = []
+    for ch in shaped:
+        cp = ord(ch)
+        if cp not in cmap and cp in m:
+            out.append(m[cp])
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+_CMAP = {}
+
+
+def _cmap_cache(path: str):
+    if path not in _CMAP:
+        from fontTools.ttLib import TTFont
+        _CMAP[path] = set(TTFont(path).getBestCmap().keys())
+    return _CMAP[path]
+
+
+def _pil_mask(text: str, font: str, size: int) -> Mask:
+    """Fallback: pre-shape with arabic_reshaper + bidi, rasterise with Pillow."""
+    from PIL import Image, ImageDraw
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+
+    f = face(font)
+    if not hasattr(f, "_pil"):
+        from PIL import ImageFont
+        f._pil = {}
+        f._ImageFont = ImageFont
+    if size not in f._pil:
+        f._pil[size] = f._ImageFont.truetype(f.path, size)
+    pil_font = f._pil[size]
+    shaped = get_display(arabic_reshaper.reshape(text))
+    shaped = _fix_coverage(shaped, f.path)
+    pad = size // 4 + 8
+    asc, desc = pil_font.getmetrics()
+    canvas_h = asc + desc + pad * 2
+    probe = Image.new("L", (8, 8))
+    d = ImageDraw.Draw(probe)
+    try:
+        w = int(d.textlength(shaped, font=pil_font))
+    except Exception:
+        w = int(size * 1.2 * len(shaped))
+    canvas_w = max(8, w + pad * 2)
+    im = Image.new("L", (canvas_w, canvas_h), 0)
+    ImageDraw.Draw(im).text((pad, pad), shaped, font=pil_font, fill=255,
+                            features=["-liga"] if False else None)
+    a = np.asarray(im).astype(np.float32) / 255.0
+    cols = np.where(a.max(axis=0) > 0.004)[0]
+    rows = np.where(a.max(axis=1) > 0.004)[0]
+    if len(cols) == 0:
+        return Mask(alpha=np.zeros((8, 8), np.float32), width=8, height=8,
+                    baseline=asc + pad, direction="rtl")
+    a = a[:, cols[0]: cols[-1] + 1]
+    keep_top = max(0, rows[0] - pad // 2)
+    keep_bot = min(a.shape[0], rows[-1] + pad)
+    a = a[keep_top:keep_bot]
+    return Mask(alpha=np.ascontiguousarray(a), width=a.shape[1], height=a.shape[0],
+                baseline=asc + pad - keep_top, direction="rtl")
+
+
 @lru_cache(maxsize=2048)
 def word_mask(text: str, font: str, size: int) -> Mask:
     """Rasterise one word (Arabic words shape correctly on their own).
@@ -92,6 +200,8 @@ def word_mask(text: str, font: str, size: int) -> Mask:
     Result is tightly cropped left/right, vertical space kept relative to the
     font's ascender box so consecutive words share a baseline.
     """
+    if BACKEND != "harfbuzz":
+        return _pil_mask(text, font, size)
     f = face(font)
     glyphs, direction = f.shaped(text, size)
     ascender = int(size * 1.02)
@@ -132,6 +242,8 @@ def measure(text: str, font: str, size: int) -> tuple[int, int]:
 
 
 def space_advance(font: str, size: int) -> int:
+    if BACKEND != "harfbuzz":
+        return int(size * 0.28)
     f = face(font)
     glyphs, _ = f.shaped("x x", size)
     if len(glyphs) >= 3:

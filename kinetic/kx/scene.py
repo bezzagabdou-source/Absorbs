@@ -14,17 +14,24 @@ from .font import space_advance, word_mask
 from .icons import PALETTE, icon
 
 F32 = np.float32
-W, H = 1080, 1920
+# master resolution (env-tunable: KX_RES=0.5 -> 540x960, ~4x faster on phones)
+RES = float(os.environ.get("KX_RES", "1") or 1)
+W, H = int(round(1080 * RES)), int(round(1920 * RES))
 FPS = 30
+
+
+def px(v):
+    """scale a pixel value designed at 1080p to the render resolution."""
+    return int(round(v * RES))
 
 STYLE = {
     "bg0": (0.028, 0.034, 0.055),
     "bg1": (0.058, 0.074, 0.118),
-    "cap_base": 124,
+    "cap_base": px(124),
     "cap_line_max": 2,
     "cap_y": 0.630,
-    "safe": 60,
-    "icon_size": 430,
+    "safe": px(60),
+    "icon_size": px(430),
     "icon_y": 0.315,
     "hero_grad": ((1.00, 0.88, 0.44), (1.00, 0.44, 0.55)),
 }
@@ -40,7 +47,7 @@ GRADS = [
 
 def _fit_size(text: str, base: int, max_w: int, voice: str) -> int:
     size = base
-    while size > 56:
+    while size > px(56):
         w, _ = word_mask(text, voice, size).width, None
         if w <= max_w:
             break
@@ -62,9 +69,9 @@ class Scene:
 
         self.masks = {}
         for w in self.words:
-            base = STYLE["cap_base"] + (6 if w["hero"] else 0)
+            base = STYLE["cap_base"] + px(6 if w["hero"] else 0)
             self.masks[w["text"]] = word_mask(
-                w["text"], voice, _fit_size(w["text"], base, W - 210, voice))
+                w["text"], voice, _fit_size(w["text"], base, W - px(210), voice))
 
         self.sprites = {}
         for b in self.icons:
@@ -240,8 +247,8 @@ class Scene:
         # ambient plate behind the block (soft glass, no border)
         maxw = max(sum(i["m"].width for i in ln) + 0.24 * max(i["m"].height for i in ln) * (len(ln) - 1)
                    for ln in L["lines"])
-        pw = min(int(maxw + 150), W - 20)
-        ph = int(L["total_h"] + 120)
+        pw = min(int(maxw + px(150)), W - px(20))
+        ph = int(L["total_h"] + px(120))
         # soft "spotlight" scrim under the block (elliptical, no hard edges)
         yy_, xx_ = np.mgrid[0:H, 0:W].astype(F32)
         ex = (xx_ - W / 2) / (pw / 2)
@@ -251,7 +258,7 @@ class Scene:
 
         for li, ln in enumerate(L["lines"]):
             # RTL: first word on the right
-            gap = int(0.24 * max(i["m"].height for i in ln))
+            gap = int(0.22 * max(i["m"].height for i in ln))
             widths = [i["m"].width for i in ln]
             line_w = sum(widths) + gap * (len(ln) - 1)
             x = int((W - line_w) / 2)
@@ -283,9 +290,9 @@ class Scene:
                 if active:
                     pulse = 0.72 + 0.28 * self.rms(t)
                     c0, c1 = GRADS[(w.get("sentence", 0)) % len(GRADS)]
-                    h1, p1 = fx.halo(a, 20)
+                    h1, p1 = fx.halo(a, max(4, px(20)))
                     fx.paint_alpha(frame, h1, px_ - p1, py_ - p1, c1, 0.80 * pulse, "add")
-                    h2, p2 = fx.halo(a, 48)
+                    h2, p2 = fx.halo(a, max(6, px(48)))
                     fx.paint_alpha(frame, h2, px_ - p2, py_ - p2, c0, 0.50 * pulse, "add")
                     # gradient fill, slow shimmer
                     shimmer = 0.10 + 0.10 * math.sin(t * 5.2)
@@ -295,7 +302,7 @@ class Scene:
                     prog = fx.ease_out_cubic(fx.clamp((t - w["start"]) / 0.26))
                     bw = int(a.shape[1] * 0.9 * prog)
                     if bw > 8:
-                        bar = np.zeros((6, bw), F32)
+                        bar = np.zeros((max(2, px(6)), bw), F32)
                         grad = fx.smoothstep(0, 1, np.linspace(0, 1, bw))[None, :]
                         bar[:] = np.minimum(grad ** 0.35, 1)
                         bar[0] *= 0.15
@@ -307,7 +314,7 @@ class Scene:
                 else:
                     spoken = t >= w["end"]
                     col = (0.70, 0.75, 0.86) if spoken else (0.985, 0.99, 1.0)
-                    sh2, ps = fx.halo(a, 11)
+                    sh2, ps = fx.halo(a, max(3, px(11)))
                     fx.paint_alpha(frame, sh2, px_ - ps + 4, py_ - ps + 10, (0, 0, 0), 0.5, "over")
                     fx.paint_alpha(frame, a, px_, py_, col, alpha, "over")
 
@@ -337,7 +344,7 @@ class Scene:
             c0 = PALETTE.get(b["icon"], PALETTE["star"])[0]
             padp = int(size * 0.22)
             pad_a = np.pad(a[..., 3], padp)
-            halo = fx.blur(pad_a, size * 0.085) * 0.9
+            halo = fx.blur(pad_a, max(2.0, size * 0.085)) * 0.9
             fx.paint_alpha(frame, halo, x - padp, y - padp, c0,
                            alpha * (0.40 + 0.30 * r_), "add")
             fx.paste(frame, a[..., :3], a[..., 3], x, y, alpha, "over")
@@ -354,22 +361,23 @@ class Scene:
 
     # ------------------------------------------------------------------ chrome
     def chrome(self, frame, t, accent):
-        pad, y = 44, 40
-        bar = np.full((4, W - pad * 2), 0.14, F32)
+        pad, y = px(44), px(40)
+        bar = np.full((max(2, px(4)), W - pad * 2), 0.14, F32)
         fx.paint_alpha(frame, bar, pad, y, (1, 1, 1), 0.45, "over")
         pr = int((W - pad * 2) * min(1.0, t / self.dur))
         if pr > 0:
-            pb = np.full((4, pr), 1.0, F32)
+            pb = np.full((max(2, px(4)), pr), 1.0, F32)
             pb *= fx.smoothstep(0, 1, np.linspace(0, 1, pr))[None, :] ** 0.4
             fx.paint_alpha(frame, pb, pad, y, accent, 0.95, "add")
-            yy2, xx2 = np.mgrid[0:13, 0:13]
-            dot = np.exp(-(((xx2 - 6) ** 2 + (yy2 - 6) ** 2) / 7.0)).astype(F32)
-            fx.paint_alpha(frame, dot, pad + pr - 6, y - 4, (1, 1, 1), 0.85, "add")
+            d0 = max(5, px(13))
+            yy2, xx2 = np.mgrid[0:d0, 0:d0]
+            dot = np.exp(-(((xx2 - d0 // 2) ** 2 + (yy2 - d0 // 2) ** 2) / (d0 * 0.55))).astype(F32)
+            fx.paint_alpha(frame, dot, pad + pr - d0 // 2, y - d0 // 3, (1, 1, 1), 0.85, "add")
 
     def waveform(self, frame, t, accent):
         """thin reactive waveform at the bottom — premium 'audio design' cue."""
         n_bars = 42
-        bw, gap = 7, 12
+        bw, gap = px(7), px(12)
         total = n_bars * gap
         x0 = (W - total) // 2
         base_y = int(H * 0.905)
@@ -377,8 +385,8 @@ class Scene:
             k = (i - n_bars / 2) / (n_bars / 2)
             tt = max(0.0, t - 0.0)
             sample = self.rms(tt - i * 0.035)
-            h = int(8 + 78 * (0.25 + 0.75 * sample) * (1 - 0.45 * k * k))
-            h = max(6, h)
+            h = int(px(8) + px(78) * (0.25 + 0.75 * sample) * (1 - 0.45 * k * k))
+            h = max(2, h)
             bar = np.zeros((h, bw), F32)
             ramp = np.linspace(1.0, 0.45, h)[:, None]
             bar[:] = ramp
@@ -387,9 +395,9 @@ class Scene:
                               (accent[0] * 0.4, accent[1] * 0.4, accent[2] * 0.6), 90, a, "add")
         # progress dot row
         pr = min(1.0, t / self.dur)
-        dp = np.zeros((6, int(total * pr) + 1), F32)
+        dp = np.zeros((max(2, px(6)), int(total * pr) + 1), F32)
         dp[:] = 0.35
-        fx.paint_alpha(frame, dp, x0, base_y + 62, (1, 1, 1), 0.35, "over")
+        fx.paint_alpha(frame, dp, x0, base_y + px(62), (1, 1, 1), 0.35, "over")
 
     # ------------------------------------------------------------------ frame
     def frame(self, t: float) -> np.ndarray:
@@ -428,7 +436,7 @@ class Scene:
                 f = _zoom(f, 1 + 0.018 * (1 - dt / 0.20) ** 2)
                 break
 
-        f = fx.bloom(f, 0.40, 0.60, 9.0)
+        f = fx.bloom(f, 0.40, 0.60, max(3.0, px(9)))
         if "vig" not in self._cache:
             self._cache["vig"] = (1 - fx.vignette_mask(H, W) * 0.45)[..., None].astype(F32)
         f *= self._cache["vig"]

@@ -21,6 +21,16 @@
 
 ---
 
+## 0.5) على الهاتف؟ Termux يخدم
+```bash
+cd kinetic && bash install-termux.sh
+source ~/.kx-env && termux-wake-lock
+python -m kx.render --audio media/vo.mp3 --out out/reel.mp4
+```
+دليل كامل + جدول السرعة + حل المشاكل: **[TERMUX.md](TERMUX.md)**
+
+---
+
 ## 1) تشغيل سريع (٣ أوامر)
 
 ```bash
@@ -135,7 +145,21 @@ python -m kx.render --audio media/source-vo.wav --broll media/source.mp4 --out o
 
 ---
 
-## 7) الأداء
+## 7) الأداء (قابل للضبط)
+
+| متغيّر | الافتراضي | الوظيفة |
+|---|---|---|
+| `KX_RES` | `1` | دقة الرندر (0.5 ≈ 4× أسرع، ثم يُحسَّن للأعلى 1080×1920) |
+| `KX_WORKERS` / `--workers` | `2` | عمليات متوازية |
+| `KX_PRESET` / `KX_CRF` | `slow` / `20` | x264 |
+| `KX_FRAMEDIR` | `out/frames` | مكان الإطارات المؤقتة |
+
+### قياسات فعلية (ساندبوكس 2 vCPU)
+| إعداد | إطارات | ريل 32s |
+|---|---|---|
+| `KX_RES=1` | 0.32 s/frame | ~4.5 دقائق |
+| `KX_RES=0.5` | 0.09 s/frame | ~1.5 دقيقة |
+
 
 | مرحلة | زمن (2 vCPU) |
 |---|---|
