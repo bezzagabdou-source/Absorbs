@@ -563,3 +563,22 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .app-return { display: grid; gap: 10px; margin-top: 18px; }
 .auth-card .section-kicker { margin-bottom: 4px; }
 .google-button + .auth-legal { margin-top: 10px; }
+
+/* ---------- Licence & third-party notices ---------- */
+.legal-links { display: flex; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; }
+[dir="ltr"] .legal-card, [dir="ltr"] .legal-nav { font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+[dir="ltr"] .legal-card p, [dir="ltr"] .legal-card li { letter-spacing: 0; }
+.legal-pre { white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.65; background: var(--surface-soft, #f6f7f3); border: 1px solid var(--line, #e3e6dd); border-radius: 10px; padding: 16px; margin: 12px 0; overflow-x: auto; }
+.notice-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 14px 0; }
+.notice-table th, .notice-table td { text-align: start; padding: 8px 10px; border-bottom: 1px solid var(--line, #e3e6dd); vertical-align: top; }
+.notice-table th { font-weight: 600; background: var(--surface-soft, #f6f7f3); }
+.notice-table code { font-size: 11.5px; direction: ltr; unicode-bidi: embed; }
+/* Phones: one card per component instead of a five-column table. */
+@media (max-width: 700px) {
+  .notice-table thead { display: none; }
+  .notice-table, .notice-table tbody, .notice-table tr, .notice-table td { display: block; width: 100%; }
+  .notice-table tr { border: 1px solid var(--line, #e3e6dd); border-radius: 12px; padding: 4px 12px; margin: 0 0 10px; background: #fff; }
+  .notice-table td { border: 0; padding: 5px 0; display: grid; grid-template-columns: 92px 1fr; gap: 8px; }
+  .notice-table td::before { content: attr(data-label); color: var(--muted, #6b7a6e); font-weight: 600; font-size: 11px; }
+  .notice-table td:not(:last-child) { border-bottom: 1px solid rgba(0,0,0,.05); }
+}

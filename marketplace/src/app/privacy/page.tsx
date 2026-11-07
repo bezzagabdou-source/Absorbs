@@ -38,6 +38,11 @@ export function LegalLayout({ doc, active, locale }: { doc: { title: string; int
       </section>)}
       <footer className="legal-footer">
         <p>{LEGAL.labels[locale].contact}: <a href="mailto:support@dzexchange.app">support@dzexchange.app</a></p>
+        {/* Uptodown (and every other store) requires the licence and third-party notices
+            to be reachable from the company's own site, not only from the code host. */}
+        <p className="legal-links">
+          <Link href="/license">Licence du logiciel</Link> · <Link href="/notices">Mentions des composants tiers</Link> · <Link href="/terms">{LEGAL.labels[locale].terms}</Link>
+        </p>
         <p><Link href="/">{LEGAL.labels[locale].back}</Link></p>
       </footer>
     </article>
