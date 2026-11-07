@@ -1,0 +1,7 @@
+# heavy render artefacts (regenerate with: python -m kx.render ...)
+out/
+deliverables/*.mp4
+deliverables/*.wav
+*.wav
+__pycache__/
+*.pyc
