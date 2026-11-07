@@ -73,7 +73,7 @@ export default function NoticesPage() {
         <h1>Composants tiers et notices</h1>
         <p className="legal-updated">Dernière mise à jour : 7 novembre 2026</p>
         <p className="legal-intro">
-          L’application Android et le site web DZ Exchange intègrent des logiciels libres. Chaque composant reste
+          Le site web DZ Exchange intégré à l’application utilise des logiciels libres. Chaque composant reste
           régi par sa propre licence ; la liste ci-dessous indique le titulaire des droits et le dépôt d’origine.
           Les notices imposées par la licence Apache 2.0, article 4(d), des composants du site web sont reproduites à
           la fin de cette page.
