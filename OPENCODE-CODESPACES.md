@@ -3,7 +3,7 @@
 ## ✅ الرابط (شغّال الآن)
 
 ```
-https://personnel-frequently-packing-thinks.trycloudflare.com
+https://mounted-partnerships-tomato-worker.trycloudflare.com
 ```
 
 افتحه في أي متصفح أو تليفون → واجهة شات عربية RTL، تكلّم السيرفر مباشرة وتشوف الجواب
