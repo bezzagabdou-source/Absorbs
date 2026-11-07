@@ -133,6 +133,7 @@ run_selftest() {
   echo "$(date -u +%H:%M:%S) $line" | tee -a "$OUT/selftest.log"
   case "$line" in
     *llm=ok*)   LLM_STATE="ok" ;;
+    *probe=ERR*) LLM_STATE="noprovider" ;;
     *)          LLM_STATE="fail" ;;
   esac
 }

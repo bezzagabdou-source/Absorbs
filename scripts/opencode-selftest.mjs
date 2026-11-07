@@ -140,6 +140,7 @@ async function tryModel(model) {
 
   // raw provider probe: is the inference endpoint itself reachable/authorized?
   const probeModel = pickModels(list)[0];
+  let probeTag = "probe=skip";
   if (probeModel?.api?.url) {
     const url = probeModel.api.url.replace(/\/$/, "") + "/chat/completions";
     try {
@@ -154,10 +155,10 @@ async function tryModel(model) {
       });
       const body = (await r.text()).slice(0, 160).replace(/\s+/g, " ");
       say(`probe ${probeModel.providerID}: HTTP ${r.status} ${body}`);
-      out(`probe=${r.status} model=${probeModel.providerID}/${probeModel.id}`);
+      probeTag = `probe=${r.status}`;
     } catch (e) {
       say(`probe ${probeModel.providerID}: ERROR ${e.message}`);
-      out(`probe=ERR model=${probeModel.providerID}/${probeModel.id}`);
+      probeTag = "probe=ERR";
     }
   }
 
@@ -176,12 +177,12 @@ async function tryModel(model) {
       r = { ok: false, error: String(e.message || e).slice(0, 120) };
     }
     if (r.ok) {
-      out(`llm=ok model=${r.label} ms=${r.ms} text="${r.text}"`);
+      out(`llm=ok ${probeTag} model=${r.label} ms=${r.ms} text="${r.text}"`);
       process.exit(0);
     }
     say(`  failed: ${r.error || "no text"}`);
   }
 
-  out(`llm=fail model=${candidates[0].providerID}/${candidates[0].id} error="no answer from any model"`);
+  out(`llm=fail ${probeTag} model=${candidates[0].providerID}/${candidates[0].id} error="no answer from any model"`);
   process.exit(1);
 })();
