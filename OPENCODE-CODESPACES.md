@@ -3,7 +3,7 @@
 ## ✅ الرابط (شغّال الآن)
 
 ```
-https://gets-simultaneously-managed-referenced.trycloudflare.com
+https://personnel-frequently-packing-thinks.trycloudflare.com
 ```
 
 افتحه في أي متصفح أو تليفون → واجهة شات عربية RTL، تكلّم السيرفر مباشرة وتشوف الجواب
