@@ -1,8 +1,11 @@
 name: opencode server tunnel
 
-# Public, self-healing endpoint for the OpenCode Mobile app.
+# Public, self-healing endpoint: a small chat website + the OpenCode API on ONE origin.
 #
-#   opencode serve (127.0.0.1:8081)  ->  CORS/SSE gateway (0.0.0.0:8080)  ->  cloudflare quick tunnel
+#   opencode serve (127.0.0.1:8081)  ->  gateway that also serves web/ (0.0.0.0:8080)  ->  cloudflare tunnel
+#
+# The tunnel root ( https://<host>/ ) is the chat page; the same origin proxies
+# /api/*, /session, /event ... to opencode, so there is no cross-origin problem at all.
 #
 # The gateway exists because opencode itself answers no CORS headers for unknown
 # origins, which leaves the app stuck on "Connecting..." (REST works, the SSE stream
@@ -16,8 +19,8 @@ on:
     branches: [arena/3d01ef96-absorbs]
     paths:
       - '.github/workflows/opencode-tunnel.yml'
-      - 'scripts/opencode-gateway.mjs'
-      - 'scripts/opencode-supervisor.sh'
+      - 'scripts/**'
+      - 'web/**'
   workflow_dispatch:
 
 permissions:

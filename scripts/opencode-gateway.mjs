@@ -16,6 +16,12 @@
  */
 import http from "node:http";
 import net from "node:net";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const WEB_ROOT = process.env.OPENCODE_WEB_ROOT || path.join(__dirname, "..", "web");
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -75,12 +81,58 @@ function log(...parts) {
   console.log(new Date().toISOString(), ...parts);
 }
 
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json",
+  ".woff2": "font/woff2",
+};
+
+// Drops a small chat UI on the tunnel root so the same origin serves both the page
+// and the opencode API (no cross-origin at all: sticky even where CORS is stripped).
+function serveStatic(req, res, urlPath) {
+  if (!fs.existsSync(WEB_ROOT)) return false;
+  let rel = decodeURIComponent((urlPath || "/").split("?")[0]);
+  if (rel.endsWith("/")) rel += "index.html";
+  const file = path.join(WEB_ROOT, path.normalize(rel).replace(/^([.][.][/\\])+/, "").replace(/^[/\\]+/, ""));
+  if (!file.startsWith(WEB_ROOT) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
+  const body = fs.readFileSync(file);
+  res.writeHead(200, {
+    ...corsHeaders(req),
+    "content-type": MIME[path.extname(file).toLowerCase()] || "application/octet-stream",
+    "content-length": body.length,
+    "cache-control": "no-store",
+  });
+  res.end(req.method === "HEAD" ? undefined : body);
+  return true;
+}
+
 const server = http.createServer((req, res) => {
   // preflight
   if (req.method === "OPTIONS") {
     res.writeHead(204, { ...corsHeaders(req), "content-length": "0" });
     res.end();
     return;
+  }
+
+  const urlPath = (req.url || "/").split("?")[0];
+  const wantsHtml = (req.headers.accept || "").includes("text/html");
+  const isApi = urlPath.startsWith("/api/") || urlPath === "/event" || urlPath === "/global/event" ||
+    urlPath === "/config" || urlPath === "/session" || urlPath.startsWith("/session/") ||
+    urlPath === "/doc" || urlPath === "/openapi.json" || urlPath === "/global/health" ||
+    urlPath === "/project" || urlPath.startsWith("/project/") || urlPath === "/agent" ||
+    urlPath === "/provider" || urlPath.startsWith("/provider/");
+  if ((req.method === "GET" || req.method === "HEAD") && !isApi) {
+    if (serveStatic(req, res, urlPath)) return;
+    // SPA-ish fallback for the chat page
+    if (wantsHtml && serveStatic(req, res, "/index.html")) return;
   }
 
   const headers = {};
@@ -139,6 +191,7 @@ const server = http.createServer((req, res) => {
   );
 
   proxied.setTimeout(0);
+  // forward the request body (POST/PATCH) - without this the upstream waits forever
   proxied.on("error", (err) => {
     log("upstream error", req.method, req.url, err.message);
     if (!res.headersSent) {
@@ -147,7 +200,8 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ error: "upstream_unreachable", message: err.message }));
   });
 
-  proxied.end();
+  req.pipe(proxied);
+  req.on("error", () => proxied.destroy());
 });
 
 // long-lived SSE + mobile networks: disable every default timeout

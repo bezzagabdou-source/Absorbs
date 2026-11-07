@@ -78,14 +78,21 @@ public_ok() {
   [ "$code" = "200" ]
 }
 
+# the chat page must come back through the tunnel with the right title
+site_ok() {
+  [ -n "$URL" ] || return 1
+  curl -s -m 25 "$URL/" 2>/dev/null | grep -q "Nexus Chat"
+}
+
 publish() {
   local verify="$1"
   [ -n "$URL" ] || return 1
   [ "$URL" = "$LAST_PUBLISHED" ] && [ "$verify" = "200" ] && return 0
-  local host state desc
+  local host state desc web
   host="${URL#https://}"
   if [ "$verify" = "200" ]; then state=success; else state=failure; fi
-  desc="$host http=$verify"
+  if site_ok; then web=ok; else web=down; fi
+  desc="$host api=$verify web=$web"
   printf 'URL=%s\nHTTP=%s\n' "$URL" "$verify" > "$OUT/connect.txt"
   log "publishing $desc"
   if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_SHA:-}" ]; then
@@ -105,6 +112,7 @@ publish() {
       echo "| URL | \`$URL\` |"
       echo "| Password | (none) |"
       echo "| public /config | $verify |"
+      echo "| chat site | $web |"
       echo "| updated | $(date -u +%H:%M:%S) utc |"
     } > "$GITHUB_STEP_SUMMARY"
   fi
