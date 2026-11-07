@@ -13,6 +13,10 @@ on:
       - '.github/workflows/opencode-probe.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  statuses: write
+
 concurrency:
   group: opencode-tunnel
   cancel-in-progress: true
@@ -81,6 +85,8 @@ jobs:
 
       - name: publish endpoint
         if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -u
           URL="${{ steps.url.outputs.URL }}"
@@ -90,6 +96,20 @@ jobs:
             echo "URL=$URL"
             echo "PASSWORD=$PW"
           } > /tmp/tunnel/connect.txt
+
+          # machine readable channel (reachable through the REST API, no blob storage):
+          # a commit status whose description carries the tunnel host.
+          SHA="$(git rev-parse HEAD)"
+          HOST="${URL#https://}"
+          if [ -n "$URL" ]; then
+            curl -sS -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${SHA}" \
+              -d "{\"state\":\"success\",\"context\":\"opencode/url\",\"description\":\"${HOST:-none}\",\"target_url\":\"${URL:-https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}\"}" \
+              -o /tmp/tunnel/status.json -w 'status api: %{http_code}\n' || true
+          fi
+
           {
             echo "### OpenCode server"
             echo ""
