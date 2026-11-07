@@ -168,7 +168,12 @@ async function tryModel(model) {
     process.exit(1);
   }
 
-  for (const m of candidates) {
+  const attempts = [];
+  for (const m of candidates) attempts.push(m);
+  // 429 on the shared free endpoint is common on CI IPs: retry the same pool once more
+  if (process.env.SELFTEST_EXTRA_ROUND === "1") attempts.push(...candidates);
+
+  for (const m of attempts) {
     say(`trying ${m.providerID}/${m.id} (${m.name || ""}) …`);
     let r;
     try {
@@ -181,6 +186,10 @@ async function tryModel(model) {
       process.exit(0);
     }
     say(`  failed: ${r.error || "no text"}`);
+    if (/429|rate|abort/i.test(r.error || "")) {
+      say("  backing off 25s before the next attempt");
+      await new Promise((r) => setTimeout(r, 25000));
+    }
   }
 
   out(`llm=fail ${probeTag} model=${candidates[0].providerID}/${candidates[0].id} error="no answer from any model"`);

@@ -128,7 +128,7 @@ publish() {
 # asks the runner side server for a real answer, prints "SELFTEST llm=ok|fail ..."
 run_selftest() {
   local line
-  line="$(timeout 300 node "$WS/scripts/opencode-selftest.mjs" --upstream "http://127.0.0.1:$upstream_port" --timeout 90 2>>"$OUT/selftest.log" | grep '^SELFTEST' | tail -1)"
+  line="$(SELFTEST_EXTRA_ROUND=1 timeout 420 node "$WS/scripts/opencode-selftest.mjs" --upstream "http://127.0.0.1:$upstream_port" --timeout 90 2>>"$OUT/selftest.log" | grep '^SELFTEST' | tail -1)"
   [ -n "$line" ] || line="SELFTEST llm=fail error=\"no output\""
   echo "$(date -u +%H:%M:%S) $line" | tee -a "$OUT/selftest.log"
   case "$line" in
