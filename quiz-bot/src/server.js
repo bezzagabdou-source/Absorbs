@@ -99,8 +99,8 @@ const server = http.createServer(async (req, res) => {
   const ip = clientIp(req);
 
   try {
-    // ترويسات أمان عامة
-    res.setHeader("x-frame-options", "SAMEORIGIN");
+    // ترويسات أمان عامة (بلا X-Frame-Options: اللوحة تُعرض داخل معاينات مؤمّنة،
+    // والحماية الحقيقية هي كوكي SameSite=Strict + CSP)
     res.setHeader("referrer-policy", "same-origin");
     res.setHeader("x-content-type-options", "nosniff");
 

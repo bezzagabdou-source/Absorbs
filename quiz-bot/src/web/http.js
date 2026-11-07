@@ -46,7 +46,6 @@ export function html(res, status, body, extra = {}) {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
-    "x-frame-options": "SAMEORIGIN",
     "referrer-policy": "same-origin",
     ...extra,
   });
@@ -119,8 +118,7 @@ export function serveStatic(res, root, urlPath) {
   };
   if (ext === ".html") {
     headers["content-security-policy"] =
-      "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'";
-    headers["x-frame-options"] = "SAMEORIGIN";
+      "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'self' https:";
   }
   res.writeHead(200, headers);
   res.end(body);
