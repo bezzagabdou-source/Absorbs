@@ -138,6 +138,29 @@ async function tryModel(model) {
     process.exit(1);
   }
 
+  // raw provider probe: is the inference endpoint itself reachable/authorized?
+  const probeModel = pickModels(list)[0];
+  if (probeModel?.api?.url) {
+    const url = probeModel.api.url.replace(/\/$/, "") + "/chat/completions";
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${probeModel.request?.body?.apiKey || "public"}`,
+        },
+        body: JSON.stringify({ model: probeModel.api.id || probeModel.id, messages: [{ role: "user", content: "hi" }], max_tokens: 4 }),
+        signal: AbortSignal.timeout(30000),
+      });
+      const body = (await r.text()).slice(0, 160).replace(/\s+/g, " ");
+      say(`probe ${probeModel.providerID}: HTTP ${r.status} ${body}`);
+      out(`probe=${r.status} model=${probeModel.providerID}/${probeModel.id}`);
+    } catch (e) {
+      say(`probe ${probeModel.providerID}: ERROR ${e.message}`);
+      out(`probe=ERR model=${probeModel.providerID}/${probeModel.id}`);
+    }
+  }
+
   const candidates = pickModels(list);
   if (!candidates.length) {
     out('llm=fail reason="no enabled model"');
