@@ -1,16 +1,23 @@
 name: opencode server tunnel
 
-# Public endpoint for the OpenCode Mobile app.
-# Stage 1: install opencode + cloudflared
-# Stage 2: boot the headless server and a quick tunnel (http2 first, quic fallback)
-# Stage 3: publish URL + password as artifact/summary, then keep the job alive.
+# Public, self-healing endpoint for the OpenCode Mobile app.
+#
+#   opencode serve (127.0.0.1:8081)  ->  CORS/SSE gateway (0.0.0.0:8080)  ->  cloudflare quick tunnel
+#
+# The gateway exists because opencode itself answers no CORS headers for unknown
+# origins, which leaves the app stuck on "Connecting..." (REST works, the SSE stream
+# is blocked). The supervisor heals dead processes and republishes the tunnel host.
+#
+# Discover the live URL:  commit status `opencode/url` on this branch,
+# or Actions -> this run -> Summary.
 
 on:
   push:
     branches: [arena/3d01ef96-absorbs]
     paths:
       - '.github/workflows/opencode-tunnel.yml'
-      - '.github/workflows/opencode-probe.yml'
+      - 'scripts/opencode-gateway.mjs'
+      - 'scripts/opencode-supervisor.sh'
   workflow_dispatch:
 
 permissions:
@@ -37,124 +44,20 @@ jobs:
           set -eux
           npm install -g opencode-ai@latest > /dev/null 2>&1
           opencode --version
+          node --version
           sudo curl -fsSL -o /usr/local/bin/cloudflared \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
           sudo chmod +x /usr/local/bin/cloudflared
           cloudflared --version
 
-      - name: boot server (background, detached)
-        run: |
-          set -u
-          mkdir -p /tmp/tunnel
-          # no password: the mobile app connects with the URL alone (see summary note)
-          PW=""
-          printf '%s' "$PW" > /tmp/tunnel/password.txt
-          unset OPENCODE_SERVER_PASSWORD
-          setsid nohup opencode serve --hostname 127.0.0.1 --port 8080 --print-logs \
-            < /dev/null > /tmp/tunnel/oc.log 2>&1 &
-          disown || true
-          sleep 5
-          echo "detached pid(s): $(pgrep -f 'opencode serve' | tr '\n' ' ')"
-
-      - name: boot tunnel (background, detached)
-        run: |
-          set -u
-          setsid nohup cloudflared tunnel --url http://127.0.0.1:8080 \
-            --no-autoupdate --protocol http2 --loglevel info \
-            < /dev/null > /tmp/tunnel/cf.log 2>&1 &
-          disown || true
-          sleep 3
-          echo "detached pid(s): $(pgrep -f cloudflared | tr '\n' ' ')"
-
-      - name: resolve public url
-        id: url
-        run: |
-          set -u
-          URL=""
-          for i in $(seq 1 45); do
-            echo "--- attempt $i ---"
-            echo "local: $(curl -s -o /dev/null -w '%{http_code}' -m 5 http://127.0.0.1:8080/config || true)"
-            URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/tunnel/cf.log | head -1 || true)"
-            [ -n "$URL" ] && break
-            sleep 4
-          done
-          if [ -z "$URL" ]; then
-            echo "cloudflared gave no url; tail:"; tail -25 /tmp/tunnel/cf.log || true
-          fi
-          echo "URL=$URL" >> "$GITHUB_OUTPUT"
-          echo "resolved: '$URL'"
-
-      - name: verify public
-        id: verify
-        if: always()
-        run: |
-          set -u
-          URL="${{ steps.url.outputs.URL }}"
-          CODE="000"
-          for i in $(seq 1 12); do
-            CODE="$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/config" || true)"
-            echo "public /config -> $CODE (try $i)"
-            [ "$CODE" = "200" ] && break
-            sleep 5
-          done
-          echo "CODE=$CODE" >> "$GITHUB_OUTPUT"
-
-      - name: publish endpoint
-        if: always()
+      - name: supervise server + gateway + tunnel
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/opencode-supervisor.sh
+
+      - name: logs on failure
+        if: failure()
         run: |
-          set -u
-          URL="${{ steps.url.outputs.URL }}"
-          PW=""
-          mkdir -p /tmp/tunnel
-          {
-            echo "URL=$URL"
-            echo "PASSWORD=$PW"
-          } > /tmp/tunnel/connect.txt
-
-          # machine readable channel (reachable through the REST API, no blob storage):
-          # a commit status whose description carries the tunnel host.
-          SHA="$(git rev-parse HEAD)"
-          HOST="${URL#https://}"
-          CODE="${{ steps.verify.outputs.CODE }}"
-          [ -n "$URL" ] || CODE="000"
-          if [ -n "$URL" ]; then
-            curl -sS -X POST \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${SHA}" \
-              -d "{\"state\":\"$([ \"${CODE:-000}\" = 200 ] && echo success || echo failure)\",\"context\":\"opencode/url\",\"description\":\"${HOST:-none} http=${CODE:-000}\",\"target_url\":\"${URL:-https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}\"}" \
-              -o /tmp/tunnel/status.json -w 'status api: %{http_code}\n' || true
-          fi
-
-          {
-            echo "### OpenCode server"
-            echo ""
-            echo "| field | value |"
-            echo "|---|---|"
-            echo "| URL | \`$URL\` |"
-            echo "| Password | \`(none)\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-          cat /tmp/tunnel/connect.txt
-          echo "=== cloudflared log tail ==="; tail -20 /tmp/tunnel/cf.log 2>/dev/null || true
-          echo "=== opencode log tail ==="; tail -20 /tmp/tunnel/oc.log 2>/dev/null || true
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: opencode-endpoint
-          path: |
-            /tmp/tunnel/connect.txt
-            /tmp/tunnel/cf.log
-            /tmp/tunnel/oc.log
-          if-no-files-found: warn
-          retention-days: 1
-
-      - name: keep alive
-        run: |
-          URL="${{ steps.url.outputs.URL }}"
-          for i in $(seq 1 66); do
-            echo "alive $(date -u +%H:%M:%S) | local $(curl -s -o /dev/null -w '%{http_code}' -m 5 http://127.0.0.1:8080/config || true) | public $(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/config" || true) | $URL"
-            sleep 300
-          done
+          echo "=== cloudflared ==="; tail -40 /tmp/tunnel/cf.log || true
+          echo "=== gateway ==="; tail -40 /tmp/tunnel/gw.log || true
+          echo "=== opencode ==="; tail -40 /tmp/tunnel/oc.log || true
