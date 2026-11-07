@@ -46,9 +46,10 @@ jobs:
         run: |
           set -u
           mkdir -p /tmp/tunnel
-          PW="$(openssl rand -hex 6)"
+          # no password: the mobile app connects with the URL alone (see summary note)
+          PW=""
           printf '%s' "$PW" > /tmp/tunnel/password.txt
-          export OPENCODE_SERVER_PASSWORD="$PW"
+          unset OPENCODE_SERVER_PASSWORD
           setsid nohup opencode serve --hostname 127.0.0.1 --port 8080 --print-logs \
             < /dev/null > /tmp/tunnel/oc.log 2>&1 &
           disown || true
@@ -83,6 +84,21 @@ jobs:
           echo "URL=$URL" >> "$GITHUB_OUTPUT"
           echo "resolved: '$URL'"
 
+      - name: verify public
+        id: verify
+        if: always()
+        run: |
+          set -u
+          URL="${{ steps.url.outputs.URL }}"
+          CODE="000"
+          for i in $(seq 1 12); do
+            CODE="$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/config" || true)"
+            echo "public /config -> $CODE (try $i)"
+            [ "$CODE" = "200" ] && break
+            sleep 5
+          done
+          echo "CODE=$CODE" >> "$GITHUB_OUTPUT"
+
       - name: publish endpoint
         if: always()
         env:
@@ -90,7 +106,7 @@ jobs:
         run: |
           set -u
           URL="${{ steps.url.outputs.URL }}"
-          PW="$(cat /tmp/tunnel/password.txt 2>/dev/null || echo unknown)"
+          PW=""
           mkdir -p /tmp/tunnel
           {
             echo "URL=$URL"
@@ -101,12 +117,14 @@ jobs:
           # a commit status whose description carries the tunnel host.
           SHA="$(git rev-parse HEAD)"
           HOST="${URL#https://}"
+          CODE="${{ steps.verify.outputs.CODE }}"
+          [ -n "$URL" ] || CODE="000"
           if [ -n "$URL" ]; then
             curl -sS -X POST \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${SHA}" \
-              -d "{\"state\":\"success\",\"context\":\"opencode/url\",\"description\":\"${HOST:-none}\",\"target_url\":\"${URL:-https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}\"}" \
+              -d "{\"state\":\"$([ \"${CODE:-000}\" = 200 ] && echo success || echo failure)\",\"context\":\"opencode/url\",\"description\":\"${HOST:-none} http=${CODE:-000}\",\"target_url\":\"${URL:-https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}\"}" \
               -o /tmp/tunnel/status.json -w 'status api: %{http_code}\n' || true
           fi
 
@@ -116,7 +134,7 @@ jobs:
             echo "| field | value |"
             echo "|---|---|"
             echo "| URL | \`$URL\` |"
-            echo "| Password | \`$PW\` |"
+            echo "| Password | \`(none)\` |"
           } >> "$GITHUB_STEP_SUMMARY"
           cat /tmp/tunnel/connect.txt
           echo "=== cloudflared log tail ==="; tail -20 /tmp/tunnel/cf.log 2>/dev/null || true
