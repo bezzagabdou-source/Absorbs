@@ -3,7 +3,7 @@
 ## ✅ الرابط (شغّال، ومُختبر)
 
 ```
-https://gst-enemies-scenario-surf.trycloudflare.com
+https://increased-rebate-comes-bonus.trycloudflare.com
 ```
 
 | اللي جرّبناه | النتيجة |
