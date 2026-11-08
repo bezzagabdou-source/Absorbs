@@ -155,20 +155,26 @@ export async function GET(req: Request) {
       )
     : [];
 
-  // اختبار المحرّك كاملًا: طلب حقيقي من البوت
-  const t1 = Date.now();
-  let engine: Record<string, unknown> = {};
-  try {
-    const plan = await planPrompt(db, "اجعل الهدية اليومية من 2 إلى 4 نقاط");
-    engine = {
-      ok: plan.actions.length > 0,
-      provider: plan.provider,
-      actions: plan.actions.map((a) => a.name),
-      ms: Date.now() - t1,
-    };
-  } catch (e) {
-    engine = { ok: false, error: (e as Error).message.slice(0, 200) };
-  }
+  // اختبار المحرّك: طلب بسيط + طلب معقّد (بلا تنفيذ — للقراءة فقط)
+  const probe = async (q: string) => {
+    const t = Date.now();
+    try {
+      const plan = await planPrompt(db, q);
+      return {
+        q,
+        ok: plan.actions.length > 0,
+        provider: plan.provider,
+        actions: plan.actions.map((a) => a.name),
+        reply: plan.reply.slice(0, 160),
+        ms: Date.now() - t,
+      };
+    } catch (e) {
+      return { q, ok: false, error: (e as Error).message.slice(0, 200) };
+    }
+  };
+
+  const engine = await probe("اجعل الهدية اليومية من 2 إلى 4 نقاط");
+  const complex = await probe("أضف جائزة PlayStation Plus بسعر 45 نقطة وأخبرني أنك أضفتها");
 
   // قائمة الموديلات المتاحة فعليًا على مفتاح Groq (لفحص الوصول)
   let groqModels: string[] = [];
@@ -193,6 +199,7 @@ export async function GET(req: Request) {
     savedKeyInDb: saved,
     providers: results,
     engine,
+    complex,
     note: results.length === 0 ? "لا يوجد أي مفتاح AI — المحرّك العربي المدمج فقط." : undefined,
   });
 }

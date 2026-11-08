@@ -18,7 +18,9 @@ export async function GET() {
     logs: db.logs.slice(0, 30),
     // لا نُعيد المفتاح نفسه أبدًا للواجهة
     settings: { ...db.settings.ai, apiKey: saved ? "saved" : "" },
-    providers: detectAIProviders().map((p) => ({ name: p.name, configured: p.configured })),
+    providers: detectAIProviders()
+      .filter((p) => p.configured)
+      .map((p) => ({ name: p.name, configured: p.configured })),
     ready: saved || detectAIProviders().some((p) => p.configured),
   });
 }
