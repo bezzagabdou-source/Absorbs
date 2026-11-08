@@ -11,42 +11,40 @@ on:
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
+# writes the site to the docs/ folder on this branch, so GitHub Pages can serve it
+# straight from the repository (branch source: /docs) without any build step.
+
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: enable pages (first run)
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: build artifact
+      - name: copy site into docs/
         run: |
-          mkdir -p _site
-          cp -r web-pages/. _site/
-          # make sure the entry point exists
-          test -f _site/index.html
-          # no caching surprises while iterating
-          printf 'User-agent: *\nAllow: /\n' > _site/robots.txt
-          ls -la _site
+          rm -rf docs
+          mkdir -p docs
+          cp -r web-pages/. docs/
+          test -f docs/index.html
+          printf 'User-agent: *\nAllow: /\n' > docs/robots.txt
+          printf '' > docs/.nojekyll
+          ls -la docs
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: commit
+        run: |
+          git config user.name "nexus-bot"
+          git config user.email "nexus-bot@users.noreply.github.com"
+          git add -A docs
+          if git diff --cached --quiet; then
+            echo "no changes"
+          else
+            git commit -m "chore(pages): publish chat site to /docs"
+            git push
+          fi
