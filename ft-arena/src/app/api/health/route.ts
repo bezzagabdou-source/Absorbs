@@ -10,6 +10,12 @@ import { countUsers } from "@/lib/bot-utils";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** يخفي مقطع السرّ من أي رابط قبل عرضه للعامة */
+function mask(url?: string | null): string | null {
+  if (!url) return null;
+  return url.replace(/\/api\/tg\/[^/?#]+/, "/api/tg/•••");
+}
+
 export async function GET() {
   const started = Date.now();
   const out: Record<string, unknown> = { ok: true, site: env.siteUrl, version: "1.0.0" };
@@ -26,12 +32,12 @@ export async function GET() {
       ? { online: true, id: me.id, username: me.username, name: me.first_name }
       : { online: false, error: "BOT_TOKEN غير صالح أو تيليجرام غير متاح" };
     const info = me ? await getWebhookInfo() : null;
+    const want = `${env.siteUrl}/api/tg/${env.webhookSecret}`;
     out.webhook = {
-      url: info?.url ?? null,
+      url: mask(info?.url),
       pending: info?.pending_update_count ?? 0,
       error: info?.last_error_message ?? null,
-      expected: `${env.siteUrl}/api/tg/${env.webhookSecret}`,
-      matches: info?.url === `${env.siteUrl}/api/tg/${env.webhookSecret}`,
+      matches: info?.url === want,
     };
   } catch (e) {
     out.bot = { online: false, error: (e as Error).message };

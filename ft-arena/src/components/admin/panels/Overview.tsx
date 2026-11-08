@@ -14,6 +14,13 @@ type Stats = {
   recent: { at: string; actor: string; title: string; detail?: string; icon?: string }[];
   settings: { botEnabled: boolean; maintenance: boolean; forceJoin: { enabled: boolean; username: string; title: string }; points: { dailyMin: number; dailyMax: number } };
   site: string;
+  health?: {
+    ok: boolean;
+    store: string;
+    bot: { online: boolean; username?: string; id?: number; error?: string };
+    webhook: { url?: string | null; pending?: number; error?: string | null; matches?: boolean };
+    forceJoin: { enabled: boolean; channel: string; reachable: boolean; title?: string | null; botIsAdmin: boolean | null };
+  } | null;
 };
 
 type TabId = "overview" | "users" | "store" | "claims" | "settings" | "broadcast" | "ai" | "bot" | "contests" | "library" | "activity";
@@ -34,6 +41,8 @@ export default function Overview({ onGoto }: { onGoto: (t: TabId) => void }) {
   const [days, setDays] = useState(14);
   const [metric, setMetric] = useState<"users" | "events" | "refs" | "points">("users");
   const [busy, setBusy] = useState(false);
+  const [health, setHealth] = useState<Stats["health"]>(null);
+  const [probe, setProbe] = useState(false);
 
   async function load(d = days) {
     setBusy(true);
@@ -46,6 +55,23 @@ export default function Overview({ onGoto }: { onGoto: (t: TabId) => void }) {
       setBusy(false);
     }
   }
+  async function loadHealth() {
+    setProbe(true);
+    try {
+      const h = await api<NonNullable<Stats["health"]>>("/api/health");
+      setHealth(h);
+    } catch {
+      setHealth(null);
+    } finally {
+      setProbe(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadHealth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     void load(days);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,8 +89,47 @@ export default function Overview({ onGoto }: { onGoto: (t: TabId) => void }) {
   const s = data.stats;
   const max = Math.max(1, ...data.series.map((x) => x[metric]));
 
+  const h = health;
+  const issues: { tone: "red" | "amber"; icon: string; title: string; detail: string }[] = [];
+  if (h) {
+    if (!h.bot?.online) issues.push({ tone: "red", icon: "🔌", title: "البوت غير متصل", detail: h.bot?.error || "تحقّق من BOT_TOKEN في Vercel." });
+    if (h.bot?.online && h.webhook && h.webhook.matches === false)
+      issues.push({ tone: "red", icon: "🪝", title: "الـ webhook غير مربوط", detail: "افتح /api/setup مرة واحدة لإعادة الربط." });
+    if (h.webhook?.error) issues.push({ tone: "amber", icon: "⚠️", title: "خطأ في الـ webhook", detail: h.webhook.error });
+    if (h.forceJoin?.enabled && !h.forceJoin?.reachable)
+      issues.push({ tone: "amber", icon: "📣", title: "القناة غير متاحة", detail: `تأكّد أن ${h.forceJoin.channel} قناة عامة وأن البوت عضو فيها.` });
+    if (h.forceJoin?.enabled && h.forceJoin?.botIsAdmin === false)
+      issues.push({ tone: "amber", icon: "🔑", title: "البوت ليس أدمن في القناة", detail: `أضف البوت أدمن في ${h.forceJoin.channel} بصلاحية «إدارة الأعضاء» — بدونه يُفتح البوت للجميع دون تحقّق حقيقي من الاشتراك.` });
+    if (h.store && !String(h.store).startsWith("redis"))
+      issues.push({ tone: "amber", icon: "💾", title: `التخزين: ${h.store}`, detail: "بدون Redis تُفقد البيانات عند إعادة تشغيل الدوال — أضف REDIS_URL." });
+  }
+
   return (
     <div className="col" style={{ gap: 14 }}>
+      {h && (
+        <div className="card" style={{ padding: 14, display: "grid", gap: 8, borderColor: issues.some((i) => i.tone === "red") ? "rgba(239,68,68,.45)" : issues.length ? "rgba(245,158,11,.4)" : "rgba(16,185,129,.35)" }}>
+          <div className="row-between wrap" style={{ gap: 8 }}>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              <span className="badge">{issues.length ? "🩺 فحص النظام" : "✅ كل الأنظمة تعمل"}</span>
+              <span className="chip">{h.store === "redis" ? "Redis متصل" : `تخزين: ${h.store}`}</span>
+              <span className="chip">قناة: {h.forceJoin?.title || h.forceJoin?.channel}</span>
+              <span className="chip">Pending: {h.webhook?.pending ?? 0}</span>
+            </div>
+            <button className="btn ghost sm" onClick={() => void loadHealth()} disabled={probe}>
+              {probe ? "…" : "إعادة الفحص"}
+            </button>
+          </div>
+          {issues.map((i, n) => (
+            <div key={n} className="row" style={{ gap: 9, alignItems: "flex-start", padding: "8px 10px", borderRadius: 10, background: i.tone === "red" ? "rgba(239,68,68,.09)" : "rgba(245,158,11,.09)" }}>
+              <span style={{ fontSize: 15 }}>{i.icon}</span>
+              <div style={{ display: "grid", gap: 2 }}>
+                <b style={{ fontSize: 13 }}>{i.title}</b>
+                <span className="muted" style={{ fontSize: 12, lineHeight: 1.55 }}>{i.detail}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(158px, 1fr))" }}>
         {KPI.map((k) => (
           <div key={k.key} className="card kpi">
