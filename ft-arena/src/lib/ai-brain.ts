@@ -329,21 +329,34 @@ async function callOpenAICompat(
 ): Promise<string | null> {
   if (!key) return null;
   const prompt = CTX.prompt, sys = CTX.sys;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extraHeaders },
-    body: JSON.stringify({
+  const body = (jsonMode: boolean) =>
+    JSON.stringify({
       model,
       temperature: 0.2,
       max_tokens: 1400,
-      response_format: { type: "json_object" },
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: sys },
         { role: "user", content: prompt },
       ],
-    }),
+    });
+
+  let res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extraHeaders },
+    body: body(true),
     cache: "no-store",
   });
+
+  // بعض الموديلات (مثل gpt-oss) ترفض وضع JSON الصارم — نعيد المحاولة بدونه
+  if (!res.ok) {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extraHeaders },
+      body: body(false),
+      cache: "no-store",
+    });
+  }
   if (!res.ok) return null;
   const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content ?? null;
@@ -431,11 +444,13 @@ function providerList(db: DB): { name: string; label: string; run: () => Promise
   // ⚡️ Groq: سلسلة موديلات احتياطية — أيّها متاح لحسابك يعمل
   const groqKey = env("GROQ_API_KEY");
   if (groqKey) {
+    // qwen أسرع وأثبت مع JSON؛ gpt-oss-120b أقوى لكنه يفشل أحيانًا في وضع JSON الصارم
     const chain = [
       savedModel,
       env("GROQ_MODEL"),
-      "openai/gpt-oss-120b",
       "qwen/qwen3.8-27b",
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
       "allam-2-7b",
     ].filter(Boolean) as string[];
     const uniq = Array.from(new Set(chain));
