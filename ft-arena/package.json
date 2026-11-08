@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "selftest": "node scripts/selftest.mjs"
+    "selftest": "node --experimental-strip-types --no-warnings --import ./scripts/register.mjs scripts/selftest.mjs",
+    "ai-test": "node --experimental-strip-types --no-warnings --import ./scripts/register.mjs scripts/ai-test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/cairo": "^5.2.6",

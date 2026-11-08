@@ -6,7 +6,9 @@
  */
 import assert from "node:assert";
 
-let BOT_TOKEN = "";
+// توكن وهمي فقط ليسمح الغلاف بالمرور — كل نداءات fetch مُحاكاة أدناه.
+process.env.BOT_TOKEN = "test:token";
+
 const captured = [];
 const calls = [];
 const MEMBERSHIP = new Map(); // userId -> joined?
