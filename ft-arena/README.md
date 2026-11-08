@@ -46,6 +46,26 @@
 - يوجد **محرك فهم عربي مدمج يعمل بدون أي مفتاح** (أرقام عربية ٠-٩، صياغات شائعة).
 - إن أضفت أي مفتاح (`GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `CEREBRAS_API_KEY`) يستخدمه تلقائيًا لفهم طلبات أعقد.
 
+## 🌐 النسخة المنشورة (Production)
+
+| العنصر | الرابط |
+|---|---|
+| 🏠 الموقع العام | https://ft-arena-bot.vercel.app |
+| 🎛️ لوحة التحكم | https://ft-arena-bot.vercel.app/admin |
+| 🤖 البوت | https://t.me/mxmosab9atbot · `@mxmosab9atbot` |
+| 📣 قناة الاشتراك | https://t.me/mxabdou |
+| 🩺 فحص الحالة | https://ft-arena-bot.vercel.app/api/health |
+| ⚙️ التهيئة (مرة) | https://ft-arena-bot.vercel.app/api/setup?key=‹WEBHOOK_SECRET› |
+
+> `/api/health` يعرض حالة البوت والـ webhook وقناة الاشتراك والتخزين **بدون كشف أي سرّ** (رابط الـ webhook مموّه).
+> يظهر نفس الفحص كشريط تنبيهات في أعلى «نظرة عامة» داخل اللوحة، مع زر «إعادة الفحص».
+
+> ⚠️ **مهم:** أضف البوت أدمن في قناة `@mxabdou` بصلاحية **«إدارة الأعضاء»**.
+> بدونه لا يمكن لتيليجرام التحقق من اشتراك الأعضاء، فيتساهل البوت ويفتح نفسه للجميع —
+> والحالة تظهر فورًا في `/api/health` وفي شريط الفحص باللوحة.
+
+---
+
 ## 🚀 النشر
 
 ### 1) متغيّرات البيئة (Vercel → Settings → Environment Variables)
