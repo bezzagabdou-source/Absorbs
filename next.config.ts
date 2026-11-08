@@ -32,12 +32,18 @@ const nextConfig: NextConfig = {
   },
   // optional: serve Firebase's auth handler from our own domain (see firebase-config.ts)
   async rewrites() {
-    if (process.env.NEXT_PUBLIC_FIREBASE_AUTH_PROXY !== "1") return [];
+    // static chat page: served straight from public/chat.html (no tunnel, no server)
+    const chat = [{ source: "/chat", destination: "/chat.html" }];
+    if (process.env.NEXT_PUBLIC_FIREBASE_AUTH_PROXY !== "1") return { beforeFiles: [], afterFiles: chat, fallback: [] };
     const host = `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "mohtal-9b1d3"}.firebaseapp.com`;
-    return [
-      { source: "/__/auth/:path*", destination: `https://${host}/__/auth/:path*` },
-      { source: "/__/firebase/:path*", destination: `https://${host}/__/firebase/:path*` },
-    ];
+    return {
+      beforeFiles: [],
+      afterFiles: chat,
+      fallback: [
+        { source: "/__/auth/:path*", destination: `https://${host}/__/auth/:path*` },
+        { source: "/__/firebase/:path*", destination: `https://${host}/__/firebase/:path*` },
+      ],
+    };
   },
   async headers() {
     return [
