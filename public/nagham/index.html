@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نغم — موسيقى بلا حدود</title>
+<meta name="description" content="نغم — تطبيق موسيقى عربي سريع: أغاني كاملة مجانية، معاينات، إذاعات حية، تشغيل في الخلفية، وقوائم تشغيل تعمل بدون إنترنت.">
+<meta name="theme-color" content="#0c0a1a">
+<meta name="color-scheme" content="dark light">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="نغم">
+<meta property="og:title" content="نغم — موسيقى بلا حدود">
+<meta property="og:type" content="website">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" onload="this.media='all'">
+<link rel="stylesheet" href="./assets/css/app.css">
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <span class="orb orb-a"></span><span class="orb orb-b"></span><span class="orb orb-c"></span>
+  <span class="grain"></span>
+</div>
+
+<a class="skip" href="#view">تخطَّ إلى المحتوى</a>
+
+<div class="app">
+  <!-- الشريط الجانبي (شاشات كبيرة) -->
+  <aside class="rail" id="rail">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">
+        <b>نغم</b>
+        <i data-i18n="brand.sub">موسيقى بلا حدود</i>
+      </span>
+    </div>
+    <nav class="rail-nav" id="railNav" aria-label="التنقّل الرئيسي"></nav>
+    <div class="rail-scroll">
+      <div class="rail-head">
+        <span data-i18n="nav.library">مكتبتك</span>
+        <button class="mini-add" id="railNewPlaylist" title="قائمة تشغيل جديدة" aria-label="قائمة تشغيل جديدة">+</button>
+      </div>
+      <div class="rail-playlists" id="railPlaylists"></div>
+    </div>
+    <div class="rail-foot">
+      <div class="now-chip" id="railNow" hidden></div>
+      <button class="ghost-btn" id="railSettings"><span aria-hidden="true">⚙</span> <span data-i18n="nav.settings">الإعدادات</span></button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn only-mobile" id="mobileBrand" aria-label="نغم"><span class="brand-mark sm"></span></button>
+      <label class="searchbox">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 15.5 20 20M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="topSearch" type="search" autocomplete="off" spellcheck="false" data-i18n-ph="search.ph" placeholder="ابحث عن أغنية، فنان، الراي، شعبي…" aria-label="بحث">
+        <kbd class="only-desktop">/</kbd>
+      </label>
+      <div class="top-actions">
+        <span class="net-chip" id="netChip" hidden>غير متصل</span>
+        <button class="pill-btn" id="installBtn" hidden data-i18n="app.install">ثبّت التطبيق</button>
+        <button class="icon-btn" id="themeBtn" aria-label="تبديل السمة">◐</button>
+        <button class="icon-btn" id="settingsBtn" aria-label="الإعدادات">⚙</button>
+      </div>
+    </header>
+
+    <main class="view" id="view" tabindex="-1" aria-live="polite"></main>
+  </div>
+</div>
+
+<!-- المشغّل المصغّر -->
+<div class="mini-wrap" id="miniWrap" hidden>
+  <div class="mini" id="mini" role="region" aria-label="المشغّل"></div>
+  <div class="mini-progress" id="miniProgress"><i></i></div>
+</div>
+
+<!-- شريط التبويبات (جوال) -->
+<nav class="tabbar" id="tabbar" aria-label="التنقّل السفلي"></nav>
+
+<!-- مشغّل ملء الشاشة -->
+<section class="sheet" id="sheet" aria-hidden="true" role="dialog" aria-label="قيد التشغيل"></section>
+
+<!-- الدرج (قائمة الانتظار / القوائم) -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-label="لوحة جانبية"></aside>
+
+<!-- القائمة السياقوية + النافذة المنبثقة -->
+<div class="ctx" id="ctx" role="menu" hidden></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" hidden></div>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px;text-align:center">تفعيل JavaScript ضروري لتشغيل «نغم».</p></noscript>
+
+<script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>

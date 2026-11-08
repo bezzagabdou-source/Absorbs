@@ -1,0 +1,28 @@
+{
+  "name": "نغم — موسيقى بلا حدود",
+  "short_name": "نغم",
+  "description": "أغانٍ كاملة مجانية، معاينات لأشهر الأغاني، إذاعات حية، تشغيل في الخلفية، وقوائم تعمل بلا إنترنت — في تطبيق ويب عربي سريع.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "dir": "auto",
+  "lang": "ar",
+  "background_color": "#0b0913",
+  "theme_color": "#0c0a1a",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    { "src": "./assets/icons/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "بحث", "short_name": "بحث", "url": "./#/search", "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "الإذاعة الحية", "short_name": "إذاعة", "url": "./#/radio", "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "مكتبتك", "short_name": "المكتبة", "url": "./#/library", "icons": [{ "src": "./assets/icons/icon-192.png", "sizes": "192x192" }] }
+  ],
+  "prefer_related_applications": false
+}

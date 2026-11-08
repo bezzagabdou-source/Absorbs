@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نغم — بلا إنترنت</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Cairo","Tajawal",system-ui,"Segoe UI",Arial,sans-serif;
+    background:radial-gradient(120% 90% at 80% -10%,#3b1d6e,transparent 60%),radial-gradient(100% 80% at 0% 100%,#0e4a55,transparent 60%),#0b0913;color:#f4f2ff;text-align:center;padding:24px}
+  .box{max-width:520px;display:grid;gap:16px;justify-items:center}
+  .mark{width:78px;height:78px;border-radius:24px;background:conic-gradient(from 210deg,#8b5cf6,#22d3ee,#f472b6,#8b5cf6);
+    box-shadow:0 20px 50px -18px #8b5cf6;display:grid;place-items:center;font-size:34px}
+  h1{margin:0;font-size:26px;letter-spacing:-.02em}
+  p{margin:0;color:#a9a4c4;font-size:14.5px;line-height:1.8}
+  code{background:rgba(255,255,255,.09);padding:2px 7px;border-radius:6px}
+  a{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:999px;font-weight:800;text-decoration:none;color:#fff;
+    background:linear-gradient(120deg,#8b5cf6,#22d3ee);box-shadow:0 14px 34px -14px #8b5cf6}
+  ul{margin:0;padding:0;list-style:none;display:grid;gap:8px;color:#a9a4c4;font-size:13px}
+  li::before{content:"♪ ";color:#22d3ee}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="mark">🎧</div>
+    <h1>انقطع الاتصال… والموسيقى لا تنقطع</h1>
+    <p>صفحتك غير متاحة الآن، لكن كل ما حفظتَه يعمل: افتح <code>#/library</code> ← تبويب <b>محفوظة</b> وشدّ الأغنية.</p>
+    <ul>
+      <li>قوائم التشغيل والمفضّلة محفوظة على جهازك (IndexedDB)</li>
+      <li>الأغاني الكاملة من Audius يمكن حفظها للاستماع بلا إنترنت من زر ⤓</li>
+      <li>جرّب إعادة المحاولة عند عودة الشبكة</li>
+    </ul>
+    <a href="./">↻ إعادة المحاولة</a>
+  </div>
+</body>
+</html>
