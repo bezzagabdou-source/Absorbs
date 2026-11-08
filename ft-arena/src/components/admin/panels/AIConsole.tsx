@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Spinner, api, relTime, toast } from "../ui";
+import { Field, Spinner, api, relTime, toast } from "../ui";
 
 type Log = {
   at: string;
@@ -26,13 +26,24 @@ export default function AIConsole() {
   const [busy, setBusy] = useState(false);
   const [logs, setLogs] = useState<Log[]>([]);
   const [chat, setChat] = useState<{ role: "user" | "ai"; text: string; actions?: Log["actions"]; provider?: string }[]>([]);
+  const [keyOpen, setKeyOpen] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [apiBase, setApiBase] = useState("");
+  const [model, setModel] = useState("");
+  const [provider, setProvider] = useState("auto");
+  const [saving, setSaving] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void (async () => {
       try {
-        const r = await api<{ logs: Log[] }>("/api/admin/ai");
+        const r = await api<{ logs: Log[]; settings?: { provider?: string; model?: string; apiBase?: string; enabled?: boolean } }>(
+          "/api/admin/ai"
+        );
         setLogs(r.logs ?? []);
+        setProvider(r.settings?.provider || "auto");
+        setModel(r.settings?.model ?? "");
+        setApiBase(r.settings?.apiBase ?? "");
       } catch {
         /* ignore */
       }
@@ -60,8 +71,25 @@ export default function AIConsole() {
     }
   }
 
+  async function saveKey() {
+    if (!apiKey.trim() && !apiBase.trim() && !model.trim() && provider === "auto") return;
+    setSaving(true);
+    try {
+      const ai: Record<string, unknown> = { provider, model, apiBase };
+      if (apiKey.trim()) ai.apiKey = apiKey.trim();
+      await api("/api/admin/settings", { settings: { ai } });
+      toast("تم حفظ إعدادات الذكاء الاصطناعي — يعمل الآن فورًا", "ok");
+      setApiKey("");
+      setKeyOpen(false);
+    } catch (e) {
+      toast((e as Error).message, "err");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1fr)" }}>
+    <div className="grid split" data-split="1">
       <div className="card ai-box ai-glow" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 560 }}>
         <div className="row-between" style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
           <div className="row" style={{ gap: 10 }}>
@@ -178,6 +206,56 @@ export default function AIConsole() {
               <div className="empty">لا توجد أوامر بعد.</div>
             )}
           </div>
+        </div>
+
+        <div className="card" style={{ padding: 14 }}>
+          <div className="row-between" style={{ marginBottom: keyOpen ? 10 : 0 }}>
+            <h3>🔑 مفتاح الذكاء الاصطناعي</h3>
+            <button className="btn btn-ghost btn-sm" onClick={() => setKeyOpen((v) => !v)}>
+              {keyOpen ? "إغلاق" : "إعداد"}
+            </button>
+          </div>
+          {keyOpen && (
+            <div className="col" style={{ gap: 0, marginTop: 8 }}>
+              <p className="muted" style={{ fontSize: 11.5, lineHeight: 1.8, marginBottom: 10 }}>
+                الصق مفتاح <b className="gold">Gemini</b> أو أي مزوّد متوافق مع OpenAI.
+                يُحفظ داخل قاعدة البيانات ويعمل <b>فورًا</b> بدون إعادة نشر.
+              </p>
+              <Field label="المفتاح (API Key)">
+                <input
+                  className="input"
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="AIza… أو sk-…"
+                  autoComplete="off"
+                  dir="ltr"
+                />
+              </Field>
+              <Field label="المزوّد">
+                <select className="select" value={provider} onChange={(e) => setProvider(e.target.value)}>
+                  <option value="auto">تلقائي (الأسرع يفوز)</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="groq">Groq</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="cerebras">Cerebras</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="xai">Grok</option>
+                  <option value="claude">Claude</option>
+                </select>
+              </Field>
+              <Field label="رابط أساس مخصّص (اختياري)" hint="لمزوّد متوافق مع OpenAI فقط، مثال: https://api.groq.com/openai/v1">
+                <input className="input" value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder="https://…" dir="ltr" />
+              </Field>
+              <Field label="الموديل (اختياري)" hint="مثال: gemini-2.5-flash — llama-3.3-70b-versatile">
+                <input className="input" value={model} onChange={(e) => setModel(e.target.value)} placeholder="تلقائي" dir="ltr" />
+              </Field>
+              <button className="btn btn-primary" onClick={saveKey} disabled={saving} style={{ width: "100%" }}>
+                {saving ? <Spinner /> : "حفظ وتشغيل فوري"}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="card" style={{ padding: 14 }}>

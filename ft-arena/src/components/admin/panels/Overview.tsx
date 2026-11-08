@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Avatar, Copy, Empty, Num, Spinner, api, fmtNum, relTime, toast } from "../ui";
 
 type Stats = {
@@ -25,6 +26,9 @@ type Stats = {
 
 type TabId = "overview" | "users" | "store" | "claims" | "settings" | "broadcast" | "ai" | "bot" | "contests" | "library" | "activity";
 
+/** يبني مسار الصفحة المستقلة لكل قسم */
+const route = (t: TabId) => (t === "overview" ? "/admin" : `/admin/${t}`);
+
 const KPI = [
   { key: "total", label: "إجمالي الأعضاء", icon: "👥", tone: "gold" },
   { key: "active24h", label: "نشطون 24 ساعة", icon: "⚡️", tone: "emerald" },
@@ -36,7 +40,9 @@ const KPI = [
   { key: "dailyClaims", label: "هدايا مستلمة", icon: "🎁", tone: "gold" },
 ];
 
-export default function Overview({ onGoto }: { onGoto: (t: TabId) => void }) {
+export default function Overview() {
+  const router = useRouter();
+  const onGoto = (t: TabId) => router.push(route(t));
   const [data, setData] = useState<Stats | null>(null);
   const [days, setDays] = useState(14);
   const [metric, setMetric] = useState<"users" | "events" | "refs" | "points">("users");
@@ -154,7 +160,7 @@ export default function Overview({ onGoto }: { onGoto: (t: TabId) => void }) {
         ))}
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)" }}>
+      <div className="grid split" data-split="1">
         <div className="card" style={{ padding: 18 }}>
           <div className="row-between wrap" style={{ marginBottom: 12 }}>
             <h3>📈 النمو خلال الفترة</h3>

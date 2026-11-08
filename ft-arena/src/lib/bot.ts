@@ -1,5 +1,5 @@
 /**
- * 🏆 FT Arena — منطق البوت الكامل
+ * 🏆 مسابقات MX — منطق البوت الكامل
  * كل شيء قابل للتحكم من لوحة التحكم: النقاط، الأزرار، النصوص، الجوائز، المهام، العجلة، المتصدرون، المسابقات.
  */
 import type { DB, Reward, Task, User } from "./types";
@@ -460,7 +460,7 @@ async function maybeActivateRef(db: DB, u: User) {
 /* ─────────────────────────────── الاستبدال ─────────────────────────────── */
 
 function claimCode() {
-  return `FT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  return `MX-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 async function redeem(db: DB, u: User, reward: Reward) {
@@ -714,7 +714,7 @@ async function handleMessage(msg: TgMessage, db: DB) {
   await sendMessage(from.id, homeText(db, u, botInfoName(db)), mainKeyboard(db, u, db.settings.admin.adminChatId));
 }
 
-const botInfoName = (db: DB) => db.meta.botName || "FT Arena";
+const botInfoName = (db: DB) => db.meta.botName || "مسابقات MX";
 
 function helpText(db: DB) {
   return [

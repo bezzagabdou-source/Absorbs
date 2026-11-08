@@ -2,16 +2,25 @@
 import { guard, json, bad, safeDetail } from "@/lib/api";
 import { loadDB, logActivity, mutate } from "@/lib/store";
 import { planPrompt, runActions } from "@/lib/ai-brain";
+import { detectAIProviders } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function GET() {
   const g = await guard();
   if (g) return g;
   const db = await loadDB();
-  return json({ ok: true, logs: db.logs.slice(0, 30), settings: db.settings.ai });
+  const saved = Boolean((db.settings.ai?.apiKey ?? "").trim());
+  return json({
+    ok: true,
+    logs: db.logs.slice(0, 30),
+    // لا نُعيد المفتاح نفسه أبدًا للواجهة
+    settings: { ...db.settings.ai, apiKey: saved ? "saved" : "" },
+    providers: detectAIProviders().map((p) => ({ name: p.name, configured: p.configured })),
+    ready: saved || detectAIProviders().some((p) => p.configured),
+  });
 }
 
 export async function POST(req: Request) {

@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       if (!chatId) return bad("أدخل معرّف المحادثة (ADMIN_CHAT_ID) أولًا");
       const res = await sendMessage(
         chatId,
-        body.text || "✅ <b>FT Arena</b> — رسالة تجربة من لوحة التحكم.\nكل شيء يعمل بشكل ممتاز!"
+        body.text || "✅ <b>مسابقات MX</b> — رسالة تجربة من لوحة التحكم.\nكل شيء يعمل بشكل ممتاز!"
       );
       return json({ ok: Boolean(res) });
     }

@@ -10,10 +10,10 @@ export const env = {
     return clean(process.env.ADMIN_PASSWORD);
   },
   get authSecret(): string {
-    return clean(process.env.AUTH_SECRET) || clean(process.env.ADMIN_PASSWORD) || "ft-arena-default-secret";
+    return clean(process.env.AUTH_SECRET) || clean(process.env.ADMIN_PASSWORD) || "mx-default-secret";
   },
   get webhookSecret(): string {
-    return clean(process.env.WEBHOOK_SECRET) || "ft-arena-hook";
+    return clean(process.env.WEBHOOK_SECRET) || "mx-hook";
   },
   get redisUrl(): string {
     const names = [

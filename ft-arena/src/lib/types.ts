@@ -1,5 +1,5 @@
 /**
- * FT Arena — أنواع البيانات المركزية
+ * مسابقات MX — أنواع البيانات المركزية
  * كل شيء يُحفظ في وثيقة JSON واحدة (Redis أو Blob) لسرعة فائقة وبساطة تشغيل.
  */
 
@@ -177,6 +177,10 @@ export interface Settings {
     provider: string;
     model: string;
     autoApply: boolean;
+    /** مفتاح يُحفظ من اللوحة (يُستخدم مباشرة دون إعادة نشر) */
+    apiKey?: string;
+    /** رابط أساس مخصّص لأي مزوّد متوافق مع OpenAI */
+    apiBase?: string;
   };
   maintenance: boolean;
 }

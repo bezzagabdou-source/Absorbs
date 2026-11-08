@@ -10,8 +10,8 @@ import { env } from "./env";
 import { freshDB, migrate } from "./defaults";
 import type { DB, ActivityItem } from "./types";
 
-const DB_KEY = "ftarena:db:v1";
-const LOCK_KEY = "ftarena:lock:v1";
+const DB_KEY = "mx:db:v1";
+const LOCK_KEY = "mx:lock:v1";
 
 type BlobMod = typeof import("@vercel/blob");
 let blobMod: BlobMod | null | undefined;
@@ -72,10 +72,10 @@ async function getRedis(): Promise<RedisLike | null> {
 function blobPrefix(): string {
   const hash = crypto
     .createHash("sha256")
-    .update(`ftarena:${env.authSecret}:${env.webhookSecret}`)
+    .update(`mx:${env.authSecret}:${env.webhookSecret}`)
     .digest("hex")
     .slice(0, 16);
-  return `ftarena-${hash}`;
+  return `mx-${hash}`;
 }
 const BLOB_PATH = () => `${blobPrefix()}/db.json`;
 

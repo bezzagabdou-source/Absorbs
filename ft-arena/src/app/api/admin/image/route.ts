@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     if (env.blobToken) {
       try {
         const { put } = await import("@vercel/blob");
-        const blob = await put(`ftarena/generated/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`, buf, {
+        const blob = await put(`mx/generated/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.jpg`, buf, {
           access: "public",
           contentType: "image/jpeg",
           token: env.blobToken,

@@ -38,17 +38,40 @@ export async function isAdmin(): Promise<boolean> {
   return Boolean(verifySession(jar.get(COOKIE)?.value));
 }
 
+/**
+ * تطبيع كلمة المرور: يزيل المسافات الطرفية والمحارف الخفية (NBSP، ZWSP، BOM)
+ * ويوحّد الشُرَط الأفقية والشرطة السفلية العربية — حتى لا تفشل كلمة صحيحة
+ * بسبب نسخ/لصق أو لوحة مفاتيح عربية.
+ */
+function normalizePassword(v: string): string {
+  return v
+    .normalize("NFKC")
+    .replace(/[\u200B-\u200F\u2060\uFEFF\u00A0]/g, "")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** مقارنة ثابتة الزمن مع تطبيع كامل للطرفين */
+export function safeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ba.length !== bb.length) {
+    // مقارنة وهمية لتقليل فروق التوقيت
+    crypto.timingSafeEqual(bb, bb);
+    return false;
+  }
+  return crypto.timingSafeEqual(ba, bb);
+}
+
 export function checkPassword(input: string): boolean {
   const expected = env.adminPassword;
   if (!expected) return false;
-  const a = Buffer.from(input);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) {
-    // مقارنة وهمية لتقليل فروق التوقيت
-    crypto.timingSafeEqual(b, b);
-    return false;
-  }
-  return crypto.timingSafeEqual(a, b);
+  const given = normalizePassword(input);
+  const want = normalizePassword(expected);
+  if (!given) return false;
+  // يطابق الأصل أو الشكل المُطبَّع (يدعم من يكتب الكلمة بأحرف عربية/سطر جديد)
+  return safeEqual(given, want) || safeEqual(given, expected);
 }
 
 export function newSession(user = "admin"): { token: string; maxAge: number } {

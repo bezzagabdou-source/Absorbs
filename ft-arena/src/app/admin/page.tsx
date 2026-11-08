@@ -1,13 +1,13 @@
-import { isAdmin } from "@/lib/auth";
-import LoginForm from "@/components/admin/LoginForm";
-import Console from "@/components/admin/Console";
+import Page from "@/components/admin/Page";
+import Overview from "@/components/admin/panels/Overview";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "نظرة عامة — مسابقات MX" };
 
-export const metadata = { title: "لوحة تحكم FT Arena" };
-
-export default async function AdminPage() {
-  const authed = await isAdmin();
-  if (!authed) return <LoginForm />;
-  return <Console />;
+export default function OverviewPage() {
+  return (
+    <Page tab="overview">
+          <Overview />
+    </Page>
+  );
 }

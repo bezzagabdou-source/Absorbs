@@ -26,14 +26,14 @@ globalThis.fetch = async (url, init = {}) => {
 
   switch (method) {
     case "getMe":
-      return ok({ id: 9085026849, is_bot: true, first_name: "FT Arena", username: "ftarena_bot" });
+      return ok({ id: 9085026849, is_bot: true, first_name: "مسابقات MX", username: "mx_contests_bot" });
     case "setMyCommands":
     case "setMyDescription":
     case "setMyShortDescription":
     case "answerCallbackQuery":
       return ok(true);
     case "getChat":
-      return ok({ id: -100, type: "channel", title: "FT Arena", invite_link: "https://t.me/mxabdou" });
+      return ok({ id: -100, type: "channel", title: "مسابقات MX", invite_link: "https://t.me/mxabdou" });
     case "getChatMember": {
       const joined = MEMBERSHIP.get(Number(body.user_id)) !== false;
       return ok({ status: joined ? "member" : "left", user: { id: body.user_id } });
@@ -53,7 +53,7 @@ const { addPoints, displayName, countUsers } = await import("../src/lib/bot-util
 
 // ───────── helpers ─────────
 const db = freshDB();
-db.meta.botUsername = "ftarena_bot";
+db.meta.botUsername = "mx_contests_bot";
 db.settings.forceJoin.username = "mxabdou";
 db.settings.admin.adminChatId = "999";
 
@@ -96,7 +96,7 @@ const step = (name) => console.log(`\n▸ ${name}`);
 // ───────── 1) مستخدم جديد + إحالة ─────────
 step("عضو جديد يدخل برابط إحالة");
 const referrer = nextId();
-await handleUpdate(userMsg(referrer, "/start"), db, { username: "ftarena_bot", name: "FT Arena" });
+await handleUpdate(userMsg(referrer, "/start"), db, { username: "mx_contests_bot", name: "مسابقات MX" });
 assert.ok(db.users[String(referrer)], "يجب إنشاء المستخدم");
 assert.match(lastText(), /نقاطك/, "شاشة الترحيب");
 clear();
@@ -188,7 +188,7 @@ clear();
 // ───────── 8) الإحالة والرابط ─────────
 step("رابط الإحالة");
 await handleUpdate(cbMsg(invited, "cb:ref"), db, {});
-assert.match(lastText(), /t\.me\/ftarena_bot\?start=/, "الرابط يحتوي كود الإحالة");
+assert.match(lastText(), /t\.me\/mx_contests_bot\?start=/, "الرابط يحتوي كود الإحالة");
 console.log("   ✓ رابط الإحالة صحيح");
 clear();
 

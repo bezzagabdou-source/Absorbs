@@ -14,7 +14,7 @@ export const maxDuration = 60;
 export async function GET(_req: Request, ctx: { params: Promise<{ secret: string }> }) {
   const { secret } = await ctx.params;
   if (secret !== env.webhookSecret) return Response.json({ ok: false }, { status: 404 });
-  return Response.json({ ok: true, info: "FT Arena webhook endpoint" });
+  return Response.json({ ok: true, info: "مسابقات MX webhook endpoint" });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ secret: string }> }) {

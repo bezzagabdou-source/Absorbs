@@ -54,7 +54,7 @@ export default function BotPanel() {
             <div style={{ fontSize: 34 }}>{connected ? "🟢" : "🔴"}</div>
             <div>
               <div style={{ fontWeight: 900, fontSize: 18 }}>
-                {info.me ? `${info.me.first_name ?? "FT Bot"} ${info.me.username ? `(@${info.me.username})` : ""}` : "البوت غير متصل"}
+                {info.me ? `${info.me.first_name ?? "MX Bot"} ${info.me.username ? `(@${info.me.username})` : ""}` : "البوت غير متصل"}
               </div>
               <div className="muted-2" style={{ fontSize: 12 }}>
                 {connected ? "البوت يعمل ويستقبل الرسائل ✅" : "أكمل الإعداد: توكن + Webhook"}

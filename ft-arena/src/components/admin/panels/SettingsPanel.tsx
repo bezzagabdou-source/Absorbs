@@ -1,7 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Field, Spinner, Toggle, api, toast } from "../ui";
-import TasksPanel from "./TasksPanel";
 
 type Settings = {
   botVersion: string;
@@ -53,7 +52,7 @@ const FEATURES: [string, string, string][] = [
 export default function SettingsPanel() {
   const [s, setS] = useState<Settings | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"pts" | "txt" | "join" | "tasks" | "adv">("pts");
+  const [tab, setTab] = useState<"pts" | "txt" | "join" | "adv" | "adv2">("pts");
 
   const load = useCallback(async () => {
     try {
@@ -93,7 +92,7 @@ export default function SettingsPanel() {
             ["pts", "💰 النقاط"],
             ["txt", "📝 النصوص"],
             ["join", "🔒 الاشتراك"],
-            ["tasks", "✅ المهام والعجلة"],
+            ["adv2", "🎡 العجلة"],
             ["adv", "🧩 الميزات والمتقدّم"],
           ] as const).map(([k, l]) => (
             <button key={k} className={`pill ${tab === k ? "active" : ""}`} onClick={() => setTab(k)}>{l}</button>
@@ -109,22 +108,22 @@ export default function SettingsPanel() {
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
           <div className="card" style={{ padding: 16 }}>
             <h3 style={{ marginBottom: 12 }}>🎁 الهدية اليومية</h3>
-            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="grid duo">
               <Field label="أقل نقاط"><input className="input" type="number" value={s.points.dailyMin} onChange={(e) => setPoints({ dailyMin: Number(e.target.value) })} /></Field>
               <Field label="أكثر نقاط"><input className="input" type="number" value={s.points.dailyMax} onChange={(e) => setPoints({ dailyMax: Number(e.target.value) })} /></Field>
             </div>
-            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="grid duo">
               <Field label="مكافأة السلسلة كل (أيام)"><input className="input" type="number" value={s.points.streakEveryDays} onChange={(e) => setPoints({ streakEveryDays: Number(e.target.value) })} /></Field>
               <Field label="قيمة مكافأة السلسلة"><input className="input" type="number" value={s.points.streakBonus} onChange={(e) => setPoints({ streakBonus: Number(e.target.value) })} /></Field>
             </div>
           </div>
           <div className="card" style={{ padding: 16 }}>
             <h3 style={{ marginBottom: 12 }}>🔗 الإحالات</h3>
-            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="grid duo">
               <Field label="نقاط دخول الصديق"><input className="input" type="number" value={s.points.refJoin} onChange={(e) => setPoints({ refJoin: Number(e.target.value) })} /></Field>
               <Field label="نقاط تأكيد الصديق"><input className="input" type="number" value={s.points.refActive} onChange={(e) => setPoints({ refActive: Number(e.target.value) })} /></Field>
             </div>
-            <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div className="grid duo">
               <Field label="إحالات = دورة عجلة"><input className="input" type="number" value={s.points.wheelExtraPerRefs} onChange={(e) => setPoints({ wheelExtraPerRefs: Number(e.target.value) })} /></Field>
               <Field label="نقاط المشاركة"><input className="input" type="number" value={s.points.shareBonus} onChange={(e) => setPoints({ shareBonus: Number(e.target.value) })} /></Field>
             </div>
@@ -159,7 +158,7 @@ export default function SettingsPanel() {
           </div>
           <div className="card" style={{ padding: 16 }}>
             <h3 style={{ marginBottom: 12 }}>🎨 الهوية</h3>
-            <div className="grid" style={{ gridTemplateColumns: "1fr 90px" }}>
+            <div className="grid duo">
               <Field label="اسم البوت"><input className="input" value={s.botName} onChange={(e) => set({ botName: e.target.value })} /></Field>
               <Field label="الرمز"><input className="input center" value={s.brandEmoji} onChange={(e) => set({ brandEmoji: e.target.value.slice(0, 4) })} /></Field>
             </div>
@@ -214,7 +213,31 @@ export default function SettingsPanel() {
         </div>
       )}
 
-      {tab === "tasks" && <TasksPanel />}
+
+      {tab === "adv2" && (
+        <div className="card" style={{ padding: 16 }}>
+          <h3 style={{ marginBottom: 10 }}>🎡 إعدادات عجلة الحظ</h3>
+          <div className="grid duo">
+            <Field label="تبريد العجلة (ساعات)">
+              <input
+                className="input"
+                type="number"
+                value={s.points.wheelCooldownHours}
+                onChange={(e) => setPoints({ wheelCooldownHours: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="إحالات = دورة إضافية">
+              <input
+                className="input"
+                type="number"
+                value={s.points.wheelExtraPerRefs}
+                onChange={(e) => setPoints({ wheelExtraPerRefs: Number(e.target.value) })}
+              />
+            </Field>
+          </div>
+          <p className="hint">تُطبَّق فورًا على البوت. جوائز العجلة تُدار من صفحة «المتجر».</p>
+        </div>
+      )}
 
       {tab === "adv" && (
         <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>

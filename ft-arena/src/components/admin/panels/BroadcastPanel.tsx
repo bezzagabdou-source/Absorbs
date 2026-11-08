@@ -67,7 +67,7 @@ export default function BroadcastPanel() {
   }
 
   return (
-    <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.3fr) minmax(0,1fr)" }}>
+    <div className="grid split" data-split="1">
       <div className="card" style={{ padding: 16 }}>
         <h3 style={{ marginBottom: 12 }}>📢 رسالة جماعية لكل الأعضاء</h3>
         <Field label="نص الرسالة (يدعم HTML: <b> <i> <a href>)" hint={`${text.length} حرف`}>
@@ -75,7 +75,7 @@ export default function BroadcastPanel() {
         </Field>
         <div className="row" style={{ gap: 8 }}>
           <Field label="صورة (اختياري)">
-            <input className="input" value={image} onChange={(e) => setImage(e.target.value)} placeholder="https://…" style={{ minWidth: 220 }} />
+            <input className="input" value={image} onChange={(e) => setImage(e.target.value)} placeholder="https://…"  />
           </Field>
           <label className="btn btn-ghost" style={{ marginTop: 22 }}>
             {uploading ? <Spinner /> : "📎 رفع صورة"}

@@ -1,5 +1,5 @@
 /**
- * 🧠 FT Arena Brain — محرّك الأوامر الذكي (مستقل عن HTTP ليكون قابلًا للاختبار وإعادة الاستخدام).
+ * 🧠 مسابقات MX Brain — محرّك الأوامر الذكي (مستقل عن HTTP ليكون قابلًا للاختبار وإعادة الاستخدام).
  *  1) محرّكات LLM متعددة (تُستخدم إن توفّر أي مفتاح في البيئة).
  *  2) محرّك فهم عربي مدمج يعمل بدون أي مفتاح.
  *  3) منفّذ عمليات آمن على وثيقة البوت.
@@ -17,7 +17,7 @@ const safeDetail = (e: unknown): string => (e instanceof Error ? e.message : Str
 
 
 
-const SYSTEM = `أنت "FT Arena Brain" — مساعد تحكم ذكي لبوت تيليجرام للمسابقات والنقاط.
+const SYSTEM = `أنت "مسابقات MX Brain" — مساعد تحكم ذكي لبوت تيليجرام للمسابقات والنقاط.
 مهمتك: ترجمة طلب الأدمن (بالعربية أو الفرنسية أو الإنجليزية) إلى JSON فقط لتنفيذ عمليات على البوت.
 أعد دائمًا JSON صالحًا فقط بهذا الشكل:
 {"reply":"رسالة قصيرة للمدير بالعربية","actions":[{"name":"...","args":{...}}]}
@@ -161,10 +161,11 @@ export function localPlan(prompt: string): Plan {
 
 /* ─────────────────────────── محرّكات LLM ─────────────────────────── */
 
-async function callGemini(prompt: string, sys: string): Promise<string | null> {
-  const key = (process.env.GEMINI_API_KEY ?? "").trim();
+async function callGemini(_p: string, _s: string, keyIn?: string, modelIn?: string): Promise<string | null> {
+  const key = (keyIn || (process.env.GEMINI_API_KEY ?? "")).trim();
   if (!key) return null;
-  const model = (process.env.AI_MODEL ?? "gemini-2.0-flash").trim();
+  const model = (modelIn || process.env.AI_MODEL || "gemini-2.5-flash").trim();
+  const prompt = CTX.prompt, sys = CTX.sys;
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
     {
@@ -187,10 +188,12 @@ async function callOpenAICompat(
   url: string,
   key: string,
   model: string,
-  prompt: string,
-  sys: string,
+  _p: string,
+  _s: string,
   extraHeaders: Record<string, string> = {}
 ): Promise<string | null> {
+  if (!key) return null;
+  const prompt = CTX.prompt, sys = CTX.sys;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extraHeaders },
@@ -211,9 +214,10 @@ async function callOpenAICompat(
   return data.choices?.[0]?.message?.content ?? null;
 }
 
-async function callClaude(prompt: string, sys: string): Promise<string | null> {
-  const key = (process.env.ANTHROPIC_API_KEY ?? "").trim();
+async function callClaude(_p: string, _s: string, keyIn?: string): Promise<string | null> {
+  const key = (keyIn || (process.env.ANTHROPIC_API_KEY ?? "")).trim();
   if (!key) return null;
+  const prompt = CTX.prompt, sys = CTX.sys;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -234,95 +238,140 @@ async function callClaude(prompt: string, sys: string): Promise<string | null> {
   return data.content?.map((c) => c.text ?? "").join("") ?? null;
 }
 
-async function askLLM(prompt: string): Promise<Plan | null> {
-  const candidates: { name: string; fn: () => Promise<string | null> }[] = [
-    { name: "gemini", fn: () => callGemini(prompt, SYSTEM) },
-    {
-      name: "openrouter",
-      fn: () =>
-        callOpenAICompat(
-          "https://openrouter.ai/api/v1/chat/completions",
-          (process.env.OPENROUTER_API_KEY ?? "").trim(),
-          (process.env.OPENROUTER_MODEL ?? "google/gemini-2.0-flash-001").trim(),
-          prompt,
-          SYSTEM
-        ),
-    },
-    {
-      name: "groq",
-      fn: () =>
-        callOpenAICompat(
-          "https://api.groq.com/openai/v1/chat/completions",
-          (process.env.GROQ_API_KEY ?? "").trim(),
-          (process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile").trim(),
-          prompt,
-          SYSTEM
-        ),
-    },
-    {
-      name: "deepseek",
-      fn: () =>
-        callOpenAICompat(
-          "https://api.deepseek.com/chat/completions",
-          (process.env.DEEPSEEK_API_KEY ?? "").trim(),
-          (process.env.DEEPSEEK_MODEL ?? "deepseek-chat").trim(),
-          prompt,
-          SYSTEM
-        ),
-    },
-    {
-      name: "cerebras",
-      fn: () =>
-        callOpenAICompat(
-          "https://api.cerebras.ai/v1/chat/completions",
-          (process.env.CEREBRAS_API_KEY ?? "").trim(),
-          (process.env.CEREBRAS_MODEL ?? "gpt-oss-120b").trim(),
-          prompt,
-          SYSTEM
-        ),
-    },
-    {
-      name: "xai",
-      fn: () =>
-        callOpenAICompat(
-          "https://api.x.ai/v1/chat/completions",
-          (process.env.XAI_API_KEY ?? process.env.GROK_API_KEY ?? "").trim(),
-          (process.env.XAI_MODEL ?? "grok-4-fast").trim(),
-          prompt,
-          SYSTEM
-        ),
-    },
-    {
-      name: "openai",
-      fn: () =>
-        callOpenAICompat(
-          "https://api.openai.com/v1/chat/completions",
-          (process.env.OPENAI_API_KEY ?? "").trim(),
-          (process.env.OPENAI_MODEL ?? "gpt-4o-mini").trim(),
-          prompt,
-          SYSTEM
-        ),
-    },
-    { name: "claude", fn: () => callClaude(prompt, SYSTEM) },
-  ];
+/** مُهلة قصيرة لكل مزوّد: نريد أسرع رد لا أبطأ انتظار */
+const AI_TIMEOUT = Number(process.env.AI_TIMEOUT_MS ?? 9000);
 
-  for (const c of candidates) {
-    try {
-      const raw = await c.fn();
-      if (!raw) continue;
-      const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
-      const parsed = JSON.parse(json) as { reply?: string; actions?: Action[] };
-      if (!parsed || typeof parsed !== "object") continue;
-      return {
-        reply: String(parsed.reply ?? "تم."),
-        actions: Array.isArray(parsed.actions) ? parsed.actions.slice(0, 12) : [],
-        provider: c.name,
-      };
-    } catch {
-      continue;
-    }
+async function withTimeout<T>(p: Promise<T>, ms = AI_TIMEOUT): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const guard = new Promise<never>((_, rej) => {
+    timer = setTimeout(() => rej(new Error("ai_timeout")), ms);
+  });
+  try {
+    return await Promise.race([p, guard]);
+  } finally {
+    clearTimeout(timer!);
   }
-  return null;
+}
+
+/** يقرأ المفتاح من اللوحة أولًا ثم من البيئة — حتى يعمل بلا إعادة نشر */
+function providerList(db: DB): { name: string; label: string; run: () => Promise<string | null> }[] {
+  const savedKey = (db.settings.ai?.apiKey ?? "").trim();
+  const savedBase = (db.settings.ai?.apiBase ?? "").trim().replace(/\/$/, "");
+  const forced = (db.settings.ai?.provider ?? "auto").trim();
+  const savedModel = (db.settings.ai?.model ?? "").trim();
+
+  const env = (k: string) => (process.env[k] ?? "").trim();
+
+  const list: { name: string; label: string; run: () => Promise<string | null> }[] = [];
+
+  // مزوّد متوافق مع OpenAI يُضبط يدويًا من اللوحة (يعمل فورًا)
+  if (savedKey && savedBase) {
+    list.push({
+      name: "custom",
+      label: "مخصّص",
+      run: () =>
+        callOpenAICompat(
+          `${savedBase}/chat/completions`,
+          savedKey,
+          savedModel || "gpt-4o-mini",
+          "",
+          ""
+        ),
+    });
+  }
+
+  // Gemini (المفتاح المحفوظ في اللوحة يُعامل كمفتاح Gemini إن لم يوجد رابط مخصّص)
+  const gKey = savedKey && !savedBase ? savedKey : env("GEMINI_API_KEY");
+  if (gKey) {
+    list.push({
+      name: "gemini",
+      label: "Gemini",
+      run: () => callGemini("", "", gKey, savedModel || undefined),
+    });
+  }
+
+  const compat: { name: string; url: string; key: string; model: string }[] = [
+    { name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env("GROQ_API_KEY"), model: env("GROQ_MODEL") || "llama-3.3-70b-versatile" },
+    { name: "openrouter", url: "https://openrouter.ai/api/v1/chat/completions", key: env("OPENROUTER_API_KEY"), model: env("OPENROUTER_MODEL") || "google/gemini-2.0-flash-001" },
+    { name: "cerebras", url: "https://api.cerebras.ai/v1/chat/completions", key: env("CEREBRAS_API_KEY"), model: env("CEREBRAS_MODEL") || "gpt-oss-120b" },
+    { name: "deepseek", url: "https://api.deepseek.com/chat/completions", key: env("DEEPSEEK_API_KEY"), model: env("DEEPSEEK_MODEL") || "deepseek-chat" },
+    { name: "xai", url: "https://api.x.ai/v1/chat/completions", key: env("XAI_API_KEY") || env("GROK_API_KEY"), model: env("XAI_MODEL") || "grok-4-fast" },
+    { name: "openai", url: "https://api.openai.com/v1/chat/completions", key: env("OPENAI_API_KEY"), model: env("OPENAI_MODEL") || "gpt-4o-mini" },
+  ];
+  for (const c of compat) {
+    if (!c.key) continue;
+    list.push({ name: c.name, label: c.name, run: () => callOpenAICompat(c.url, c.key, c.model, "", "") });
+  }
+
+  const claudeKey = env("ANTHROPIC_API_KEY");
+  if (claudeKey) list.push({ name: "claude", label: "Claude", run: () => callClaude("", "", claudeKey) });
+
+  // احترام اختيار المزوّد من اللوحة إن حُدّد
+  const only = forced && forced !== "auto" ? list.filter((x) => x.name === forced) : list;
+  return only.length ? only : list;
+}
+
+/**
+ * ⚡️ تسابق المزوّدين بالتوازي: أول رد صالح يفوز — أسرع بكثير من الانتظار التسلسلي.
+ * الكل يتلقى نفس التعليمات والطلب.
+ */
+async function askLLM(db: DB, prompt: string): Promise<Plan | null> {
+  const list = providerList(db);
+  if (!list.length) return null;
+
+  const attempts = list.slice(0, 4).map(async (c) => {
+    const raw = await withTimeout(c.run === undefined ? Promise.resolve(null) : runProvider(c, prompt));
+    return { name: c.name, plan: parsePlan(raw) };
+  });
+
+  // أول خطة صالحة تفوز
+  return await new Promise<Plan | null>((resolve) => {
+    let done = false;
+    let pending = attempts.length;
+    for (const a of attempts) {
+      a.then((r) => {
+        pending -= 1;
+        if (done) return;
+        if (r.plan) {
+          done = true;
+          resolve({ ...r.plan, provider: r.name });
+          return;
+        }
+        if (pending === 0) resolve(null);
+      }).catch(() => {
+        pending -= 1;
+        if (pending === 0 && !done) resolve(null);
+      });
+    }
+  });
+}
+
+/** ينفّذ مزوّدًا واحدًا — التعليمات والطلب يُمرّران عبر متغيّر مؤقت لتفادي التكرار */
+let CTX: { prompt: string; sys: string } = { prompt: "", sys: "" };
+async function runProvider(
+  c: { name: string; run: () => Promise<string | null> },
+  prompt: string
+): Promise<string | null> {
+  CTX = { prompt, sys: SYSTEM };
+  return c.run();
+}
+
+function parsePlan(raw: string | null): Plan | null {
+  if (!raw) return null;
+  try {
+    const from = raw.indexOf("{");
+    const to = raw.lastIndexOf("}");
+    if (from < 0 || to <= from) return null;
+    const parsed = JSON.parse(raw.slice(from, to + 1)) as { reply?: string; actions?: Action[] };
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      reply: String(parsed.reply ?? "تم."),
+      actions: Array.isArray(parsed.actions) ? parsed.actions.slice(0, 12) : [],
+      provider: "llm",
+    };
+  } catch {
+    return null;
+  }
 }
 
 /* ─────────────────────────── تنفيذ العمليات ─────────────────────────── */
@@ -523,7 +572,7 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
 
 export async function planPrompt(db: DB, prompt: string): Promise<Plan & { builtin: boolean }> {
   let plan: Plan | null = null;
-  if (db.settings.ai.enabled) plan = await askLLM(prompt);
+  if (db.settings.ai.enabled) plan = await askLLM(db, prompt);
   if (plan) {
     if (plan.actions.length === 0) {
       const local = localPlan(prompt);

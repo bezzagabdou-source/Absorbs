@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     return new Response("\uFEFF" + csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="ft-arena-users-${stamp}.csv"`,
+        "Content-Disposition": `attachment; filename="mx-users-${stamp}.csv"`,
       },
     });
   }
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   return new Response(JSON.stringify(db, null, 2), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="ft-arena-backup-${stamp}.json"`,
+      "Content-Disposition": `attachment; filename="mx-backup-${stamp}.json"`,
     },
   });
 }

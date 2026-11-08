@@ -47,7 +47,7 @@ export default function ActivityPanel() {
         </div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.2fr) minmax(0,1fr)" }}>
+      <div className="grid split" data-split="1">
         <div className="card" style={{ padding: 14 }}>
           <h3 style={{ marginBottom: 10 }}>🛰️ الأحداث</h3>
           <div className="col" style={{ gap: 8, maxHeight: 560, overflow: "auto" }}>

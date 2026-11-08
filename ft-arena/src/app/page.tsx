@@ -33,7 +33,7 @@ export default async function LandingPage() {
           <div className="brand" style={{ padding: 0 }}>
             <div className="brand-logo">🏆</div>
             <div>
-              <div style={{ fontWeight: 900, fontSize: 17 }}>FT Arena</div>
+              <div style={{ fontWeight: 900, fontSize: 17 }}>مسابقات MX</div>
               <div className="muted" style={{ fontSize: 11.5 }}>نقاط • جوائز • متصدرون</div>
             </div>
           </div>
@@ -47,7 +47,7 @@ export default async function LandingPage() {
           </div>
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: "minmax(0,1.25fr) minmax(0,1fr)", alignItems: "stretch" }}>
+        <div className="grid split" data-split="1">
           <div className="card" style={{ padding: "clamp(20px,4vw,38px)" }}>
             <span className="badge badge-gold" style={{ marginBottom: 14 }}>
               🔥 {c.total > 0 ? `${c.total} عضو نشط` : "انطلق الآن"}
@@ -138,7 +138,7 @@ export default async function LandingPage() {
           <div>
             {Array.from({ length: 2 }).map((_, i) => (
               <span key={i}>
-                🏆 FT Arena • قناة الاشتراك: @{APP.channel.username} • جوائز Coinbase و Google Play و Netflix •
+                🏆 مسابقات MX • قناة الاشتراك: @{APP.channel.username} • جوائز Coinbase و Google Play و Netflix •
                 بوت + موقع مجانًا للمتصدر الأول • نقاط تُحفظ للأبد • ابدأ الآن 🚀
               </span>
             ))}
@@ -146,7 +146,7 @@ export default async function LandingPage() {
         </div>
 
         <div className="center muted-2" style={{ fontSize: 11.5, marginTop: 22 }}>
-          © {new Date().getFullYear()} FT Arena • {env.siteUrl.replace(/^https?:\/\//, "")}
+          © {new Date().getFullYear()} مسابقات MX • {env.siteUrl.replace(/^https?:\/\//, "")}
         </div>
       </div>
     </main>

@@ -191,7 +191,7 @@ export default function Users() {
               <span className="badge badge-gold">{fmtNum(sel.points)} نقطة</span>
             </div>
 
-            <div className="grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+            <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))" }}>
               {[
                 ["جمع", sel.earned],
                 ["استهلك", sel.spent],

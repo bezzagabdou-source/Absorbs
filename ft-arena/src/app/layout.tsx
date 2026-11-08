@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FT Arena — لوحة تحكم البوت",
+  title: "مسابقات MX — لوحة تحكم البوت",
   description:
-    "FT Arena: بوت تيليجرام احترافي للمسابقات والنقاط + لوحة تحكم متكاملة مع كونسول ذكاء اصطناعي.",
-  applicationName: "FT Arena",
+    "مسابقات MX: بوت تيليجرام احترافي للمسابقات والنقاط + لوحة تحكم متكاملة مع كونسول ذكاء اصطناعي.",
+  applicationName: "مسابقات MX",
   openGraph: {
-    title: "FT Arena — نقاط، إحالات، وجوائز حقيقية",
+    title: "مسابقات MX — نقاط، إحالات، وجوائز حقيقية",
     description: "اجمع النقاط من الإحالات والهدية اليومية والعجلة… وحوّلها إلى جوائز.",
     type: "website",
   },

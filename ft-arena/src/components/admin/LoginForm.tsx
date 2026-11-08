@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Brand from "./Brand";
 
 export default function LoginForm() {
   const [password, setPassword] = useState("");
@@ -30,16 +31,13 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="landing-hero">
-      <form onSubmit={submit} className="card" style={{ width: "min(420px, 100%)", padding: 30 }}>
+    <div className="landing-hero" style={{ padding: "24px 14px" }}>
+      <form onSubmit={submit} className="card login-card" style={{ width: "min(420px, 100%)", padding: 30 }}>
         <div className="center" style={{ marginBottom: 22 }}>
-          <div
-            className="brand-logo"
-            style={{ width: 62, height: 62, fontSize: 30, margin: "0 auto 14px", borderRadius: 18 }}
-          >
-            🏆
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            <Brand size={62} />
           </div>
-          <h1 style={{ fontSize: 26 }}>FT Arena</h1>
+          <h1 style={{ fontSize: 26 }}>مسابقات MX</h1>
           <p className="muted" style={{ fontSize: 13, marginTop: 6 }}>
             لوحة التحكم الشاملة — أدخل كلمة المرور للمتابعة
           </p>
@@ -65,9 +63,7 @@ export default function LoginForm() {
           {busy ? <span className="spinner" /> : "دخول اللوحة"}
         </button>
         <p className="muted-2 center" style={{ fontSize: 11, marginTop: 16, lineHeight: 1.9 }}>
-          كلمة المرور تُضبط عبر متغيّر البيئة <code className="gold">ADMIN_PASSWORD</code> في Vercel.
-          <br />
-          الجلسة مشفّرة وتنتهي تلقائيًا بعد 7 أيام.
+          جلسة آمنة تنتهي تلقائيًا بعد 7 أيام.
         </p>
       </form>
     </div>

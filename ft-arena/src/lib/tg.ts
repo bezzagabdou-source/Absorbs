@@ -264,7 +264,7 @@ export async function setMyCommands() {
 export async function setMyDescription() {
   return safeTg("setMyDescription", {
     description:
-      "🏆 FT Arena — اجمع النقاط من الإحالات والهدية اليومية والعجلة… وحوّلها إلى جوائز حقيقية: Netflix، Google Play، Coinbase، وحتى بوت + موقع خاص بك!",
+      "🏆 مسابقات MX — اجمع النقاط من الإحالات والهدية اليومية والعجلة… وحوّلها إلى جوائز حقيقية: Netflix، Google Play، Coinbase، وحتى بوت + موقع خاص بك!",
   });
 }
 

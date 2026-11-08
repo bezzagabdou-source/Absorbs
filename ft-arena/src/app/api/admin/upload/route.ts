@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     const { put } = await import("@vercel/blob");
     const ext = (file.name.split(".").pop() ?? "bin").toLowerCase().slice(0, 8);
-    const safeName = `ftarena/uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const safeName = `mx/uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const blob = await put(safeName, file, {
       access: "public",
       addRandomSuffix: false,

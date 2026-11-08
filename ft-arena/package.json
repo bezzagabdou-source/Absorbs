@@ -1,8 +1,8 @@
 {
-  "name": "ft-arena",
+  "name": "mx-contests-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "FT Arena — بوت مسابقات FT + لوحة تحكم متكاملة (نقاط، إحالات، جوائز، ذكاء اصطناعي)",
+  "description": "مسابقات MX — بوت مسابقات MX + لوحة تحكم متكاملة (نقاط، إحالات، جوائز، ذكاء اصطناعي)",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",

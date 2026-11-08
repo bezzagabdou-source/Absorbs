@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       if (body.settings && typeof body.settings === "object") {
         merge(s, body.settings as Record<string, unknown>);
         if (body.settings && typeof (body.settings as Settings).botName === "string") {
-          db.settings.botName = String((body.settings as Settings).botName).slice(0, 40) || "FT Arena";
+          db.settings.botName = String((body.settings as Settings).botName).slice(0, 40) || "مسابقات MX";
         }
       }
       if (Array.isArray(body.wheel)) db.wheel = clone(body.wheel) as typeof db.wheel;

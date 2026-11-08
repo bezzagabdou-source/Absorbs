@@ -1,11 +1,11 @@
 import type { DB, Lang, Reward, Settings, Task, WheelSlice } from "./types";
 
 export const APP = {
-  name: "FT Arena",
+  name: "مسابقات MX",
   tagline: "اربح نقاطًا… وحوّلها إلى جوائز حقيقية",
   channel: {
     username: "mxabdou",
-    title: "FT Arena",
+    title: "مسابقات MX",
     url: "https://t.me/mxabdou",
   },
   version: "1.0.0",
@@ -21,7 +21,7 @@ export function defaultSettings(): Settings {
     maintenanceText:
       "🛠️ البوت في وضع الصيانة الآن.\nسنعود قريبًا جدًا — تابع قناتنا لتصلك الجوائز أولًا:\n" +
       APP.channel.url,
-    botName: "FT Arena",
+    botName: "مسابقات MX",
     brandEmoji: "🏆",
     lang: "ar",
     forceJoin: {
@@ -54,7 +54,7 @@ export function defaultSettings(): Settings {
       contests: true,
     },
     texts: {
-      startTitle: "مرحبًا بك في FT Arena",
+      startTitle: "مرحبًا بك في مسابقات MX",
       startBody:
         "هنا تجمع النقاط من الإحالات والهدية اليومية والعجلة… ثم تستبدلها بجوائز حقيقية (Netflix، Google Play، Coinbase، وحتى بوت + موقع خاص بك).",
       startButton: "🚀 افتح القائمة",
@@ -62,7 +62,7 @@ export function defaultSettings(): Settings {
       rules:
         "1) لا حسابات وهمية — الإحالة الوهمية تُلغى ويُحظر صاحبها.\n2) كل جائزة تُسلّم بعد مراجعة الأدمن.\n3) النقاط تُحفظ في حسابك ولا تنتهي.\n4) احترام الأعضاء إلزامي.",
       support: "للتواصل والاستفسار: راسل الأدمن من داخل البوت ثم زر «الدعم».",
-      shareText: "🔥 انضم إلى FT Arena واجمع النقاط وحوّلها إلى جوائز حقيقية!",
+      shareText: "🔥 انضم إلى مسابقات MX واجمع النقاط وحوّلها إلى جوائز حقيقية!",
     },
     admin: { notifyOnJoin: true, notifyOnRedeem: true, adminChatId: "" },
     security: {
@@ -71,7 +71,7 @@ export function defaultSettings(): Settings {
       blockSelfReferral: true,
       requireJoinForRewards: true,
     },
-    ai: { enabled: true, provider: "auto", model: "", autoApply: false },
+    ai: { enabled: true, provider: "auto", model: "", autoApply: true, apiKey: "", apiBase: "" },
   };
 }
 
@@ -160,7 +160,7 @@ export function freshDB(now = new Date().toISOString()): DB {
     contests: [
       {
         id: rid("ct"),
-        title: "🏆 مسابقة FT الكبرى",
+        title: "🏆 مسابقة MX الكبرى",
         desc: "اجمع أكبر عدد من النقاط خلال الأسبوع. أفضل 3 متصدرين يحصلون على جوائز إضافية!",
         prize: "🎁 جائزة إضافية لأول 3 مراكز",
         winnersCount: 3,
