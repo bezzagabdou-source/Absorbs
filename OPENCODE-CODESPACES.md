@@ -1,81 +1,71 @@
-# Nexus Chat — موقع شات + رفع ملفات، مربوط بـ OpenCode
+# Nexus Chat — موقع شات ثابت (بلا سيرفر، بلا نفق)
 
-## ✅ الرابط (شغّال، ومُختبر)
+## ✅ الرابط الثابت (مُختبَر، يفتح فورًا)
 
 ```
-https://increased-rebate-comes-bonus.trycloudflare.com
+https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@6a93c3eef0a27d438343358748af1d502b379a5d/docs/nexus-chat.html
 ```
 
-| اللي جرّبناه | النتيجة |
+هذا ملف HTML واحد يخدمه CDN عالمي (jsDelivr). **ما كاينش سيرفر يتوقف، ما كاينش نفق يموت،
+وما كاينش cold start.** الملف يتخزّن في الريبو ويتحدّث تلقائيًا مع كل push.
+
+بديل أقصر (نفس الملف، يتحدّث مع كل push):
+
+```
+https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@arena/3d01ef96-absorbs/docs/nexus-chat.html
+```
+
+## علاش الروابط القديمة ما كانتش تفتح
+
+| المحاولة | النتيجة |
 |---|---|
-| الموقع يفتح | `web=ok` (title: Nexus Chat) |
-| API الشات | `api=200` |
-| رد الذكاء الاصطناعي | **`llm=ok` — 592ms — text="pong"`** ✅ |
-| رفع ملفات/صور/فيديو | ✅ حتى 120MB، مع شريط تقدّم |
+| GitHub Codespaces | ❌ التوكن بلا صلاحية `codespace` (403) |
+| Cloudflare quick tunnel | ⚠️ يشتغل ثم يموت: `openssl s_client` يرجّع TLS reset بعد ~20-70 ثانية، والمهمة تُلغى auto-cancel عند push جديد |
+| GitHub Pages | ❌ تفعيل Pages ممنوع على التوكن (`403 Resource not accessible`) — يحتاج تفعيل يدوي من Settings |
+| Vercel (public/chat.html) | ❌ المشروع `absorbs-main` ينشر، لكن `chat.html` يرجع 404 (rewrite غير مطبّق في نطاق المشروع) |
+| **jsDelivr من الريبو** | ✅ **200 + HTML صحيح — ثابت ومجاني وبلا حدود** |
 
-كلشي يشتغل **بلا أي مفتاح API**.
+## الميزات
 
-## واش يخدم الموقع
+- شات **ستريمنغ** حرف بحرف، واجهة عربية RTL، ماركداون وكود.
+- **رفع ملفات**: 📎 · سحب وإفلات · لصق `Ctrl+V` لصورة.
+  - صور → تتعرض وتتبعت للنموذج (حتى 3MB، inline base64)
+  - ملفات نصية/كود/CSV/JSON → المحتوى يدخل السياق (حتى 24k حرف)
+  - فيديو/صوت/PDF → معاينة + بيانات وصفية
+- **3 نماذج** مجانية + تبديل فوري.
+- **سلسلة مزوّدين**: إذا الأول محجوب، يجرّب الثاني تلقائيًا.
+- **أخطاء واضحة**: إذا المزوّد رفض، تشوف الرسالة بالعربية مع الكود — ما تبقاش "Connecting…".
 
-- **شات ستريمنغ** حرف بحرف (SSE)، RTL، ماركداون وكود.
-- **رفع ملفات**: 📎، أو سحب وإفلات، أو لصق (Ctrl+V) صورة.
-  - صور → تتعرض في الرسالة وتتحوّل لسياق للنموذج
-  - ملفات نصية (txt/md/json/csv/code…) → تتقرأ وتدخل في السياق (حتى 24k حرف)
-  - فيديو/صوت/PDF/أي ملف → يتخزّن وتتوصّل البيانات الوصفية، مع معاينة/تحميل
-- **3 نماذج** مجانية (Pollinations: openai / mistral / llama).
-- **اختيار تلقائي للمزوّد**: إذا حطّيت مفتاح (`OPENROUTER_API_KEY`, `GROQ_API_KEY`,
-  `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`)
-  كـ repo secret، الـ chat api يستعملو وحدو بدل المجاني — أسرع وأقوى.
-
-## البنية
+## البنية (كلش client-side)
 
 ```
-المتصفح / التطبيق
-   │ https://<tunnel>
-   ▼
-cloudflare quick tunnel (http2)
-   ▼
-gateway  0.0.0.0:8080   scripts/opencode-gateway.mjs
-   ├── /                     → web/index.html            (الموقع)
-   ├── /web/*                → chat api 127.0.0.1:8090   (ردود + رفع ملفات)
-   └── /api/* /session /event → opencode  127.0.0.1:8081 (agent + API الأصلي)
+المتصفح ──> CDN (jsDelivr)         : الملف HTML
+        └─> text.pollinations.ai   : ردود الذكاء الاصطناعي (بلا مفتاح)
 ```
+
+ما كاينش أي سيرفر تاعنا في الطريق ⇒ ما كاينش شي يتوقف.
+
+## الملفات
 
 | ملف | وظيفته |
 |---|---|
-| `web/index.html` | الواجهة: شات + رفع ملفات + ستريمنغ (بلا build) |
-| `scripts/opencode-webapi.mjs` | API الشات: sessions, SSE, upload, pollinations/provider |
-| `scripts/opencode-gateway.mjs` | proxy + CORS + SSE + توجيه `/web/*` + يخدم الموقع |
-| `scripts/opencode-supervisor.sh` | يراقب كل 30ث، يعيد تشغيل الميّت، يبدّل النفق، ينشر الرابط |
-| `scripts/opencode-selftest.mjs` | يجرّب شات حقيقي ويطبع `SELFTEST llm=ok/fail` |
-| `.github/workflows/opencode-tunnel.yml` | يشغّل الكل على runner (يبقى ~5 ساعات) |
+| `docs/nexus-chat.html` + `docs/index.html` | الموقع (نفس المحتوى) |
+| `web-pages/` | المصدر |
+| `public/chat.html` | نسخة احتياطية تخدمها Vercel |
+| `.github/workflows/pages.yml` | ينسخ `web-pages/` إلى `docs/` عند كل تعديل |
 
-## ليش كان "ما يردّ"
+## تحديث الموقع
 
-1. المزوّد المجاني تاع opencode (`opencode.ai/inference`) يرجّع **429** من IP الـ runner.
-2. السيرفر كان يبلع الخطأ وما يبعتش حدث فشل → التطبيق يبقى "Connecting…"/صامت.
-
-الحل: قناة **pollinations** (بلا مفتاح، مُتحقَّق منها: HTTP 200) + إظهار الأخطاء دائمًا
-كحدث في البث، + self-test ينشر النتيجة في status `opencode/llm`.
-
-## الرابط يتبدّل عند كل push
+عدّل `web-pages/index.html` ثم:
 
 ```bash
-gh api repos/bezzagabdou-source/Absorbs/commits/arena/3d01ef96-absorbs/statuses \
-  --jq '.[]|select(.context=="opencode/url")|.description' | head -1
+rsync -a web-pages/ docs/ && cp web-pages/index.html public/chat.html
+git add docs web-pages public/chat.html && git commit -m "update chat" && git push
 ```
 
-## تشغيل محلي
+الرابط القديم `@arena/3d01ef96-absorbs` يتحدّث فورًا؛ الرابط المثبّت `@<sha>` يبقى ثابت للأبد.
 
-```bash
-npm i -g opencode-ai
-opencode serve --hostname 127.0.0.1 --port 8081 &
-node scripts/opencode-webapi.mjs --listen 127.0.0.1:8090 &
-node scripts/opencode-gateway.mjs --listen 0.0.0.0:8080 --upstream 127.0.0.1:8081 --webapi 127.0.0.1:8090
-# http://localhost:8080
-```
+## إذا المزوّد توقّف يومًا
 
-## تنبيه
-
-الرابط عام وبلا كلمة سر: أي حد عندو يرفع ملفات ويستعمل الـ agent على الكود.
-الملفات المرفوعة تبقى في `/tmp` على الـ runner وتزول مع المهمة.
+المزوّد المجاني `text.pollinations.ai` بلا مفتاح. بديل بسطر واحد:
+افتح الملف وغيّر `ENDPOINTS` لأي API متوافق مع OpenAI (Groq / OpenRouter / DeepSeek…) + المفتاح.
