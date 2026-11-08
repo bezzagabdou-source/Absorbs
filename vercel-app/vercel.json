@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "functions": { "api/chat.js": { "maxDuration": 60 } },
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
