@@ -131,8 +131,25 @@ export async function GET(req: Request) {
     engine = { ok: false, error: (e as Error).message.slice(0, 200) };
   }
 
+  // قائمة الموديلات المتاحة فعليًا على مفتاح Groq (لفحص الوصول)
+  let groqModels: string[] = [];
+  const groqKey = (process.env.GROQ_API_KEY ?? "").trim();
+  if (groqKey) {
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/models", {
+        headers: { Authorization: `Bearer ${groqKey}` },
+        cache: "no-store",
+      });
+      const j = (await r.json()) as { data?: { id: string }[] };
+      groqModels = (j.data ?? []).map((m) => m.id).sort();
+    } catch {
+      /* تجاهل */
+    }
+  }
+
   return Response.json({
     ok: results.some((r) => r.ok) || engine.ok === true,
+    groqModels,
     savedKeyInDb: saved,
     providers: results,
     engine,
