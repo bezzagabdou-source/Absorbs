@@ -3,7 +3,7 @@
 ## ✅ الرابط الثابت (مُختبَر، يفتح فورًا)
 
 ```
-https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@6a93c3eef0a27d438343358748af1d502b379a5d/docs/nexus-chat.html
+https://cdn.jsdelivr.net/gh/bezzagabdou-source/Absorbs@arena/3d01ef96-absorbs/docs/index.html
 ```
 
 هذا ملف HTML واحد يخدمه CDN عالمي (jsDelivr). **ما كاينش سيرفر يتوقف، ما كاينش نفق يموت،
