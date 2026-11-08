@@ -116,6 +116,45 @@ export async function GET(req: Request) {
       })
   );
 
+  // اختبار سلسلة موديلات Groq الفعلية (نفس ما يستخدمه البوت)
+  const chain = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "allam-2-7b"];
+  const groqKey2 = (process.env.GROQ_API_KEY ?? "").trim();
+  const groqTries = groqKey2
+    ? await Promise.all(
+        chain.map(async (m) => {
+          const t0 = Date.now();
+          try {
+            const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey2}` },
+              body: JSON.stringify({
+                model: m,
+                max_tokens: 30,
+                temperature: 0.2,
+                response_format: { type: "json_object" },
+                messages: [
+                  { role: "system", content: 'أعد JSON فقط: {"reply":"تم","actions":[]}' },
+                  { role: "user", content: "قل تم" },
+                ],
+              }),
+              cache: "no-store",
+            });
+            const body = await r.text();
+            let sample = "";
+            try {
+              const j = JSON.parse(body) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } };
+              sample = j.choices?.[0]?.message?.content?.slice(0, 60) ?? (j.error?.message ?? "").slice(0, 120);
+            } catch {
+              sample = body.slice(0, 100);
+            }
+            return { model: m, ok: r.ok, status: r.status, ms: Date.now() - t0, sample };
+          } catch (e) {
+            return { model: m, ok: false, status: 0, ms: Date.now() - t0, sample: (e as Error).message.slice(0, 120) };
+          }
+        })
+      )
+    : [];
+
   // اختبار المحرّك كاملًا: طلب حقيقي من البوت
   const t1 = Date.now();
   let engine: Record<string, unknown> = {};
@@ -148,8 +187,9 @@ export async function GET(req: Request) {
   }
 
   return Response.json({
-    ok: results.some((r) => r.ok) || engine.ok === true,
+    ok: results.some((r) => r.ok) || groqTries.some((r) => r.ok) || engine.ok === true,
     groqModels,
+    groqTries,
     savedKeyInDb: saved,
     providers: results,
     engine,

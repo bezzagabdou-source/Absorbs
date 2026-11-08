@@ -417,7 +417,6 @@ function providerList(db: DB): { name: string; label: string; run: () => Promise
 
   // ⚡️ الترتيب مقصود: Groq أولًا (أسرع استجابة فعلية)، ثم Cerebras، ثم البقية
   const compat: { name: string; url: string; key: string; model: string }[] = [
-    { name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env("GROQ_API_KEY"), model: savedModel || env("GROQ_MODEL") || "llama-3.3-70b-versatile" },
     { name: "cerebras", url: "https://api.cerebras.ai/v1/chat/completions", key: env("CEREBRAS_API_KEY"), model: env("CEREBRAS_MODEL") || "gpt-oss-120b" },
     { name: "openrouter", url: "https://openrouter.ai/api/v1/chat/completions", key: env("OPENROUTER_API_KEY"), model: env("OPENROUTER_MODEL") || "google/gemini-2.0-flash-001" },
     { name: "deepseek", url: "https://api.deepseek.com/chat/completions", key: env("DEEPSEEK_API_KEY"), model: env("DEEPSEEK_MODEL") || "deepseek-chat" },
@@ -427,6 +426,30 @@ function providerList(db: DB): { name: string; label: string; run: () => Promise
   for (const c of compat) {
     if (!c.key) continue;
     list.push({ name: c.name, label: c.name, run: () => callOpenAICompat(c.url, c.key, c.model, "", "") });
+  }
+
+  // ⚡️ Groq: سلسلة موديلات احتياطية — أيّها متاح لحسابك يعمل
+  const groqKey = env("GROQ_API_KEY");
+  if (groqKey) {
+    const chain = [
+      savedModel,
+      env("GROQ_MODEL"),
+      "openai/gpt-oss-120b",
+      "qwen/qwen3.8-27b",
+      "allam-2-7b",
+    ].filter(Boolean) as string[];
+    const uniq = Array.from(new Set(chain));
+    list.push({
+      name: "groq",
+      label: "Groq",
+      run: async () => {
+        for (const m of uniq) {
+          const out = await callOpenAICompat("https://api.groq.com/openai/v1/chat/completions", groqKey, m, "", "");
+          if (out) return out;
+        }
+        return null;
+      },
+    });
   }
 
   const claudeKey = env("ANTHROPIC_API_KEY");
