@@ -109,7 +109,10 @@ const wrap = $("#wrap"), main = $("#main"), input = $("#input"), sendBtn = $("#s
 const modelSel = $("#model"), dot = $("#dot"), statusTxt = $("#statusTxt");
 const fileInput = $("#file"), pendingEl = $("#pending"), drop = $("#drop");
 
-const ENDPOINT = "https://text.pollinations.ai/openai";
+const ENDPOINTS = [
+  "https://text.pollinations.ai/openai",
+  "https://text.pollinations.ai/v1/chat/completions",
+];
 const MAX_INLINE_IMAGE = 3 * 1024 * 1024;
 const MAX_TEXT = 512 * 1024;
 const history = [];          // {role, content}
@@ -257,15 +260,19 @@ async function send(text){
     const flat = (c) => Array.isArray(c) ? c.map((p) => p.type === "text" ? p.text : "[صورة]").join("\n") : c;
     const trimmed = history.slice(-16);
 
-    let r = await fetch(ENDPOINT, {
+    let r = null;
+    for (const ep of ENDPOINTS){
+      r = await fetch(ep, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "text/event-stream" },
-      body: JSON.stringify({ model: modelSel.value, messages: trimmed, stream: true, private: true, referrer: "nexus-chat" }),
-    });
+        body: JSON.stringify({ model: modelSel.value, messages: trimmed, stream: true, private: true, referrer: "nexus-chat" }),
+      }).catch(() => null);
+      if (r && (r.ok || r.status === 400)) break;
+    }
 
     // some networks/models refuse multimodal parts: retry once as plain text
     if (!r.ok && trimmed.some((m) => isUrlImage(m.content))) {
-      r = await fetch(ENDPOINT, {
+      r = await fetch(ENDPOINTS[0], {
         method: "POST",
         headers: { "content-type": "application/json", accept: "text/event-stream" },
         body: JSON.stringify({
