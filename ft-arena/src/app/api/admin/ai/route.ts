@@ -56,9 +56,9 @@ function summarize(modelReply: string, results: { name: string; ok: boolean; det
     lines.push(`⚠️ لم تُنفَّذ (${bad.length}):`);
     for (const r of bad) lines.push(`• ${AR[r.name] ?? r.name} — ${r.detail ?? "فشل"}`);
   }
-  if (modelReply && !/\bتم\b/.test(modelReply.slice(0, 20))) {
-    lines.unshift(modelReply, "");
-  }
+  // عند التنفيذ الفعلي: القائمة أعلاه هي الحقيقة. لا نُقحم كلام الموديل حتى لا يتناقض معها.
+  // نُظهره فقط إن لم يُنفَّذ شيء أو إن كانت النتيجة كلها فشلًا (ليشرح السبب).
+  if (!ok.length && modelReply) lines.unshift(modelReply, "");
   return lines.join("\n");
 }
 
