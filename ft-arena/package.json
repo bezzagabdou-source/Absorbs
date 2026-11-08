@@ -1,0 +1,31 @@
+{
+  "name": "ft-arena",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FT Arena — بوت مسابقات FT + لوحة تحكم متكاملة (نقاط، إحالات، جوائز، ذكاء اصطناعي)",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "selftest": "node scripts/selftest.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/cairo": "^5.2.6",
+    "@vercel/blob": "^2.0.0",
+    "ioredis": "^5.4.2",
+    "next": "^16.2.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

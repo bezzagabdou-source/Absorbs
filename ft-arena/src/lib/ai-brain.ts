@@ -1,0 +1,542 @@
+/**
+ * 🧠 FT Arena Brain — محرّك الأوامر الذكي (مستقل عن HTTP ليكون قابلًا للاختبار وإعادة الاستخدام).
+ *  1) محرّكات LLM متعددة (تُستخدم إن توفّر أي مفتاح في البيئة).
+ *  2) محرّك فهم عربي مدمج يعمل بدون أي مفتاح.
+ *  3) منفّذ عمليات آمن على وثيقة البوت.
+ */
+import { env } from "./env";
+import { addPoints, displayName } from "./bot-utils";
+import { sendMessage } from "./tg";
+import type { DB, Reward, Task, User } from "./types";
+
+export type Action = { name: string; args: Record<string, unknown> };
+export type Plan = { reply: string; actions: Action[]; provider: string };
+export type ActionResult = { name: string; ok: boolean; detail?: string };
+
+const safeDetail = (e: unknown): string => (e instanceof Error ? e.message : String(e)).slice(0, 300);
+
+
+
+const SYSTEM = `أنت "FT Arena Brain" — مساعد تحكم ذكي لبوت تيليجرام للمسابقات والنقاط.
+مهمتك: ترجمة طلب الأدمن (بالعربية أو الفرنسية أو الإنجليزية) إلى JSON فقط لتنفيذ عمليات على البوت.
+أعد دائمًا JSON صالحًا فقط بهذا الشكل:
+{"reply":"رسالة قصيرة للمدير بالعربية","actions":[{"name":"...","args":{...}}]}
+العمليات المتاحة:
+set_points {points:{"dailyMin":1,"dailyMax":3,"refJoin":3,"refActive":2,"wheelCooldownHours":12,"streakBonus":1}}
+set_texts {texts:{"startBody":"...","rules":"...","support":"...","shareText":"..."}}
+set_bot {botName?, brandEmoji?, maintenance?:boolean, botEnabled?:boolean}
+set_feature {feature:"daily|wheel|leaderboard|referrals|tasks|shop|contests", enabled:boolean}
+set_force_join {enabled:boolean, username:"@..." , title?:"..."}
+add_reward {title, cost, desc?, emoji?, delivery?, stock?}
+edit_reward {title, cost?, desc?, active?}
+delete_reward {title}
+add_task {title, points, type:"channel|link|custom", target?, repeat:"once|daily", emoji?}
+delete_task {title}
+add_points {user:"@username أو id", amount:number}
+broadcast {text, buttonLabel?, buttonUrl?}
+add_contest {title, desc, prize, winnersCount, days}
+set_points_for {query, amount} , ban_user {query}, vip_user {query}
+لا تخترع عمليات غير موجودة. إن كان الطلب غير واضح استخدم reply للتوضيح ولا تُرجع actions.`;
+
+/* ─────────────────────────── محرّك الفهم العربي المدمج ─────────────────────────── */
+
+const AR_DIGITS: Record<string, string> = { "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4", "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9" };
+const norm = (s: string) =>
+  s
+    .replace(/[٠-٩]/g, (d) => AR_DIGITS[d] ?? d)
+    .replace(/[إأآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .toLowerCase();
+
+function numbersIn(text: string): number[] {
+  return (norm(text).match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+}
+
+export function localPlan(prompt: string): Plan {
+  const p = norm(prompt);
+  const nums = numbersIn(prompt);
+  const actions: Action[] = [];
+  const reply: string[] = [];
+
+  const findReward = (name: string) => name;
+
+  if (/(صيانه|maintenance|ايقاف مؤقت)/.test(p)) {
+    const off = /(اطفي|اطفئ|اوقف|الغ|الغي|ابطال|ايقاف الصيانه|off|disable|انهي|اقفلت)/.test(p);
+    const on = /(شغل|فعل|فعلي|تشغيل|بدا|on|enable)/.test(p) && !off;
+    if (off || on) {
+      actions.push({ name: "set_bot", args: { maintenance: on } });
+      reply.push(on ? "تم تشغيل وضع الصيانة." : "تم إلغاء الصيانة.");
+    }
+  }
+  if (/(هديه يوميه|الهديه اليوميه|daily)/.test(p)) {
+    if (nums.length >= 2) {
+      actions.push({ name: "set_points", args: { points: { dailyMin: nums[0], dailyMax: nums[1] } } });
+      reply.push(`تم جعل الهدية اليومية من ${nums[0]} إلى ${nums[1]} نقطة.`);
+    } else if (nums.length === 1) {
+      actions.push({ name: "set_points", args: { points: { dailyMin: nums[0], dailyMax: nums[0] } } });
+      reply.push(`تم جعل الهدية اليومية ${nums[0]} نقطة ثابتة.`);
+    }
+  }
+  if (/(احاله|إحاله|referral|دعوه|دعوة)/.test(p) && nums.length && /(نقطه|نقاط|point)/.test(p)) {
+    actions.push({ name: "set_points", args: { points: { refJoin: nums[0] } } });
+    reply.push(`مكافأة الإحالة عند الدخول: ${nums[0]} نقطة.`);
+  }
+  if (/(عجله|wheel)/.test(p) && nums.length && /(ساعه|ساعات|hour|ساع)/.test(p)) {
+    actions.push({ name: "set_points", args: { points: { wheelCooldownHours: nums[0] } } });
+    reply.push(`تبريد العجلة: ${nums[0]} ساعة.`);
+  }
+  if (/(اسم البوت|bot name|غير الاسم)/.test(p)) {
+    const m = prompt.match(/(?:اسم البوت|bot name|غير الاسم)\s*(?:الى|إلى|:)?\s*(.+)/i);
+    if (m) {
+      actions.push({ name: "set_bot", args: { botName: m[1].trim().slice(0, 40) } });
+      reply.push(`تم تغيير اسم البوت إلى: ${m[1].trim().slice(0, 40)}`);
+    }
+  }
+  if (/(اضف جائزه|أضف جائزة|add reward|جائزه جديده|جائزة جديدة)/.test(p)) {
+    const titleMatch = prompt.match(/(?:جائزه|جائزة|reward)\s+(.+?)(?:\s+(?:ب|بسعر|سعر|price|cost)\s*|$)/i);
+    const title = titleMatch?.[1]?.trim().slice(0, 40) || "جائزة جديدة";
+    const cost = nums[0] ?? 20;
+    actions.push({ name: "add_reward", args: { title, cost, desc: `جائزة ${title}`, delivery: "يُسلّم بعد الموافقة." } });
+    reply.push(`أضفت الجائزة «${title}» بسعر ${cost} نقطة.`);
+  }
+  if (/(خصم|نقص|خصم نقاط|remove points)/.test(p) && nums.length) {
+    const who = prompt.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] || prompt.match(/\b\d{6,}\b/)?.[0];
+    if (who) {
+      actions.push({ name: "add_points", args: { user: who, amount: -Math.abs(nums[0]) } });
+      reply.push(`خصمت ${Math.abs(nums[0])} نقطة من ${who}.`);
+    }
+  } else if (/(اعطي|أعطي|اضف نقاط|أضف نقاط|add points)/.test(p) && nums.length) {
+    const who = prompt.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] || prompt.match(/\b\d{6,}\b/)?.[0];
+    if (who) {
+      actions.push({ name: "add_points", args: { user: who, amount: Math.abs(nums[0]) } });
+      reply.push(`أضفت ${Math.abs(nums[0])} نقطة إلى ${who}.`);
+    }
+  }
+  if (/(بث|اذاعه|إذاعة|broadcast|ارسل للجميع|أرسل للجميع)/.test(p)) {
+    const m = prompt.match(/(?:بث|اذاعه|إذاعة|broadcast|ارسل للجميع|أرسل للجميع)\s*:?\s*(.+)/i);
+    if (m) {
+      actions.push({ name: "broadcast", args: { text: m[1].trim() } });
+      reply.push("أرسلت البث لكل الأعضاء.");
+    }
+  }
+  if (/(اضف مهمه|أضف مهمة|add task)/.test(p)) {
+    const m = prompt.match(/(?:مهمه|مهمة|task)\s+(.+)/i);
+    const title = m?.[1]?.trim().slice(0, 60) || "مهمة جديدة";
+    actions.push({ name: "add_task", args: { title, points: nums[0] ?? 1, type: "custom", repeat: "once" } });
+    reply.push(`أضفت المهمة «${title}».`);
+  }
+  if (/(قوانين|قانون|rules)/.test(p) && prompt.length > 25) {
+    const m = prompt.match(/(?:قوانين|قانون|rules)\s*:?\s*([\s\S]+)/i);
+    if (m) {
+      actions.push({ name: "set_texts", args: { texts: { rules: m[1].trim().slice(0, 1500) } } });
+      reply.push("حدّثت نصوص القوانين.");
+    }
+  }
+  if (/(اشتراك اجباري|force join|قناه الاشتراك|قناه الاشتراك الاجباري)/.test(p) && /@[a-zA-Z0-9_]{3,32}/.test(prompt)) {
+    const u = prompt.match(/@[a-zA-Z0-9_]{3,32}/)![0];
+    actions.push({ name: "set_force_join", args: { enabled: true, username: u } });
+    reply.push(`قناة الاشتراك الإجباري: ${u}`);
+  }
+
+  // أي طلب يحتوي «قناة @...» + كلمة اشتراك
+  if (
+    !actions.some((a) => a.name === "set_force_join") &&
+    /(اشتراك|اشترك|اشتركو|join)/.test(p) &&
+    /(قناه|قناة|channel)/.test(p) &&
+    /@[a-zA-Z0-9_]{3,32}/.test(prompt)
+  ) {
+    const u = prompt.match(/@[a-zA-Z0-9_]{3,32}/)![0];
+    actions.push({ name: "set_force_join", args: { enabled: true, username: u } });
+    reply.push(`قناة الاشتراك الإجباري: ${u}`);
+  }
+
+  const text =
+    reply.length > 0
+      ? reply.join("\n")
+      : "فهمت طلبك لكن لم أجد عملية مطابقة. جرّب مثلًا: «الهدية اليومية من 2 إلى 4 نقاط» أو «أضف جائزة PlayStation بسعر 40» أو «بث: مسابقة جديدة غدًا».";
+  return { reply: text, actions, provider: "builtin-ar" };
+}
+
+/* ─────────────────────────── محرّكات LLM ─────────────────────────── */
+
+async function callGemini(prompt: string, sys: string): Promise<string | null> {
+  const key = (process.env.GEMINI_API_KEY ?? "").trim();
+  if (!key) return null;
+  const model = (process.env.AI_MODEL ?? "gemini-2.0-flash").trim();
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 1400, responseMimeType: "application/json" },
+      }),
+      cache: "no-store",
+    }
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  return data.candidates?.[0]?.content?.parts?.map((x) => x.text ?? "").join("") ?? null;
+}
+
+async function callOpenAICompat(
+  url: string,
+  key: string,
+  model: string,
+  prompt: string,
+  sys: string,
+  extraHeaders: Record<string, string> = {}
+): Promise<string | null> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extraHeaders },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      max_tokens: 1400,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: prompt },
+      ],
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  return data.choices?.[0]?.message?.content ?? null;
+}
+
+async function callClaude(prompt: string, sys: string): Promise<string | null> {
+  const key = (process.env.ANTHROPIC_API_KEY ?? "").trim();
+  if (!key) return null;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: (process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5").trim(),
+      max_tokens: 1400,
+      system: sys,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as { content?: { text?: string }[] };
+  return data.content?.map((c) => c.text ?? "").join("") ?? null;
+}
+
+async function askLLM(prompt: string): Promise<Plan | null> {
+  const candidates: { name: string; fn: () => Promise<string | null> }[] = [
+    { name: "gemini", fn: () => callGemini(prompt, SYSTEM) },
+    {
+      name: "openrouter",
+      fn: () =>
+        callOpenAICompat(
+          "https://openrouter.ai/api/v1/chat/completions",
+          (process.env.OPENROUTER_API_KEY ?? "").trim(),
+          (process.env.OPENROUTER_MODEL ?? "google/gemini-2.0-flash-001").trim(),
+          prompt,
+          SYSTEM
+        ),
+    },
+    {
+      name: "groq",
+      fn: () =>
+        callOpenAICompat(
+          "https://api.groq.com/openai/v1/chat/completions",
+          (process.env.GROQ_API_KEY ?? "").trim(),
+          (process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile").trim(),
+          prompt,
+          SYSTEM
+        ),
+    },
+    {
+      name: "deepseek",
+      fn: () =>
+        callOpenAICompat(
+          "https://api.deepseek.com/chat/completions",
+          (process.env.DEEPSEEK_API_KEY ?? "").trim(),
+          (process.env.DEEPSEEK_MODEL ?? "deepseek-chat").trim(),
+          prompt,
+          SYSTEM
+        ),
+    },
+    {
+      name: "cerebras",
+      fn: () =>
+        callOpenAICompat(
+          "https://api.cerebras.ai/v1/chat/completions",
+          (process.env.CEREBRAS_API_KEY ?? "").trim(),
+          (process.env.CEREBRAS_MODEL ?? "gpt-oss-120b").trim(),
+          prompt,
+          SYSTEM
+        ),
+    },
+    {
+      name: "xai",
+      fn: () =>
+        callOpenAICompat(
+          "https://api.x.ai/v1/chat/completions",
+          (process.env.XAI_API_KEY ?? process.env.GROK_API_KEY ?? "").trim(),
+          (process.env.XAI_MODEL ?? "grok-4-fast").trim(),
+          prompt,
+          SYSTEM
+        ),
+    },
+    {
+      name: "openai",
+      fn: () =>
+        callOpenAICompat(
+          "https://api.openai.com/v1/chat/completions",
+          (process.env.OPENAI_API_KEY ?? "").trim(),
+          (process.env.OPENAI_MODEL ?? "gpt-4o-mini").trim(),
+          prompt,
+          SYSTEM
+        ),
+    },
+    { name: "claude", fn: () => callClaude(prompt, SYSTEM) },
+  ];
+
+  for (const c of candidates) {
+    try {
+      const raw = await c.fn();
+      if (!raw) continue;
+      const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+      const parsed = JSON.parse(json) as { reply?: string; actions?: Action[] };
+      if (!parsed || typeof parsed !== "object") continue;
+      return {
+        reply: String(parsed.reply ?? "تم."),
+        actions: Array.isArray(parsed.actions) ? parsed.actions.slice(0, 12) : [],
+        provider: c.name,
+      };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/* ─────────────────────────── تنفيذ العمليات ─────────────────────────── */
+
+function findUserByQuery(db: DB, q: string): User | undefined {
+  const s = q.replace(/^@/, "").trim().toLowerCase();
+  return Object.values(db.users).find(
+    (u) => String(u.id) === s || (u.username ?? "").toLowerCase() === s || displayName(u).toLowerCase().includes(s) || u.refCode === s
+  );
+}
+
+async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]> {
+  const out: { name: string; ok: boolean; detail?: string }[] = [];
+  for (const a of actions) {
+    try {
+      const args = (a.args ?? {}) as Record<string, unknown>;
+      switch (a.name) {
+        case "set_points": {
+          Object.assign(db.settings.points, args.points ?? {});
+          out.push({ name: a.name, ok: true, detail: JSON.stringify(args.points) });
+          break;
+        }
+        case "set_texts": {
+          Object.assign(db.settings.texts, args.texts ?? {});
+          out.push({ name: a.name, ok: true });
+          break;
+        }
+        case "set_bot": {
+          if (typeof args.botName === "string") db.settings.botName = args.botName.slice(0, 40);
+          if (typeof args.brandEmoji === "string") db.settings.brandEmoji = args.brandEmoji.slice(0, 4);
+          if (typeof args.maintenance === "boolean") db.settings.maintenance = args.maintenance;
+          if (typeof args.botEnabled === "boolean") db.settings.botEnabled = args.botEnabled;
+          out.push({ name: a.name, ok: true });
+          break;
+        }
+        case "set_feature": {
+          const f = String(args.feature ?? "");
+          if (f in db.settings.features) {
+            (db.settings.features as unknown as Record<string, boolean>)[f] = Boolean(args.enabled);
+            out.push({ name: a.name, ok: true, detail: `${f}=${args.enabled}` });
+          } else out.push({ name: a.name, ok: false, detail: "feature غير معروف" });
+          break;
+        }
+        case "set_force_join": {
+          Object.assign(db.settings.forceJoin, {
+            enabled: args.enabled === undefined ? true : Boolean(args.enabled),
+            ...(args.username ? { username: String(args.username).replace(/^@/, "") } : {}),
+            ...(args.title ? { title: String(args.title) } : {}),
+            ...(args.username ? { url: `https://t.me/${String(args.username).replace(/^@/, "")}` } : {}),
+          });
+          out.push({ name: a.name, ok: true });
+          break;
+        }
+        case "add_reward": {
+          const r: Reward = {
+            id: `rw_${Math.random().toString(36).slice(2, 9)}`,
+            emoji: String(args.emoji ?? "🎁"),
+            title: String(args.title ?? "جائزة"),
+            desc: String(args.desc ?? ""),
+            cost: Math.max(1, Number(args.cost ?? 10)),
+            stock: args.stock === undefined || args.stock === null ? null : Number(args.stock),
+            active: true,
+            delivery: String(args.delivery ?? "يتم التسليم بعد المراجعة."),
+            order: db.rewards.length + 1,
+          };
+          db.rewards.push(r);
+          out.push({ name: a.name, ok: true, detail: `${r.title} (${r.cost})` });
+          break;
+        }
+        case "edit_reward": {
+          const r =
+            db.rewards.find((x) => x.title.includes(String(args.title ?? "")) || x.id === args.title) ??
+            db.rewards.find((x) => String(args.title ?? "").toLowerCase().includes(x.title.toLowerCase()));
+          if (!r) {
+            out.push({ name: a.name, ok: false, detail: "الجائزة غير موجودة" });
+            break;
+          }
+          if (args.cost !== undefined) r.cost = Math.max(1, Number(args.cost));
+          if (args.desc !== undefined) r.desc = String(args.desc);
+          if (args.active !== undefined) r.active = Boolean(args.active);
+          out.push({ name: a.name, ok: true, detail: r.title });
+          break;
+        }
+        case "delete_reward": {
+          const before = db.rewards.length;
+          db.rewards = db.rewards.filter((x) => !x.title.includes(String(args.title ?? "___")));
+          out.push({ name: a.name, ok: db.rewards.length < before });
+          break;
+        }
+        case "add_task": {
+          const t: Task = {
+            id: `tk_${Math.random().toString(36).slice(2, 9)}`,
+            emoji: String(args.emoji ?? "⭐️"),
+            title: String(args.title ?? "مهمة"),
+            type: (String(args.type ?? "custom") as Task["type"]) ?? "custom",
+            target: String(args.target ?? ""),
+            points: Math.max(1, Number(args.points ?? 1)),
+            active: true,
+            repeat: args.repeat === "daily" ? "daily" : "once",
+            order: db.tasks.length + 1,
+          };
+          db.tasks.push(t);
+          out.push({ name: a.name, ok: true, detail: t.title });
+          break;
+        }
+        case "delete_task": {
+          const before = db.tasks.length;
+          db.tasks = db.tasks.filter((x) => !x.title.includes(String(args.title ?? "___")));
+          out.push({ name: a.name, ok: db.tasks.length < before });
+          break;
+        }
+        case "add_points": {
+          const u = findUserByQuery(db, String(args.user ?? ""));
+          if (!u) {
+            out.push({ name: a.name, ok: false, detail: "المستخدم غير موجود" });
+            break;
+          }
+          addPoints(db, u.id, Number(args.amount ?? 0), "admin", "أمر من الذكاء الاصطناعي");
+          await sendMessage(u.id, `💎 تم تعديل رصيدك من الإدارة: <b>${Number(args.amount ?? 0) > 0 ? "+" : ""}${Number(args.amount ?? 0)}</b> نقطة`);
+          out.push({ name: a.name, ok: true, detail: `${displayName(u)} → ${u.points}` });
+          break;
+        }
+        case "set_points_for": {
+          const u = findUserByQuery(db, String(args.query ?? ""));
+          if (!u) {
+            out.push({ name: a.name, ok: false, detail: "المستخدم غير موجود" });
+            break;
+          }
+          const target = Math.max(0, Number(args.amount ?? 0));
+          addPoints(db, u.id, target - u.points, "admin", "تعيين الرصيد (AI)");
+          out.push({ name: a.name, ok: true, detail: `${displayName(u)} → ${u.points}` });
+          break;
+        }
+        case "ban_user": {
+          const u = findUserByQuery(db, String(args.query ?? ""));
+          if (!u) {
+            out.push({ name: a.name, ok: false, detail: "المستخدم غير موجود" });
+            break;
+          }
+          u.banned = true;
+          u.banReason = "قرار إداري (AI)";
+          out.push({ name: a.name, ok: true, detail: displayName(u) });
+          break;
+        }
+        case "vip_user": {
+          const u = findUserByQuery(db, String(args.query ?? ""));
+          if (!u) {
+            out.push({ name: a.name, ok: false, detail: "المستخدم غير موجود" });
+            break;
+          }
+          u.vip = !u.vip;
+          out.push({ name: a.name, ok: true, detail: `${displayName(u)} vip=${u.vip}` });
+          break;
+        }
+        case "broadcast": {
+          const targets = Object.values(db.users).filter((u) => !u.banned);
+          let sent = 0;
+          for (let i = 0; i < targets.length; i += 20) {
+            const slice = targets.slice(i, i + 20);
+            await Promise.all(
+              slice.map(async (u) => {
+                const markup =
+                  args.buttonLabel && args.buttonUrl
+                    ? { inline_keyboard: [[{ text: String(args.buttonLabel), url: String(args.buttonUrl) }]] }
+                    : undefined;
+                const res = await sendMessage(u.id, String(args.text ?? ""), markup);
+                if (res) sent += 1;
+              })
+            );
+            if (i + 20 < targets.length) await new Promise((r) => setTimeout(r, 800));
+          }
+          out.push({ name: a.name, ok: true, detail: `${sent}/${targets.length}` });
+          break;
+        }
+        case "add_contest": {
+          db.contests.push({
+            id: `ct_${Math.random().toString(36).slice(2, 9)}`,
+            title: String(args.title ?? "مسابقة"),
+            desc: String(args.desc ?? ""),
+            prize: String(args.prize ?? "جائزة"),
+            winnersCount: Math.max(1, Number(args.winnersCount ?? 3)),
+            endsAt: new Date(Date.now() + Math.max(1, Number(args.days ?? 7)) * 86400_000).toISOString(),
+            status: "active",
+          });
+          out.push({ name: a.name, ok: true });
+          break;
+        }
+        default:
+          out.push({ name: a.name, ok: false, detail: "عملية غير معروفة" });
+      }
+    } catch (e) {
+      out.push({ name: a.name, ok: false, detail: safeDetail(e) });
+    }
+  }
+  return out;
+}
+
+
+export async function planPrompt(db: DB, prompt: string): Promise<Plan & { builtin: boolean }> {
+  let plan: Plan | null = null;
+  if (db.settings.ai.enabled) plan = await askLLM(prompt);
+  if (plan) {
+    if (plan.actions.length === 0) {
+      const local = localPlan(prompt);
+      if (local.actions.length > 0) {
+        return { ...local, reply: `${plan.reply}\n${local.reply}`, provider: `${plan.provider}+builtin`, builtin: true };
+      }
+    }
+    return { ...plan, builtin: false };
+  }
+  return { ...localPlan(prompt), builtin: true };
+}
+
+export async function runActions(db: DB, actions: Action[]): Promise<ActionResult[]> {
+  return runActionsImpl(db, actions);
+}
+
