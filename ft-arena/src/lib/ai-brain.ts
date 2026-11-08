@@ -764,6 +764,43 @@ function findUserByQuery(db: DB, q: string): User | undefined {
   );
 }
 
+/* ── مطابقة أسماء المسابقات/المهام: صارمة بما يكفي حتى لا تحذف شيئًا آخر ── */
+function matchByTitle<T extends { id: string; title: string }>(
+  items: T[],
+  raw: string,
+  minScore = 4
+): T | undefined {
+  const q = stripDiacritics(String(raw ?? "").trim());
+  if (!q) return undefined;
+  const byId = items.find((i) => i.id === raw);
+  if (byId) return byId;
+
+  const squash = (v: string) => stripDiacritics(v).replace(/[\s_\-–—:•|]+/g, "");
+  const K = squash(q);
+  if (!K) return undefined;
+
+  const score = (t: string) => {
+    const T = squash(t);
+    if (!T) return 0;
+    if (T === K) return 10;
+    if (T.includes(K)) return 7 + Math.min(2, K.length / Math.max(1, T.length));
+    if (K.includes(T)) return 6 + Math.min(2, T.length / Math.max(1, K.length));
+    // كلمات مطابقة (لا تُحسب كلمات قصيرة مثل "في"/"من")
+    const words = q.split(/\s+/).map(squash).filter((w) => w.length > 2);
+    if (!words.length) return 0;
+    const hits = words.filter((w) => T.includes(w));
+    return hits.length === words.length ? 5 : hits.length ? (hits.length / words.length) * 3 : 0;
+  };
+
+  const ranked = items.map((i) => ({ i, s: score(i.title) })).sort((a, b) => b.s - a.s);
+  const best = ranked[0];
+  const second = ranked[1];
+  if (!best || best.s < minScore) return undefined;
+  // غموض: نتيجتان متقاربتان جدًا → لا نخمّن
+  if (second && second.i.id !== best.i.id && best.s - second.s < 1 && best.s < 9) return undefined;
+  return best.i;
+}
+
 async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]> {
   const out: { name: string; ok: boolean; detail?: string }[] = [];
   for (const a of actions) {
@@ -874,27 +911,16 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
         }
         case "delete_task": {
           const q = String(args.title ?? "").trim();
-          const before = db.tasks.length;
-          const score = (t: string) => {
-            const T = t.toLowerCase();
-            const K = q.toLowerCase();
-            if (!K) return 0;
-            if (T === K) return 4;
-            if (T.includes(K) || K.includes(T)) return 3;
-            const words = K.split(/\s+/).filter((w) => w.length > 2);
-            const hits = words.filter((w) => T.includes(w)).length;
-            return hits ? (hits / Math.max(1, words.length)) * 2 : 0;
-          };
-          const best = db.tasks.map((t) => ({ t, s: score(t.title) })).sort((a, b) => b.s - a.s)[0];
-          if (best && best.s >= 1.2) {
-            db.tasks = db.tasks.filter((x) => x.id !== best.t.id);
-            out.push({ name: a.name, ok: true, detail: best.t.title });
+          if (!q) {
+            out.push({ name: a.name, ok: false, detail: "حدّد اسم المهمة" });
+            break;
+          }
+          const hit = matchByTitle(db.tasks, q);
+          if (hit) {
+            db.tasks = db.tasks.filter((x) => x.id !== hit.id);
+            out.push({ name: a.name, ok: true, detail: hit.title });
           } else {
-            out.push({
-              name: a.name,
-              ok: false,
-              detail: `لم أجد مهمة مطابقة${q ? ` لـ «${q}»` : ""}`,
-            });
+            out.push({ name: a.name, ok: false, detail: `لم أجد مهمة «${q}»` });
           }
           break;
         }
@@ -989,60 +1015,50 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
           break;
         }
         case "edit_task": {
-          const t =
-            db.tasks.find((x) => x.title.includes(String(args.title ?? ""))) ??
-            db.tasks.find((x) => x.id === args.title);
+          const q = String(args.title ?? "").trim();
+          const t = matchByTitle(db.tasks, q);
           if (!t) {
-            out.push({ name: a.name, ok: false, detail: "المهمة غير موجودة" });
+            out.push({ name: a.name, ok: false, detail: `لم أجد مهمة «${q}»` });
             break;
           }
           if (args.points !== undefined) t.points = Math.max(1, Number(args.points));
           if (args.active !== undefined) t.active = Boolean(args.active);
+          if (args.newTitle !== undefined) t.title = String(args.newTitle);
+          if (args.target !== undefined) t.target = String(args.target).replace(/^@/, "");
           out.push({ name: a.name, ok: true, detail: t.title });
           break;
         }
-        case "set_price": {
-          const r = matchReward(db.rewards, String(args.title ?? ""));
-          if (!r) {
-            out.push({ name: a.name, ok: false, detail: "الجائزة غير موجودة" });
-            break;
-          }
-          r.cost = Math.max(1, Number(args.cost ?? r.cost));
-          out.push({ name: a.name, ok: true, detail: `${r.title} → ${r.cost}` });
-          break;
-        }
         case "edit_contest": {
-          const c =
-            db.contests.find((x) => x.title.includes(String(args.title ?? ""))) ??
-            db.contests.find((x) => x.id === args.title);
+          const q = String(args.title ?? "").trim();
+          const c = matchByTitle(db.contests, q);
           if (!c) {
-            out.push({ name: a.name, ok: false, detail: "المسابقة غير موجودة" });
+            out.push({ name: a.name, ok: false, detail: `لم أجد مسابقة «${q}»` });
             break;
           }
+          if (args.newTitle !== undefined) c.title = String(args.newTitle);
           if (args.prize !== undefined) c.prize = String(args.prize);
           if (args.desc !== undefined) c.desc = String(args.desc);
           if (args.winnersCount !== undefined) c.winnersCount = Math.max(1, Number(args.winnersCount));
           if (args.days !== undefined) c.endsAt = new Date(Date.now() + Math.max(1, Number(args.days)) * 86400_000).toISOString();
           if (args.image !== undefined) c.image = String(args.image || "");
+          if (args.buttonLabel !== undefined) c.buttonLabel = String(args.buttonLabel);
+          if (args.buttonUrl !== undefined) c.buttonUrl = String(args.buttonUrl);
           out.push({ name: a.name, ok: true, detail: c.title });
           break;
         }
         case "delete_contest": {
           const q = String(args.title ?? "").trim();
-          const before = db.contests.length;
-          const norm2 = (v: string) => v.toLowerCase().replace(/[\s_\-]+/g, "");
-          const K = norm2(q);
-          let hit = db.contests.filter((c) => K && (norm2(c.title).includes(K) || K.includes(norm2(c.title))));
-          if (!hit.length && K) {
-            const w = q.split(/\s+/).filter((x) => x.length > 2);
-            hit = db.contests.filter((c) => w.some((x) => norm2(c.title).includes(norm2(x))));
+          if (!q) {
+            out.push({ name: a.name, ok: false, detail: "حدّد اسم المسابقة" });
+            break;
           }
-          if (hit.length) db.contests = db.contests.filter((c) => !hit.some((h) => h.id === c.id));
-          out.push({
-            name: a.name,
-            ok: db.contests.length < before,
-            detail: hit.length ? hit.map((c) => c.title).join(", ") : `لم أجد مسابقة «${q}»`,
-          });
+          const hit = matchByTitle(db.contests, q);
+          if (hit) {
+            db.contests = db.contests.filter((c) => c.id !== hit.id);
+            out.push({ name: a.name, ok: true, detail: hit.title });
+          } else {
+            out.push({ name: a.name, ok: false, detail: `لم أجد مسابقة «${q}»` });
+          }
           break;
         }
         case "set_extra_join": {
@@ -1104,7 +1120,70 @@ export async function planPrompt(db: DB, prompt: string): Promise<Plan & { built
   return { ...localPlan(prompt), builtin: true };
 }
 
+/* ترجمة أسماء العمليات المرادفة التي قد يولّدها الموديل */
+const OP_ALIASES: Record<string, string> = {
+  set_price: "edit_reward",
+  setrewardprice: "edit_reward",
+  change_price: "edit_reward",
+  update_price: "edit_reward",
+  set_reward_price: "edit_reward",
+  change_reward_price: "edit_reward",
+  update_reward: "edit_reward",
+  remove_reward: "delete_reward",
+  delete_prize: "delete_reward",
+  add_prize: "add_reward",
+  create_reward: "add_reward",
+  create_task: "add_task",
+  remove_task: "delete_task",
+  update_task: "edit_task",
+  create_contest: "add_contest",
+  update_contest: "edit_contest",
+  remove_contest: "delete_contest",
+  delete_broadcast: "broadcast",
+  send_broadcast: "broadcast",
+  set_settings: "set_points",
+  toggle_feature: "set_feature",
+  set_maintenance: "set_bot",
+  set_username: "set_bot",
+  add_channel: "set_extra_join",
+  add_wheel_slice_: "add_wheel_slice",
+};
+
+function coerceNumber(args: Record<string, unknown>, k: string) {
+  const v = args[k];
+  if (v === undefined || v === null || v === "") return;
+  if (typeof v !== "string" && typeof v !== "number") return;
+  const n = Number(String(v).replace(/[^\d.\-]/g, ""));
+  if (Number.isFinite(n)) args[k] = n;
+}
+
+function normalizeAction(a: Action): Action {
+  const raw = String(a.name ?? "").trim();
+  const key = raw.toLowerCase().replace(/[\s\-]+/g, "_");
+  const name = OP_ALIASES[key] ?? (OP_ALIASES[raw] ? OP_ALIASES[raw] : raw);
+  const args: Record<string, unknown> = { ...(a.args ?? {}) };
+  const fixed = OP_ALIASES[key] ?? name;
+
+  // توحيد الحقول المرادفة
+  if (fixed === "edit_reward" || fixed === "delete_reward" || fixed === "add_reward") {
+    if (args.title === undefined) args.title = args.name ?? args.query ?? args.reward;
+    if (args.cost === undefined) args.cost = args.price ?? args.points ?? args.value;
+  }
+  if (fixed === "add_task" || fixed === "edit_task" || fixed === "delete_task") {
+    if (args.title === undefined) args.title = args.name ?? args.query ?? args.task;
+    if (args.points === undefined) args.points = args.reward ?? args.value;
+  }
+  if (fixed === "add_contest" || fixed === "edit_contest" || fixed === "delete_contest") {
+    if (args.title === undefined) args.title = args.name ?? args.query ?? args.contest;
+    if (args.prize === undefined) args.prize = args.reward ?? args.value;
+  }
+  for (const k of ["cost", "days", "winnersCount", "amount"] as const) coerceNumber(args, k);
+  // points قد تكون كائنًا (set_points) فلا نلمسها إلا إذا كانت رقمًا/نصًا
+  if (typeof args.points === "string" || typeof args.points === "number") coerceNumber(args, "points");
+  return { name: fixed, args };
+}
+
 export async function runActions(db: DB, actions: Action[]): Promise<ActionResult[]> {
-  return runActionsImpl(db, actions);
+  return runActionsImpl(db, actions.map(normalizeAction));
 }
 

@@ -11,13 +11,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const CASES = [
+type Case = { q: string; expectOk?: boolean };
+
+const CASES: (string | Case)[] = [
   "ضيف جائزة كونت بيس 3 بـ 120 نقطة",
   "احذف جائزة نتفليكس",
   "خلي سعر نتفليكس 15 نقطة",
   "أضف مهمة اشترك في قناة @mxabdou مقابل 4 نقاط",
   "أنشئ مسابقة رمضان بجائزة 200 نقطة لمدة 10 أيام",
-  "احذف مسابقة رمضان",
+  { q: "احذف مسابقة رمضان", expectOk: false }, // لا وجود لها → يجب أن يفشل بصراحة
   "اجعل الهدية اليومية من 3 إلى 6 نقاط",
   "ارفع مكافأة الإحالة إلى 7 نقاط",
   "غير اسم البوت الى مسابقات MX الرسمي",
@@ -37,7 +39,9 @@ export async function GET(req: Request) {
   const rows: Record<string, unknown>[] = [];
   let pass = 0;
 
-  for (const q of CASES) {
+  for (const item of CASES) {
+    const q = typeof item === "string" ? item : item.q;
+    const expectOk = typeof item === "string" ? true : item.expectOk !== false;
     const db = freshDB();
     // حالة أولية واقعية: نفس جوائز/مهام البوت
     const before = {
@@ -78,15 +82,19 @@ export async function GET(req: Request) {
     };
 
     // التغيّر الحقيقي في الوثيقة — ليس مجرد "ok"
+    const snap = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v));
     const changed = (Object.keys(before) as (keyof typeof before)[]).filter(
-      (k) => before[k] !== after[k]
+      (k) => snap(before[k]) !== snap(after[k])
     );
-    const okAll = results.length > 0 && results.every((r) => r.ok) && changed.length > 0;
+    const okAll = expectOk
+      ? results.length > 0 && results.every((r) => r.ok) && changed.length > 0
+      : results.length > 0 && results.every((r) => !r.ok) && changed.length === 0;
     if (okAll) pass += 1;
 
     rows.push({
       q,
       ok: okAll,
+      expectOk,
       provider: plan.provider,
       actions: results.map((r) => `${r.name}${r.ok ? "✓" : "✗"}${r.detail ? `=${r.detail}` : ""}`),
       changedFields: changed,
