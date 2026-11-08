@@ -143,13 +143,148 @@ export function localPlan(prompt: string): Plan {
   // أي طلب يحتوي «قناة @...» + كلمة اشتراك
   if (
     !actions.some((a) => a.name === "set_force_join") &&
-    /(اشتراك|اشترك|اشتركو|join)/.test(p) &&
-    /(قناه|قناة|channel)/.test(p) &&
+    /(اشتراك اجباري|قناه الاشتراك|قناة الاشتراك|force.?join|اجعل.*قناه|خلي.*قناه)/.test(p) &&
     /@[a-zA-Z0-9_]{3,32}/.test(prompt)
   ) {
     const u = prompt.match(/@[a-zA-Z0-9_]{3,32}/)![0];
     actions.push({ name: "set_force_join", args: { enabled: true, username: u } });
     reply.push(`قناة الاشتراك الإجباري: ${u}`);
+  }
+
+  /* ───────────── مُفسِّر عام أوسع: يغطّي صيغًا كثيرة بالعربية والفرنسية ───────────── */
+
+  // أسماء للتوجيه بالعامية (نقّص/زيد/بدّل/خلي/سوّي…)
+  const wantsChange = /(غير|غيّر|بدل|بدّل|خلي|خلّي|سوي|سوّي|اجعل|عدل|عدّل|نقص|زيد|ارفع|خفض|اضبط|ظبط|حول|حول|rend|change|set|make|update)/.test(p);
+
+  // المهام: «أضف مهمة ... مقابل N نقطة»
+  if (!actions.some((a) => a.name === "add_task") && /(مهمه|مهمة|task)/.test(p) && wantsChange) {
+    const m = prompt.match(/(?:مهمه|مهمة|task)\s*:?\s*([\s\S]+?)(?:\s+(?:مقابل|ب|بـ|بسعر|سعر|=)\s*\d|$)/i);
+    const title = (m?.[1] ?? "").trim().replace(/[.،,]$/, "").slice(0, 80);
+    if (title.length > 2) {
+      const isChannel = /@[a-zA-Z0-9_]{3,32}/.test(title);
+      const handle = title.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] ?? "";
+      actions.push({
+        name: "add_task",
+        args: {
+          title: isChannel ? `اشترك في قناة ${handle}` : title,
+          points: nums[0] ?? 2,
+          type: isChannel ? "channel" : "custom",
+          target: handle.replace(/^@/, ""),
+          repeat: /(يومي|كل يوم|daily)/.test(p) ? "daily" : "once",
+        },
+      });
+      reply.push(`أضفت المهمة «${isChannel ? `اشترك في ${handle}` : title}» مقابل ${nums[0] ?? 2} نقطة.`);
+    }
+  }
+
+  // الحذف (جائزة/مهمة)
+  if (!actions.some((a) => a.name.startsWith("delete_"))) {
+    if (/(احذف|امسح|الغي|شيل|delete|remove)/.test(p) && /(جائزه|جائزة|reward)/.test(p)) {
+      const name = prompt.split(/(?:جائزه|جائزة|reward)/i).pop()?.replace(/^[:\s]+/, "").trim() ?? "";
+      if (name.length > 1) {
+        actions.push({ name: "delete_reward", args: { title: name } });
+        reply.push(`حذفت الجائزة «${name}».`);
+      }
+    }
+    if (/(احذف|امسح|الغي|شيل|delete|remove)/.test(p) && /(مهمه|مهمة|task)/.test(p)) {
+      const name = prompt.split(/(?:مهمه|مهمة|task)/i).pop()?.replace(/^[:\s]+/, "").trim() ?? "";
+      if (name.length > 1) {
+        actions.push({ name: "delete_task", args: { title: name } });
+        reply.push(`حذفت المهمة «${name}».`);
+      }
+    }
+  }
+
+  // تعديل سعر جائزة موجودة
+  if (!actions.some((a) => a.name === "edit_reward") && /(سعر|ثمن|نقطه|نقاط|price|cost)/.test(p) && nums.length) {
+    const known = ["netflix", "google play", "coinbase", "بيس", "نتفليكس", "جوجل", "بوت"];
+    const hit = known.find((k) => p.includes(k));
+    if (hit && /(غير|غيّر|عدل|عدّل|خلي|خلّي|بدل|بدّل|اجعل|خفض|ارفع)/.test(p)) {
+      actions.push({ name: "edit_reward", args: { title: hit, cost: nums[0] } });
+      reply.push(`جعلت سعر «${hit}» = ${nums[0]} نقطة.`);
+    }
+  }
+
+  // تشغيل/إيقاف ميزة
+  if (!actions.some((a) => a.name === "set_feature")) {
+    const feats: [RegExp, string, string][] = [
+      [/(هديه|هدية|daily)/, "daily", "الهدية اليومية"],
+      [/(عجله|عجلة|wheel)/, "wheel", "عجلة الحظ"],
+      [/(متصدر|ترتيب|leaderboard)/, "leaderboard", "المتصدرون"],
+      [/(احال|إحال|referral)/, "referrals", "الإحالات"],
+      [/(مهم|مهام|task)/, "tasks", "المهام"],
+      [/(متجر|shop)/, "shop", "المتجر"],
+      [/(مسابق|contest)/, "contests", "المسابقات"],
+    ];
+    if (/(اطفي|اطفئ|اوقف|ايقاف|عطل|الغ|disable|off)/.test(p)) {
+      const f = feats.find(([re]) => re.test(p));
+      if (f) {
+        actions.push({ name: "set_feature", args: { feature: f[1], enabled: false } });
+        reply.push(`أوقفت ${f[2]}.`);
+      }
+    } else if (/(شغل|شغّل|فعّل|فعل|تشغيل|enable|turn on)/.test(p)) {
+      const f = feats.find(([re]) => re.test(p));
+      if (f) {
+        actions.push({ name: "set_feature", args: { feature: f[1], enabled: true } });
+        reply.push(`شغّلت ${f[2]}.`);
+      }
+    }
+  }
+
+  // حظر / VIP / منح نقاط بأي صيغة
+  if (!actions.some((a) => ["ban_user", "vip_user", "set_points_for", "add_points"].includes(a.name))) {
+    const who = prompt.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] || prompt.match(/\b\d{6,}\b/)?.[0];
+    if (who) {
+      if (/(احظر|حظر|ban)/.test(p)) {
+        actions.push({ name: "ban_user", args: { query: who } });
+        reply.push(`حظرت ${who}.`);
+      } else if (/(vip|في اي بي|مميز)/.test(p)) {
+        actions.push({ name: "vip_user", args: { query: who } });
+        reply.push(`رقّيت ${who} إلى VIP.`);
+      } else if (nums.length && /(نقط|point)/.test(p)) {
+        actions.push({ name: "set_points_for", args: { query: who, amount: nums[0] } });
+        reply.push(`جعلت رصيد ${who} = ${nums[0]} نقطة.`);
+      }
+    }
+  }
+
+  // مسابقة سريعة
+  const contestIntent =
+    /(انشئ|أنشئ|اعمل|سوي|سوّي|اضف|أضف|جهز|جهّز|new|create|add)/.test(p) && /(مسابق|contest|tournament)/.test(p);
+  if (!actions.some((a) => a.name === "add_contest") && contestIntent) {
+    const title = prompt.replace(/^[^:]*[:：]\s*/, "").slice(0, 60) || "مسابقة MX";
+    const days = /(يوم|day)/.test(p) ? (nums.find((n) => n > 0 && n <= 60) ?? 7) : 7;
+    actions.push({
+      name: "add_contest",
+      args: { title, desc: title, prize: nums[0] ?? 50, winnersCount: 1, days },
+    });
+    reply.push(`أنشأت مسابقة «${title}» بجائزة ${nums[0] ?? 50} نقطة لمدة ${days} يوم.`);
+  }
+
+  // نص الترحيب / الدعم / المشاركة
+  if (!actions.some((a) => a.name === "set_texts")) {
+    const rulesM = prompt.match(/(?:ترحيب|رساله الترحيب|welcome)\s*:?\s*([\s\S]{6,})/i);
+    if (rulesM) {
+      actions.push({ name: "set_texts", args: { texts: { startBody: rulesM[1].trim().slice(0, 1200) } } });
+      reply.push("حدّثت رسالة الترحيب.");
+    }
+    const supM = prompt.match(/(?:دعم|support)\s*:?\s*([\s\S]{4,})/i);
+    if (supM) {
+      actions.push({ name: "set_texts", args: { texts: { support: supM[1].trim().slice(0, 800) } } });
+      reply.push("حدّثت نص الدعم.");
+    }
+  }
+
+  // اسم البوت بصيغ أخرى
+  if (!actions.some((a) => a.name === "set_bot" && "botName" in (a.args as object))) {
+    const m =
+      prompt.match(/(?:اسم البوت|bot name)\s*(?:الى|إلى|:|=)?\s*([^\n]{2,40})/i) ||
+      prompt.match(/(?:سمّ?ي البوت|خلي اسمه|غير الاسم)\s*([^\n]{2,40})/i);
+    if (m) {
+      const name = m[1].trim().slice(0, 40);
+      actions.push({ name: "set_bot", args: { botName: name } });
+      reply.push(`اسم البوت أصبح: ${name}`);
+    }
   }
 
   const text =

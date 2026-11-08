@@ -70,7 +70,7 @@ assert.ok(db.tasks.some((t) => t.title.includes("شاهد")), "المهمة أُ
 log("أُضيفت مهمة: " + db.tasks.at(-1).title);
 
 // 8) اشتراك إجباري
-p = localPlan("الاشتراك الإجباري على قناة @newchannel");
+p = localPlan("اجعل قناة الاشتراك الإجباري @newchannel");
 await runActions(db, p.actions);
 assert.strictEqual(db.settings.forceJoin.username, "newchannel");
 log("قناة الاشتراك: @" + db.settings.forceJoin.username);
