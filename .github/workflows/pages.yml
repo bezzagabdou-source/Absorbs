@@ -29,6 +29,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: enable pages (first run)
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
       - name: build artifact
         run: |
           mkdir -p _site
