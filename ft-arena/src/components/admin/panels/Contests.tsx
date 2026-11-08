@@ -10,6 +10,9 @@ type C = {
   winnersCount: number;
   endsAt: string;
   status: string;
+  image?: string;
+  buttonLabel?: string;
+  buttonUrl?: string;
   winners?: { userId: number; name: string; points: number }[];
 };
 
@@ -21,12 +24,19 @@ const blank: C = {
   winnersCount: 3,
   endsAt: new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 16),
   status: "active",
+  image: "",
+  buttonLabel: "",
+  buttonUrl: "",
 };
 
 export default function Contests() {
   const [list, setList] = useState<C[]>([]);
   const [edit, setEdit] = useState<C | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [genOpen, setGenOpen] = useState(false);
+  const [genPrompt, setGenPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -37,6 +47,44 @@ export default function Contests() {
     }
   }, []);
   useEffect(() => void load(), [load]);
+
+  async function upload(file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+      const data = (await res.json()) as { ok?: boolean; url?: string; error?: string };
+      if (!res.ok || !data.ok || !data.url) throw new Error(data.error ?? "فشل الرفع");
+      setEdit((e) => (e ? { ...e, image: data.url! } : e));
+      toast("تم رفع الصورة ✅", "ok");
+    } catch (e) {
+      toast((e as Error).message, "err");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function generate() {
+    if (!edit || genPrompt.trim().length < 3) return;
+    setGenerating(true);
+    try {
+      const r = await api<{ url: string }>("/api/admin/image", {
+        prompt: `${genPrompt.trim()} — contest banner for a Telegram giveaway, wide 16:9 composition,
+        bold arabic-friendly negative space at the top, luxury gold and deep-blue palette,
+        premium 3d render, cinematic rim light, high detail, no text, no watermark`,
+        width: 1280,
+        height: 720,
+      });
+      setEdit((e) => (e ? { ...e, image: r.url } : e));
+      setGenOpen(false);
+      toast("تم توليد الصورة ✅", "ok");
+    } catch (e) {
+      toast((e as Error).message, "err");
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   async function save() {
     if (!edit) return;
@@ -70,6 +118,14 @@ export default function Contests() {
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
         {list.map((c) => (
           <div key={c.id} className="card" style={{ padding: 14, opacity: c.status === "active" ? 1 : 0.6 }}>
+            {c.image && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={c.image}
+                alt={c.title}
+                style={{ width: "100%", height: 130, objectFit: "cover", borderRadius: 12, marginBottom: 10, border: "1px solid var(--line)" }}
+              />
+            )}
             <div className="row-between">
               <h3 style={{ fontSize: 15 }}>{c.title}</h3>
               <span className={`badge ${c.status === "active" ? "badge-green" : "badge-muted"}`}>
@@ -135,6 +191,59 @@ export default function Contests() {
       >
         {edit && (
           <>
+            <Field label="صورة المسابقة (بانر)">
+              <div className="col" style={{ gap: 8 }}>
+                {edit.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={edit.image}
+                    alt="بانر"
+                    style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)" }}
+                  />
+                ) : (
+                  <div className="card-soft" style={{ padding: 18, textAlign: "center", fontSize: 12 }}>
+                    <div className="muted-2">لا توجد صورة بعد</div>
+                  </div>
+                )}
+                <div className="row wrap" style={{ gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setGenOpen(true)}
+                    disabled={generating}
+                  >
+                    🎨 توليد بالذكاء
+                  </button>
+                  <label className="btn btn-emerald btn-sm" style={{ cursor: uploading ? "wait" : "pointer" }}>
+                    {uploading ? <Spinner /> : "📤 رفع صورة من الجهاز"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      disabled={uploading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void upload(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <input
+                    className="input"
+                    style={{ flex: 1, minWidth: 150 }}
+                    placeholder="أو الصق رابط صورة https://…"
+                    value={edit.image ?? ""}
+                    onChange={(e) => setEdit({ ...edit, image: e.target.value })}
+                    dir="ltr"
+                  />
+                  {edit.image && (
+                    <button className="btn btn-danger btn-sm" onClick={() => setEdit({ ...edit, image: "" })}>
+                      🗑️
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Field>
             <Field label="العنوان"><input className="input" value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></Field>
             <Field label="الوصف"><textarea className="textarea" rows={3} value={edit.desc} onChange={(e) => setEdit({ ...edit, desc: e.target.value })} /></Field>
             <div className="row">
@@ -144,8 +253,54 @@ export default function Contests() {
             <Field label="تاريخ الانتهاء">
               <input className="input" type="datetime-local" value={edit.endsAt} onChange={(e) => setEdit({ ...edit, endsAt: e.target.value })} />
             </Field>
+            <div className="grid duo">
+              <Field label="نص الزر (اختياري)">
+                <input
+                  className="input"
+                  value={edit.buttonLabel ?? ""}
+                  onChange={(e) => setEdit({ ...edit, buttonLabel: e.target.value })}
+                  placeholder="🔗 شارك الآن"
+                />
+              </Field>
+              <Field label="رابط الزر (اختياري)">
+                <input
+                  className="input"
+                  value={edit.buttonUrl ?? ""}
+                  onChange={(e) => setEdit({ ...edit, buttonUrl: e.target.value })}
+                  placeholder="https://t.me/…"
+                  dir="ltr"
+                />
+              </Field>
+            </div>
           </>
         )}
+      </Modal>
+
+      <Modal
+        open={genOpen}
+        onClose={() => setGenOpen(false)}
+        title="🎨 توليد صورة المسابقة"
+        footer={
+          <>
+            <button className="btn btn-ghost" onClick={() => setGenOpen(false)}>
+              إلغاء
+            </button>
+            <button className="btn btn-primary" disabled={generating || genPrompt.trim().length < 3} onClick={generate}>
+              {generating ? <Spinner /> : "🎨 توليد"}
+            </button>
+          </>
+        }
+      >
+        <Field label="وصف الصورة" hint="مثال: كأس ذهبي على خلفية داكنة مع أضواء احتفالية">
+          <textarea
+            className="textarea"
+            rows={3}
+            value={genPrompt}
+            onChange={(e) => setGenPrompt(e.target.value)}
+            placeholder="اكتب وصفًا بسيطًا…"
+          />
+        </Field>
+        <p className="hint">تُولَّد بمقاس بانر 1280×720 وتُرفع تلقائيًا إلى التخزين.</p>
       </Modal>
     </div>
   );

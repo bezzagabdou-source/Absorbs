@@ -39,6 +39,9 @@ export async function POST(req: Request) {
             winnersCount: Number(c.winnersCount ?? ex.winnersCount),
             endsAt: c.endsAt ?? ex.endsAt,
             status: c.status ?? ex.status,
+            image: c.image === undefined ? ex.image : String(c.image || ""),
+            buttonLabel: c.buttonLabel === undefined ? ex.buttonLabel : String(c.buttonLabel || ""),
+            buttonUrl: c.buttonUrl === undefined ? ex.buttonUrl : String(c.buttonUrl || ""),
           });
           return { contest: ex };
         }
@@ -50,6 +53,9 @@ export async function POST(req: Request) {
           winnersCount: Math.max(1, Number(c.winnersCount ?? 3)),
           endsAt: c.endsAt ?? new Date(Date.now() + 7 * 86400_000).toISOString(),
           status: "active",
+          image: String(c.image || ""),
+          buttonLabel: String(c.buttonLabel || ""),
+          buttonUrl: String(c.buttonUrl || ""),
         };
         db.contests.push(created);
         logActivity(db, { actor: "admin", icon: "🏅", title: `إنشاء مسابقة: ${created.title}` });

@@ -30,6 +30,7 @@ import {
   link,
   safeTg,
   sendAlbum,
+  sendPhoto,
   sendMessage,
   setMyCommands,
   setMyDescription,
@@ -930,6 +931,17 @@ async function handleCallback(q: TgCallback, db: DB) {
   }
   if (action === "contests") {
     await answerCb(q.id);
+    const active = db.contests.filter((c) => c.status === "active" && c.image);
+    const first = active[0];
+    if (first?.image) {
+      // مسابقة بصورتها: نُرسل بطاقة مصوّرة، ونعدّل نص القائمة تحتها
+      const kb = inline([
+        ...(first.buttonUrl ? [[{ text: first.buttonLabel || "🔗 تفاصيل المسابقة", url: first.buttonUrl }]] : []),
+        [{ text: "🏆 المتصدرون", data: "cb:top" }, { text: "🔙 رجوع", data: "cb:home" }],
+      ]);
+      await sendPhoto(msg.chat.id, first.image, contestsText(db), kb);
+      return;
+    }
     await show(contestsText(db), inline([[{ text: "🏆 المتصدرون", data: "cb:top" }, { text: "🔙 رجوع", data: "cb:home" }]]));
     return;
   }

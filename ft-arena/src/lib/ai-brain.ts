@@ -17,26 +17,44 @@ const safeDetail = (e: unknown): string => (e instanceof Error ? e.message : Str
 
 
 
-const SYSTEM = `أنت "مسابقات MX Brain" — مساعد تحكم ذكي لبوت تيليجرام للمسابقات والنقاط.
-مهمتك: ترجمة طلب الأدمن (بالعربية أو الفرنسية أو الإنجليزية) إلى JSON فقط لتنفيذ عمليات على البوت.
+const SYSTEM = `أنت "محرّك مسابقات MX" — مساعد تحكم ذكي لبوت تيليجرام للمسابقات والنقاط.
+مهمتك: ترجمة طلب الأدمن (بالعربية/الدارجة/الفرنسية/الإنجليزية) إلى JSON فقط لتنفيذ عمليات حقيقية على البوت.
 أعد دائمًا JSON صالحًا فقط بهذا الشكل:
 {"reply":"رسالة قصيرة للمدير بالعربية","actions":[{"name":"...","args":{...}}]}
-العمليات المتاحة:
-set_points {points:{"dailyMin":1,"dailyMax":3,"refJoin":3,"refActive":2,"wheelCooldownHours":12,"streakBonus":1}}
-set_texts {texts:{"startBody":"...","rules":"...","support":"...","shareText":"..."}}
-set_bot {botName?, brandEmoji?, maintenance?:boolean, botEnabled?:boolean}
+
+⛔ قاعدة ذهبية: لا تقل "تم" أبدًا في reply. النظام سيضيف تأكيد النتيجة الحقيقي تلقائيًا.
+   reply = شرح مختصر لما ستفعله فقط. إذا لم تفهم الطلب، اشرح ما ينقصك ولا تُرجع actions.
+
+العمليات المتاحة (استخدم أسماءها حرفيًا):
+set_points {points:{"dailyMin":1,"dailyMax":3,"refJoin":3,"refActive":2,"wheelCooldownHours":12,"streakBonus":1,"streakEveryDays":3,"wheelExtraPerRefs":3}}
+set_texts {texts:{"startBody":"...","startTitle":"...","rules":"...","support":"...","shareText":"...","startButton":"..."}}
+set_bot {botName?, brandEmoji?, maintenance?:boolean, botEnabled?:boolean, lang?}
 set_feature {feature:"daily|wheel|leaderboard|referrals|tasks|shop|contests", enabled:boolean}
-set_force_join {enabled:boolean, username:"@..." , title?:"..."}
-add_reward {title, cost, desc?, emoji?, delivery?, stock?}
-edit_reward {title, cost?, desc?, active?}
+set_force_join {enabled:boolean, username:"@...", title?}
+set_extra_join {enabled:boolean, username:"@...", title?}   // قناة إضافية للاشتراك
+add_reward {title, cost, desc?, emoji?, delivery?, stock?, image?}
+edit_reward {title, cost?, desc?, active?, image?, emoji?}
 delete_reward {title}
 add_task {title, points, type:"channel|link|custom", target?, repeat:"once|daily", emoji?}
+edit_task {title, points?, active?}
 delete_task {title}
-add_points {user:"@username أو id", amount:number}
+add_contest {title, desc?, prize?, winnersCount?, days?, image?, buttonLabel?, buttonUrl?}
+edit_contest {title, prize?, desc?, winnersCount?, days?, image?}
+delete_contest {title}
+add_points {user:"@user أو id", amount:number}
+set_points_for {query, amount}
+ban_user {query} , unban_user {query} , vip_user {query}
 broadcast {text, buttonLabel?, buttonUrl?}
-add_contest {title, desc, prize, winnersCount, days}
-set_points_for {query, amount} , ban_user {query}, vip_user {query}
-لا تخترع عمليات غير موجودة. إن كان الطلب غير واضح استخدم reply للتوضيح ولا تُرجع actions.`;
+add_wheel_slice {label, points, weight?}   // شريحة في عجلة الحظ
+set_price {title, cost}                    // اختصار لتعديل سعر جائزة
+
+قواعد:
+- استخدم set_points للهدية/الإحالات/العجلة/السلسلة.
+- "أضف/زد جائزة" → add_reward. "غيّر سعر/ثمن/نقاط X" → edit_reward أو set_price.
+- "أضف مهمة" → add_task؛ إذا ذُكرت قناة @ فالنوع channel مع target.
+- "مسابقة" → add_contest (days عدد الأيام).
+- "أعطِ/أضف نقاط لـ @user" → add_points بمقدار موجب. "خصم" → مقدار سالب.
+- إذا طلب المستخدم شيئًا غير موجود في القائمة، لا تخترع عملية — قل في reply ما هو غير مدعوم.`;
 
 /* ─────────────────────────── محرّك الفهم العربي المدمج ─────────────────────────── */
 
@@ -94,13 +112,37 @@ export function localPlan(prompt: string): Plan {
       reply.push(`تم تغيير اسم البوت إلى: ${m[1].trim().slice(0, 40)}`);
     }
   }
-  if (/(اضف جائزه|أضف جائزة|add reward|جائزه جديده|جائزة جديدة)/.test(p)) {
-    const titleMatch = prompt.match(/(?:جائزه|جائزة|reward)\s+(.+?)(?:\s+(?:ب|بسعر|سعر|price|cost)\s*|$)/i);
-    const title = titleMatch?.[1]?.trim().slice(0, 40) || "جائزة جديدة";
-    const cost = nums[0] ?? 20;
-    actions.push({ name: "add_reward", args: { title, cost, desc: `جائزة ${title}`, delivery: "يُسلّم بعد الموافقة." } });
+  if (
+    /(اضف|ضيف|زيد|أضف|حط|سجل).{0,12}(جائزه|جائزة|هديه|هدية|reward)/.test(p) ||
+    /(جائزه|جائزة)\s+جديد/.test(p)
+  ) {
+    // نستخرج العنوان بعد كلمة «جائزة»، ثم نقطع عند ذكر السعر
+    const after = prompt.split(/(?:جائزه|جائزة|reward)/i).pop() ?? "";
+    let title = after
+      .replace(/^[\s:：-]+/, "")
+      .replace(/\s*(?:بـ|بِـ|ب|بسعر|سعر|مقابل|price|cost)\s*[\d٠-٩]+.*$/i, "")
+      .replace(/\s+(?:بـ|بِـ|بسعر|مقابل)\s*$/i, "")
+      .trim()
+      .replace(/[.،,]$/, "")
+      .slice(0, 60);
+
+    // السعر = أكبر رقم في الطلب (يتجنّب الرقم داخل الاسم مثل «3»)
+    const priceMatch = prompt.match(/(?:بـ|بِـ|بسعر|سعر|مقابل|price|cost|=)\s*(\d+)/i);
+    const cost = priceMatch ? Number(priceMatch[1]) : nums.length ? Math.max(...nums) : 20;
+
+    // لو بقي رقم في نهاية العنوان (اسم مثل «كونت بيس 3») نُبقيه إن لم يكن هو السعر نفسه
+    if (Number(title.match(/(\d+)\s*$/)?.[1]) === cost) {
+      title = title.replace(/\s*\d+\s*$/, "").trim();
+    }
+    if (!title) title = "جائزة جديدة";
+
+    actions.push({
+      name: "add_reward",
+      args: { title, cost, desc: `جائزة ${title}`, delivery: "يُسلّم بعد الموافقة." },
+    });
     reply.push(`أضفت الجائزة «${title}» بسعر ${cost} نقطة.`);
   }
+
   if (/(خصم|نقص|خصم نقاط|remove points)/.test(p) && nums.length) {
     const who = prompt.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] || prompt.match(/\b\d{6,}\b/)?.[0];
     if (who) {
@@ -121,11 +163,36 @@ export function localPlan(prompt: string): Plan {
       reply.push("أرسلت البث لكل الأعضاء.");
     }
   }
-  if (/(اضف مهمه|أضف مهمة|add task)/.test(p)) {
-    const m = prompt.match(/(?:مهمه|مهمة|task)\s+(.+)/i);
-    const title = m?.[1]?.trim().slice(0, 60) || "مهمة جديدة";
-    actions.push({ name: "add_task", args: { title, points: nums[0] ?? 1, type: "custom", repeat: "once" } });
-    reply.push(`أضفت المهمة «${title}».`);
+  if (/(اضف مهمه|أضف مهمة|ضيف مهمه|ضيف مهمة|add task|زيد مهمه)/.test(p)) {
+    // نقسم الطلب عند «مهمة» ونستخرج العنوان والنقاط ونوع المهمة بدقة
+    const after = prompt.split(/(?:مهمه|مهمة|task)/i).pop() ?? "";
+    let title = after
+      .replace(/^[\s:：-]+/, "")
+      .replace(/\s*(?:مقابل|بسعر|بـ|بِـ|سعر|=)\s*[\d٠-٩].*$/i, "")
+      .replace(/\s*[\d٠-٩]+\s*(?:نقطه|نقطة|نقاط|point).*$/i, "")
+      .trim()
+      .replace(/[.،,]$/, "")
+      .slice(0, 80);
+
+    const handle = title.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] ?? "";
+    // النقاط المذكورة بعد «مقابل»
+    const ptsM = prompt.match(/(?:مقابل|بسعر|بـ|بِـ|=)\s*(\d+)/);
+    const points = ptsM ? Number(ptsM[1]) : nums.length ? nums[0] : 2;
+
+    if (handle) title = `اشترك في قناة ${handle}`;
+    if (!title) title = "مهمة جديدة";
+
+    actions.push({
+      name: "add_task",
+      args: {
+        title,
+        points,
+        type: handle ? "channel" : "custom",
+        target: handle.replace(/^@/, ""),
+        repeat: /(يومي|كل يوم|daily)/.test(p) ? "daily" : "once",
+      },
+    });
+    reply.push(`أضفت المهمة «${title}» مقابل ${points} نقطة.`);
   }
   if (/(قوانين|قانون|rules)/.test(p) && prompt.length > 25) {
     const m = prompt.match(/(?:قوانين|قانون|rules)\s*:?\s*([\s\S]+)/i);
@@ -154,15 +221,28 @@ export function localPlan(prompt: string): Plan {
   /* ───────────── مُفسِّر عام أوسع: يغطّي صيغًا كثيرة بالعربية والفرنسية ───────────── */
 
   // أسماء للتوجيه بالعامية (نقّص/زيد/بدّل/خلي/سوّي…)
-  const wantsChange = /(غير|غيّر|بدل|بدّل|خلي|خلّي|سوي|سوّي|اجعل|عدل|عدّل|نقص|زيد|ارفع|خفض|اضبط|ظبط|حول|حول|rend|change|set|make|update)/.test(p);
+  const wantsChange =
+    /(غير|غيّر|بدل|بدّل|خلي|خلّي|سوي|سوّي|اجعل|عدل|عدّل|نقص|زيد|ارفع|خفض|اضبط|ظبط|حول|rend|change|set|make|update|اضف|ضيف|أضف|حط|سجل|انشئ|أنشئ|اعمل|جهز|جهّز)/.test(
+      p
+    );
 
   // المهام: «أضف مهمة ... مقابل N نقطة»
   if (!actions.some((a) => a.name === "add_task") && /(مهمه|مهمة|task)/.test(p) && wantsChange) {
-    const m = prompt.match(/(?:مهمه|مهمة|task)\s*:?\s*([\s\S]+?)(?:\s+(?:مقابل|ب|بـ|بسعر|سعر|=)\s*\d|$)/i);
-    const title = (m?.[1] ?? "").trim().replace(/[.،,]$/, "").slice(0, 80);
+    const after = prompt.split(/(?:مهمه|مهمة|task)/i).pop() ?? "";
+    const title = after
+      .replace(/^[\s:：-]+/, "")
+      .replace(/\s*(?:مقابل|بسعر|بـ|بِـ|سعر|=)\s*[\d٠-٩].*$/i, "")
+      .replace(/\s*[\d٠-٩]+\s*(?:نقطه|نقطة|نقاط|point).*$/i, "")
+      .replace(/\s*(?:مقابل|بسعر)\s*$/i, "")
+      .trim()
+      .replace(/[.،,]$/, "")
+      .slice(0, 80);
+
+    // عنوان قصير ومفهوم إن كان النوع «اشتراك قناة»
+    const handleInTitle = title.match(/@[a-zA-Z0-9_]{3,32}/)?.[0];
     if (title.length > 2) {
-      const isChannel = /@[a-zA-Z0-9_]{3,32}/.test(title);
-      const handle = title.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] ?? "";
+      const isChannel = Boolean(handleInTitle);
+      const handle = handleInTitle ?? "";
       actions.push({
         name: "add_task",
         args: {
@@ -252,13 +332,35 @@ export function localPlan(prompt: string): Plan {
   const contestIntent =
     /(انشئ|أنشئ|اعمل|سوي|سوّي|اضف|أضف|جهز|جهّز|new|create|add)/.test(p) && /(مسابق|contest|tournament)/.test(p);
   if (!actions.some((a) => a.name === "add_contest") && contestIntent) {
-    const title = prompt.replace(/^[^:]*[:：]\s*/, "").slice(0, 60) || "مسابقة MX";
-    const days = /(يوم|day)/.test(p) ? (nums.find((n) => n > 0 && n <= 60) ?? 7) : 7;
+    // العنوان = الاسم بعد «مسابقة» قبل ذكر الجائزة/المدة
+    const after = prompt.split(/(?:مسابقه|مسابقة|contest)/i).pop() ?? "";
+    let title = after
+      .replace(/^[\s:：-]+/, "")
+      .replace(/\s*(?:بجائزه|بجائزة|بجائز|جائزته|بـ|بسعر|مقابل|لمده|لمدة|لمدة|ل\s*مدة)\s.*$/i, "")
+      .trim()
+      .slice(0, 60);
+    if (!title) title = "مسابقة MX";
+
+    // المدة: رقم قبل كلمة «يوم/أيام»
+    const daysM = prompt.match(/(\d+)\s*(?:يوم|أيام|ايام|days?)/i);
+    const days = daysM ? Math.max(1, Math.min(90, Number(daysM[1]))) : 7;
+    // الجائزة: نص بعد «بجائزة»، وإلا رقم
+    const prizeM = prompt.match(/(?:بجائزه|بجائزة|الجائزه|الجائزة|prize)\s*:?\s*([^\n,،]+)/i);
+    let prize = prizeM ? prizeM[1].trim() : `${nums[0] ?? 50} نقطة`;
+    // اقطع أي ذكر للمدة من نص الجائزة
+    prize = prize
+      .replace(/\s*(?:لمده|لمدة|لمدّة|ل\s*مدة|مدة|لمدة\s*)\s*\d+\s*(?:يوم|أيام|ايام|days?).*$/i, "")
+      .replace(/\s*(?:لمده|لمدة|ل\s*مدة|مدة)\s*$/i, "")
+      .replace(/[.،,]+$/, "")
+      .trim()
+      .slice(0, 60);
+    if (!prize) prize = `${nums[0] ?? 50} نقطة`;
+
     actions.push({
       name: "add_contest",
-      args: { title, desc: title, prize: nums[0] ?? 50, winnersCount: 1, days },
+      args: { title, desc: `مسابقة ${title}`, prize, winnersCount: 1, days },
     });
-    reply.push(`أنشأت مسابقة «${title}» بجائزة ${nums[0] ?? 50} نقطة لمدة ${days} يوم.`);
+    reply.push(`أنشأت مسابقة «${title}» — الجائزة: ${prize} • المدة: ${days} يوم.`);
   }
 
   // نص الترحيب / الدعم / المشاركة
@@ -284,6 +386,47 @@ export function localPlan(prompt: string): Plan {
       const name = m[1].trim().slice(0, 40);
       actions.push({ name: "set_bot", args: { botName: name } });
       reply.push(`اسم البوت أصبح: ${name}`);
+    }
+  }
+
+
+  /* ───────────── عمليات إضافية: تعديل/حذف مسابقات ومهام وقنوات ───────────── */
+
+  // مسابقة: تعديل أو حذف
+  if (/(مسابق|contest)/.test(p) && /(احذف|امسح|الغي|شيل|delete)/.test(p)) {
+    const name = prompt.split(/(?:مسابقه|مسابقة|contest)/i).pop()?.replace(/^[:\s]+/, "").trim() ?? "";
+    if (name.length > 1 && !actions.some((a) => a.name === "delete_contest")) {
+      actions.push({ name: "delete_contest", args: { title: name } });
+      reply.push(`حذف المسابقة «${name}».`);
+    }
+  }
+
+  // قناة إضافية للاشتراك
+  if (
+    /(قناه|قناة).{0,10}(اضافي|إضافي|زياده|زائدة|ثانيه|ثانية)/.test(p) ||
+    /(extra channel|additional channel)/.test(p)
+  ) {
+    const u = prompt.match(/@[a-zA-Z0-9_]{3,32}/)?.[0];
+    if (u && !actions.some((a) => a.name === "set_extra_join")) {
+      actions.push({ name: "set_extra_join", args: { enabled: true, username: u } });
+      reply.push(`أضفت قناة اشتراك إضافية: ${u}`);
+    }
+  }
+
+  // فك الحظر
+  if (/(الغ الحظر|فك الحظر|ارفع الحظر|unban)/.test(p)) {
+    const who = prompt.match(/@[a-zA-Z0-9_]{3,32}/)?.[0] || prompt.match(/\b\d{6,}\b/)?.[0];
+    if (who && !actions.some((a) => a.name === "unban_user")) {
+      actions.push({ name: "unban_user", args: { query: who } });
+      reply.push(`رفعت الحظر عن ${who}.`);
+    }
+  }
+
+  // شريحة عجلة
+  if (/(عجله|عجلة|wheel)/.test(p) && /(اضف|أضف|add|شريحه|شريحة)/.test(p) && nums.length) {
+    if (!actions.some((a) => a.name === "add_wheel_slice")) {
+      actions.push({ name: "add_wheel_slice", args: { label: `${nums[0]} نقطة`, points: nums[0] } });
+      reply.push(`أضفت شريحة ${nums[0]} نقطة إلى العجلة.`);
     }
   }
 
@@ -546,6 +689,74 @@ function parsePlan(raw: string | null): Plan | null {
 
 /* ─────────────────────────── تنفيذ العمليات ─────────────────────────── */
 
+/**
+ * مطابقة جوائز ذكية: تدعم التشكيل، المرادفات العربية/الإنجليزية،
+ * والأرقام اللاحقة (Google Play 1 / 2) مع اختيار الأنسب.
+ */
+const AR_EN: Record<string, string[]> = {
+  نتفليكس: ["netflix"],
+  نتقليكس: ["netflix"],
+  جوجل: ["google"],
+  قوقل: ["google"],
+  بلاي: ["play"],
+  كونت: ["coinbase", "coin"],
+  بيس: ["base", "pes"],
+  "كونت بيس": ["coinbase", "pes"],
+  بوت: ["bot", "بوت"],
+  موقع: ["site", "website"],
+  حساب: ["account"],
+};
+
+const stripDiacritics = (v: string) =>
+  v
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[إأآا]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .toLowerCase();
+
+function rewardKeywords(q: string): string[] {
+  const base = stripDiacritics(q).replace(/[^\w\s\u0600-\u06FF]/g, " ").trim();
+  const words = base.split(/\s+/).filter((w) => w.length > 1);
+  const out = new Set<string>(words);
+  for (const [ar, ens] of Object.entries(AR_EN)) {
+    if (base.includes(stripDiacritics(ar))) ens.forEach((e) => out.add(e));
+  }
+  return Array.from(out);
+}
+
+function matchReward<T extends { id: string; title: string; emoji?: string; desc?: string }>(
+  rewards: T[],
+  q: string
+): T | undefined {
+  const query = q.trim();
+  if (!query) return undefined;
+  const exact = rewards.find((r) => r.id === query);
+  if (exact) return exact;
+
+  const keys = rewardKeywords(query);
+  if (!keys.length) return undefined;
+
+  // الرقم في الطلب (Google Play 2) لتفضيل النسخة المطابقة
+  const wantedNum = query.match(/(\d+)\s*$/)?.[1];
+
+  const scored = rewards.map((r) => {
+    const hay = stripDiacritics(`${r.title} ${r.desc ?? ""} ${r.emoji ?? ""}`);
+    let score = 0;
+    for (const k of keys) if (hay.includes(stripDiacritics(k))) score += 2;
+    // تطابق نصي مباشر
+    if (hay.includes(stripDiacritics(query))) score += 6;
+    // تفضيل النسخة المرقّمة الصحيحة
+    if (wantedNum && new RegExp(`(^|\\s)${wantedNum}\\b`).test(stripDiacritics(r.title))) score += 3;
+    return { r, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored[0];
+  // نطلب حدًّا أدنى حتى لا نطابق جائزة عشوائية
+  return top && top.score >= 2 ? top.r : undefined;
+}
+
 function findUserByQuery(db: DB, q: string): User | undefined {
   const s = q.replace(/^@/, "").trim().toLowerCase();
   return Object.values(db.users).find(
@@ -606,15 +817,15 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
             active: true,
             delivery: String(args.delivery ?? "يتم التسليم بعد المراجعة."),
             order: db.rewards.length + 1,
+            ...(args.image ? { image: String(args.image) } : {}),
           };
           db.rewards.push(r);
           out.push({ name: a.name, ok: true, detail: `${r.title} (${r.cost})` });
           break;
         }
         case "edit_reward": {
-          const r =
-            db.rewards.find((x) => x.title.includes(String(args.title ?? "")) || x.id === args.title) ??
-            db.rewards.find((x) => String(args.title ?? "").toLowerCase().includes(x.title.toLowerCase()));
+          const q = String(args.title ?? "").trim();
+          const r = matchReward(db.rewards, q);
           if (!r) {
             out.push({ name: a.name, ok: false, detail: "الجائزة غير موجودة" });
             break;
@@ -622,13 +833,27 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
           if (args.cost !== undefined) r.cost = Math.max(1, Number(args.cost));
           if (args.desc !== undefined) r.desc = String(args.desc);
           if (args.active !== undefined) r.active = Boolean(args.active);
+          if (args.emoji !== undefined) r.emoji = String(args.emoji).slice(0, 4);
+          if (args.image !== undefined) r.image = String(args.image || "");
           out.push({ name: a.name, ok: true, detail: r.title });
           break;
         }
         case "delete_reward": {
+          const q = String(args.title ?? "").trim();
+          if (!q) {
+            out.push({ name: a.name, ok: false, detail: "حدّد اسم الجائزة" });
+            break;
+          }
           const before = db.rewards.length;
-          db.rewards = db.rewards.filter((x) => !x.title.includes(String(args.title ?? "___")));
-          out.push({ name: a.name, ok: db.rewards.length < before });
+          const one = matchReward(db.rewards, q);
+          const removed = one ? [one] : [];
+          const ids = new Set(removed.map((x) => x.id));
+          db.rewards = db.rewards.filter((x) => !ids.has(x.id));
+          out.push({
+            name: a.name,
+            ok: db.rewards.length < before,
+            detail: removed.length ? removed.map((x) => x.title).join(", ") : "لم أجد جائزة بهذا الاسم",
+          });
           break;
         }
         case "add_task": {
@@ -648,9 +873,29 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
           break;
         }
         case "delete_task": {
+          const q = String(args.title ?? "").trim();
           const before = db.tasks.length;
-          db.tasks = db.tasks.filter((x) => !x.title.includes(String(args.title ?? "___")));
-          out.push({ name: a.name, ok: db.tasks.length < before });
+          const score = (t: string) => {
+            const T = t.toLowerCase();
+            const K = q.toLowerCase();
+            if (!K) return 0;
+            if (T === K) return 4;
+            if (T.includes(K) || K.includes(T)) return 3;
+            const words = K.split(/\s+/).filter((w) => w.length > 2);
+            const hits = words.filter((w) => T.includes(w)).length;
+            return hits ? (hits / Math.max(1, words.length)) * 2 : 0;
+          };
+          const best = db.tasks.map((t) => ({ t, s: score(t.title) })).sort((a, b) => b.s - a.s)[0];
+          if (best && best.s >= 1.2) {
+            db.tasks = db.tasks.filter((x) => x.id !== best.t.id);
+            out.push({ name: a.name, ok: true, detail: best.t.title });
+          } else {
+            out.push({
+              name: a.name,
+              ok: false,
+              detail: `لم أجد مهمة مطابقة${q ? ` لـ «${q}»` : ""}`,
+            });
+          }
           break;
         }
         case "add_points": {
@@ -725,8 +970,112 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
             winnersCount: Math.max(1, Number(args.winnersCount ?? 3)),
             endsAt: new Date(Date.now() + Math.max(1, Number(args.days ?? 7)) * 86400_000).toISOString(),
             status: "active",
+            ...(args.image ? { image: String(args.image) } : {}),
+            ...(args.buttonLabel ? { buttonLabel: String(args.buttonLabel) } : {}),
+            ...(args.buttonUrl ? { buttonUrl: String(args.buttonUrl) } : {}),
           });
-          out.push({ name: a.name, ok: true });
+          out.push({ name: a.name, ok: true, detail: String(args.title ?? "") });
+          break;
+        }
+        case "unban_user": {
+          const u = findUserByQuery(db, String(args.query ?? ""));
+          if (!u) {
+            out.push({ name: a.name, ok: false, detail: "المستخدم غير موجود" });
+            break;
+          }
+          u.banned = false;
+          u.banReason = "";
+          out.push({ name: a.name, ok: true, detail: displayName(u) });
+          break;
+        }
+        case "edit_task": {
+          const t =
+            db.tasks.find((x) => x.title.includes(String(args.title ?? ""))) ??
+            db.tasks.find((x) => x.id === args.title);
+          if (!t) {
+            out.push({ name: a.name, ok: false, detail: "المهمة غير موجودة" });
+            break;
+          }
+          if (args.points !== undefined) t.points = Math.max(1, Number(args.points));
+          if (args.active !== undefined) t.active = Boolean(args.active);
+          out.push({ name: a.name, ok: true, detail: t.title });
+          break;
+        }
+        case "set_price": {
+          const r = matchReward(db.rewards, String(args.title ?? ""));
+          if (!r) {
+            out.push({ name: a.name, ok: false, detail: "الجائزة غير موجودة" });
+            break;
+          }
+          r.cost = Math.max(1, Number(args.cost ?? r.cost));
+          out.push({ name: a.name, ok: true, detail: `${r.title} → ${r.cost}` });
+          break;
+        }
+        case "edit_contest": {
+          const c =
+            db.contests.find((x) => x.title.includes(String(args.title ?? ""))) ??
+            db.contests.find((x) => x.id === args.title);
+          if (!c) {
+            out.push({ name: a.name, ok: false, detail: "المسابقة غير موجودة" });
+            break;
+          }
+          if (args.prize !== undefined) c.prize = String(args.prize);
+          if (args.desc !== undefined) c.desc = String(args.desc);
+          if (args.winnersCount !== undefined) c.winnersCount = Math.max(1, Number(args.winnersCount));
+          if (args.days !== undefined) c.endsAt = new Date(Date.now() + Math.max(1, Number(args.days)) * 86400_000).toISOString();
+          if (args.image !== undefined) c.image = String(args.image || "");
+          out.push({ name: a.name, ok: true, detail: c.title });
+          break;
+        }
+        case "delete_contest": {
+          const q = String(args.title ?? "").trim();
+          const before = db.contests.length;
+          const norm2 = (v: string) => v.toLowerCase().replace(/[\s_\-]+/g, "");
+          const K = norm2(q);
+          let hit = db.contests.filter((c) => K && (norm2(c.title).includes(K) || K.includes(norm2(c.title))));
+          if (!hit.length && K) {
+            const w = q.split(/\s+/).filter((x) => x.length > 2);
+            hit = db.contests.filter((c) => w.some((x) => norm2(c.title).includes(norm2(x))));
+          }
+          if (hit.length) db.contests = db.contests.filter((c) => !hit.some((h) => h.id === c.id));
+          out.push({
+            name: a.name,
+            ok: db.contests.length < before,
+            detail: hit.length ? hit.map((c) => c.title).join(", ") : `لم أجد مسابقة «${q}»`,
+          });
+          break;
+        }
+        case "set_extra_join": {
+          const uname = String(args.username ?? "").replace(/^@/, "");
+          if (!uname) {
+            out.push({ name: a.name, ok: false, detail: "اسم القناة مطلوب" });
+            break;
+          }
+          const list = db.settings.extraJoins ?? (db.settings.extraJoins = []);
+          const ex = list.find((j) => j.username === uname);
+          if (ex) {
+            ex.enabled = args.enabled === undefined ? true : Boolean(args.enabled);
+            if (args.title) ex.title = String(args.title);
+          } else {
+            list.push({
+              enabled: args.enabled === undefined ? true : Boolean(args.enabled),
+              username: uname,
+              title: String(args.title ?? `@${uname}`),
+              url: `https://t.me/${uname}`,
+              verify: true,
+            });
+          }
+          out.push({ name: a.name, ok: true, detail: `@${uname}` });
+          break;
+        }
+        case "add_wheel_slice": {
+          const pts = Math.max(0, Number(args.points ?? 1));
+          db.wheel.push({
+            label: String(args.label ?? `${pts} نقطة`),
+            points: pts,
+            weight: Math.max(1, Number(args.weight ?? 1)),
+          });
+          out.push({ name: a.name, ok: true, detail: `${args.label} (${pts})` });
           break;
         }
         default:

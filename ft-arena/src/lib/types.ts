@@ -103,6 +103,11 @@ export interface Contest {
   winnersCount: number;
   endsAt: string;
   status: "active" | "ended";
+  /** صورة/بانر المسابقة (رابط مباشر أو Blob) */
+  image?: string;
+  /** زر إضافي في بطاقة المسابقة داخل البوت */
+  buttonLabel?: string;
+  buttonUrl?: string;
   winners?: { userId: number; name: string; points: number }[];
 }
 
