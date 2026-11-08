@@ -31,16 +31,23 @@ export default function AIConsole() {
   const [apiBase, setApiBase] = useState("");
   const [model, setModel] = useState("");
   const [provider, setProvider] = useState("auto");
+  const [ready, setReady] = useState(false);
+  const [live, setLive] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void (async () => {
       try {
-        const r = await api<{ logs: Log[]; settings?: { provider?: string; model?: string; apiBase?: string; enabled?: boolean } }>(
-          "/api/admin/ai"
-        );
+        const r = await api<{
+          logs: Log[];
+          settings?: { provider?: string; model?: string; apiBase?: string; enabled?: boolean };
+          providers?: { name: string; configured: boolean }[];
+          ready?: boolean;
+        }>("/api/admin/ai");
         setLogs(r.logs ?? []);
+        setReady(Boolean(r.ready));
+        setLive((r.providers ?? []).filter((p) => p.configured).map((p) => p.name));
         setProvider(r.settings?.provider || "auto");
         setModel(r.settings?.model ?? "");
         setApiBase(r.settings?.apiBase ?? "");
@@ -99,8 +106,24 @@ export default function AIConsole() {
               <div className="muted-2" style={{ fontSize: 11 }}>اكتب أي شيء… والبوت يتعدّل ويُنشر فورًا</div>
             </div>
           </div>
-          <span className="badge badge-blue">AI</span>
+          <div className="row" style={{ gap: 6 }}>
+            <span className={`badge ${ready ? "badge-green" : "badge-muted"}`} style={{ fontSize: 10 }}>
+              {ready ? "🟢 متصل" : "⚪ مدمج"}
+            </span>
+            <span className="badge badge-blue">AI</span>
+          </div>
         </div>
+
+        {live.length > 0 && (
+          <div className="row wrap" style={{ padding: "8px 16px", borderBottom: "1px solid var(--line)", gap: 6 }}>
+            <span className="muted-2" style={{ fontSize: 10.5 }}>مزوّدون جاهزون:</span>
+            {live.map((n) => (
+              <span key={n} className="badge badge-green" style={{ fontSize: 9.5, padding: "1px 7px" }}>
+                {n}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div style={{ flex: 1, overflow: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           {chat.length === 0 && (

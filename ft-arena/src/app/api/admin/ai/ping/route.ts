@@ -1,0 +1,141 @@
+/**
+ * فحص حقيقي لمزوّدي الذكاء الاصطناعي (لا يكشف أي مفتاح).
+ * محميّ بسرّ الـ webhook: /api/admin/ai/ping?key=<WEBHOOK_SECRET>
+ */
+import { env } from "@/lib/env";
+import { loadDB } from "@/lib/store";
+import { planPrompt } from "@/lib/ai-brain";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+export async function GET(req: Request) {
+  const key = new URL(req.url).searchParams.get("key") ?? "";
+  if (!key || key !== env.webhookSecret) {
+    return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+
+  const db = await loadDB();
+  const saved = Boolean((db.settings.ai?.apiKey ?? "").trim());
+
+  // فحص الاتصال الفعلي بكل مزوّد مُهيّأ
+  const checks: { name: string; key: string; url: string; model: string; kind: "openai" | "gemini" }[] = [
+    {
+      name: "groq",
+      key: (process.env.GROQ_API_KEY ?? "").trim(),
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      model: (process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile").trim(),
+      kind: "openai",
+    },
+    {
+      name: "cerebras",
+      key: (process.env.CEREBRAS_API_KEY ?? "").trim(),
+      url: "https://api.cerebras.ai/v1/chat/completions",
+      model: (process.env.CEREBRAS_MODEL ?? "gpt-oss-120b").trim(),
+      kind: "openai",
+    },
+    {
+      name: "openrouter",
+      key: (process.env.OPENROUTER_API_KEY ?? "").trim(),
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      model: (process.env.OPENROUTER_MODEL ?? "google/gemini-2.0-flash-001").trim(),
+      kind: "openai",
+    },
+    {
+      name: "openai",
+      key: (process.env.OPENAI_API_KEY ?? "").trim(),
+      url: "https://api.openai.com/v1/chat/completions",
+      model: (process.env.OPENAI_MODEL ?? "gpt-4o-mini").trim(),
+      kind: "openai",
+    },
+    {
+      name: "gemini",
+      key: (process.env.GEMINI_API_KEY ?? "").trim(),
+      url: "https://generativelanguage.googleapis.com/v1beta/models",
+      model: (process.env.AI_MODEL ?? "gemini-2.5-flash").trim(),
+      kind: "gemini",
+    },
+  ];
+
+  const results = await Promise.all(
+    checks
+      .filter((c) => c.key)
+      .map(async (c) => {
+        const t0 = Date.now();
+        try {
+          const ctl = new AbortController();
+          const timer = setTimeout(() => ctl.abort(), 12000);
+          const res =
+            c.kind === "openai"
+              ? await fetch(c.url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.key}` },
+                  body: JSON.stringify({
+                    model: c.model,
+                    max_tokens: 20,
+                    messages: [{ role: "user", content: "قل: تم" }],
+                  }),
+                  cache: "no-store",
+                  signal: ctl.signal,
+                })
+              : await fetch(`${c.url}/${c.model}:generateContent?key=${encodeURIComponent(c.key)}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "قل: تم" }] }] }),
+                  cache: "no-store",
+                  signal: ctl.signal,
+                });
+          clearTimeout(timer);
+          const body = await res.text();
+          let err = "";
+          try {
+            const j = JSON.parse(body) as { error?: { message?: string } };
+            if (j.error?.message) err = j.error.message.slice(0, 160);
+          } catch {
+            /* ليس JSON */
+          }
+          return {
+            name: c.name,
+            ok: res.ok,
+            status: res.status,
+            ms: Date.now() - t0,
+            model: c.model,
+            error: res.ok ? null : err || body.slice(0, 120),
+          };
+        } catch (e) {
+          return {
+            name: c.name,
+            ok: false,
+            status: 0,
+            ms: Date.now() - t0,
+            model: c.model,
+            error: (e as Error).message.slice(0, 160),
+          };
+        }
+      })
+  );
+
+  // اختبار المحرّك كاملًا: طلب حقيقي من البوت
+  const t1 = Date.now();
+  let engine: Record<string, unknown> = {};
+  try {
+    const plan = await planPrompt(db, "اجعل الهدية اليومية من 2 إلى 4 نقاط");
+    engine = {
+      ok: plan.actions.length > 0,
+      provider: plan.provider,
+      actions: plan.actions.map((a) => a.name),
+      ms: Date.now() - t1,
+    };
+  } catch (e) {
+    engine = { ok: false, error: (e as Error).message.slice(0, 200) };
+  }
+
+  return Response.json({
+    ok: results.some((r) => r.ok) || engine.ok === true,
+    savedKeyInDb: saved,
+    providers: results,
+    engine,
+    note: results.length === 0 ? "لا يوجد أي مفتاح AI — المحرّك العربي المدمج فقط." : undefined,
+  });
+}

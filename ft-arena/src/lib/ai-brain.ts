@@ -415,20 +415,11 @@ function providerList(db: DB): { name: string; label: string; run: () => Promise
     });
   }
 
-  // Gemini (المفتاح المحفوظ في اللوحة يُعامل كمفتاح Gemini إن لم يوجد رابط مخصّص)
-  const gKey = savedKey && !savedBase ? savedKey : env("GEMINI_API_KEY");
-  if (gKey) {
-    list.push({
-      name: "gemini",
-      label: "Gemini",
-      run: () => callGemini("", "", gKey, savedModel || undefined),
-    });
-  }
-
+  // ⚡️ الترتيب مقصود: Groq أولًا (أسرع استجابة فعلية)، ثم Cerebras، ثم البقية
   const compat: { name: string; url: string; key: string; model: string }[] = [
-    { name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env("GROQ_API_KEY"), model: env("GROQ_MODEL") || "llama-3.3-70b-versatile" },
-    { name: "openrouter", url: "https://openrouter.ai/api/v1/chat/completions", key: env("OPENROUTER_API_KEY"), model: env("OPENROUTER_MODEL") || "google/gemini-2.0-flash-001" },
+    { name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env("GROQ_API_KEY"), model: savedModel || env("GROQ_MODEL") || "llama-3.3-70b-versatile" },
     { name: "cerebras", url: "https://api.cerebras.ai/v1/chat/completions", key: env("CEREBRAS_API_KEY"), model: env("CEREBRAS_MODEL") || "gpt-oss-120b" },
+    { name: "openrouter", url: "https://openrouter.ai/api/v1/chat/completions", key: env("OPENROUTER_API_KEY"), model: env("OPENROUTER_MODEL") || "google/gemini-2.0-flash-001" },
     { name: "deepseek", url: "https://api.deepseek.com/chat/completions", key: env("DEEPSEEK_API_KEY"), model: env("DEEPSEEK_MODEL") || "deepseek-chat" },
     { name: "xai", url: "https://api.x.ai/v1/chat/completions", key: env("XAI_API_KEY") || env("GROK_API_KEY"), model: env("XAI_MODEL") || "grok-4-fast" },
     { name: "openai", url: "https://api.openai.com/v1/chat/completions", key: env("OPENAI_API_KEY"), model: env("OPENAI_MODEL") || "gpt-4o-mini" },
@@ -440,6 +431,12 @@ function providerList(db: DB): { name: string; label: string; run: () => Promise
 
   const claudeKey = env("ANTHROPIC_API_KEY");
   if (claudeKey) list.push({ name: "claude", label: "Claude", run: () => callClaude("", "", claudeKey) });
+
+  // Gemini احتياطًا في آخر القائمة (بطيء أحيانًا) — أو إن كان المفتاح المحفوظ لـ Gemini
+  const gKey = savedKey && !savedBase ? savedKey : env("GEMINI_API_KEY");
+  if (gKey) {
+    list.push({ name: "gemini", label: "Gemini", run: () => callGemini("", "", gKey, savedModel || undefined) });
+  }
 
   // احترام اختيار المزوّد من اللوحة إن حُدّد
   const only = forced && forced !== "auto" ? list.filter((x) => x.name === forced) : list;
