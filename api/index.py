@@ -19,6 +19,7 @@ logger = logging.getLogger("free-fire-services-bot")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+ALLOWED_USERNAME = os.getenv("ALLOWED_USERNAME", "A_B_B_X_N").strip().lstrip("@").lower()
 MAX_UPDATE_BYTES = 1_000_000
 
 bot: Optional[telebot.TeleBot] = None
@@ -37,9 +38,9 @@ WELCOME_TEXT = (
     "🔥 <b>خدمات فري فاير الرقمية</b>\n\n"
     "مرحباً بك، <b>{name}</b>.\n"
     "معرّف تيليغرام الخاص بك: <code>{user_id}</code>\n\n"
-    "💎 <b>تنبيه الاشتراك المدفوع</b>\n"
-    "جميع الخدمات مدفوعة وتتطلب اشتراكاً فعالاً. "
-    "يتم تأكيد السعر والتوفر قبل قبول أي طلب. "
+    "👑 <b>حساب VIP حصري</b>\n"
+    "تم تفعيل جميع العروض والخدمات مجاناً لهذا الحساب فقط. "
+    "لا تحتاج إلى دفع أو إدخال رمز اشتراك. "
     "تُقدَّم الخدمات فقط للحسابات التي تملكها أو لديك تفويض صريح لإدارتها.\n\n"
     "اختر من القائمة التالية:"
 )
@@ -64,9 +65,8 @@ SERVICES_TEXT = (
 )
 
 BUY_TEXT = (
-    "🛒 <b>اشترِ الآن</b>\n\n"
-    "اختر الاشتراك المناسب لطلبك. اختيار الخطة لا يؤدي إلى الخصم مباشرة؛ "
-    "يجب تأكيد تفاصيل الخدمة والسعر النهائي قبل الدفع."
+    "🎁 <b>العروض المجانية</b>\n\n"
+    "جميع الخطط متاحة مجاناً لحسابك الحصري. اختر العرض الذي تريد تفعيله الآن."
 )
 
 CODE_TEXT = (
@@ -80,7 +80,7 @@ CODE_TEXT = (
 def main_keyboard() -> types.InlineKeyboardMarkup:
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        types.InlineKeyboardButton("🛒 اشترِ الآن", callback_data="menu:buy"),
+        types.InlineKeyboardButton("🎁 العروض المجانية", callback_data="menu:buy"),
         types.InlineKeyboardButton("🎟️ استخدام رمز", callback_data="menu:code"),
     )
     keyboard.add(types.InlineKeyboardButton("📖 معلومات الخدمات", callback_data="menu:services"))
@@ -113,6 +113,23 @@ def code_keyboard() -> types.InlineKeyboardMarkup:
     return keyboard
 
 
+def is_authorized_user(user: Optional[types.User]) -> bool:
+    return bool(
+        user
+        and user.username
+        and user.username.lstrip("@").lower() == ALLOWED_USERNAME
+    )
+
+
+def access_denied_text(user: Optional[types.User]) -> str:
+    user_id = user.id if user else "غير متوفر"
+    return (
+        "⛔ <b>الوصول مرفوض</b>\n\n"
+        "هذا البوت مخصص حصرياً للحساب المصرح له فقط.\n"
+        f"معرّف حسابك: <code>{user_id}</code>"
+    )
+
+
 def welcome_for(user: types.User) -> str:
     display_name = escape(user.first_name or user.username or "مستخدم")
     return WELCOME_TEXT.format(name=display_name, user_id=user.id)
@@ -140,6 +157,9 @@ def register_handlers(instance: telebot.TeleBot) -> None:
     def handle_start(message: types.Message) -> None:
         if message.from_user is None:
             return
+        if not is_authorized_user(message.from_user):
+            instance.send_message(message.chat.id, access_denied_text(message.from_user))
+            return
         instance.send_message(
             message.chat.id,
             welcome_for(message.from_user),
@@ -149,6 +169,9 @@ def register_handlers(instance: telebot.TeleBot) -> None:
 
     @instance.message_handler(commands=["code"])
     def handle_code(message: types.Message) -> None:
+        if not is_authorized_user(message.from_user):
+            instance.send_message(message.chat.id, access_denied_text(message.from_user))
+            return
         parts = (message.text or "").split(maxsplit=1)
         if len(parts) != 2 or not parts[1].strip():
             instance.send_message(message.chat.id, CODE_TEXT, reply_markup=code_keyboard())
@@ -174,6 +197,13 @@ def register_handlers(instance: telebot.TeleBot) -> None:
 
     @instance.callback_query_handler(func=lambda call: bool(call.data))
     def handle_callback(call: types.CallbackQuery) -> None:
+        if not is_authorized_user(call.from_user):
+            instance.answer_callback_query(
+                call.id,
+                "هذا البوت مخصص للحساب المصرح له فقط.",
+                show_alert=True,
+            )
+            return
         data = call.data or ""
 
         if data == "menu:home":
@@ -212,9 +242,9 @@ def register_handlers(instance: telebot.TeleBot) -> None:
             instance.answer_callback_query(call.id)
             edit_menu(
                 call,
-                f"✅ <b>تم اختيار {plan}</b>\n\n"
-                "تم تسجيل اختيارك في هذه المحادثة. راجع قسم معلومات الخدمات ثم تواصل مع مسؤول الخدمة داخل البوت لتأكيد التفاصيل والتوفر والسعر النهائي قبل الدفع.\n\n"
-                "لا ترسل كلمات المرور أو رموز التحقق المؤقتة أو مفاتيح الاسترجاع أو بيانات الدفع داخل المحادثة.",
+                f"✅ <b>تم تفعيل {plan} مجاناً</b>\n\n"
+                "تم تسجيل العرض المجاني لحسابك الحصري دون أي رسوم. يمكنك الآن استعمال الخدمات المتاحة من القائمة الرئيسية.\n\n"
+                "لا ترسل كلمات المرور أو رموز التحقق المؤقتة أو مفاتيح الاسترجاع داخل المحادثة.",
                 back_keyboard(),
             )
         else:
@@ -222,6 +252,9 @@ def register_handlers(instance: telebot.TeleBot) -> None:
 
     @instance.message_handler(func=lambda _message: True, content_types=["text"])
     def handle_other_text(message: types.Message) -> None:
+        if not is_authorized_user(message.from_user):
+            instance.send_message(message.chat.id, access_denied_text(message.from_user))
+            return
         instance.send_message(
             message.chat.id,
             "استعمل القائمة أدناه أو أرسل /start للبدء.",
