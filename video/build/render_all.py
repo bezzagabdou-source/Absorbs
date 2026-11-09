@@ -4,7 +4,7 @@ import imageio_ffmpeg
 FF = imageio_ffmpeg.get_ffmpeg_exe()
 OUT = os.path.join(HERE, '..', 'out', 'nexus_point_1080x1920.mp4')
 MIX = os.path.join(HERE, '..', 'out', 'mix.wav')
-TOTAL = 1188
+TOTAL = 1182
 
 def worker(i):
     import shots

@@ -34,13 +34,13 @@ VO = [
 def smoothstep(a, b, x):
     t = np.clip((x - a) / (b - a + 1e-9), 0, 1); return t * t * (3 - 2 * t)
 def ease_out(x):
-    x = np.clip(x, 0, 1); return 1 - (1 - x) ** 3
+    x = np.clip(np.float32(x), 0, 1); return 1 - (1 - x) ** 3
 def ease_in_out(x):
-    x = np.clip(x, 0, 1); return np.where(x < 0.5, 4 * x ** 3, 1 - (-2 * x + 2) ** 3 / 2)
+    x = np.clip(np.float32(x), 0, 1); return np.where(x < 0.5, 4 * x ** 3, 1 - (-2 * x + 2) ** 3 / 2)
 def ease_out_expo(x):
-    x = np.clip(x, 0, 1); return 1 - 2 ** (-10 * x)
+    x = np.clip(np.float32(x), 0, 1); return 1 - np.float32(2) ** (-10 * x)
 def ease_out_back(x, s=1.70158):
-    x = np.clip(x, 0, 1); return 1 + (s + 1) * (x - 1) ** 3 + s * (x - 1) ** 2
+    x = np.clip(np.float32(x), 0, 1); return 1 + (s + 1) * (x - 1) ** 3 + s * (x - 1) ** 2
 def lerp(a, b, t): return a + (b - a) * t
 
 _gy, _gx = np.mgrid[0:H, 0:W]
@@ -177,6 +177,7 @@ def draw_line(img, ax, y, text, path, size, fill=(255, 255, 255), alpha=1.0,
     if align == 'right': xr = ax
     elif align == 'center': xr = ax + total / 2
     else: xr = ax + total
+    size = float(size); tracking = float(tracking); glow = float(glow)
     pad = int(max(12, size * 0.8 + glow * 2.4 + (shadow[0] * 2.4 if shadow else 0)))
     x0 = max(0, int(xr - total) - pad); y0 = max(0, int(y) - pad)
     x1 = min(W, int(xr) + pad + 2); y1 = min(H, int(y + size * 1.9) + pad)

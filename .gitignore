@@ -27,8 +27,9 @@ PRO-CODES-V*.txt
 .v14-build/
 
 # --- short film assets (heavy, regenerate with video/build) ---
-/video/assets/
 /video/vo/
-/video/build/
 /video/out/*.wav
-/video/out/*.png
+# keep reproducible sources; only heavy binaries are skipped
+/video/assets2/
+/video/vo2/
+/video/out/*.wav
