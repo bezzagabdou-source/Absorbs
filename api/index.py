@@ -34,72 +34,72 @@ else:
 
 
 WELCOME_TEXT = (
-    "🔥 <b>Free Fire Digital Services</b>\n\n"
-    "Welcome, <b>{name}</b>.\n"
-    "Your Telegram ID: <code>{user_id}</code>\n\n"
-    "💎 <b>Paid subscription notice</b>\n"
-    "All services are premium and require an active paid subscription. "
-    "Pricing and availability are confirmed before an order is accepted. "
-    "Services are provided only for accounts you own or are explicitly authorized to manage.\n\n"
-    "Choose an option below:"
+    "🔥 <b>خدمات فري فاير الرقمية</b>\n\n"
+    "مرحباً بك، <b>{name}</b>.\n"
+    "معرّف تيليغرام الخاص بك: <code>{user_id}</code>\n\n"
+    "💎 <b>تنبيه الاشتراك المدفوع</b>\n"
+    "جميع الخدمات مدفوعة وتتطلب اشتراكاً فعالاً. "
+    "يتم تأكيد السعر والتوفر قبل قبول أي طلب. "
+    "تُقدَّم الخدمات فقط للحسابات التي تملكها أو لديك تفويض صريح لإدارتها.\n\n"
+    "اختر من القائمة التالية:"
 )
 
 SERVICES_TEXT = (
-    "📖 <b>Services Information</b>\n\n"
-    "🛡️ <b>Account Recovery Check</b>\n"
-    "Reviews owner-provided recovery details and identifies available official recovery paths.\n\n"
-    "🔗 <b>Link Checker</b>\n"
-    "Checks submitted links for reachability, formatting, and common phishing indicators.\n\n"
-    "🔐 <b>Passcode Cracker</b>\n"
-    "Authorized passcode-strength assessment for data and accounts you own; no third-party access.\n\n"
-    "🧪 <b>Passcode Tester</b>\n"
-    "Tests owner-supplied passcodes against an authorized validation workflow.\n\n"
-    "🧰 <b>Recovery Manager</b>\n"
-    "Organizes official recovery steps, evidence, status updates, and account-owner follow-up.\n\n"
-    "🔥 <b>Token Burner</b>\n"
-    "Revokes owner-authorized sessions and rotates exposed access credentials where supported.\n\n"
-    "🚨 <b>Spam Login</b>\n"
-    "Defensive monitoring and reporting of repeated unauthorized login attempts.\n\n"
-    "⚠️ Services are limited to lawful, authorized account-security and recovery work."
+    "📖 <b>معلومات الخدمات</b>\n\n"
+    "🛡️ <b>فحص استرجاع الحساب</b>\n"
+    "مراجعة بيانات الاسترجاع المقدمة من المالك وتحديد مسارات الاسترجاع الرسمية المتاحة.\n\n"
+    "🔗 <b>فاحص الروابط</b>\n"
+    "فحص الرابط والتأكد من صيغته وإمكانية الوصول إليه ورصد مؤشرات التصيد الشائعة.\n\n"
+    "🔐 <b>فحص قوة رمز المرور</b>\n"
+    "تقييم أمني مصرح به لقوة رمز المرور في الحسابات والبيانات التي تملكها فقط.\n\n"
+    "🧪 <b>اختبار رمز المرور</b>\n"
+    "اختبار رموز المرور التي يقدمها المالك ضمن آلية تحقق مصرح بها.\n\n"
+    "🧰 <b>مدير الاسترجاع</b>\n"
+    "تنظيم خطوات الاسترجاع الرسمية والأدلة وتحديثات الحالة ومتابعة مالك الحساب.\n\n"
+    "🔥 <b>إلغاء الرموز والجلسات</b>\n"
+    "إلغاء الجلسات المصرح بها وتغيير بيانات الوصول المكشوفة عندما تكون الخاصية متاحة.\n\n"
+    "🚨 <b>مراقبة محاولات الدخول</b>\n"
+    "رصد محاولات تسجيل الدخول غير المصرح بها والمتكررة والإبلاغ عنها.\n\n"
+    "⚠️ تقتصر الخدمات على أعمال الحماية والاسترجاع القانونية والمصرح بها."
 )
 
 BUY_TEXT = (
-    "🛒 <b>Buy Now</b>\n\n"
-    "Select the subscription that fits your request. An order request does not create a charge; "
-    "the final scope and price must be confirmed before payment."
+    "🛒 <b>اشترِ الآن</b>\n\n"
+    "اختر الاشتراك المناسب لطلبك. اختيار الخطة لا يؤدي إلى الخصم مباشرة؛ "
+    "يجب تأكيد تفاصيل الخدمة والسعر النهائي قبل الدفع."
 )
 
 CODE_TEXT = (
-    "🎟️ <b>Use a Subscription Code</b>\n\n"
-    "Send your code with this command:\n"
-    "<code>/code YOUR-CODE</code>\n\n"
-    "Codes are checked securely and are never displayed back in full."
+    "🎟️ <b>استخدام رمز اشتراك</b>\n\n"
+    "أرسل رمزك باستعمال الأمر التالي:\n"
+    "<code>/code رمز-الاشتراك</code>\n\n"
+    "يتم التحقق من الرموز بأمان ولا يتم عرضها كاملةً مرة أخرى."
 )
 
 
 def main_keyboard() -> types.InlineKeyboardMarkup:
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     keyboard.add(
-        types.InlineKeyboardButton("🛒 Buy Now", callback_data="menu:buy"),
-        types.InlineKeyboardButton("🎟️ Use Code", callback_data="menu:code"),
+        types.InlineKeyboardButton("🛒 اشترِ الآن", callback_data="menu:buy"),
+        types.InlineKeyboardButton("🎟️ استخدام رمز", callback_data="menu:code"),
     )
-    keyboard.add(types.InlineKeyboardButton("📖 Services Info", callback_data="menu:services"))
+    keyboard.add(types.InlineKeyboardButton("📖 معلومات الخدمات", callback_data="menu:services"))
     return keyboard
 
 
 def back_keyboard() -> types.InlineKeyboardMarkup:
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton("⬅️ Back", callback_data="menu:home"))
+    keyboard.add(types.InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home"))
     return keyboard
 
 
 def buy_keyboard() -> types.InlineKeyboardMarkup:
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
-        types.InlineKeyboardButton("⚡ 24-Hour Access", callback_data="buy:day"),
-        types.InlineKeyboardButton("💎 30-Day Access", callback_data="buy:month"),
-        types.InlineKeyboardButton("👑 Priority Access", callback_data="buy:priority"),
-        types.InlineKeyboardButton("⬅️ Back", callback_data="menu:home"),
+        types.InlineKeyboardButton("⚡ اشتراك 24 ساعة", callback_data="buy:day"),
+        types.InlineKeyboardButton("💎 اشتراك 30 يوماً", callback_data="buy:month"),
+        types.InlineKeyboardButton("👑 اشتراك الأولوية", callback_data="buy:priority"),
+        types.InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home"),
     )
     return keyboard
 
@@ -107,14 +107,14 @@ def buy_keyboard() -> types.InlineKeyboardMarkup:
 def code_keyboard() -> types.InlineKeyboardMarkup:
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
-        types.InlineKeyboardButton("📝 How to Enter a Code", callback_data="code:help"),
-        types.InlineKeyboardButton("⬅️ Back", callback_data="menu:home"),
+        types.InlineKeyboardButton("📝 طريقة إدخال الرمز", callback_data="code:help"),
+        types.InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home"),
     )
     return keyboard
 
 
 def welcome_for(user: types.User) -> str:
-    display_name = escape(user.first_name or user.username or "Customer")
+    display_name = escape(user.first_name or user.username or "مستخدم")
     return WELCOME_TEXT.format(name=display_name, user_id=user.id)
 
 
@@ -158,7 +158,7 @@ def register_handlers(instance: telebot.TeleBot) -> None:
         if len(submitted_code) < 6 or len(submitted_code) > 64:
             instance.send_message(
                 message.chat.id,
-                "❌ <b>Invalid code format.</b>\n\nA subscription code must contain between 6 and 64 characters.",
+                "❌ <b>صيغة الرمز غير صحيحة.</b>\n\nيجب أن يتكون رمز الاشتراك من 6 إلى 64 حرفاً.",
                 reply_markup=back_keyboard(),
             )
             return
@@ -166,9 +166,9 @@ def register_handlers(instance: telebot.TeleBot) -> None:
         masked = escape(submitted_code[:2] + "•" * min(max(len(submitted_code) - 4, 2), 12) + submitted_code[-2:])
         instance.send_message(
             message.chat.id,
-            "⏳ <b>Code received</b>\n\n"
-            f"Reference: <code>{masked}</code>\n"
-            "The code has been submitted for secure verification. You will be notified in this chat when validation is complete.",
+            "⏳ <b>تم استلام الرمز</b>\n\n"
+            f"المرجع: <code>{masked}</code>\n"
+            "تم إرسال الرمز للتحقق الآمن. ستصلك النتيجة في هذه المحادثة بعد اكتمال التحقق.",
             reply_markup=back_keyboard(),
         )
 
@@ -192,39 +192,39 @@ def register_handlers(instance: telebot.TeleBot) -> None:
             instance.answer_callback_query(call.id)
             edit_menu(
                 call,
-                "📝 <b>How to Enter a Code</b>\n\n"
-                "1. Return to the chat.\n"
-                "2. Type <code>/code</code>, add one space, then your subscription code.\n"
-                "3. Send the message and wait for the validation result.\n\n"
-                "Example format: <code>/code ABCD-EFGH</code>",
+                "📝 <b>طريقة إدخال الرمز</b>\n\n"
+                "1. ارجع إلى المحادثة.\n"
+                "2. اكتب <code>/code</code> ثم مسافة واحدة ورمز اشتراكك.\n"
+                "3. أرسل الرسالة وانتظر نتيجة التحقق.\n\n"
+                "مثال: <code>/code ABCD-EFGH</code>",
                 back_keyboard(),
             )
         elif data.startswith("buy:"):
             plans = {
-                "buy:day": "⚡ 24-Hour Access",
-                "buy:month": "💎 30-Day Access",
-                "buy:priority": "👑 Priority Access",
+                "buy:day": "⚡ اشتراك 24 ساعة",
+                "buy:month": "💎 اشتراك 30 يوماً",
+                "buy:priority": "👑 اشتراك الأولوية",
             }
             plan = plans.get(data)
             if plan is None:
-                instance.answer_callback_query(call.id, "Unknown plan.", show_alert=True)
+                instance.answer_callback_query(call.id, "الخطة غير معروفة.", show_alert=True)
                 return
             instance.answer_callback_query(call.id)
             edit_menu(
                 call,
-                f"✅ <b>{plan} selected</b>\n\n"
-                "Your selection has been recorded for this chat. Review the Services Info section, then contact the service operator in this bot conversation to confirm scope, availability, and final pricing before payment.\n\n"
-                "Never send passwords, one-time codes, recovery keys, or payment credentials in chat.",
+                f"✅ <b>تم اختيار {plan}</b>\n\n"
+                "تم تسجيل اختيارك في هذه المحادثة. راجع قسم معلومات الخدمات ثم تواصل مع مسؤول الخدمة داخل البوت لتأكيد التفاصيل والتوفر والسعر النهائي قبل الدفع.\n\n"
+                "لا ترسل كلمات المرور أو رموز التحقق المؤقتة أو مفاتيح الاسترجاع أو بيانات الدفع داخل المحادثة.",
                 back_keyboard(),
             )
         else:
-            instance.answer_callback_query(call.id, "This option is no longer available.", show_alert=True)
+            instance.answer_callback_query(call.id, "هذا الخيار لم يعد متاحاً.", show_alert=True)
 
     @instance.message_handler(func=lambda _message: True, content_types=["text"])
     def handle_other_text(message: types.Message) -> None:
         instance.send_message(
             message.chat.id,
-            "Please use the menu below or send /start to begin.",
+            "استعمل القائمة أدناه أو أرسل /start للبدء.",
             reply_markup=main_keyboard(),
         )
 
