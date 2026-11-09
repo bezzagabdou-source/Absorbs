@@ -97,6 +97,24 @@ export async function GET(req: Request) {
     out.rawKey = { error: (e as Error).message.slice(0, 200) };
   }
 
+  // 2.7) اختبار حاسم: اكتب مفتاحًا ثم اقرأه بعميل جديد فورًا
+  try {
+    const { default: Redis } = await import("ioredis");
+    const mk = () => new Redis(env.redisUrl, { maxRetriesPerRequest: 1, connectTimeout: 4000, lazyConnect: true });
+    const a = mk();
+    await a.connect();
+    const probe = `probe-${Date.now()}`;
+    const setRes = await a.set("mx:probe:v1", probe, "EX", 120);
+    await a.quit();
+    const b = mk();
+    await b.connect();
+    const got = await b.get("mx:probe:v1");
+    await b.quit();
+    out.writeProbe = { setRes, wrote: probe, readBack: got, lane: got === probe };
+  } catch (e) {
+    out.writeProbe = { error: (e as Error).message.slice(0, 200) };
+  }
+
   // 3) قاعدة البيانات كما يراها البوت
   const dbStart = Date.now();
   try {
