@@ -28,7 +28,7 @@ export default async function LandingPage() {
 
   return (
     <main className="landing-hero">
-      <div style={{ width: "min(1120px, 100%)" }}>
+      <div>
         <div className="row-between" style={{ marginBottom: 26 }}>
           <div className="brand" style={{ padding: 0 }}>
             <div className="brand-logo">🏆</div>
