@@ -246,29 +246,19 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
-        if self.path.rstrip("/") == "/setup":
-            if bot is None or not PUBLIC_BASE_URL:
-                self._send_json(503, {"ok": False, "error": "Bot or public URL is not configured"})
-                return
+        webhook_configured = False
+        if bot is not None and PUBLIC_BASE_URL:
             try:
-                configured = bot.set_webhook(
-                    url=f"{PUBLIC_BASE_URL}/",
-                    secret_token=WEBHOOK_SECRET or None,
-                    max_connections=40,
-                    drop_pending_updates=False,
+                webhook_configured = bool(
+                    bot.set_webhook(
+                        url=f"{PUBLIC_BASE_URL}/",
+                        secret_token=WEBHOOK_SECRET or None,
+                        max_connections=40,
+                        drop_pending_updates=False,
+                    )
                 )
             except telebot.apihelper.ApiTelegramException:
                 logger.exception("Telegram rejected webhook setup")
-                self._send_json(502, {"ok": False, "error": "Telegram rejected webhook setup"})
-                return
-            self._send_json(
-                200 if configured else 502,
-                {
-                    "ok": bool(configured),
-                    "webhook": f"{PUBLIC_BASE_URL}/",
-                },
-            )
-            return
 
         self._send_json(
             200 if bot is not None else 503,
@@ -276,6 +266,7 @@ class handler(BaseHTTPRequestHandler):
                 "ok": bot is not None,
                 "service": "telegram-webhook",
                 "configured": bot is not None,
+                "webhook_configured": webhook_configured,
             },
         )
 
