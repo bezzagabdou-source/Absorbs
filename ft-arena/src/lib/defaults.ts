@@ -5,7 +5,7 @@ export const APP = {
   tagline: "اربح نقاطًا… وحوّلها إلى جوائز حقيقية",
   channel: {
     username: "mxabdou",
-    title: "مسابقات MX",
+    title: "MX — مسابقات",
     url: "https://t.me/mxabdou",
   },
   version: "1.0.0",

@@ -50,6 +50,8 @@ export interface User {
   adminNotified?: boolean;
   source?: string;
   lastDailyAt?: string;
+  /** آخر تنبيه «انضم للقناة» (مرة واحدة يوميًا) — يُرسل فقط عند تعذّر التحقق */
+  lastJoinNudge?: string;
 }
 
 export interface Task {
@@ -255,6 +257,6 @@ export interface DB {
     wheelSpins: number;
     rewardsDelivered: number;
   };
-  meta: { webhookUrl?: string; webhookAt?: string; lastError?: string; setupAt?: string; botUsername?: string; botName?: string };
+  meta: { webhookUrl?: string; webhookAt?: string; lastError?: string; setupAt?: string; botUsername?: string; botName?: string; botId?: number; joinUnverifiable?: boolean };
   files: { name: string; url: string; size: number; at: string; type: string }[];
 }

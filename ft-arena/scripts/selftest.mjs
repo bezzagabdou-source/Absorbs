@@ -12,6 +12,7 @@ process.env.BOT_TOKEN = "test:token";
 const captured = [];
 const calls = [];
 const MEMBERSHIP = new Map(); // userId -> joined?
+let BOT_IS_ADMIN = true; // البوت أدمن في القناة → getChatMember يعمل
 
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
@@ -35,6 +36,20 @@ globalThis.fetch = async (url, init = {}) => {
     case "getChat":
       return ok({ id: -100, type: "channel", title: "مسابقات MX", invite_link: "https://t.me/mxabdou" });
     case "getChatMember": {
+      // واقع تيليجرام: إن لم يكن البوت أدمنًا/عضوًا في القناة، فإن getChatMember
+      // يفشل لكل المستخدمين — لا للبوت وحده.
+      if (!BOT_IS_ADMIN) {
+        return new Response(
+          JSON.stringify({ ok: false, error_code: 400, description: "Bad Request: member list is inaccessible" }),
+          { status: 400, headers: { "content-type": "application/json" } }
+        );
+      }
+      // البوت نفسه أدمن في القناة (حالة الإنتاج الصحيحة) → التحقق الفعلي ممكن
+      if (Number(body.user_id) === 9085026849) {
+        return BOT_IS_ADMIN
+          ? ok({ status: "administrator", user: { id: body.user_id } })
+          : ok({ status: "administrator", user: { id: body.user_id } });
+      }
       const joined = MEMBERSHIP.get(Number(body.user_id)) !== false;
       return ok({ status: joined ? "member" : "left", user: { id: body.user_id } });
     }
@@ -244,6 +259,52 @@ for (const cmd of ["/points", "/top", "/ref", "/shop", "/help", "/daily"]) {
   assert.ok(lastText().length > 10, `الأمر ${cmd} يجب أن يرد`);
 }
 console.log("   ✓ كل الأوامر ترد بنجاح");
+
+
+// ───────── 16) البوت ليس أدمن: لا حجب «صامت» ولا زر ميت ─────────
+step("بوت غير أدمن في القناة — أعضاء لا يُقفلون");
+BOT_IS_ADMIN = false;
+__resetRateLimit();
+// كاش الفحص يجب أن يُصفَّر وإلا بقيت نتيجة «أدمن» من الاختبارات السابقة
+const g = globalThis;
+delete g.__joinHeal;
+const fresh = nextId();
+MEMBERSHIP.set(fresh, false); // لم يشترك "قدر الإمكان" — لكن التحقق مستحيل
+clear();
+await handleUpdate(userMsg(fresh, "/start"), db, {});
+const txt = lastText(fresh);
+assert.ok(!/خطوة واحدة للبدء/.test(txt), "لا يجب حجب العضو حين يستحيل التحقق");
+assert.match(txt, /نقاطك/, "يجب أن يرى القائمة الرئيسية");
+// تنبيه لطيف بالقناة بدل الحجب
+const nudge = captured.filter((c) => /انضم للقناة|قناة الجوائز/.test(String(c.body.text ?? "")));
+assert.ok(nudge.length >= 1, "تنبيه لطيف بالانضمام");
+// زر الهدية يعمل رغم عدم القدرة على التحقق
+clear();
+await handleUpdate(cbMsg(fresh, "cb:daily"), db, {});
+assert.match(lastText(fresh), /هدية/, "الهدية تُمنح بلا حجب");
+assert.ok(db.users[String(fresh)].points > 0, "النقاط تُحسب فعلًا");
+// مهمة قناة غير قابلة للتحقق: لا تُحجب النقاط (عضو جديد كي لا تكون المهمة منجزة سابقًا)
+const chTask = db.tasks.find((t) => t.type === "channel");
+assert.ok(chTask, "توجد مهمة قناة افتراضية");
+const fresh2 = nextId();
+MEMBERSHIP.set(fresh2, false);
+clear();
+await handleUpdate(cbMsg(fresh2, `cb:task:${chTask.id}`), db, {});
+
+assert.ok(db.users[String(fresh2)].tasks[chTask.id], "مهمة القناة تُنجز حين يتعذّر التحقق");
+assert.strictEqual(db.users[String(fresh2)].points, chTask.points, "نقاط المهمة تُحسب كاملة");
+console.log(`   ✓ لا حجب • تنبيه واحد • النقاط ${db.users[String(fresh)].points}`);
+
+// حين يعود البوت أدمن: البوابة الصارمة ترجع للعمل
+BOT_IS_ADMIN = true;
+delete g.__joinHeal;
+__resetRateLimit();
+const back = nextId();
+MEMBERSHIP.set(back, false);
+clear();
+await handleUpdate(userMsg(back, "/start"), db, {});
+assert.match(lastText(back), /خطوة واحدة|اشترك/, "البوابة ترجع فور عودة صلاحية الأدمن");
+console.log("   ✓ البوابة الصارمة تعمل عند توفّر الصلاحية");
 
 // ───────── 15) تحقق من عدم تسريب التوكن ─────────
 step("أمان");

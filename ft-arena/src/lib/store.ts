@@ -29,6 +29,7 @@ async function getBlob(): Promise<BlobMod | null> {
 
 type RedisLike = import("ioredis").default;
 const g = globalThis as typeof globalThis & {
+  __lastPersist?: { at: number; mode: string; ok: boolean };
   __ftRedis?: RedisLike | null;
   __ftCache?: { db: DB; at: number } | null;
   __ftMem?: DB | null;
@@ -190,7 +191,8 @@ export async function loadDB(): Promise<DB> {
   return db;
 }
 
-export async function saveDB(db: DB): Promise<void> {
+/** يُرجع true فقط إذا وصلت الكتابة فعلًا إلى مكان دائم (Redis أو Blob). */
+export async function saveDB(db: DB): Promise<boolean> {
   db.updatedAt = new Date().toISOString();
   g.__ftCache = { db, at: Date.now() };
   g.__ftMem = db;
@@ -198,46 +200,76 @@ export async function saveDB(db: DB): Promise<void> {
   if (redis) {
     try {
       await redisSet(redis, DB_KEY, JSON.stringify(db));
-      return;
+      g.__lastPersist = { at: Date.now(), mode: "redis", ok: true };
+      return true;
     } catch (e) {
       console.error("[store] redis write failed, falling back to blob", (e as Error).message);
     }
   }
   if (env.blobToken) {
     const ok = await writeBlob(db);
-    if (ok) return;
+    g.__lastPersist = { at: Date.now(), mode: "blob", ok };
+    if (ok) return true;
   }
+  g.__lastPersist = { at: Date.now(), mode: redis ? "redis+blob" : env.blobToken ? "blob" : "memory", ok: false };
+  return false;
 }
 
-/** تعديل ذرّي آمن — كل عمليات النقاط تمرّ من هنا */
+/** آخر محاولة كتابة — للتشخيص وللردود الصادقة */
+export function lastPersist() {
+  return (globalThis as typeof globalThis & { __lastPersist?: { at: number; mode: string; ok: boolean } }).__lastPersist ?? null;
+}
+
+/**
+ * تعديل ذرّي آمن — كل عمليات النقاط والتعديلات تمرّ من هنا.
+ * قاعدة صارمة: لا نُعيد نتيجة العملية إلا إذا ثُبِّتت الكتابة فعلًا،
+ * وإلا نرمي خطأً حتى لا يقول البوت/الذكاء «تم» وهو لم يفعل شيئًا.
+ */
 export async function mutate<T>(fn: (db: DB) => T | Promise<T>): Promise<T> {
   const redis = await getRedis();
   if (!redis) {
     const db = await loadDB();
     g.__ftCache = null;
     const result = await fn(db);
-    await saveDB(db);
+    const ok = await saveDB(db);
+    if (!ok) throw new Error("تعذّر حفظ التعديل (لا Redis ولا Blob) — لم يُطبَّق شيء");
     return result;
   }
   const token = await acquire(redis);
+  const writeRedis = async (db: DB) => {
+    await redisSet(redis, DB_KEY, JSON.stringify(db));
+    g.__ftCache = { db, at: Date.now() };
+    g.__lastPersist = { at: Date.now(), mode: "redis", ok: true };
+  };
   try {
     if (!token) {
       // لم نُحصل على القفل: نقرأ من Redis مباشرة (بدون كاش) ونكتب
       const raw = await redisGet(redis, DB_KEY);
       const db = raw ? migrate(JSON.parse(raw) as DB) : freshDB();
       const result = await fn(db);
-      await redisSet(redis, DB_KEY, JSON.stringify(db));
-      g.__ftCache = { db, at: Date.now() };
+      await writeRedis(db);
       return result;
     }
     const raw = await redisGet(redis, DB_KEY);
     const db = raw ? migrate(JSON.parse(raw) as DB) : freshDB();
     g.__ftCache = { db, at: Date.now() };
     const result = await fn(db);
-    await redisSet(redis, DB_KEY, JSON.stringify(db));
+    await writeRedis(db);
     return result;
   } finally {
     if (token) await release(redis, token);
+  }
+}
+
+/** قراءة مباشرة من Redis (تتجاوز الكاش) — للتحقق أن الكتابة وصلت */
+export async function readFresh(): Promise<DB | null> {
+  const redis = await getRedis();
+  if (!redis) return null;
+  try {
+    const raw = await redisGet(redis, DB_KEY);
+    return raw ? migrate(JSON.parse(raw) as DB) : null;
+  } catch {
+    return null;
   }
 }
 

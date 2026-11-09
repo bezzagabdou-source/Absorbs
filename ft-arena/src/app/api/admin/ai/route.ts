@@ -1,6 +1,6 @@
 /** 🧠 واجهة الكونسول الذكي (HTTP) — المنطق في src/lib/ai-brain.ts */
 import { guard, json, bad, safeDetail } from "@/lib/api";
-import { loadDB, logActivity, mutate } from "@/lib/store";
+import { loadDB, logActivity, mutate, readFresh, lastPersist } from "@/lib/store";
 import { planPrompt, runActions } from "@/lib/ai-brain";
 import { detectAIProviders } from "@/lib/env";
 
@@ -62,6 +62,50 @@ function summarize(modelReply: string, results: { name: string; ok: boolean; det
   return lines.join("\n");
 }
 
+
+/**
+ * لا نثق بـ "ok" من المنفّذ: نقرأ الوثيقة من التخزين الدائم بعد الكتابة ونقارنها.
+ * إن لم يتغيّر شيء أو لم تُحفظ الكتابة → نقولها بصراحة.
+ */
+async function verifyApplied(
+  beforeJson: string,
+  snapshot: (d: Awaited<ReturnType<typeof loadDB>>) => string,
+  results: { name: string; ok: boolean; detail?: string }[]
+): Promise<{ stored: boolean; changed: boolean; reply?: string }> {
+  const fresh = await readFresh();
+  const persist = lastPersist();
+  const stored = fresh ? snapshot(fresh) !== beforeJson : Boolean(persist?.ok);
+  const changed = fresh ? snapshot(fresh) !== beforeJson : false;
+  const okCount = results.filter((r) => r.ok).length;
+
+  if (okCount > 0 && fresh && !changed) {
+    return {
+      stored: false,
+      changed: false,
+      reply: [
+        "⚠️ لم يُطبَّق أي تغيير فعلي في البوت — التخزين لم يعكس التعديل.",
+        "العمليات المطلوبة:",
+        ...results.map((r) => `• ${r.name} — ${r.detail ?? ""}`),
+        "",
+        `🔧 التخزين: ${persist?.mode ?? "غير معروف"}${persist && !persist.ok ? " (فشل الحفظ)" : ""}`,
+      ].join("\n"),
+    };
+  }
+  if (okCount > 0 && !fresh && persist && !persist.ok) {
+    return {
+      stored: false,
+      changed: false,
+      reply: "⚠️ نُفِّذت العملية في الذاكرة فقط ولم تُحفظ في التخزين الدائم — لم تصل إلى البوت.",
+    };
+  }
+  if (okCount > 0 && changed) {
+    // نضيف سطر إثبات للرد
+    const base = summarize("", results, true);
+    return { stored, changed, reply: `${base}\n\n<i>✔️ تم التحقق من التغيير في قاعدة البوت الفعلية.</i>` };
+  }
+  return { stored, changed };
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -102,6 +146,26 @@ export async function POST(req: Request) {
     const shouldApply = body.apply !== false;
     let results: { name: string; ok: boolean; detail?: string }[] = [];
 
+    // نسخة «قبل» للتحقق الفعلي: نكتب ثم نقرأ من Redis مباشرة ونقارن
+    const before = await loadDB();
+    const snapshot = (d: typeof before) =>
+      JSON.stringify({
+        rewards: d.rewards.map((x) => `${x.title}:${x.cost}`),
+        tasks: d.tasks.map((x) => `${x.title}:${x.points}`),
+        contests: d.contests.map((x) => `${x.title}:${x.prize}`),
+        points: d.settings.points,
+        features: d.settings.features,
+        bot: [d.settings.botName, d.settings.maintenance, d.settings.botEnabled],
+        texts: d.settings.texts,
+        wheel: d.wheel.length,
+        extraJoins: d.settings.extraJoins ?? [],
+        forceJoin: d.settings.forceJoin,
+        users: Object.values(d.users)
+          .slice(0, 300)
+          .map((u) => `${u.id}:${u.points}:${u.banned ? 1 : 0}:${u.vip ? 1 : 0}`),
+      });
+    const beforeJson = snapshot(before);
+
     results = await mutate(async (db) => {
       const r = shouldApply && plan.actions.length ? await runActions(db, plan.actions) : [];
       // نستبدل رد النموذج بتأكيد مبني على النتائج الفعلية — لا ادّعاء بلا تنفيذ
@@ -123,14 +187,19 @@ export async function POST(req: Request) {
       return r;
     });
 
+    // ✅ تحقّق فعلي: نقرأ من Redis مباشرة (بعد الكتابة) ونقارن الوثيقة
+    const verified = await verifyApplied(beforeJson, snapshot, results);
+
     const applied = results.filter((x) => x.ok).length;
+    const reply = verified.reply ?? summarize(plan.reply, results, shouldApply);
     return json({
-      ok: applied > 0 || results.length === 0,
-      reply: summarize(plan.reply, results, shouldApply),
+      ok: verified.stored ? applied > 0 || results.length === 0 : false,
+      reply,
       actions: plan.actions,
       results,
       applied,
       provider: plan.provider,
+      verified: { stored: verified.stored, changed: verified.changed, persist: lastPersist() },
     });
   } catch (e) {
     return bad(safeDetail(e), 500);

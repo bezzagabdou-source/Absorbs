@@ -150,6 +150,41 @@ export async function missingJoins(db: DB, userId: number): Promise<{ title: str
   return missing;
 }
 
+/** تحقّق مباشر من كل القنوات — يُرجع حالة كل قناة (للتشخيص والإعدادات). */
+export async function joinStatus(
+  db: DB,
+  userId: number
+): Promise<{ username: string; title: string; state: "joined" | "not_joined" | "unknown" }[]> {
+  const list = [db.settings.forceJoin, ...(db.settings.extraJoins ?? [])].filter((j) => j.enabled && j.username);
+  return Promise.all(
+    list.map(async (j) => {
+      const handle = j.username.replace(/^@/, "");
+      const ok = await isJoined(handle, userId);
+      return {
+        username: handle,
+        title: j.title || `@${handle}`,
+        state: ok === null ? ("unknown" as const) : ok ? ("joined" as const) : ("not_joined" as const),
+      };
+    })
+  );
+}
+
+/**
+ * هل يستطيع البوت قراءة الأعضاء في القناة؟ (أدمن؟)
+ * إن لم يكن أدمن فكل getChatMember يفشل → التحقق الحقيقي مستحيل،
+ * والحلّ: بوابة اشتراك بلا تحقق (زرر القناة + «تحقّقت») بدل إغلاق البوت.
+ */
+export async function canVerifyChannel(db: DB): Promise<boolean | null> {
+  const handle = db.settings.forceJoin.username.replace(/^@/, "");
+  if (!handle) return null;
+  const me = await safeTg<{ id: number }>("getMe");
+  const botId = db.meta.botId ?? me?.id;
+  if (!botId) return null;
+  const res = await getChatMember(`@${handle}`, Number(botId));
+  if (!res) return false; // لا يستطيع القراءة
+  return res.status === "administrator" || res.status === "creator";
+}
+
 /* ────────────────────────────── الصور ────────────────────────────── */
 
 export async function refreshAvatar(db: DB, userId: number): Promise<string | null> {

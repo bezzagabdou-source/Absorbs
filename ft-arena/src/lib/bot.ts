@@ -12,6 +12,7 @@ import {
   findByRefCode,
   fmtDate,
   inline,
+  canVerifyChannel,
   joinKeyboard,
   missingJoins,
   notifyAdmin,
@@ -281,12 +282,62 @@ function joinGateText(db: DB) {
   ].join("\n");
 }
 
+/**
+ * بوابة الاشتراك:
+ *  - البوت أدمن  → تحقّق حقيقي: غير المشترك يُحجب حتى يضغط «✅ تحقّقت».
+ *  - البوت ليس أدمن → التحقق مستحيل تقنيًا (getChatMember يفشل) فلا نحجب أحدًا،
+ *    بل نُرسل تنبيهًا لطيفًا بمرّة يوميًا. هذا سبب «ضغطت تحقّقت وما صار شي».
+ */
+function joinHealCache() {
+  const g = globalThis as typeof globalThis & { __joinHeal?: { checkedAt?: number; canVerify?: boolean | null } };
+  g.__joinHeal ??= {};
+  return g.__joinHeal;
+}
+
+async function canVerifyJoin(db: DB): Promise<boolean | null> {
+  const c = joinHealCache();
+  const now = Date.now();
+  if (c.checkedAt && now - c.checkedAt < 10 * 60_000) return c.canVerify ?? null;
+  const can = await canVerifyChannel(db);
+  c.checkedAt = now;
+  c.canVerify = can;
+  if (can === false) db.meta.joinUnverifiable = true;
+  return can;
+}
+
 async function gate(db: DB, u: User): Promise<{ title: string; url: string }[] | null> {
   if (!db.settings.forceJoin.enabled) return null;
+  if (!db.settings.forceJoin.verify) return null;
+  const can = await canVerifyJoin(db);
+  if (can === false) return null; // لا نحجب بلا قدرة على التحقق
   const miss = await missingJoins(db, u.id);
-  // null/فارغ = إما مشترك أو أن البوت ليس أدمن (نتساهل حتى لا نُغلق البوت)
   if (miss.length === 0) return null;
   return miss;
+}
+
+/**
+ * الاشتراك الإجباري بلا قدرة على التحقق (البوت ليس أدمن):
+ * لا نحجب أي زر — نُرسل تنبيهًا لطيفًا مرّة واحدة ونتابع.
+ */
+async function softJoinNudge(db: DB, u: User): Promise<boolean> {
+  const j = db.settings.forceJoin;
+  if (!j.enabled) return false;
+  if (!j.verify) return false; // تحقّق فعلي يعمل → البوابة الصارمة تتولّى الأمر
+  const today = new Date().toISOString().slice(0, 10);
+  if (u.lastJoinNudge === today) return false;
+  u.lastJoinNudge = today;
+  await sendMessage(
+    u.id,
+    [
+      "📣 <b>لا تنسَ الانضمام إلى قناة الجوائز</b>",
+      "",
+      `👉 ${link(esc(j.title || "قناتنا"), j.url)}`,
+      "",
+      "<i>كل المسابقات والجوائز تُعلن هناك أولًا.</i>",
+    ].join("\n"),
+    inline([[{ text: "📣 انضم للقناة", url: j.url }]])
+  );
+  return true;
 }
 
 /* ─────────────────────────────── هدية يومية ─────────────────────────────── */
@@ -636,6 +687,7 @@ async function handleMessage(msg: TgMessage, db: DB) {
       return;
     }
     await maybeActivateRef(db, u);
+    await softJoinNudge(db, u);
     const s = db.settings;
     if (s.texts.startMedia) {
       await safeTg("sendPhoto", {
@@ -867,7 +919,9 @@ async function handleCallback(q: TgCallback, db: DB) {
     if (tk.type === "channel") {
       const handle = tk.target.replace(/^@/, "");
       const res = await getChatMember(`@${handle}`, u.id);
-      if (!res || !ok.has(res.status)) {
+      // res === null  → البوت لا يستطيع القراءة (ليس أدمن): لا نحجب العضو، نمنح النقاط بثقة
+      // res.ok        → نتحقّق فعليًا ولا نمنح إن لم يشترك
+      if (res && !ok.has(res.status)) {
         await answerCb(q.id, "❌ لم تشترك بعد!", true);
         return;
       }
