@@ -4,6 +4,7 @@
  * كل عملية تُنفَّذ على نسخة معزولة ثم تُلغى (لا تلمس بياناتك).
  */
 import { env } from "@/lib/env";
+import { loadDB, readFresh } from "@/lib/store";
 import { freshDB } from "@/lib/defaults";
 import { planPrompt, runActions } from "@/lib/ai-brain";
 
@@ -36,13 +37,15 @@ export async function GET(req: Request) {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
+  const real = new URL(req.url).searchParams.get("real") === "1";
   const rows: Record<string, unknown>[] = [];
   let pass = 0;
 
   for (const item of CASES) {
     const q = typeof item === "string" ? item : item.q;
     const expectOk = typeof item === "string" ? true : item.expectOk !== false;
-    const db = freshDB();
+    // real=1 → نُنفّذ على قاعدة الإنتاج الفعلية ثم نقرأها من Redis للتأكيد
+    const db = real ? await loadDB() : freshDB();
     // حالة أولية واقعية: نفس جوائز/مهام البوت
     const before = {
       rewards: db.rewards.map((r) => `${r.title}:${r.cost}`),
@@ -65,8 +68,21 @@ export async function GET(req: Request) {
       rows.push({ q, ok: false, error: (e as Error).message.slice(0, 120) });
       continue;
     }
-    const results = plan.actions.length ? await runActions(db, plan.actions) : [];
+    let results: { name: string; ok: boolean; detail?: string }[] = [];
+    if (plan.actions.length) {
+      if (real) {
+        const { mutate } = await import("@/lib/store");
+        results = await mutate((live) => runActions(live, plan.actions));
+      } else {
+        results = await runActions(db, plan.actions);
+      }
+    }
     const ms = Date.now() - t0;
+    // في الوضع الحقيقي نقرأ من Redis لنُثبت أن التغيير وصل للتخزين
+    if (real) {
+      const fresh = await readFresh();
+      if (fresh) Object.assign(db, fresh);
+    }
 
     const after = {
       rewards: db.rewards.map((r) => `${r.title}:${r.cost}`),
