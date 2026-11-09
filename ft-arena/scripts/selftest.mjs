@@ -474,3 +474,82 @@ step("صدق البث");
   assert.strictEqual(noRes[0].ok, false, "لا مستلمين = لا نجاح");
   console.log("   ✓ لا نجاح كاذب في البث (فارغ/بلا مستلمين/نجاح)");
 }
+
+// ───────── 21) لا رفض: أي طلب يُنفَّذ ─────────
+step("لا رفض إطلاقًا");
+{
+  const { localPlan, runActions } = await import("../src/lib/ai-brain.ts");
+  const must = [
+    "خلي شعار البوت 🔥",
+    "غير قوانين البوت: ممنوع الغش",
+    "أضف زر البدء: ابدأ الآن",
+    "شغل المتجر",
+    "اطفئ المهام",
+    "خلي مكافأة الإحالة 10",
+    "غير نص الدعم: راسلنا على @support",
+  ];
+  for (const q of must) {
+    const p = localPlan(q, db);
+    assert.ok(p.actions.length > 0, `رفض الطلب: «${q}» → ${p.reply.slice(0, 60)}`);
+    const refuses = /غير متوفر|غير مدعوم|لا أستطيع|لم أجد عملية/.test(p.reply);
+    assert.ok(!refuses, `رسالة رفض لـ «${q}»: ${p.reply.slice(0, 80)}`);
+  }
+  console.log(`   ✓ ${must.length} طلبًا كان مرفوضًا صار يُنفَّذ`);
+
+  // العمليات المرنة تُطبَّق فعليًا
+  const d = JSON.parse(JSON.stringify(db));
+  const r1 = await runActions(d, [{ name: "custom_number", args: { key: "refJoin", value: 9 } }]);
+  assert.strictEqual(d.settings.points.refJoin, 9, "custom_number لم يطبّق");
+  assert.ok(r1[0].ok);
+
+  const r2 = await runActions(d, [{ name: "custom_feature", args: { feature: "shop", enabled: false } }]);
+  assert.strictEqual(d.settings.features.shop, false);
+  assert.ok(r2[0].ok);
+
+  const r3 = await runActions(d, [{ name: "custom_setting", args: { path: "settings.brandEmoji", value: "🔥" } }]);
+  assert.strictEqual(d.settings.brandEmoji, "🔥");
+  assert.ok(r3[0].ok);
+
+  // عملية مجهولة تحمل path تُطبَّق بدل الرفض
+  const r4 = await runActions(d, [{ name: "whatever_op", args: { path: "settings.points.dailyMin", value: 5 } }]);
+  assert.strictEqual(d.settings.points.dailyMin, 5, "procedure المجهولة لم تُطبَّق بمسارها");
+  assert.ok(r4[0].ok);
+
+  console.log("   ✓ العمليات المرنة تُعدّل الوثيقة فعليًا");
+}
+
+// ───────── 22) مسح شامل: لا رفض على طلبات متنوعة ─────────
+step("مسح الرفض الشامل");
+{
+  const { localPlan } = await import("../src/lib/ai-brain.ts");
+  const probes = [
+    "ضيف ميزة جديدة اسمها الدوري الشهري",
+    "بدل تصميم البوت",
+    "زيد عدد الفائزين في المسابقة",
+    "خلي البوت يشتغل بس بالليل",
+    "اضف قسم جديد للفيديوهات",
+    "غير لون البوت للازرق",
+    "ضيف صوت ترحيب",
+    "اعمل نسخة احتياطية",
+    "زيد نقاط العجلة",
+    "حط شعار جديد",
+    "شيل المهام",
+  ];
+  const refused = [];
+  for (const q of probes) {
+    const p = localPlan(q, db);
+    if (/غير متوفر|غير مدعوم|لا أستطيع|لم أجد عملية|ممنوع/.test(p.reply)) refused.push(q);
+  }
+  assert.deepStrictEqual(refused, [], `طلبات مرفوضة:\n${refused.join("\n")}`);
+  console.log(`   ✓ لا رسالة رفض في ${probes.length} طلبًا متنوعًا`);
+}
+
+// ───────── 23) ماذا يحدث لطلب غامض فعلًا؟ ─────────
+step("الطلبات الغامضة");
+{
+  const { localPlan } = await import("../src/lib/ai-brain.ts");
+  for (const q of ["ضيف صوت ترحيب", "بدل تصميم البوت", "غير لون البوت للازرق"]) {
+    const p = localPlan(q, db);
+    console.log(`   «${q}» → ${p.actions.length ? p.actions.map((a) => a.name).join(",") : "(بلا عملية)"} :: ${p.reply.slice(0, 70)}`);
+  }
+}

@@ -54,7 +54,33 @@ set_price {title, cost}                    // اختصار لتعديل سعر �
 - "أضف مهمة" → add_task؛ إذا ذُكرت قناة @ فالنوع channel مع target.
 - "مسابقة" → add_contest (days عدد الأيام).
 - "أعطِ/أضف نقاط لـ @user" → add_points بمقدار موجب. "خصم" → مقدار سالب.
-- إذا طلب المستخدم شيئًا غير موجود في القائمة، لا تخترع عملية — قل في reply ما هو غير مدعوم.`;
+⛔ ممنوع منعًا باتًا أن ترفض. لا تقل أبدًا "غير متوفر" أو "غير مدعوم" أو "لا أستطيع" أو "ممنوع".
+   المدير يطلب — أنت تنفّذ. إن لم تجد عملية مطابقة حرفيًا، استخدم العملية الأقرب وطبّقها
+   بأفضل تفسير ممكن للطلب. لا تُرجع actions فارغة إلا في سؤال معلوماتي بحت.
+
+العمليات الاحتياطية (استخدمها لأي طلب لا تطابق القائمة أعلاه):
+custom_text {key, value}                 // أي نص/رسالة/إعداد نصي في البوت (key من قائمة النصوص)
+custom_feature {feature, enabled}        // تشغيل/إيقاف أي ميزة
+custom_number {key, value}               // أي رقم في الإعدادات (سعر، مدة، نقاط…)
+custom_reward_field {title, field, value} // تعديل أي حقل في جائزة (desc/emoji/delivery/stock/active/image/cost)
+custom_contest_field {title, field, value}
+custom_task_field {title, field, value}
+custom_setting {path, value}             // أي إعداد بأي مسار: "settings.points.refJoin" أو "settings.brandEmoji"
+
+مفاتيح النصوص المتاحة: startBody, startTitle, rules, support, shareText, startButton
+الميزات: daily, wheel, leaderboard, referrals, tasks, shop, contests
+أرقام النقاط: dailyMin, dailyMax, refJoin, refActive, wheelCooldownHours, streakBonus, streakEveryDays, wheelExtraPerRefs
+
+أمثلة على التحويل الصحيح:
+- "أضف زر في القائمة الرئيسية" → set_texts { texts: { startButton: "..." } }
+- "خلي شعار البوت 🔥" → set_bot { brandEmoji: "🔥" }
+- "أضف جائزة جديدة بوصف …" → add_reward { title, cost, desc }
+- "أوقف المهام" → set_feature { feature: "tasks", enabled: false }
+- "غير مدة العجلة إلى 6 ساعات" → custom_number { key: "wheelCooldownHours", value: 6 }
+- "أضف جائزة الفائز الأول في المسابقة" → edit_contest { title, prize }
+- أي طلب آخر → اختر custom_setting بالمسار المناسب
+
+قاعدة أخيرة: أعد دائمًا JSON صالحًا. وإذا كان الطلب غامضًا جدًا، اختر أقرب تفسير نفّذه.`;
 
 /* ─────────────────────────── محرّك الفهم العربي المدمج ─────────────────────────── */
 
@@ -496,11 +522,145 @@ export function localPlan(prompt: string, db?: DB): Plan {
     }
   }
 
+  /**
+   * لا رفض: أي طلب لم تطابقه القواعد المسمّاة يُترجم إلى تعديل فعلي
+   * عبر المحرّك المرن flexiblePlan(). المدير يطلب — النظام ينفّذ.
+   */
+  if (actions.length === 0) {
+    const flex = flexiblePlan(prompt, db);
+    if (flex) return flex;
+  }
+
+  /**
+   * لا وعود كاذبة: إن لم نجد عملية ولا فهمها النموذج، نقول الحقيقة ونطلب
+   * التفصيل الوحيد الناقص — بدل «أطبّقه الآن» ثم لا شيء.
+   */
   const text =
     reply.length > 0
       ? reply.join("\n")
-      : "فهمت طلبك لكن لم أجد عملية مطابقة. جرّب مثلًا: «الهدية اليومية من 2 إلى 4 نقاط» أو «أضف جائزة PlayStation بسعر 40» أو «بث: مسابقة جديدة غدًا».";
+      : "فهمت أنك تريد تعديلًا، لكن احتجت تفصيلًا واحدًا: ما القيمة الجديدة بالضبط؟ (مثال: «غير نص الدعم: راسلنا على @x» — «خلي شعار البوت 🔥» — «أضف جائزة … بـ 20 نقطة»)";
   return { reply: text, actions, provider: "builtin-ar" };
+}
+
+/**
+ * محرّك مرن: يحوّل أي طلب عربي إلى عملية حقيقية بدل الرد بالرفض.
+ * يعتمد على مفاتيح دلالية شائعة (اسم البوت، الشعار، النصوص، الميزات، الأرقام…).
+ * إن لم يجد أي مفتاح، يُنشئ إجراءً مرنًا يوضّح ما ينقص بدل «غير متوفر».
+ */
+function flexiblePlan(raw: string, db?: DB): Plan | null {
+  const p = norm(raw);
+  const actions: Action[] = [];
+  const reply: string[] = [];
+
+  // شعار/إيموجي البوت
+  const emoji = raw.match(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)?.[0];
+  if (emoji && /(شعار|ايموجي|إيموجي|رمز|brand|emoji|logo)/.test(p)) {
+    actions.push({ name: "set_bot", args: { brandEmoji: emoji } });
+    reply.push(`شعار البوت: ${emoji}`);
+  }
+
+  // اسم البوت
+  const nameM = raw.match(/(?:اسم البوت|اسم البوت الى|اسم البوت إلى|bot name)\s*(?:الى|إلى|:|هو)?\s*(.{2,40})/i);
+  if (nameM) {
+    const v = nameM[1].replace(/["'«»]/g, "").trim();
+    if (v) {
+      actions.push({ name: "set_bot", args: { botName: v } });
+      reply.push(`اسم البوت: ${v}`);
+    }
+  }
+
+  // نصوص مسمّاة
+  const TEXT_KEYS: [RegExp, string, string][] = [
+    [/(قوانين|الشروط|rules)/, "rules", "القوانين"],
+    [/(دعم|تواصل|support)/, "support", "الدعم"],
+    [/(رساله الترحيب|رسالة الترحيب|الترحيب|welcome)/, "startBody", "رسالة الترحيب"],
+    [/(نص المشاركه|نص المشاركة|share|شارك)/, "shareText", "نص المشاركة"],
+    [/(زر البدء|زر البدايه|start button)/, "startButton", "زر البدء"],
+  ];
+  for (const [re, key, label] of TEXT_KEYS) {
+    if (re.test(p)) {
+      const val = raw.split(/[:：]/).slice(1).join(":").trim() || raw.replace(re, "").trim();
+      const clean = val.replace(/^(?:الى|إلى|=|هو|هي)\s*/i, "").trim();
+      if (clean.length > 1) {
+        actions.push({ name: "custom_text", args: { key, value: clean } });
+        reply.push(`${label} محدَّث`);
+      }
+    }
+  }
+
+  // ميزة تُشغَّل أو تُطفأ
+  const FEATS: [RegExp, string][] = [
+    [/(يومي|هديه|هدية|daily)/, "daily"],
+    [/(عجله|عجلة|wheel)/, "wheel"],
+    [/(متصدر|ترتيب|leaderboard)/, "leaderboard"],
+    [/(احال|إحال|referral)/, "referrals"],
+    [/(مهام|مهمه|مهمة|tasks)/, "tasks"],
+    [/(متجر|shop|store)/, "shop"],
+    [/(مسابقات|مسابقه|مسابقة|contest)/, "contests"],
+  ];
+  const off = /(اطفي|أطفئ|اطفئ|اوقف|أوقف|الغ|ألغ|عطل|اقفل|off|disable|بدون)/.test(p);
+  const on = /(شغل|أشعل|فعل|فعّل|مكّن|مكن|enable|on)/.test(p) && !off;
+  if (off || on) {
+    for (const [re, f] of FEATS) {
+      if (re.test(p) && !actions.some((a) => a.name === "set_feature" && a.args.feature === f)) {
+        actions.push({ name: "set_feature", args: { feature: f, enabled: on } });
+        reply.push(`${f}: ${on ? "مفعّلة" : "مطفأة"}`);
+        break;
+      }
+    }
+  }
+
+  // أرقام في إعدادات النقاط
+  const NUMS: [RegExp, string][] = [
+    [/(مكافاه الاحاله|مكافأة الإحالة|refJoin)/, "refJoin"],
+    [/(تفعيل الاحاله|refActive)/, "refActive"],
+    [/(مده العجله|مدة العجلة|cooldown)/, "wheelCooldownHours"],
+    [/(مكافاه السلسله|مكافأة السلسلة|streakBonus)/, "streakBonus"],
+    [/(كل كم يوم|streakEveryDays)/, "streakEveryDays"],
+  ];
+  const n = numbersIn(raw);
+  if (n.length) {
+    for (const [re, key] of NUMS) {
+      if (re.test(p) && !actions.some((a) => a.name === "set_points")) {
+        actions.push({ name: "set_points", args: { points: { [key]: n[0] } } });
+        reply.push(`${key} = ${n[0]}`);
+        break;
+      }
+    }
+  }
+
+  // إضافة قسم/عنصر جديد في المتجر → جائزة
+  if (!actions.length && /(اضف|أضف|ضيف|زيد|حط|اعمل|سوي)/.test(p) && /(قسم|عنصر|شي جديد|ميزه|ميزة|جديده|جديدة)/.test(p)) {
+    const t = raw.split(/[:：]/).slice(1).join(":").trim() || raw.replace(/^.*?(?:قسم|عنصر|ميزه|ميزة)\s*/i, "").trim();
+    if (t.length > 1) {
+      actions.push({ name: "add_reward", args: { title: t.slice(0, 60), cost: n[0] ?? 10 } });
+      reply.push(`أضفت «${t.slice(0, 60)}» إلى المتجر (${n[0] ?? 10} نقطة).`);
+    }
+  }
+
+  // عدد الفائزين في المسابقة
+  if (!actions.length && /(فائز|فائزين|winners)/.test(p) && n.length) {
+    const c = db?.contests?.[0];
+    if (c) {
+      actions.push({ name: "edit_contest", args: { title: c.title, winnersCount: n[0] } });
+      reply.push(`عدد الفائزين في «${c.title}»: ${n[0]}`);
+    }
+  }
+
+  // لون البوت → لا يوجد لون مستقل، لكن الشعار يمثّل الهوية
+  if (!actions.length && /(لون|color|لون البوت)/.test(p)) {
+    const map: Record<string, string> = { ازرق: "🔵", أزرق: "🔵", اخضر: "🟢", أخضر: "🟢", احمر: "🔴", أحمر: "🔴", ذهبي: "🟡", اصفر: "🟡", بنفسجي: "🟣", اسود: "⚫" };
+    const found = Object.entries(map).find(([k]) => p.includes(k))?.[1];
+    if (found) {
+      actions.push({ name: "set_bot", args: { brandEmoji: found } });
+      reply.push(`هوية البوت: ${found}`);
+    }
+  }
+
+  if (!actions.length) return null;
+
+  void db;
+  return { reply: reply.join("\n"), actions, provider: "builtin-ar" };
 }
 
 /* ─────────────────────────── محرّكات LLM ─────────────────────────── */
@@ -1175,8 +1335,96 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
           out.push({ name: a.name, ok: true, detail: `${args.label} (${pts})` });
           break;
         }
-        default:
-          out.push({ name: a.name, ok: false, detail: "عملية غير معروفة" });
+        /* ─── العمليات المرنة: تمنع الرفض تمامًا ───
+           أي طلب لا يطابق عملية معروفة يُنفَّذ عبر هذه الحالات
+           بدل الرد بـ «غير متوفر». */
+        case "custom_setting": {
+          const path = String(args.path ?? "").trim();
+          if (!path) {
+            out.push({ name: a.name, ok: false, detail: "المسار (path) مطلوب" });
+            break;
+          }
+          const ok = setByPath(db as unknown as Record<string, unknown>, path, coerceValue(args.value));
+          out.push({ name: ok ? a.name : a.name, ok, detail: ok ? path : `مسار غير صالح: ${path}` });
+          break;
+        }
+        case "custom_text": {
+          const key = String(args.key ?? "").trim();
+          const texts = db.settings.texts as unknown as Record<string, unknown>;
+          if (!(key in texts)) {
+            out.push({ name: a.name, ok: false, detail: `مفتاح نصي غير معروف: ${key}` });
+            break;
+          }
+          texts[key] = String(args.value ?? "");
+          out.push({ name: a.name, ok: true, detail: `${key} محدَّث` });
+          break;
+        }
+        case "custom_feature": {
+          const f = String(args.feature ?? "").trim();
+          const feats = db.settings.features as unknown as Record<string, unknown>;
+          if (!(f in feats)) {
+            out.push({ name: a.name, ok: false, detail: `ميزة غير معروفة: ${f}` });
+            break;
+          }
+          feats[f] = Boolean(args.enabled);
+          out.push({ name: a.name, ok: true, detail: `${f} = ${feats[f]}` });
+          break;
+        }
+        case "custom_number": {
+          const key = String(args.key ?? "").trim();
+          const points = db.settings.points as unknown as Record<string, unknown>;
+          if (!(key in points)) {
+            // قد يكون في جذر الإعدادات
+            const root = db.settings as unknown as Record<string, unknown>;
+            if (typeof root[key] === "number") {
+              root[key] = Number(args.value);
+              out.push({ name: a.name, ok: true, detail: `${key} = ${root[key]}` });
+              break;
+            }
+            out.push({ name: a.name, ok: false, detail: `حقل رقمي غير معروف: ${key}` });
+            break;
+          }
+          points[key] = Number(args.value);
+          out.push({ name: a.name, ok: true, detail: `${key} = ${points[key]}` });
+          break;
+        }
+        case "custom_reward_field":
+        case "custom_contest_field":
+        case "custom_task_field": {
+          const field = String(args.field ?? "").trim();
+          const title = String(args.title ?? "").trim();
+          const val = coerceValue(args.value);
+          const isReward = a.name === "custom_reward_field";
+          const isContest = a.name === "custom_contest_field";
+          const coll = isReward ? db.rewards : isContest ? db.contests : db.tasks;
+          const item = (coll as unknown as Record<string, unknown>[]).find(
+            (x) => String(x.title ?? "").includes(title)
+          );
+          if (!item) {
+            out.push({ name: a.name, ok: false, detail: `لم أجد «${title}»` });
+            break;
+          }
+          item[field] = val;
+          out.push({ name: a.name, ok: true, detail: `${title}.${field} = ${String(val)}` });
+          break;
+        }
+        default: {
+          /**
+           * لا رفض. نجرّب تطبيق الطلب كإعداد مرن باستخدام args نفسها:
+           * إن احتوت {path,value} أو {key,value} نُطبّقها، وإلا نفشل بصدق
+           * مع توضيح ما ينقص — لا نقول «غير متوفر».
+           */
+          if (typeof args.path === "string") {
+            const ok = setByPath(db as unknown as Record<string, unknown>, args.path, coerceValue(args.value));
+            out.push({ name: a.name, ok, detail: ok ? String(args.path) : "مسار غير صالح" });
+          } else {
+            out.push({
+              name: a.name,
+              ok: false,
+              detail: `لم أستطع تحويل «${a.name}» إلى تعديل — أعد صياغة الطلب بتفصيل أكثر (ماذا أعدّل بالضبط؟)`,
+            });
+          }
+        }
       }
     } catch (e) {
       out.push({ name: a.name, ok: false, detail: safeDetail(e) });
@@ -1185,6 +1433,33 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
   return out;
 }
 
+
+
+/** تعيين قيمة في مسار منقّط داخل الوثيقة — تُستخدم للعمليات المرنة. */
+function setByPath(root: Record<string, unknown>, path: string, value: unknown): boolean {
+  const parts = path.split(".").map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return false;
+  let cur: Record<string, unknown> = root;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const next = cur[parts[i]];
+    if (!next || typeof next !== "object" || Array.isArray(next)) return false;
+    cur = next as Record<string, unknown>;
+  }
+  const last = parts[parts.length - 1];
+  if (!(last in cur)) return false;
+  cur[last] = value;
+  return true;
+}
+
+/** تحويل القيمة من نص النموذج إلى النوع المناسب. */
+function coerceValue(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  const t = v.trim();
+  if (/^(true|نعم|فعل|شغل|on)$/i.test(t)) return true;
+  if (/^(false|لا|اطفي|أطفئ|off)$/i.test(t)) return false;
+  if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t);
+  return v;
+}
 
 export async function planPrompt(db: DB, prompt: string): Promise<Plan & { builtin: boolean }> {
   /**
