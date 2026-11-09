@@ -77,7 +77,8 @@ async function run(
   const calls: Captured[] = (g.__sim = []);
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-    if (url.startsWith(tgBase)) {
+    const passthrough = memberHint === "real" && url.includes("/getChatMember");
+    if (url.startsWith(tgBase) && !passthrough) {
       const method = url.split("/").filter(Boolean).pop() ?? "";
       if (process.env.SIM_DEBUG) calls.push({ method: `DBG:${url}`, text: String(init?.body ?? "").slice(0, 80) });
       let payload: Record<string, unknown> = {};
@@ -86,7 +87,8 @@ async function run(
       } catch {
         /* ignore */
       }
-      if (method === "getChatMember") {
+      // memberHint === "real" → نترك النداء يذهب إلى تيليجرام الحقيقي
+      if (method === "getChatMember" && memberHint !== "real") {
         const status = memberHint || "member";
         calls.push({ method, chat_id: payload.chat_id, text: `mock:${status}` });
         return new Response(
