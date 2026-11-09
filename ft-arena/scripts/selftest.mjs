@@ -326,6 +326,20 @@ await handleUpdate(userMsg(back, "/start"), db, {});
 assert.match(lastText(back), /خطوة واحدة|اشترك/, "البوابة ترجع فور عودة صلاحية الأدمن");
 console.log("   ✓ البوابة الصارمة تعمل عند توفّر الصلاحية");
 
+// ───────── 14b) عنوان القناة لا يتكرّر ─────────
+step("نظافة نص بوابة الاشتراك");
+const { channelLabel } = await import("../src/lib/bot-utils.ts");
+assert.strictEqual(channelLabel("اشترك في قناة MX", "mxabdou"), "MX", "تُزال البادئة مرّة واحدة");
+assert.strictEqual(
+  channelLabel("اشترك في قناة اشترك في قناتنا", "mxabdou"),
+  "@mxabdou",
+  "البادئات المتكرّرة تُزال كلها وتُرجع للاسم"
+);
+assert.strictEqual(channelLabel("قناة MX", "mxabdou"), "MX");
+assert.strictEqual(channelLabel("", "mxabdou"), "@mxabdou", "عنوان فارغ → اسم القناة");
+assert.strictEqual(channelLabel("MX — مسابقات", "mxabdou"), "MX — مسابقات", "العنوان العادي يبقى كما هو");
+console.log("   ✓ لا تكرار لـ «اشترك في قناة»");
+
 // ───────── 15) تحقق من عدم تسريب التوكن ─────────
 step("أمان");
 const leaked = captured.some((c) => JSON.stringify(c).includes("BOT_TOKEN"));

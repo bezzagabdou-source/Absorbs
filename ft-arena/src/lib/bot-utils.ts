@@ -7,6 +7,28 @@ import { getChatMember, profilePhoto, safeTg } from "./tg";
 
 type Dict = Record<Lang, string>;
 const dict = (ar: string, fr: string, en: string): Dict => ({ ar, fr, en });
+/**
+ * عنوان نظيف للقناة: يمنع تكرار «اشترك في قناة اشترك في قناة …».
+ * العنوان القادم من تيليجرام قد يكون جملة كاملة، فنُجرّده من بادئات الدعوة.
+ */
+export function channelLabel(title?: string, username?: string): string {
+  const PREFIXES = [
+    /^(?:اشترك|انضم|انضمّ)\s+(?:في\s+)?(?:قناة|قناتنا)?\s*/u,
+    /^(?:قناة|قناتنا)\s+/u,
+    /^(?:join|subscribe)\s+(?:to\s+)?(?:the\s+)?(?:channel\s+)?/iu,
+    /^channel\s+/iu,
+  ];
+  let s = (title ?? "").replace(/\s*[—–-]\s*$/, "").trim();
+  // نكرّر التنظيف حتى يستقر النص (يمنع «اشترك في قناة اشترك في قناة …»)
+  for (let i = 0; i < 6; i++) {
+    const before = s;
+    for (const re of PREFIXES) s = s.replace(re, "").trim();
+    if (s === before) break;
+  }
+  if (!s) s = username ? `@${username.replace(/^@/, "")}` : "القناة";
+  return s;
+}
+
 export const langOf = (db: DB): Lang => (["ar", "fr", "en"].includes(db.settings.lang) ? db.settings.lang : "ar");
 export const t = (db: DB, d: Dict) => d[langOf(db)] ?? d.ar;
 

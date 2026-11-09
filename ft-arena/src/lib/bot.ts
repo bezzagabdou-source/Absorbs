@@ -6,13 +6,14 @@ import type { DB, Reward, Task, User } from "./types";
 import {
   DAY,
   addPoints,
+  canVerifyChannel,
+  channelLabel,
   countUsers,
   displayName,
   ensureUser,
   findByRefCode,
   fmtDate,
   inline,
-  canVerifyChannel,
   joinKeyboard,
   missingJoins,
   notifyAdmin,
@@ -271,12 +272,20 @@ function contestsText(db: DB) {
 
 /* ─────────────────────────────── بوابة الاشتراك ─────────────────────────────── */
 
+/**
+ * نص بوابة الاشتراك.
+ * settings.forceJoin.title يأتي من عنوان القناة في تيليجرام وقد يكون
+ * «اشترك في قناة …» أصلاً، فينتج عنه «اشترك في قناة اشترك في قناة …».
+ * لذلك labelChannel() تُنظّف العنوان قبل الاستخدام.
+ */
 function joinGateText(db: DB) {
+  const j = db.settings.forceJoin;
+  const name = channelLabel(j.title, j.username);
   return [
     "🔒 <b>خطوة واحدة للبدء</b>",
     "",
-    `اشترك في قناة ${esc(db.settings.forceJoin.title)} أولًا:`,
-    `👉 ${link("اضغط هنا للاشتراك", db.settings.forceJoin.url)}`,
+    `اشترك في قناة ${esc(name)} أولًا:`,
+    `👉 ${link("اضغط هنا للاشتراك", j.url)}`,
     "",
     "ثم اضغط <b>✅ تحقّقت من الاشتراك</b>.",
   ].join("\n");
@@ -1007,7 +1016,10 @@ async function handleCallback(q: TgCallback, db: DB) {
   if (action === "support") {
     await answerCb(q.id);
     await show(
-      `☎️ <b>الدعم</b>\n\n${esc(db.settings.texts.support)}\n\n📣 قناتنا: ${link(db.settings.forceJoin.title, db.settings.forceJoin.url)}`,
+      `☎️ <b>الدعم</b>\n\n${esc(db.settings.texts.support)}\n\n📣 قناتنا: ${link(
+        channelLabel(db.settings.forceJoin.title, db.settings.forceJoin.username),
+        db.settings.forceJoin.url
+      )}`,
       inline([[{ text: "📣 القناة", url: db.settings.forceJoin.url }], [{ text: "🔙 رجوع", data: "cb:home" }]])
     );
     return;
