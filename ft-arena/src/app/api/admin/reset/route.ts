@@ -46,7 +46,22 @@ export async function GET(req: Request) {
     db.rewards = db.rewards.filter((r) => !/كونت بيس|نتفليكس بلس|PlayStation Plus/.test(r.title));
     db.contests = db.contests.filter((c) => !/رمضان|الاختبار/.test(c.title));
     db.tasks = db.tasks.filter((t) => !/mxabdou2/.test(t.target ?? ""));
+
+    /**
+     * إزالة حسابات الاختبار التي ينشئها /api/admin/sim (750000–799999)
+     * حتى لا تتضخم قاعدة الإنتاج بأعضاء وهميين أو يتشوّه ترتيب المتصدرين.
+     */
+    let removed = 0;
+    for (const [id, u] of Object.entries(db.users)) {
+      const n = Number(id);
+      if (n >= 750000 && n <= 799999 && u.username === "probe") {
+        delete db.users[id];
+        removed += 1;
+      }
+    }
+
     return {
+      removedTestUsers: removed,
       maintenance: s.maintenance,
       botName: s.botName,
       wheel: s.features.wheel,
