@@ -30,6 +30,8 @@ async function getBlob(): Promise<BlobMod | null> {
 type RedisLike = import("ioredis").default;
 const g = globalThis as typeof globalThis & {
   __lastPersist?: { at: number; mode: string; ok: boolean };
+  __lastRedisError?: { at: number; op: string; message: string };
+  __lastReadSource?: string;
   __ftRedis?: RedisLike | null;
   __ftCache?: { db: DB; at: number } | null;
   __ftMem?: DB | null;
@@ -158,18 +160,33 @@ export async function storeMode(): Promise<StoreMode> {
 
 /** أي عملية Redis يجب أن تفشل بسرعة — نغلّفها بمهلة صارمة */
 async function redisGet(redis: RedisLike, key: string): Promise<string | null> {
-  return Promise.race([
-    redis.get(key),
-    new Promise<null>((_, rej) => setTimeout(() => rej(new Error("redis get timeout")), env.httpTimeoutMs)),
-  ]);
+  try {
+    return await Promise.race([
+      redis.get(key),
+      new Promise<null>((_, rej) => setTimeout(() => rej(new Error("redis get timeout")), env.httpTimeoutMs)),
+    ]);
+  } catch (e) {
+    g.__lastRedisError = { at: Date.now(), op: "get", message: (e as Error).message.slice(0, 200) };
+    throw e;
+  }
 }
 async function redisSet(redis: RedisLike, key: string, value: string): Promise<void> {
-  await Promise.race([
-    redis.set(key, value),
-    new Promise<void>((_, rej) => setTimeout(() => rej(new Error("redis set timeout")), env.httpTimeoutMs)),
-  ]);
+  try {
+    await Promise.race([
+      redis.set(key, value),
+      new Promise<void>((_, rej) => setTimeout(() => rej(new Error("redis set timeout")), env.httpTimeoutMs)),
+    ]);
+  } catch (e) {
+    g.__lastRedisError = { at: Date.now(), op: "set", message: (e as Error).message.slice(0, 200) };
+    throw e;
+  }
 }
 
+/**
+ * القراءة: Redis أولًا (مصدر الحقيقة). Blob احتياطي فقط عند فشل Redis.
+ * ملاحظة مهمة: Blob قد يحتوي نسخة قديمة — لذلك لا نقرأه إلا إذا فشل Redis فعلًا،
+ * ولا نكتب فيه أبدًا إن كان Redis يعمل (وإلا انقسمت البيانات وضاعت النقاط).
+ */
 export async function loadDB(): Promise<DB> {
   const cached = g.__ftCache;
   if (cached && Date.now() - cached.at < 1200) return cached.db;
@@ -179,6 +196,7 @@ export async function loadDB(): Promise<DB> {
     try {
       const raw = await redisGet(redis, DB_KEY);
       const db = raw ? migrate(JSON.parse(raw) as DB) : freshDB();
+      g.__lastReadSource = "redis";
       g.__ftCache = { db, at: Date.now() };
       return db;
     } catch (e) {
@@ -187,6 +205,7 @@ export async function loadDB(): Promise<DB> {
   }
   const fromBlob = await readBlob();
   const db = fromBlob ? migrate(fromBlob) : g.__ftMem ?? freshDB();
+  g.__lastReadSource = fromBlob ? "blob" : "memory";
   g.__ftCache = { db, at: Date.now() };
   return db;
 }
@@ -207,15 +226,25 @@ export async function saveDB(db: DB): Promise<boolean> {
     }
   }
   if (env.blobToken) {
+    // Blob مكتوب فقط كنسخة احتياطية صامتة حين يكون Redis متاحًا (لا نقرأ منه طالما Redis حيّ)
     const ok = await writeBlob(db);
-    g.__lastPersist = { at: Date.now(), mode: "blob", ok };
-    if (ok) return true;
+    g.__lastPersist = { at: Date.now(), mode: redis ? "redis(backup blob failed)" : "blob", ok };
+    if (ok || redis) return true;
   }
   g.__lastPersist = { at: Date.now(), mode: redis ? "redis+blob" : env.blobToken ? "blob" : "memory", ok: false };
   return false;
 }
 
 /** آخر محاولة كتابة — للتشخيص وللردود الصادقة */
+export function lastRedisError() {
+  return (globalThis as typeof globalThis & { __lastRedisError?: { at: number; op: string; message: string } })
+    .__lastRedisError ?? null;
+}
+
+export function lastReadSource(): string {
+  return (globalThis as typeof globalThis & { __lastReadSource?: string }).__lastReadSource ?? "none";
+}
+
 export function lastPersist() {
   return (globalThis as typeof globalThis & { __lastPersist?: { at: number; mode: string; ok: boolean } }).__lastPersist ?? null;
 }
@@ -237,6 +266,8 @@ export async function mutate<T>(fn: (db: DB) => T | Promise<T>): Promise<T> {
   }
   const token = await acquire(redis);
   const writeRedis = async (db: DB) => {
+    // فشل الكتابة هنا يجب أن يصل للمستخدم كخطأ — لا نجاح وهمي ولا سقوط إلى Blob
+    db.updatedAt = new Date().toISOString();
     await redisSet(redis, DB_KEY, JSON.stringify(db));
     g.__ftCache = { db, at: Date.now() };
     g.__lastPersist = { at: Date.now(), mode: "redis", ok: true };

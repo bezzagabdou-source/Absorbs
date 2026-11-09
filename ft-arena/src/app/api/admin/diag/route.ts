@@ -3,7 +3,7 @@
  * محميّ بسرّ الـ webhook: /api/admin/diag?key=...
  */
 import { env } from "@/lib/env";
-import { loadDB, mutate, storeMode } from "@/lib/store";
+import { loadDB, mutate, storeMode, lastRedisError, lastPersist, lastReadSource } from "@/lib/store";
 import { safeTg } from "@/lib/tg";
 
 export const runtime = "nodejs";
@@ -95,6 +95,52 @@ export async function GET(req: Request) {
     await c.quit();
   } catch (e) {
     out.rawKey = { error: (e as Error).message.slice(0, 200) };
+  }
+
+  // 2.6) اختبار حاسم لكتابة قاعدة البيانات: mutate ثم قراءة خام بعميل جديد
+  try {
+    const { default: Redis } = await import("ioredis");
+    const j = async (c: InstanceType<typeof Redis>) => {
+      const raw = await c.get("mx:db:v1");
+      if (!raw) return { bytes: 0, updatedAt: null as string | null, users: 0 };
+      const d = JSON.parse(raw) as { updatedAt?: string; users?: Record<string, unknown> };
+      return { bytes: raw.length, updatedAt: d.updatedAt ?? null, users: d.users ? Object.keys(d.users).length : 0 };
+    };
+    const mk = () => new Redis(env.redisUrl, { maxRetriesPerRequest: 1, connectTimeout: 4000, lazyConnect: true });
+    const c1 = mk();
+    await c1.connect();
+    const before = await j(c1);
+    await c1.quit();
+
+    const stamp = `diagdb-${Date.now()}`;
+    let mutateErr: string | null = null;
+    try {
+      const { mutate } = await import("@/lib/store");
+      await mutate((db) => {
+        (db.meta as Record<string, unknown>).diagDb = stamp;
+        return true;
+      });
+    } catch (e) {
+      mutateErr = (e as Error).message.slice(0, 200);
+    }
+
+    const c2 = mk();
+    await c2.connect();
+    const after = await j(c2);
+    const marked = await c2.get("mx:db:v1");
+    await c2.quit();
+    out.dbWrite = {
+      before,
+      after,
+      mutateErr,
+      stampFound: Boolean(marked && marked.includes(stamp)),
+      updatedAdvanced: Boolean(after.updatedAt && before.updatedAt && after.updatedAt > before.updatedAt),
+      lastRedisError: lastRedisError(),
+      lastPersist: lastPersist(),
+      lastReadSource: lastReadSource(),
+    };
+  } catch (e) {
+    out.dbWrite = { error: (e as Error).message.slice(0, 200) };
   }
 
   // 2.7) اختبار حاسم: اكتب مفتاحًا ثم اقرأه بعميل جديد فورًا
