@@ -55,6 +55,20 @@ export async function GET(req: Request) {
     out.redis = { error: (e as Error).message.slice(0, 200), ms: t(Date.now() - rwStart) };
   }
 
+  // 2.2) كل متغيّرات البيئة التي تشبه روابط Redis — هل هناك أكثر من واحد؟
+  out.redisCandidates = Object.entries(process.env)
+    .filter(([k]) => !k.startsWith("NEXT_PUBLIC_"))
+    .filter(([, v]) => /^rediss?:\/\//i.test((v ?? "").trim()))
+    .map(([k, v]) => {
+      try {
+        const u = new URL((v ?? "").trim());
+        return { name: k, host: u.host, db: u.pathname || "/0" };
+      } catch {
+        return { name: k, host: "unparseable" };
+      }
+    });
+  out.redisChosen = env.redisUrlSource || "(none)";
+
   // 2.5) أسرار التخزين: نفس المضيف؟ نفس المفتاح؟ (بدون كشف الرابط)
   try {
     const { default: Redis } = await import("ioredis");

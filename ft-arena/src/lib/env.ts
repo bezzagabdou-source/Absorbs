@@ -1,5 +1,19 @@
 /** قراءة الإعدادات الحسّاسة من البيئة (متغيّرات Vercel) — لا قيم مكتوبة داخل الكود. */
 
+/**
+ * اختيار رابط Redis بشكل حتميّ.
+ * كان هناك «أي متغيّر يبدو رابط redis» → قد يُختار متغيّر مختلف بين استدعاء وآخر
+ * فتُقرأ قاعدة وتُكتب أخرى (وهذا سبب ضياع النقاط). الآن: قائمة صريحة فقط.
+ */
+function redisPick(): { url: string; source: string } {
+  const order = ["REDIS_URL", "KV_REST_API_URL_RAW", "UPSTASH_REDIS_URL", "STORAGE_REDIS_URL"];
+  for (const n of order) {
+    const v = clean(process.env[n]);
+    if (/^rediss?:\/\//i.test(v)) return { url: v, source: n };
+  }
+  return { url: "", source: "" };
+}
+
 const clean = (v?: string | null) => (v ?? "").trim().replace(/^["'`]+|["'`]+$/g, "").trim();
 
 export const env = {
@@ -16,23 +30,11 @@ export const env = {
     return clean(process.env.WEBHOOK_SECRET) || "mx-hook";
   },
   get redisUrl(): string {
-    const names = [
-      "REDIS_URL",
-      "KV_REST_API_URL_RAW",
-      "UPSTASH_REDIS_URL",
-      "STORAGE_REDIS_URL",
-    ];
-    for (const n of names) {
-      const v = clean(process.env[n]);
-      if (/^rediss?:\/\//i.test(v)) return v;
-    }
-    // آخر محاولة: أي متغيّر يبدو رابط redis
-    for (const [k, v0] of Object.entries(process.env)) {
-      const v = clean(v0);
-      if (k.startsWith("NEXT_PUBLIC_")) continue;
-      if (/^rediss?:\/\//i.test(v)) return v;
-    }
-    return "";
+    return redisPick().url;
+  },
+  /** اسم متغيّر البيئة الذي جاء منه رابط Redis — للتشخيص (بدون كشف الرابط). */
+  get redisUrlSource(): string {
+    return redisPick().source;
   },
   get blobToken(): string {
     return clean(process.env.BLOB_READ_WRITE_TOKEN);
