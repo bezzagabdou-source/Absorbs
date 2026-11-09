@@ -17,6 +17,33 @@ type Captured = { method: string; chat_id?: unknown; text?: string; markup?: unk
 const g = globalThis as typeof globalThis & { __sim?: Captured[] };
 
 
+export async function GET(req: Request) {
+  const u = new URL(req.url);
+  if ((u.searchParams.get("key") ?? "") !== env.webhookSecret) {
+    return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  const uid = Number(u.searchParams.get("uid") ?? 900000001);
+  const text = u.searchParams.get("text") ?? "/start";
+  const member = u.searchParams.get("member") ?? "member";
+  const data = u.searchParams.get("data");
+  const from = { id: uid, first_name: "فحص", username: "probe", language_code: "ar" };
+  const update: TgUpdate = data
+    ? {
+        update_id: Date.now(),
+        callback_query: {
+          id: "probe",
+          from,
+          data,
+          message: { message_id: 1, chat: { id: uid, type: "private" }, date: Math.floor(Date.now() / 1000) },
+        } as TgUpdate["callback_query"],
+      }
+    : {
+        update_id: Date.now(),
+        message: { message_id: 1, from, chat: { id: uid, type: "private" }, date: Math.floor(Date.now() / 1000), text },
+      };
+  return run(update, uid, member);
+}
+
 export async function POST(req: Request) {
   let body: {
     secret?: string;
@@ -35,6 +62,14 @@ export async function POST(req: Request) {
   }
   const update = body.update;
   if (!update) return Response.json({ ok: false, error: "no update" }, { status: 400 });
+  return run(update, body.userId, body.member);
+}
+
+async function run(
+  update: TgUpdate,
+  userIdHint?: number,
+  memberHint?: string
+) {
 
   // نلتقط نداءات تيليجرام بدل إرسالها فعليًا
   const original = globalThis.fetch;
@@ -52,7 +87,7 @@ export async function POST(req: Request) {
         /* ignore */
       }
       if (method === "getChatMember") {
-        const status = body.member || "member";
+        const status = memberHint || "member";
         calls.push({ method, chat_id: payload.chat_id, text: `mock:${status}` });
         return new Response(
           JSON.stringify(
@@ -88,7 +123,7 @@ export async function POST(req: Request) {
   }
 
   const db = await loadDB();
-  const uid = String(body.userId ?? update.message?.from?.id ?? update.callback_query?.from?.id ?? "");
+  const uid = String(userIdHint ?? update.message?.from?.id ?? update.callback_query?.from?.id ?? "");
   const u = db.users[uid];
   return Response.json({
     ok: true,
