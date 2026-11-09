@@ -18,6 +18,7 @@ logger = logging.getLogger("free-fire-services-bot")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "").strip()
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
 MAX_UPDATE_BYTES = 1_000_000
 
 bot: Optional[telebot.TeleBot] = None
@@ -245,6 +246,30 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
+        if self.path.rstrip("/") == "/setup":
+            if bot is None or not PUBLIC_BASE_URL:
+                self._send_json(503, {"ok": False, "error": "Bot or public URL is not configured"})
+                return
+            try:
+                configured = bot.set_webhook(
+                    url=f"{PUBLIC_BASE_URL}/",
+                    secret_token=WEBHOOK_SECRET or None,
+                    max_connections=40,
+                    drop_pending_updates=False,
+                )
+            except telebot.apihelper.ApiTelegramException:
+                logger.exception("Telegram rejected webhook setup")
+                self._send_json(502, {"ok": False, "error": "Telegram rejected webhook setup"})
+                return
+            self._send_json(
+                200 if configured else 502,
+                {
+                    "ok": bool(configured),
+                    "webhook": f"{PUBLIC_BASE_URL}/",
+                },
+            )
+            return
+
         self._send_json(
             200 if bot is not None else 503,
             {
