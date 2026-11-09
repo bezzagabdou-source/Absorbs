@@ -67,6 +67,13 @@ function summarize(modelReply: string, results: { name: string; ok: boolean; det
  * لا نثق بـ "ok" من المنفّذ: نقرأ الوثيقة من التخزين الدائم بعد الكتابة ونقارنها.
  * إن لم يتغيّر شيء أو لم تُحفظ الكتابة → نقولها بصراحة.
  */
+/**
+ * عمليات لا تغيّر **مستند** البوت — أثرها يقع في تيليجرام نفسه.
+ * كان قياس «هل تغيّر المستند؟» يعتبرها فشلًا، فيرى المستخدم
+ * «⚠️ لم يُطبَّق أي تغيير فعلي» بعد بثٍّ ناجح تمامًا.
+ */
+const SIDE_EFFECT_OPS = new Set(["broadcast"]);
+
 async function verifyApplied(
   beforeJson: string,
   snapshot: (d: Awaited<ReturnType<typeof loadDB>>) => string,
@@ -77,6 +84,22 @@ async function verifyApplied(
   const stored = fresh ? snapshot(fresh) !== beforeJson : Boolean(persist?.ok);
   const changed = fresh ? snapshot(fresh) !== beforeJson : false;
   const okCount = results.filter((r) => r.ok).length;
+
+  // العمليات ذات الأثر الجانبي: نجاحها هو «تم الإرسال»، لا تغيّر المستند
+  const sideOnly = results.length > 0 && results.every((r) => SIDE_EFFECT_OPS.has(r.name));
+
+  if (sideOnly) {
+    const done = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    // العملية تعمل ما دام قد أُرسل شيء ولو لعضو واحد — هذا هو أثرها الحقيقي
+    const lines = [
+      failed.length ? "⚠️ تعذّر إتمام العملية:" : "✅ تم التنفيذ في تيليجرام:",
+      ...done.map((r) => `• بث جماعي — أُرسلت إلى ${r.detail ?? "?"} عضو`),
+      ...failed.map((r) => `• ${r.name} — ${r.detail ?? "فشل"}`),
+    ];
+    if (!done.length) lines[0] = "⚠️ لم تُرسل أي رسالة:";
+    return { stored: done.length > 0, changed, reply: lines.join("\n") };
+  }
 
   if (okCount > 0 && fresh && !changed) {
     return {

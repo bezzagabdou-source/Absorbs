@@ -101,6 +101,37 @@ function statsAnswer(db: DB): string {
   return lines.join("\n");
 }
 
+/**
+ * كشف نيّة البث الجماعي — يغطّي الصيغ الشائعة بلا همزات:
+ * «ارسل رسالة جماعية تقول: …» / «أرسل للجميع …» / «بث: …» / «إذاعة …».
+ * المشكلة السابقة: البحث كان عن «ارسل للجميع» حرفيًا فقط.
+ */
+function isBroadcastIntent(p: string): boolean {
+  const verb = /(ارسل|أرسل|ارسله|بث|اذاعه|اذاع|broadcast|blast|send)/.test(p);
+  const mass = /(جماعي|جماعيه|للجميع|لكل الاعضاء|لكل المشتركين|الجميع|all users|everyone|للعامه)/.test(p);
+  // «بث» و«إذاعة» تدلّان على الجماعة بنفسهما
+  const direct = /^(بث|اذاعه|اذاع|broadcast)\b/.test(p) || /(بث|اذاعه)\s*:/.test(p);
+  return (verb && mass) || direct;
+}
+
+/** يستخرج نص الرسالة من الطلب، مع تجاهل حشو مثل «تقول :» و«يقول». */
+function extractBroadcastText(raw: string): string {
+  let t = raw.trim();
+  // نُزيل الأوامر الافتتاحية
+  t = t
+    .replace(/^\s*(?:ارسل|أرسل|ارسله|ابعث|بث|اذاعه|اذاعة|broadcast|blast|send)\s*/i, "")
+    .replace(/^\s*(?:رساله|رسالة|message|msg)\s*/i, "")
+    .replace(/^\s*(?:جماعيه|جماعية|عامه|عامة)\s*/i, "")
+    .replace(/^\s*(?:للجميع|لكل الاعضاء|لكل الأعضاء|للاعضاء|للأعضاء)\s*/i, "")
+    .replace(/^\s*(?:تقول|يقول|نصها|مضمونها|فيها|فيه|يقولون|:)\s*/i, "");
+  // أي «تقول :» أو «يقول:» في أي موضع
+  t = t.replace(/^[\s:：-]*/, "").trim();
+  const afterSay = t.match(/(?:تقول|يقول|نصها|مضمونها)\s*[:：]?\s*(.+)$/i);
+  if (afterSay) t = afterSay[1].trim();
+  t = t.replace(/^[\s:：-]+/, "").trim();
+  return t.length >= 2 ? t : "";
+}
+
 export function localPlan(prompt: string, db?: DB): Plan {
   const p = norm(prompt);
   const nums = numbersIn(prompt);
@@ -185,11 +216,12 @@ export function localPlan(prompt: string, db?: DB): Plan {
       reply.push(`أضفت ${Math.abs(nums[0])} نقطة إلى ${who}.`);
     }
   }
-  if (/(بث|اذاعه|إذاعة|broadcast|ارسل للجميع|أرسل للجميع)/.test(p)) {
-    const m = prompt.match(/(?:بث|اذاعه|إذاعة|broadcast|ارسل للجميع|أرسل للجميع)\s*:?\s*(.+)/i);
-    if (m) {
-      actions.push({ name: "broadcast", args: { text: m[1].trim() } });
-      reply.push("أرسلت البث لكل الأعضاء.");
+  // ── بث جماعي: يغطّي كل الصيغ الشائعة («ارسل رسالة جماعية تقول»، «بث:»، «أرسل للجميع») ──
+  if (isBroadcastIntent(p)) {
+    const text = extractBroadcastText(prompt);
+    if (text) {
+      actions.push({ name: "broadcast", args: { text } });
+      reply.push("سأرسل البث لكل الأعضاء — أتحقق من عدد المستلمين الآن.");
     }
   }
   if (/(اضف مهمه|أضف مهمة|ضيف مهمه|ضيف مهمة|add task|زيد مهمه)/.test(p)) {
@@ -1003,7 +1035,13 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
         }
         case "broadcast": {
           const targets = Object.values(db.users).filter((u) => !u.banned);
+          const text = String(args.text ?? "").trim();
+          if (!text) {
+            out.push({ name: a.name, ok: false, detail: "نص الرسالة فارغ" });
+            break;
+          }
           let sent = 0;
+          let failed = 0;
           for (let i = 0; i < targets.length; i += 20) {
             const slice = targets.slice(i, i + 20);
             await Promise.all(
@@ -1012,13 +1050,22 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
                   args.buttonLabel && args.buttonUrl
                     ? { inline_keyboard: [[{ text: String(args.buttonLabel), url: String(args.buttonUrl) }]] }
                     : undefined;
-                const res = await sendMessage(u.id, String(args.text ?? ""), markup);
+                const res = await sendMessage(u.id, text, markup);
                 if (res) sent += 1;
+                else failed += 1;
               })
             );
             if (i + 20 < targets.length) await new Promise((r) => setTimeout(r, 800));
           }
-          out.push({ name: a.name, ok: true, detail: `${sent}/${targets.length}` });
+          // الصدق: ok=true فقط إن وصلت رسالة واحدة على الأقل، والتفصيل يبيّن الفشل
+          out.push({
+            name: a.name,
+            ok: sent > 0,
+            detail:
+              failed > 0
+                ? `أُرسلت إلى ${sent} من ${targets.length} (فشل ${failed})`
+                : `${sent} من ${targets.length}`,
+          });
           break;
         }
         case "add_contest": {

@@ -425,3 +425,52 @@ step("الأسئلة تُجاب بلا شبكة");
   }
   console.log("   ✓ الأسئلة تُجاب فورًا من بيانات البوت");
 }
+
+// ───────── 19) البث الجماعي: كل الصيغ تُلتقط والنص صحيح ─────────
+step("البث الجماعي");
+{
+  const { localPlan } = await import("../src/lib/ai-brain.ts");
+  const cases = [
+    ["ارسل رسالة جماعية تقول : مسابقة على حساب فري فاير", "مسابقة على حساب فري فاير"],
+    ["أرسل للجميع: مسابقة الليلة", "مسابقة الليلة"],
+    ["بث: 🎉 الهدية تضاعفت اليوم", "🎉 الهدية تضاعفت اليوم"],
+    ["ارسل رسالة للجميع مضمونها: جوائز جديدة في المتجر", "جوائز جديدة في المتجر"],
+  ];
+  for (const [q, want] of cases) {
+    const p = localPlan(q, db);
+    const b = p.actions.find((a) => a.name === "broadcast");
+    assert.ok(b, `لم يُلتقط البث: ${q}`);
+    assert.strictEqual(String(b.args.text).trim(), want, `النص منقوص لـ: ${q} → «${b.args.text}»`);
+  }
+  // يجب ألا يلتقط طلبات ليست بثًّا
+  for (const q of ["أضف جائزة Netflix بـ 20 نقطة", "كم عدد الأعضاء؟"]) {
+    const p = localPlan(q, db);
+    assert.ok(!p.actions.some((a) => a.name === "broadcast"), `التقط بثًّا خطأً من: ${q}`);
+  }
+  console.log(`   ✓ ${cases.length} صيغة بث والنص صحيح · لا التباس مع أوامر أخرى`);
+}
+
+// ───────── 20) البث لا يدّعي نجاحًا كاذبًا ─────────
+step("صدق البث");
+{
+  const { runActions } = await import("../src/lib/ai-brain.ts");
+  const clone = () => JSON.parse(JSON.stringify(db));
+  const d = clone();
+
+  // (أ) بث ناجح لجميع الأعضاء
+  clear();
+  const okRes = await runActions(d, [{ name: "broadcast", args: { text: "رسالة اختبار" } }]);
+  assert.strictEqual(okRes[0].ok, true, "بث ناجح يجب أن يُبلَّغ عنه");
+  assert.match(okRes[0].detail, /\d+ من \d+/, "التفصيل يجب أن يبيّن العدد");
+
+  // (ب) نص فارغ → فشل صريح لا نجاح
+  const emptyRes = await runActions(clone(), [{ name: "broadcast", args: { text: "   " } }]);
+  assert.strictEqual(emptyRes[0].ok, false, "نص فارغ يجب أن يفشل صراحةً");
+
+  // (ج) كل الإرسال يفشل (مستخدمون محظورون فقط) → يجب ألا يقول نجاحًا
+  const none = clone();
+  for (const k of Object.keys(none.users)) none.users[k].banned = true;
+  const noRes = await runActions(none, [{ name: "broadcast", args: { text: "لن يصل" } }]);
+  assert.strictEqual(noRes[0].ok, false, "لا مستلمين = لا نجاح");
+  console.log("   ✓ لا نجاح كاذب في البث (فارغ/بلا مستلمين/نجاح)");
+}
