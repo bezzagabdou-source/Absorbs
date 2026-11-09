@@ -41,8 +41,14 @@ export async function api<T = unknown>(url: string, body?: unknown, method = "PO
     location.reload();
     throw new Error("انتهت الجلسة");
   }
-  const data = (await res.json()) as T & { ok?: boolean; error?: string };
-  if (!res.ok || data.ok === false) throw new Error(data.error ?? `HTTP ${res.status}`);
+  const data = (await res.json()) as T & { ok?: boolean; error?: string; reply?: string };
+  if (!res.ok || data.ok === false) {
+    // شرح عربي واضح بدل «HTTP 500» أو رسالة فارغة
+    const msg = (data.error || data.reply || "").trim();
+    throw new Error(
+      msg || (res.status === 500 ? "خطأ في الخادم — أعد المحاولة بعد لحظات" : `فشل الطلب (${res.status})`)
+    );
+  }
   return data;
 }
 

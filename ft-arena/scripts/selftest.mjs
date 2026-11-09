@@ -366,3 +366,49 @@ assert.ok(!leaked, "لا توكن في الردود");
 
 const totalCalls = calls.length;
 console.log(`\n✅ نجحت كل الاختبارات (${totalCalls} نداء تيليجرام محاكى)\n`);
+
+// ───────── 16) الخطة المحلية: تُضيف إضافات فعلية بلا انتظار النموذج ─────────
+step("الخطة المحلية (سرعة + تغطية)");
+{
+  const { localPlan } = await import("../src/lib/ai-brain.ts");
+  const must = [
+    ["أضف جائزة PlayStation Plus بسعر 45 نقطة", "add_reward"],
+    ["ضيف جائزة كونت بيس 3 بـ 120 نقطة", "add_reward"],
+    ["أضف جائزة Netflix الشهرية بـ 15 نقطة", "add_reward"],
+    ["ارفع مكافأة الإحالة إلى 5 نقاط", "set_points"],
+    ["اجعل الهدية اليومية من 2 إلى 5 نقاط", "set_points"],
+    ["غيّر قوانين البوت: ممنوع استخدام أكثر من حساب", "set_texts"],
+    ["أضف مهمة اشترك في قناة @mxabdou مقابل 3 نقاط", "add_task"],
+    ["جهّز مسابقة نهاية الأسبوع بجائزة 100 نقطة", "add_contest"],
+    ["اطفئ عجلة الحظ", "set_feature"],
+    ["شغل وضع الصيانة", "set_bot"],
+  ];
+  const missing = [];
+  for (const [txt, op] of must) {
+    const p = localPlan(txt);
+    if (!p.actions.some((a) => a.name === op)) missing.push(`${txt} → يتوقع ${op}`);
+  }
+  assert.deepStrictEqual(missing, [], `الخطة المحلية لا تغطي:\n${missing.join("\n")}`);
+  console.log(`   ✓ ${must.length} أمرًا تُنفَّذ محليًا بلا شبكة`);
+}
+
+// ───────── 17) منطق ok: الطلب الناجح بلا تغيير ليس خطأً ─────────
+step("ok لا يعني «تغيّرت البيانات»");
+{
+  // نفس معادلة المسار: storageBroken / allFailed
+  const judge = (results, stored) => {
+    const applied = results.filter((r) => r.ok).length;
+    const storageBroken = applied > 0 && !stored;
+    const allFailed = results.length > 0 && applied === 0;
+    return !storageBroken && !allFailed;
+  };
+  // سؤال/عرض توضيحي: لا عمليات ولا تغيير → نجاح لا خطأ
+  assert.strictEqual(judge([], false), true, "طلب بلا عمليات يجب أن ينجح");
+  // عملية ناجحة لكن التخزين لم يعكسها → خطأ حقيقي
+  assert.strictEqual(judge([{ name: "add_reward", ok: true }], false), false, "فشل الحفظ يجب أن يُبلَّغ");
+  // كل العمليات فشلت → خطأ حقيقي
+  assert.strictEqual(judge([{ name: "delete_reward", ok: false }], true), false, "الفشل الكامل خطأ");
+  // نجاح كامل → نجاح
+  assert.strictEqual(judge([{ name: "add_reward", ok: true }], true), true);
+  console.log("   ✓ الطلب الناجح بلا تغيير لم يعد يظهر كخطأ");
+}

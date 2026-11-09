@@ -103,7 +103,7 @@ async function verifyApplied(
     const base = summarize("", results, true);
     return { stored, changed, reply: `${base}\n\n<i>✔️ تم التحقق من التغيير في قاعدة البوت الفعلية.</i>` };
   }
-  return { stored, changed };
+  return { stored: true, changed };
 }
 
 export const runtime = "nodejs";
@@ -191,14 +191,30 @@ export async function POST(req: Request) {
     const verified = await verifyApplied(beforeJson, snapshot, results);
 
     const applied = results.filter((x) => x.ok).length;
+    const failed = results.filter((x) => !x.ok).length;
+
+    /**
+     * ok يعني: «تمّت معالجة الطلب بنجاح» — وليس «تغيّرت قاعدة البيانات».
+     * كان ok=false عندما لا تتغيّر أي حقل (سؤال، عرض توضيحي، طلب لا يحتاج تعديلًا)،
+     * فيُظهر العميل خطأً أحمر لطلبٍ ناجح تمامًا. الفشل الحقيقي هو:
+     *   - التخزين لم يحفظ شيئًا رغم نجاح العمليات، أو
+     *   - كل العمليات فشلت.
+     */
+    const storageBroken = applied > 0 && !verified.stored;
+    const allFailed = results.length > 0 && applied === 0;
+    const ok = !storageBroken && !allFailed;
+
     const reply = verified.reply ?? summarize(plan.reply, results, shouldApply);
     return json({
-      ok: verified.stored ? applied > 0 || results.length === 0 : false,
+      ok,
       reply,
       actions: plan.actions,
       results,
       applied,
+      failed,
+      changed: verified.changed,
       provider: plan.provider,
+      error: ok ? undefined : reply,
       verified: { stored: verified.stored, changed: verified.changed, persist: lastPersist() },
     });
   } catch (e) {

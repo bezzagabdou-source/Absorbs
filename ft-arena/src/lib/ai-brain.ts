@@ -1106,18 +1106,26 @@ async function runActionsImpl(db: DB, actions: Action[]): Promise<ActionResult[]
 
 
 export async function planPrompt(db: DB, prompt: string): Promise<Plan & { builtin: boolean }> {
-  let plan: Plan | null = null;
-  if (db.settings.ai.enabled) plan = await askLLM(db, prompt);
+  /**
+   * السرعة أولًا: الخطة المحلية تُحسب فورًا (بلا شبكة).
+   * إن كانت واثقة بما يكفي نُعيدها مباشرة ولا ننتظر النموذج إطلاقًا.
+   * هذا يجعل «أضف جائزة …» و«ارفع مكافأة الإحالة» تُنفَّذ في مللي ثانية
+   * بدل انتظار 9 ثوانٍ (مهلة المزوّد) ثم الفشل.
+   */
+  const local = localPlan(prompt);
+
+  const aiOn = db.settings.ai.enabled;
+  if (!aiOn) return { ...local, builtin: true };
+  if (local.actions.length > 0) return { ...local, builtin: true };
+
+  const plan = await askLLM(db, prompt);
   if (plan) {
-    if (plan.actions.length === 0) {
-      const local = localPlan(prompt);
-      if (local.actions.length > 0) {
-        return { ...local, reply: `${plan.reply}\n${local.reply}`, provider: `${plan.provider}+builtin`, builtin: true };
-      }
+    if (plan.actions.length === 0 && local.actions.length > 0) {
+      return { ...local, reply: `${plan.reply}\n${local.reply}`, provider: `${plan.provider}+builtin`, builtin: true };
     }
     return { ...plan, builtin: false };
   }
-  return { ...localPlan(prompt), builtin: true };
+  return { ...local, builtin: true };
 }
 
 /* ترجمة أسماء العمليات المرادفة التي قد يولّدها الموديل */
