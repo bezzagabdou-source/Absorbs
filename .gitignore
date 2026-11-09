@@ -25,3 +25,10 @@ PRO-CODES-V*.txt
 .v11-build/
 .v13-build/
 .v14-build/
+
+# --- short film assets (heavy, regenerate with video/build) ---
+/video/assets/
+/video/vo/
+/video/build/
+/video/out/*.wav
+/video/out/*.png
