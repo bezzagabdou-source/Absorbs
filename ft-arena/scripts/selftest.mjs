@@ -251,6 +251,26 @@ assert.ok(m.settings.forceJoin && m.settings.features && m.wheel.length > 0, "ا
 assert.strictEqual(m.settings.botName, "قديم", "القيم القديمة تبقى");
 console.log("   ✓ الترقية آمنة");
 
+// 🔴 حارس الانحدار: migrate يجب ألا يمحو الأعضاء أو نقاطهم أبدًا
+step("لا فقدان للأعضاء/النقاط عبر migrate");
+const alive = freshDB();
+for (let i = 1; i <= 3; i++) {
+  alive.users[String(5000 + i)] = {
+    id: 5000 + i, firstName: `عضو${i}`, lang: "ar", points: i * 10, totalEarned: i * 10, totalSpent: 0,
+    joinedAt: "2026-01-01T00:00:00.000Z", lastSeenAt: "2026-01-01T00:00:00.000Z", refCode: `c${i}`,
+    refCount: 0, refActive: 0, refBonusGiven: false, daily: { streak: 0, count: 0 },
+    wheel: { spins: 0, extra: 0 }, tasks: {}, history: [], banned: false, vip: false, status: "member", messages: 1,
+  };
+}
+const roundtrip = migrate(JSON.parse(JSON.stringify(alive)));
+assert.strictEqual(Object.keys(roundtrip.users).length, 3, "كل الأعضاء يبقون بعد القراءة من التخزين");
+assert.strictEqual(roundtrip.users["5001"].points, 10, "نقاط الأعضاء لا تُفقد");
+assert.strictEqual(roundtrip.users["5003"].points, 30, "نقاط الأعضاء لا تُفقد (3)");
+// قيم تالفة تُنظَّف دون المساس بالصحيح
+const mixed = migrate({ users: { bad: null, ok: { id: 9, points: 7 } } });
+assert.deepStrictEqual(Object.keys(mixed.users), ["ok"], "القيم التالفة فقط تُحذف");
+console.log("   ✓ الأعضاء والنقاط محفوظون بعد القراءة");
+
 // ───────── 14) الأوامر ─────────
 step("الأوامر النصية");
 for (const cmd of ["/points", "/top", "/ref", "/shop", "/help", "/daily"]) {

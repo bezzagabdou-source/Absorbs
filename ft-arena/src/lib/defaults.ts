@@ -210,7 +210,16 @@ export function migrate(db: Partial<DB> | null | undefined): DB {
   out.settings.admin = { ...base.settings.admin, ...(db.settings?.admin ?? {}) };
   out.settings.ai = { ...base.settings.ai, ...(db.settings?.ai ?? {}) };
   out.settings.forceJoin = { ...base.settings.forceJoin, ...(db.settings?.forceJoin ?? {}) };
-  if (!Array.isArray(out.users)) out.users = {};
+  // ⚠️ users كائن (Record) وليس مصفوفة — كان الشرط السابق يمحو كل الأعضاء
+  // عند كل قراءة من التخزين (وهو سبب ضياع النقاط). الآن نتحقق أنه كائن فعلًا.
+  if (!out.users || typeof out.users !== "object" || Array.isArray(out.users)) {
+    out.users = {};
+  } else {
+    // تنظيف أي قيم تالفة دون المساس بالأعضاء الصحيحين
+    for (const [k, v] of Object.entries(out.users)) {
+      if (!v || typeof v !== "object" || Array.isArray(v)) delete out.users[k];
+    }
+  }
   out.tasks = Array.isArray(out.tasks) ? out.tasks : base.tasks;
   out.rewards = Array.isArray(out.rewards) && out.rewards.length ? out.rewards : base.rewards;
   out.wheel = Array.isArray(out.wheel) && out.wheel.length ? out.wheel : base.wheel;

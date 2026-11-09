@@ -5,7 +5,7 @@
  */
 import { env } from "@/lib/env";
 import { handleUpdate } from "@/lib/bot";
-import { loadDB, mutate } from "@/lib/store";
+import { loadDB, mutate, readFresh } from "@/lib/store";
 import type { TgUpdate } from "@/lib/tg";
 
 export const runtime = "nodejs";
@@ -124,7 +124,7 @@ async function run(
     globalThis.fetch = original;
   }
 
-  const db = await loadDB();
+  const db = (await readFresh()) ?? (await loadDB());
   const uid = String(userIdHint ?? update.message?.from?.id ?? update.callback_query?.from?.id ?? "");
   const u = db.users[uid];
   return Response.json({
