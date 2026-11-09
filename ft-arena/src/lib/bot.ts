@@ -682,6 +682,21 @@ async function handleMessage(msg: TgMessage, db: DB) {
   const [cmd, ...args] = text.split(/\s+/);
   const arg = args[0] ?? "";
 
+  /**
+   * بوابة الاشتراك المركزية: كانت مطبّقة على /start و/daily فقط، فكان
+   * بإمكان أي عضو غير مشترك استخدام /points و/top و/ref و/shop… وتجاوز البوابة.
+   * الآن تُفرض على كل أمر ورسالة (ما عدا /start لأنه يعرض البوابة بنفسه،
+   * وما عدا الإدارة). gate() تُرجع null عندما يكون التحقق مستحيلًا (البوت ليس أدمن)
+   * فلا يُحجب أحد في تلك الحالة.
+   */
+  if (cmd !== "/start" && !isBotAdmin(db, u.id)) {
+    const miss = await gate(db, u);
+    if (miss && miss.length) {
+      await sendMessage(from.id, joinGateText(db), joinKeyboard(miss));
+      return;
+    }
+  }
+
   if (cmd === "/start") {
     const payload = arg.replace(/^ref_?/, "").trim();
     // صورة الحساب (مرة واحدة)

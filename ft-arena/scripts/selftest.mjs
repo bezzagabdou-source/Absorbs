@@ -326,6 +326,25 @@ await handleUpdate(userMsg(back, "/start"), db, {});
 assert.match(lastText(back), /خطوة واحدة|اشترك/, "البوابة ترجع فور عودة صلاحية الأدمن");
 console.log("   ✓ البوابة الصارمة تعمل عند توفّر الصلاحية");
 
+// ───────── 14c) البوابة تمنع تجاوز الأوامر ─────────
+step("البوابة تمنع تجاوز الأوامر");
+BOT_IS_ADMIN = true;
+delete g.__joinHeal;
+__resetRateLimit();
+const sneaky = nextId();
+MEMBERSHIP.set(sneaky, false);
+for (const cmd of ["/points", "/top", "/ref", "/shop"]) {
+  clear();
+  await handleUpdate(userMsg(sneaky, cmd), db, {});
+  const t = lastText(sneaky) ?? "";
+  assert.ok(
+    /خطوة واحدة|تحقّقت من الاشتراك/.test(t),
+    `${cmd} يجب أن يُحجب — وصل: ${t.slice(0, 60)}`
+  );
+  assert.ok(!/المتصدرون|رابط الإحالة|المتجر|نقاطك/.test(t), `${cmd} كشف المحتوى رغم عدم الاشتراك`);
+}
+console.log("   ✓ /points /top /ref /shop محجوبة لغير المشترك");
+
 // ───────── 14b) عنوان القناة لا يتكرّر ─────────
 step("نظافة نص بوابة الاشتراك");
 const { channelLabel } = await import("../src/lib/bot-utils.ts");
