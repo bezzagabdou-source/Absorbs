@@ -55,6 +55,34 @@ export async function GET(req: Request) {
     out.redis = { error: (e as Error).message.slice(0, 200), ms: t(Date.now() - rwStart) };
   }
 
+  // 2.5) أسرار التخزين: نفس المضيف؟ نفس المفتاح؟ (بدون كشف الرابط)
+  try {
+    const { default: Redis } = await import("ioredis");
+    const c = new Redis(env.redisUrl, { maxRetriesPerRequest: 1, connectTimeout: 4000, lazyConnect: true });
+    await c.connect();
+    const host = new URL(env.redisUrl).host;
+    const raw = await c.get("mx:db:v1");
+    let parsed: { users?: Record<string, unknown>; updatedAt?: string; settings?: { botName?: string } } | null = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = null;
+    }
+    out.rawKey = {
+      host,
+      bytes: raw ? raw.length : 0,
+      users: parsed?.users ? Object.keys(parsed.users).length : 0,
+      updatedAt: parsed?.updatedAt ?? null,
+      botName: parsed?.settings?.botName ?? null,
+      userSample: parsed?.users ? Object.keys(parsed.users).slice(0, 8) : [],
+      ttl: await c.ttl("mx:db:v1"),
+      dbSize: await c.dbsize(),
+    };
+    await c.quit();
+  } catch (e) {
+    out.rawKey = { error: (e as Error).message.slice(0, 200) };
+  }
+
   // 3) قاعدة البيانات كما يراها البوت
   const dbStart = Date.now();
   try {
