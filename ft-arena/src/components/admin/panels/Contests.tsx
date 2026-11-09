@@ -1,4 +1,5 @@
 "use client";
+import ImageField from "../ImageField";
 import { useCallback, useEffect, useState } from "react";
 import { Empty, Field, Modal, Spinner, api, toast } from "../ui";
 
@@ -191,59 +192,13 @@ export default function Contests() {
       >
         {edit && (
           <>
-            <Field label="صورة المسابقة (بانر)">
-              <div className="col" style={{ gap: 8 }}>
-                {edit.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={edit.image}
-                    alt="بانر"
-                    style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 12, border: "1px solid var(--line)" }}
-                  />
-                ) : (
-                  <div className="card-soft" style={{ padding: 18, textAlign: "center", fontSize: 12 }}>
-                    <div className="muted-2">لا توجد صورة بعد</div>
-                  </div>
-                )}
-                <div className="row wrap" style={{ gap: 8 }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() => setGenOpen(true)}
-                    disabled={generating}
-                  >
-                    🎨 توليد بالذكاء
-                  </button>
-                  <label className="btn btn-emerald btn-sm" style={{ cursor: uploading ? "wait" : "pointer" }}>
-                    {uploading ? <Spinner /> : "📤 رفع صورة من الجهاز"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      disabled={uploading}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void upload(f);
-                        e.target.value = "";
-                      }}
-                    />
-                  </label>
-                  <input
-                    className="input"
-                    style={{ flex: 1, minWidth: 150 }}
-                    placeholder="أو الصق رابط صورة https://…"
-                    value={edit.image ?? ""}
-                    onChange={(e) => setEdit({ ...edit, image: e.target.value })}
-                    dir="ltr"
-                  />
-                  {edit.image && (
-                    <button className="btn btn-danger btn-sm" onClick={() => setEdit({ ...edit, image: "" })}>
-                      🗑️
-                    </button>
-                  )}
-                </div>
-              </div>
-            </Field>
+            <ImageField
+              label="صورة المسابقة (بانر)"
+              value={edit.image ?? ""}
+              onChange={(url) => setEdit({ ...edit, image: url })}
+              promptHint="كأس ذهبي على خلفية داكنة مع أضواء احتفالية"
+              ratio="16 / 9"
+            />
             <Field label="العنوان"><input className="input" value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} /></Field>
             <Field label="الوصف"><textarea className="textarea" rows={3} value={edit.desc} onChange={(e) => setEdit({ ...edit, desc: e.target.value })} /></Field>
             <div className="row">

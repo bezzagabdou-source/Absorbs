@@ -1461,7 +1461,84 @@ function coerceValue(v: unknown): unknown {
   return v;
 }
 
-export async function planPrompt(db: DB, prompt: string): Promise<Plan & { builtin: boolean }> {
+/**
+ * إسناد صورة مرفقة إلى العنصر المذكور في الطلب — محليًا وفورًا.
+ * يطابق: جائزة (rewards) · مسابقة (contests) · جائزة/عنصر المتجر.
+ * إن لم يُذكر عنوان صريح، يُسند إلى الجائزة الأقرب اسمًا أو يطلب التحديد.
+ */
+function imageAttachPlan(db: DB, raw: string, image: string): Plan | null {
+  const p = norm(raw);
+
+  // مسابقة
+  if (/(مسابق|contest)/.test(p)) {
+    const c =
+      db.contests.find((x) => p.includes(norm(x.title))) ??
+      db.contests.find((x) => x.status === "active") ??
+      db.contests[0];
+    if (c) {
+      return {
+        reply: `سأضع الصورة في مسابقة «${c.title}».`,
+        actions: [{ name: "edit_contest", args: { title: c.title, image } }],
+        provider: "builtin-ar",
+      };
+    }
+  }
+
+  // جائزة / عنصر متجر
+  if (/(جائز|جايز|متجر|reward|prize|shop|store)/.test(p)) {
+    const r =
+      db.rewards.find((x) => p.includes(norm(x.title))) ??
+      db.rewards.find((x) => x.active) ??
+      db.rewards[0];
+    if (r) {
+      return {
+        reply: `سأضع الصورة في جائزة «${r.title}».`,
+        actions: [{ name: "edit_reward", args: { title: r.title, image } }],
+        provider: "builtin-ar",
+      };
+    }
+  }
+
+  // ذُكر عنوان عنصر صريح دون كلمة «جائزة»
+  const hit =
+    db.rewards.find((x) => x.title && p.includes(norm(x.title))) ??
+    db.contests.find((x) => x.title && p.includes(norm(x.title)));
+  if (hit) {
+    const isContest = db.contests.includes(hit as never);
+    return {
+      reply: isContest ? `سأضع الصورة في مسابقة «${hit.title}».` : `سأضع الصورة في جائزة «${hit.title}».`,
+      actions: [
+        isContest
+          ? { name: "edit_contest", args: { title: hit.title, image } }
+          : { name: "edit_reward", args: { title: hit.title, image } },
+      ],
+      provider: "builtin-ar",
+    };
+  }
+
+  // صورة بلا هدف: أضفها كجائزة جديدة؟ — نطلب التحديد بدقة بدل التخمين
+  return {
+    reply:
+      "وصلت الصورة ✅ — أي عنصر تريد أن أضعها فيه؟ اذكر اسم الجائزة أو المسابقة (مثال: «خلي هذي الصورة في جائزة Netflix»).",
+    actions: [],
+    provider: "builtin-ar",
+  };
+}
+
+export async function planPrompt(
+  db: DB,
+  prompt: string,
+  image?: string
+): Promise<Plan & { builtin: boolean }> {
+  /**
+   * صورة مرفقة: «خلي هذي الصورة في جائزة Netflix» / «حط الصورة في المسابقة».
+   * تُطبَّق فورًا محليًا (سرعة البرق) لأنها عملية محدّدة لا تحتاج تفسيرًا.
+   */
+  if (image) {
+    const imgPlan = imageAttachPlan(db, prompt, image);
+    if (imgPlan) return { ...imgPlan, builtin: true };
+  }
+
   /**
    * السرعة أولًا: الخطة المحلية تُحسب فورًا (بلا شبكة).
    * إن كانت واثقة بما يكفي نُعيدها مباشرة ولا ننتظر النموذج إطلاقًا.

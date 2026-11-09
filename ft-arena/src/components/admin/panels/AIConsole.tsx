@@ -25,7 +25,9 @@ export default function AIConsole() {
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [logs, setLogs] = useState<Log[]>([]);
-  const [chat, setChat] = useState<{ role: "user" | "ai"; text: string; actions?: Log["actions"]; provider?: string }[]>([]);
+  const [chat, setChat] = useState<
+    { role: "user" | "ai"; text: string; actions?: Log["actions"]; provider?: string; image?: string }[]
+  >([]);
   const [keyOpen, setKeyOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [apiBase, setApiBase] = useState("");
@@ -34,6 +36,10 @@ export default function AIConsole() {
   const [ready, setReady] = useState(false);
   const [live, setLive] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  /** صورة مرفقة بالأمر: «خلي هذي الصورة في جائزة …» */
+  const [img, setImg] = useState("");
+  const [imgBusy, setImgBusy] = useState(false);
+  const imgRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,14 +73,36 @@ export default function AIConsole() {
     try {
       const r = await api<{ reply: string; results: { name: string; ok: boolean; detail?: string }[]; provider: string }>(
         "/api/admin/ai",
-        { prompt: p }
+        { prompt: p, image: img || undefined }
       );
+      setImg("");
       setChat((c) => [...c, { role: "ai", text: r.reply, actions: r.results, provider: r.provider }]);
     } catch (e) {
       setChat((c) => [...c, { role: "ai", text: `⚠️ ${(e as Error).message}` }]);
       toast((e as Error).message, "err");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function uploadImage(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast("اختر صورة فقط", "err");
+      return;
+    }
+    setImgBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+      const data = (await res.json()) as { ok?: boolean; url?: string; error?: string };
+      if (!res.ok || !data.ok || !data.url) throw new Error(data.error ?? "فشل الرفع");
+      setImg(data.url);
+      toast("أُرفقت الصورة ✅", "ok");
+    } catch (e) {
+      toast((e as Error).message, "err");
+    } finally {
+      setImgBusy(false);
     }
   }
 
@@ -155,6 +183,14 @@ export default function AIConsole() {
               {m.role === "ai" && m.provider && (
                 <div className="muted-2" style={{ fontSize: 9.5, marginBottom: 4 }}>🧠 {m.provider}</div>
               )}
+              {m.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={m.image}
+                  alt="مرفق"
+                  style={{ display: "block", width: "100%", maxWidth: 220, borderRadius: 10, marginBottom: 8 }}
+                />
+              )}
               {m.text}
               {m.actions && m.actions.length > 0 && (
                 <div className="row wrap" style={{ marginTop: 8, gap: 5 }}>
@@ -176,7 +212,45 @@ export default function AIConsole() {
         </div>
 
         <div style={{ padding: 12, borderTop: "1px solid var(--line)" }}>
+          {/* صورة مرفقة */}
+          {(img || imgBusy) && (
+            <div className="row-between card-soft" style={{ padding: 8, marginBottom: 8 }}>
+              <div className="row" style={{ gap: 8 }}>
+                {img ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img} alt="مرفق" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />
+                ) : (
+                  <Spinner />
+                )}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800 }}>{img ? "صورة مرفقة بالطلب" : "جارٍ رفع الصورة…"}</div>
+                  <div className="muted-2" style={{ fontSize: 10 }}>مثال: «خلي هذي الصورة في جائزة Netflix»</div>
+                </div>
+              </div>
+              <button className="btn btn-sm btn-ghost" onClick={() => setImg("")} disabled={imgBusy}>✕</button>
+            </div>
+          )}
           <div className="row">
+            <button
+              className="btn btn-sm"
+              style={{ height: 52, width: 52 }}
+              title="إرفاق صورة"
+              onClick={() => imgRef.current?.click()}
+              disabled={busy || imgBusy}
+            >
+              {imgBusy ? <Spinner /> : "📷"}
+            </button>
+            <input
+              ref={imgRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadImage(f);
+                e.target.value = "";
+              }}
+            />
             <textarea
               className="textarea"
               rows={2}

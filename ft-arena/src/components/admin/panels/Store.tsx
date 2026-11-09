@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Empty, Field, Modal, Spinner, Toggle, api, toast } from "../ui";
+import ImageField from "../ImageField";
 
 type R = {
   id: string;
@@ -32,8 +33,6 @@ export default function Store() {
   const [list, setList] = useState<R[]>([]);
   const [edit, setEdit] = useState<R | null>(null);
   const [busy, setBusy] = useState(false);
-  const [imgPrompt, setImgPrompt] = useState("");
-  const [genBusy, setGenBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -67,24 +66,6 @@ export default function Store() {
       toast("تم ✅", "ok");
     } catch (e) {
       toast((e as Error).message, "err");
-    }
-  }
-
-  async function genImage() {
-    if (!edit) return;
-    setGenBusy(true);
-    try {
-      const r = await api<{ url: string }>("/api/admin/image", {
-        prompt: imgPrompt || `Luxury prize card for "${edit.title}" ${edit.emoji}`,
-        width: 1024,
-        height: 640,
-      });
-      setEdit({ ...edit, image: r.url });
-      toast("تم توليد الصورة 🎨", "ok");
-    } catch (e) {
-      toast((e as Error).message, "err");
-    } finally {
-      setGenBusy(false);
     }
   }
 
@@ -197,26 +178,12 @@ export default function Store() {
             <Field label="طريقة التسليم (تظهر للمستخدم)">
               <input className="input" value={edit.delivery} onChange={(e) => setEdit({ ...edit, delivery: e.target.value })} />
             </Field>
-            <Field label="صورة الجائزة (رابط)">
-              <div className="row">
-                <input className="input" value={edit.image ?? ""} onChange={(e) => setEdit({ ...edit, image: e.target.value })} placeholder="https://…" />
-              </div>
-            </Field>
-            <div className="card-soft" style={{ padding: 10 }}>
-              <div className="label">🎨 توليد صورة احترافية بالذكاء الاصطناعي</div>
-              <div className="row">
-                <input
-                  className="input"
-                  value={imgPrompt}
-                  onChange={(e) => setImgPrompt(e.target.value)}
-                  placeholder={`مثال: بطاقة فاخرة ذهبية لجائزة ${edit.title}`}
-                />
-                <button className="btn btn-primary btn-sm" onClick={genImage} disabled={genBusy}>
-                  {genBusy ? <Spinner /> : "توليد"}
-                </button>
-              </div>
-              <div className="hint">الصورة تُرفع تلقائيًا وتُستخدم في بطاقة الجائزة.</div>
-            </div>
+            <ImageField
+              label="صورة الجائزة"
+              value={edit.image ?? ""}
+              onChange={(url) => setEdit({ ...edit, image: url })}
+              promptHint={`بطاقة فاخرة ذهبية لجائزة ${edit.title || "الجائزة"}`}
+            />
             <div style={{ marginTop: 12 }}>
               <Toggle on={edit.active} onChange={(v) => setEdit({ ...edit, active: v })} label="الجائزة مفعّلة في البوت" />
             </div>

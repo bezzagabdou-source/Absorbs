@@ -553,3 +553,36 @@ step("الطلبات الغامضة");
     console.log(`   «${q}» → ${p.actions.length ? p.actions.map((a) => a.name).join(",") : "(بلا عملية)"} :: ${p.reply.slice(0, 70)}`);
   }
 }
+
+// ───────── 24) إسناد صورة مرفقة (سرعة البرق) ─────────
+step("الصورة المرفقة");
+{
+  const { planPrompt, runActions } = await import("../src/lib/ai-brain.ts");
+  const d = JSON.parse(JSON.stringify(db));
+  d.settings.ai.enabled = false; // نختبر المسار المحلي فقط
+  const IMG = "https://blob.example/x.jpg";
+
+  const t0 = Date.now();
+  const p1 = await planPrompt(d, "خلي هذي الصورة في جائزة", IMG);
+  const ms = Date.now() - t0;
+  assert.ok(p1.actions.length > 0, "لم تُسند الصورة");
+  assert.strictEqual(p1.actions[0].args.image, IMG, "الرابط لم يُمرّر");
+  assert.ok(ms < 50, `يجب أن يكون فوريًا (${ms}ms)`);
+
+  // إسناد بالاسم الصريح
+  const title = d.rewards[0].title;
+  const p2 = await planPrompt(d, `خلي هذي الصورة في جائزة ${title}`, IMG);
+  const res = await runActions(d, p2.actions);
+  assert.ok(res[0].ok, "التنفيذ فشل");
+  assert.strictEqual(d.rewards.find((r) => r.title.includes(title))?.image, IMG, "الصورة لم تُحفظ في الجائزة");
+
+  // إسناد لمسابقة
+  const p3 = await planPrompt(d, "حط هذي الصورة في المسابقة", IMG);
+  assert.ok(p3.actions[0].name === "edit_contest", "لم تُسند للمسابقة");
+
+  // صورة بلا هدف → لا تخمين، طلب توضيح
+  const p4 = await planPrompt(d, "خلي هذي الصورة", IMG);
+  assert.match(p4.reply, /أي عنصر|اذكر اسم/, "يجب طلب التوضيح بدل التخمين");
+
+  console.log(`   ✓ إسناد فوري (${ms}ms) · بالاسم · للمسابقة · وطلب توضيح عند الغموض`);
+}

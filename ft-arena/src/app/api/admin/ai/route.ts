@@ -153,19 +153,25 @@ export async function GET() {
 export async function POST(req: Request) {
   const g = await guard();
   if (g) return g;
-  let body: { prompt?: string; apply?: boolean };
+  let body: { prompt?: string; apply?: boolean; image?: string };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return bad("JSON غير صالح");
   }
   const prompt = (body.prompt ?? "").trim();
+  const image = (body.image ?? "").trim();
   if (prompt.length < 2) return bad("اكتب طلبك أولًا");
   if (prompt.length > 4000) return bad("الطلب طويل جدًا");
 
   try {
     const db0 = await loadDB();
-    const plan = await planPrompt(db0, prompt);
+    /**
+     * صورة مرفقة بالأمر: «خلي هذي الصورة في جائزة Netflix».
+     * نمرّرها كتلميح أول للخطة حتى تُسنَد للعنصر الصحيح فورًا
+     * (بلا شبكة ولا نموذج — سرعة البرق).
+     */
+    const plan = await planPrompt(db0, prompt, image);
     const shouldApply = body.apply !== false;
     let results: { name: string; ok: boolean; detail?: string }[] = [];
 
