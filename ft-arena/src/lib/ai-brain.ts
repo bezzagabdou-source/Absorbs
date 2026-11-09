@@ -292,14 +292,14 @@ export function localPlan(prompt: string, db?: DB): Plan {
       const name = prompt.split(/(?:جائزه|جائزة|reward)/i).pop()?.replace(/^[:\s]+/, "").trim() ?? "";
       if (name.length > 1) {
         actions.push({ name: "delete_reward", args: { title: name } });
-        reply.push(`حذفت الجائزة «${name}».`);
+        reply.push(`سأحذف الجائزة «${name}» — أتحقق من وجودها الآن.`);
       }
     }
     if (/(احذف|امسح|الغي|شيل|delete|remove)/.test(p) && /(مهمه|مهمة|task)/.test(p)) {
       const name = prompt.split(/(?:مهمه|مهمة|task)/i).pop()?.replace(/^[:\s]+/, "").trim() ?? "";
       if (name.length > 1) {
         actions.push({ name: "delete_task", args: { title: name } });
-        reply.push(`حذفت المهمة «${name}».`);
+        reply.push(`سأحذف المهمة «${name}» — أتحقق من وجودها الآن.`);
       }
     }
   }
@@ -426,7 +426,7 @@ export function localPlan(prompt: string, db?: DB): Plan {
     const name = prompt.split(/(?:مسابقه|مسابقة|contest)/i).pop()?.replace(/^[:\s]+/, "").trim() ?? "";
     if (name.length > 1 && !actions.some((a) => a.name === "delete_contest")) {
       actions.push({ name: "delete_contest", args: { title: name } });
-      reply.push(`حذف المسابقة «${name}».`);
+      reply.push(`سأحذف المسابقة «${name}» — أتحقق من وجودها الآن.`);
     }
   }
 
