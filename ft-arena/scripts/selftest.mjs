@@ -412,3 +412,16 @@ step("ok لا يعني «تغيّرت البيانات»");
   assert.strictEqual(judge([{ name: "add_reward", ok: true }], true), true);
   console.log("   ✓ الطلب الناجح بلا تغيير لم يعد يظهر كخطأ");
 }
+
+// ───────── 18) الأسئلة الإحصائية تُجاب محليًا ─────────
+step("الأسئلة تُجاب بلا شبكة");
+{
+  const { localPlan } = await import("../src/lib/ai-brain.ts");
+  for (const q of ["كم عدد الأعضاء؟", "شحال من عضو", "أعطني إحصائيات البوت"]) {
+    const p = localPlan(q, db);
+    assert.ok(p.reply.includes("حالة البوت"), `«${q}» لم تُجَب محليًا`);
+    assert.ok(/الأعضاء|النقاط/.test(p.reply), "الإجابة يجب أن تحتوي أرقامًا");
+    assert.strictEqual(p.actions.length, 0, "سؤال لا يُنشئ عمليات");
+  }
+  console.log("   ✓ الأسئلة تُجاب فورًا من بيانات البوت");
+}

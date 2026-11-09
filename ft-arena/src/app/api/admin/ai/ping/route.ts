@@ -35,12 +35,13 @@ export async function GET(req: Request) {
   const started = Date.now();
   const rows = CASES.map((q) => {
     const t0 = Date.now();
-    const plan = localPlan(q);
+    const plan = localPlan(q, db);
     return {
       q,
       actions: plan.actions.map((a) => a.name),
       ms: Date.now() - t0,
-      covered: plan.actions.length > 0,
+      // «مغطّى» = يُنفَّذ أو يُجاب محليًا بلا انتظار النموذج
+      covered: plan.actions.length > 0 || plan.provider === "builtin-ar",
     };
   });
 

@@ -72,7 +72,36 @@ function numbersIn(text: string): number[] {
   return (norm(text).match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
 }
 
-export function localPlan(prompt: string): Plan {
+/** أسئلة عن حالة البوت — تُجاب محليًا بلا انتظار النموذج. */
+const ASK_STATS =
+  /(كم|قداش|شحال|عدد|احصائ|إحصائ|stat|how many|total)/i;
+
+function statsAnswer(db: DB): string {
+  const users = Object.values(db.users);
+  const total = users.length;
+  const withPoints = users.filter((x) => x.points > 0).length;
+  const points = users.reduce((a, x) => a + x.points, 0);
+  const earned = users.reduce((a, x) => a + (x.totalEarned ?? 0), 0);
+  const active = users.filter((x) => Date.now() - +new Date(x.lastSeenAt ?? 0) < 86400_000).length;
+  const lines = [
+    "📊 <b>حالة البوت الآن</b>",
+    "",
+    `👥 الأعضاء: <b>${total}</b> (نشطون اليوم: ${active})`,
+    `💎 حاملو النقاط: <b>${withPoints}</b>`,
+    `🏦 إجمالي الأرصدة: <b>${points}</b> نقطة (مجموع ما جُمع: ${earned})`,
+    `🛍️ الجوائز: <b>${db.rewards.length}</b>`,
+    `✅ المهام: <b>${db.tasks.filter((t) => t.active).length}</b>`,
+    `🏅 المسابقات: <b>${db.contests.length}</b>`,
+    "",
+    `⚙️ الصيانة: ${db.settings.maintenance ? "مفعّلة 🛠️" : "مطفأة ✅"}`,
+    `🎁 الهدية اليومية: ${db.settings.points.dailyMin}–${db.settings.points.dailyMax} نقطة`,
+    `🔗 مكافأة الإحالة: ${db.settings.points.refJoin} نقطة`,
+    `📣 قناة الاشتراك: @${db.settings.forceJoin.username} (تحقّق: ${db.settings.forceJoin.verify ? "مفعّل ✅" : "مطفأ"})`,
+  ];
+  return lines.join("\n");
+}
+
+export function localPlan(prompt: string, db?: DB): Plan {
   const p = norm(prompt);
   const nums = numbersIn(prompt);
   const actions: Action[] = [];
@@ -420,6 +449,11 @@ export function localPlan(prompt: string): Plan {
       actions.push({ name: "unban_user", args: { query: who } });
       reply.push(`رفعت الحظر عن ${who}.`);
     }
+  }
+
+  // ── أسئلة إحصائية: تُجاب فورًا بلا شبكة ──
+  if (!actions.length && db && ASK_STATS.test(p)) {
+    return { reply: statsAnswer(db), actions: [], provider: "builtin-ar" };
   }
 
   // شريحة عجلة
@@ -1112,7 +1146,7 @@ export async function planPrompt(db: DB, prompt: string): Promise<Plan & { built
    * هذا يجعل «أضف جائزة …» و«ارفع مكافأة الإحالة» تُنفَّذ في مللي ثانية
    * بدل انتظار 9 ثوانٍ (مهلة المزوّد) ثم الفشل.
    */
-  const local = localPlan(prompt);
+  const local = localPlan(prompt, db);
 
   const aiOn = db.settings.ai.enabled;
   if (!aiOn) return { ...local, builtin: true };
