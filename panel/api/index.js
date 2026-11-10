@@ -466,6 +466,10 @@ const webhook = methods({
     return json(res, 200, { ok: true, service: "FT AI webhook", users: Object.keys(state.users).length });
   },
   POST: async (req, res) => {
+    // حرس: اللوحة ما تجاوبش على تحديثات تيليغرام إطلاقاً إلا إذا المالك فعّلها
+    if (process.env.PANEL_OWNS_WEBHOOK !== "1") {
+      return json(res, 200, { ok: true, ignored: true, service: "FT AI panel (webhook disabled)" });
+    }
     const expected = webhookSecret();
     const got = String(req.headers["x-telegram-bot-api-secret-token"] ?? "");
     // ما نرفضوش تحديثات تيليغرام: نرفض فقط إذا جاء سرّ غالط (ماشي إذا ما جاءش سرّ أصلاً)
