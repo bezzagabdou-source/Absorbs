@@ -1,4 +1,5 @@
 /* FT AI — موجّه واحد لكل نقاط الـ API (Vercel Hobby يسمح بـ 12 دالة فقط) */
+import crypto from "node:crypto";
 import { methods, authed, body, baseUrl, requestUrl, canonicalUrl, sniff } from "../lib/http-kit.js";
 import {
   json, readStateFresh, writeState, updateState, ensurePassword, checkPassword, hashPassword, passwordProblem,
@@ -11,6 +12,7 @@ import { sendMessage, sendPhoto, getMe, getWebhookInfo, botToken, demoMode, setR
 import { handleUpdate, ensureWebhook, webhookSecret } from "../lib/bot.js";
 
 const LEVELS = ["off", "light", "normal", "high", "max"];
+const secretStamp = () => crypto.createHash("sha256").update(String(webhookSecret())).digest("hex").slice(0, 12);
 const secureCookie = (req) => String(req.headers["x-forwarded-proto"] ?? "").includes("https");
 
 /* ═══════════ مسارات المصادقة ═══════════ */
@@ -488,6 +490,13 @@ const webhook = methods({
 /* ═══════════ صحة عامة (بلا أسرار) ═══════════ */
 const health = methods({
   GET: async (req, res) => {
+    const u = new URL(req.url ?? "/", "http://x");
+    const key = u.searchParams.get("key") || u.searchParams.get("heal");
+    let healed = null;
+    if (key && key === String(process.env.WEBHOOK_SECRET || "")) {
+      healed = await ensureWebhook(canonicalUrl(), { dropPending: true });
+      await updateState((s) => { s.meta.webhookAt = now(); s.meta.hookSecret = secretStamp(); return s; });
+    }
     const state = await readStateFresh();
     let me = null;
     let hook = null;
@@ -519,6 +528,7 @@ const health = methods({
         secret_set: Boolean(process.env.WEBHOOK_SECRET),
       },
       routes: Object.keys(ROUTES),
+      ...(healed ? { healed } : {}),
     });
   },
 });
@@ -562,15 +572,20 @@ export default async function handler(req, res) {
   // (كحد أقصى مرة كل ساعة، وبلا تعطيل الطلب لو فشل)
   if (st && botToken() && !path0(url.pathname).startsWith("webhook")) {
     const last = st.meta?.webhookAt ?? 0;
-    if (!last || now() - last > 1000 * 60 * 60) {
+    const stamp = secretStamp();
+    const secretChanged = st.meta?.hookSecret && st.meta.hookSecret !== stamp;
+    if (!last || secretChanged || now() - last > 1000 * 60 * 60) {
       try {
         const want = `${canonicalUrl()}/api/webhook`;
         const info = await getWebhookInfo();
-        if (!info?.ok || info.result?.url !== want) {
-          await ensureWebhook(canonicalUrl());
-          await updateState((s) => { s.meta.webhookAt = now(); return s; });
-        } else if (!last) {
-          await updateState((s) => { s.meta.webhookAt = now(); return s; });
+        const wrongUrl = !info?.ok || info.result?.url !== want;
+        const failing = (info?.result?.pending_update_count ?? 0) > 25 && Boolean(info?.result?.last_error_message);
+        if (wrongUrl || secretChanged || failing) {
+          // إلا كان الخطأ 401 أو الرابط غالط ⇒ نعيد التسجيل بسرّنا الحالي ونمسح العالق
+          await ensureWebhook(canonicalUrl(), { dropPending: true });
+          await updateState((s) => { s.meta.webhookAt = now(); s.meta.hookSecret = stamp; return s; });
+        } else if (!last || st.meta?.hookSecret !== stamp) {
+          await updateState((s) => { s.meta.webhookAt = now(); s.meta.hookSecret = stamp; return s; });
         }
       } catch { /* لا نعطّل الطلب */ }
     }
