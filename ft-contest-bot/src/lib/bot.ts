@@ -1075,6 +1075,29 @@ async function creditReferral(contest: Contest, inviterId: string, newUser: BotU
   const inviterExists = await getUser(inviterId);
   if (!inviterExists) return { counted: false, count: 0 };
 
+  // 🧾 سجل الإحالات: شكون دخل + شكون صيفط الرابط (يظهر في اللوحة /admin/referrals)
+  try {
+    await store.listPush(
+      "referrals:log",
+      [
+        JSON.stringify({
+          at: Date.now(),
+          contestId: contest.id,
+          contestTitle: contest.title,
+          inviterId,
+          inviterName: inviterExists.firstName,
+          inviterUsername: inviterExists.username || "",
+          joinerId: newUser.id,
+          joinerName: newUser.firstName,
+          joinerUsername: newUser.username || "",
+          counted: true,
+        }),
+      ],
+    );
+  } catch {
+    /* السجل ما يعطّلش */
+  }
+
   const added = await store.sAdd(`contest:${contest.id}:credited`, newUser.id);
   if (!added) return { counted: false, count: await getReferralCount(contest.id, inviterId) };
 

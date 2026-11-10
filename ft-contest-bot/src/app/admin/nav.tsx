@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/admin/contests", label: "المسابقات", icon: "🏆" },
   { href: "/admin/group", label: "المجموعة وأسرع ضيف", icon: "🏃" },
   { href: "/admin/users", label: "المستخدمون", icon: "👥" },
+  { href: "/admin/referrals", label: "الإحالات", icon: "🔗" },
   { href: "/admin/rewards", label: "النقاط والجوائز", icon: "🛒" },
   { href: "/admin/claims", label: "الجوائز المسلّمة", icon: "🎁" },
   { href: "/admin/stats", label: "الإحصائيات", icon: "📈" },

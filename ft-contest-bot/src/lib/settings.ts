@@ -49,9 +49,9 @@ export async function getSettings(): Promise<Settings> {
       if (legacy.length) return legacy;
       return DEFAULT_SETTINGS.requiredChannels;
     })(),
-    // 🚫 البوابة مطفية (البوت يخدم كيما كان). اللي يشغّلها بيده من اللوحة تبقى شغّالة
-    // (نعرفوها من gateOn: تتكتب غير كي يختار المالك القيمة بنفسه).
-    requireJoin: Boolean(saved.gateOn),
+    // 🔒 نسخة الاشتراك الإجباري: البوابة شغّالة افتراضياً (كيما كانت).
+    // تقدر تطفيها من اللوحة (تتخزّن ف gateOn).
+    requireJoin: saved.gateOn === undefined ? true : Boolean(saved.gateOn),
     gateV: GATE_VERSION,
     groupTarget: Math.max(1, Number(saved.groupTarget) || DEFAULT_SETTINGS.groupTarget),
     aiEnabled: saved.aiEnabled === undefined ? DEFAULT_SETTINGS.aiEnabled : Boolean(saved.aiEnabled),
