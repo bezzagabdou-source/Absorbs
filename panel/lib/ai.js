@@ -23,7 +23,7 @@ export function providers() {
 }
 
 export function aiModel() {
-  return process.env.AI_MODEL || "x-ai/grok-4";
+  return process.env.AI_MODEL || "x-ai/grok-4.3";
 }
 
 /* ═══════════════ الأدوات ═══════════════ */
@@ -269,9 +269,9 @@ async function callModel(messages, tools, timeoutMs = 55000) {
   const orKeys = keysOf("OPENROUTER_API_KEY");
   const xKeys = keysOf("XAI_API_KEY", "GROK_API_KEY");
   const routes = [];
-  const orModels = [aiModel(), "x-ai/grok-4-mini", "google/gemini-2.5-flash"];
+  const orModels = [aiModel(), "x-ai/grok-4.3", "deepseek/deepseek-chat-v3.1", "meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.0-flash-exp:free"];
   for (const m of orModels) if (orKeys.length) routes.push({ provider: "openrouter", model: m, key: orKeys[0], url: `${BASE.openrouter}/chat/completions` });
-  for (const m of ["grok-4", "grok-3-mini"]) if (xKeys.length) routes.push({ provider: "grok", model: m, key: xKeys[0], url: `${BASE.grok}/chat/completions` });
+  for (const m of ["grok-4.3", "grok-4-fast", "grok-3-mini"]) if (xKeys.length) routes.push({ provider: "grok", model: m, key: xKeys[0], url: `${BASE.grok}/chat/completions` });
 
   for (const route of routes) {
     const ctrl = new AbortController();
@@ -285,7 +285,7 @@ async function callModel(messages, tools, timeoutMs = 55000) {
           authorization: `Bearer ${route.key}`,
           ...(route.provider === "openrouter" ? { "HTTP-Referer": process.env.PUBLIC_URL || "https://ft-contests-bot.vercel.app", "X-Title": "FT AI" } : {}),
         },
-        body: JSON.stringify({ model: route.model, messages, tools, tool_choice: "auto", temperature: 0.6, max_tokens: 2500 }),
+        body: JSON.stringify({ model: route.model, messages, tools, tool_choice: "auto", temperature: 0.6, max_tokens: 1400 }),
         signal: ctrl.signal,
       });
       const data = await res.json().catch(() => null);
