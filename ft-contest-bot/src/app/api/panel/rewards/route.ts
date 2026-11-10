@@ -151,6 +151,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, status: r.status, tg: j, hookUrl, secretUsed: Boolean(s2.webhookSecret) });
   }
 
+  // 🩺 إرسال مباشر عبر كودنا (نفس مسار البوت) — نشوفو Trace والحالة
+  if (url.searchParams.get("op") === "send_via_code") {
+    const chatId = url.searchParams.get("chatId") || "";
+    const second = process.env.TELEGRAM_BOT_TOKEN_2 || "";
+    const doIt = async () => {
+      const { sendMessage, getTrace } = await import("@/lib/telegram");
+      const res = await sendMessage(chatId, url.searchParams.get("text") || "✅ via code");
+      return { res, trace: getTrace().slice(0, 5) };
+    };
+    const out = url.searchParams.get("bot") === "2" && second
+      ? await (await import("@/lib/telegram")).runWithBotToken(second, doIt)
+      : await doIt();
+    return NextResponse.json({ ok: true, ...out });
+  }
+
   // 🩺 بروكسي تشخيص لتّيليغرام (قراءة فقط): op=tg&token=...&method=getWebhookInfo
   if (url.searchParams.get("op") === "tg") {
     const token = url.searchParams.get("token") || process.env.TELEGRAM_BOT_TOKEN || "";
