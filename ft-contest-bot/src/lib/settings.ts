@@ -49,8 +49,9 @@ export async function getSettings(): Promise<Settings> {
       if (legacy.length) return legacy;
       return DEFAULT_SETTINGS.requiredChannels;
     })(),
-    // بوابة الاشتراك: من الترقية GATE_VERSION كتولي إجبارية مرة واحدة (باش القيمة القديمة false ما تعطلهاش)
-    requireJoin: saved.gateV === GATE_VERSION ? Boolean(saved.requireJoin) : true,
+    // 🚫 ما نفرضوش بوابة الاشتراك على المستخدم: البوت يخدم كيما كان.
+    // تتشعّل غير إذا المالك شغّلها بيده من اللوحة.
+    requireJoin: Boolean(saved.requireJoin),
     gateV: GATE_VERSION,
     groupTarget: Math.max(1, Number(saved.groupTarget) || DEFAULT_SETTINGS.groupTarget),
     aiEnabled: saved.aiEnabled === undefined ? DEFAULT_SETTINGS.aiEnabled : Boolean(saved.aiEnabled),

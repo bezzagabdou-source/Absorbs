@@ -618,20 +618,18 @@ function isAdminUser(settings: Settings, userId: string | number): boolean {
 
 /* ───────────────────────────── متجر الجوائز ───────────────────────────── */
 
-async function shopKeyboard(user: BotUser, rewards: Reward[]): Promise<InlineKeyboard> {
-  const balance = await balanceOf(String(user.id));
+async function shopKeyboard(rewards: Reward[]): Promise<InlineKeyboard> {
+  // 🎁 الأزرار كيما في النسخة لي كانت: كل جائزة زر، واللي ما تتوفرش تتكتب «غير متوفر الآن»
   const rows: Button[][] = [];
   const active = rewards.filter((r) => r.active).sort((a, b) => a.order - b.order);
   for (const r of active) {
     const soldOut = r.stock !== null && r.stock <= 0;
-    const mark = soldOut ? "❌" : balance >= r.cost ? "✅" : "🔒";
-    rows.push([{ text: `${mark} ${r.emoji} ${r.title} — ${r.cost}`, callback_data: `buy:${r.id}` }]);
+    const label = soldOut
+      ? `${r.emoji} ${r.title} ( غير متوفر الآن ) — ${r.cost} نقطة`
+      : `${r.emoji} ${r.title} ( متوفر ) — ${r.cost} نقطة`;
+    rows.push([{ text: label, callback_data: `buy:${r.id}` }]);
   }
-  rows.push([
-    { text: "🎁 هدية اليوم", callback_data: "daily" },
-    { text: "🚪 دخول المجموعة", callback_data: "join" },
-  ]);
-  rows.push(backRow());
+  rows.push([{ text: "⬅️ القائمة الرئيسية BACK", callback_data: "home" }]);
   return keyboard(rows);
 }
 
@@ -640,7 +638,7 @@ async function showShop(chatId: number | string, user: BotUser, messageId?: numb
   const rewards = await ensureRewards();
   const balance = await balanceOf(String(user.id));
   const text = shopText(balance, cfg, rewards);
-  const kb = await shopKeyboard(user, rewards);
+  const kb = await shopKeyboard(rewards);
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else await sendMessage(chatId, text, kb);
 }

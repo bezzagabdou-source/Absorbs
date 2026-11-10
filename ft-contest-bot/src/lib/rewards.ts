@@ -316,24 +316,16 @@ export async function approveJoin(chatId: string, userId: string): Promise<boole
 /* ─────────────── نصوص جاهزة للبوت ─────────────── */
 
 export function shopText(balance: number, cfg: PointsConfig, rewards: Reward[]): string {
-  const lines = [
-    "🎁 <b>متجر الجوائز</b>",
+  // كيما في النسخة القديمة: العنوان + الرصيد + سطر الاختيار (بلا لائحة داخل النص)
+  void rewards;
+  void cfg;
+  return [
+    "🎁 <b>المسابقات</b>",
     "",
-    `💰 رصيدك: <b>${balance}</b> نقطة`,
+    `💵 رصيدك: <b>${balance}</b> نقطة`,
     "",
-    "<b>الجوائز المتوفرة:</b>",
-  ];
-  const active = rewards.filter((r) => r.active).sort((a, b) => a.order - b.order);
-  active.forEach((r) => {
-    const stock = r.stock === null ? "" : r.stock > 0 ? ` • باقي ${r.stock}` : " • نفدت";
-    lines.push(`${r.emoji} ${escapeText(r.title)} — <b>${r.cost}</b> نقطة${stock}`);
-  });
-  lines.push(
-    "",
-    "👇 اختار جائزة من الأزرار تحت.",
-    `<i>${escapeText(cfg.shopIntro)}</i>`,
-  );
-  return lines.join("\n");
+    "اختر الجائزة التي تريد استبدالها:",
+  ].join("\n");
 }
 
 export function escapeText(value: string): string {

@@ -103,7 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ownerUsername: OWNER_USERNAME,
   logChatId: "",
   adminIds: [],
-  requireJoin: true,
+  requireJoin: false,
   autoGrant: false,
   groupChat: "",
   groupTitle: "",
