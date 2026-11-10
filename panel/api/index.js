@@ -1,5 +1,5 @@
 /* FT AI — موجّه واحد لكل نقاط الـ API (Vercel Hobby يسمح بـ 12 دالة فقط) */
-import { methods, authed, body, baseUrl, sniff } from "../lib/http-kit.js";
+import { methods, authed, body, baseUrl, requestUrl, canonicalUrl, sniff } from "../lib/http-kit.js";
 import {
   json, readStateFresh, writeState, updateState, ensurePassword, checkPassword, hashPassword, passwordProblem,
   sessionCookie, clearCookie, loginAllowed, clientIp, parseCookies, verifySession, COOKIE,
@@ -496,21 +496,26 @@ const health = methods({
     } catch (e) {
       me = { error: String(e?.message ?? e) };
     }
-    const expected = `${baseUrl(req)}/api/webhook`;
+    const expected = `${canonicalUrl()}/api/webhook`;
+    const actual = `${requestUrl(req)}/api/webhook`;
     return json(res, 200, {
       ok: true,
       brand: "FT AI",
       storage: hasRedis() ? "redis" : "memory",
       users: Object.keys(state.users).length,
       bot: me,
+      token: { set: Boolean(botToken()), source: tokenSource(), demo: demoMode() },
+      host: { canonical: canonicalUrl(), request: requestUrl(req) },
       webhook: {
         registered: hook?.url ?? null,
         expected,
+        actual_url_of_this_request: actual,
         matches: Boolean(hook?.url && hook.url === expected),
         pending: hook?.pending_update_count ?? null,
         last_error: hook?.last_error_message ?? null,
         secret_set: Boolean(process.env.WEBHOOK_SECRET),
       },
+      routes: Object.keys(ROUTES),
     });
   },
 });
@@ -550,15 +555,16 @@ export default async function handler(req, res) {
     if (st.settings?.botToken) setRuntimeToken(st.settings.botToken);
   } catch { /* ignore */ }
 
-  // تسجيل تلقائي: إذا البوت مربوط والـ webhook ماشي مسجّل، نسجّله مرة واحدة
+  // تسجيل تلقائي: إذا البوت مربوط والـ webhook ماشي مسجّل على الأصل الثابت ⇒ نسجّله
+  // (كحد أقصى مرة كل ساعة، وبلا تعطيل الطلب لو فشل)
   if (st && botToken() && !path0(url.pathname).startsWith("webhook")) {
     const last = st.meta?.webhookAt ?? 0;
-    if (!last || now() - last > 1000 * 60 * 60 * 6) {
+    if (!last || now() - last > 1000 * 60 * 60) {
       try {
+        const want = `${canonicalUrl()}/api/webhook`;
         const info = await getWebhookInfo();
-        const want = `${baseUrl(req)}/api/webhook`;
         if (!info?.ok || info.result?.url !== want) {
-          await ensureWebhook(baseUrl(req));
+          await ensureWebhook(canonicalUrl());
           await updateState((s) => { s.meta.webhookAt = now(); return s; });
         } else if (!last) {
           await updateState((s) => { s.meta.webhookAt = now(); return s; });

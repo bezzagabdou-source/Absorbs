@@ -24,11 +24,18 @@ export const authed = (fn) => async (req, res) => {
 
 export const body = (req) => readBody(req);
 
-export const baseUrl = (req) => {
+/* الأصل (origin) الثابت للموقع: PUBLIC_URL يفوز دائماً حتى يتطابق الـ webhook
+   مهما كان الرابط اللي دخل منه المالك (alias ولا نطاق مؤقت) */
+export const canonicalUrl = () =>
+  String(process.env.PUBLIC_URL || "https://ft-contests-bot.vercel.app").replace(/\/+$/, "");
+
+export const requestUrl = (req) => {
   const proto = String(req.headers["x-forwarded-proto"] ?? "https").split(",")[0];
   const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost");
   return `${proto}://${host}`;
 };
+
+export const baseUrl = (req) => canonicalUrl() || requestUrl(req);
 
 /* كشف نوع الصورة من البايتات */
 export function sniff(buf) {

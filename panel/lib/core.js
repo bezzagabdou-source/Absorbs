@@ -234,7 +234,7 @@ export function defaultState() {
     createdAt: now(),
     password: null,
     settings: {
-      botName: "FT AI",
+      botName: "مسابقات FT",
       botToken: "",
       protectionLevel: "max",
       rewardCorrect: 10,
@@ -274,6 +274,9 @@ export async function readState({ fresh = false } = {}) {
   if (!s) s = defaultState();
   const base = defaultState();
   s.settings = { ...base.settings, ...(s.settings || {}) };
+  // ترقية: أي اسم قديم للبوت يتحوّل لاسم FT (بلا أي براند قديم)
+  if (!s.settings.botName || /برق|barq/i.test(s.settings.botName)) s.settings.botName = base.settings.botName;
+  if (typeof s.settings.botToken !== "string") s.settings.botToken = "";
   s.metrics = { ...base.metrics, ...(s.metrics || {}) };
   s.meta = { ...base.meta, ...(s.meta || {}) };
   if (!Array.isArray(s.referrals)) s.referrals = [];
