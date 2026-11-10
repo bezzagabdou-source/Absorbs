@@ -114,6 +114,24 @@ export async function GET(req: NextRequest) {
   }
   if (!(await authed(req))) return bad("ماشي مسجّل", 401);
   const url = new URL(req.url);
+  if ((url.searchParams.get("what") || "") === "ai_probe") {
+    const { aiProviderList, aiGenerate } = await import("@/lib/ai");
+    const out: { provider: string; model: string; ok: boolean; error: string; sample: string }[] = [];
+    for (const prov of aiProviderList()) {
+      const saved: Record<string, string | undefined> = {};
+      for (const [k, v] of Object.entries(process.env)) if (typeof v === "string" && /_API_KEY$|GOOGLE_API_KEY$/.test(k)) saved[k] = v;
+      for (const k of Object.keys(saved)) delete process.env[k];
+      if (prov.id === "gemini") process.env.GEMINI_API_KEY = prov.key;
+      else if (prov.id === "anthropic") process.env.ANTHROPIC_API_KEY = prov.key;
+      else process.env[`${prov.id.toUpperCase()}_API_KEY`] = prov.key;
+      const res = await aiGenerate({ prompt: "قول كلمة: test", maxTokens: 40, temperature: 0 });
+      for (const k of Object.keys(process.env)) if (/_API_KEY$|GOOGLE_API_KEY$/.test(k) && !(k in saved)) delete process.env[k];
+      Object.assign(process.env, saved);
+      out.push({ provider: prov.label, model: prov.model, ok: res.ok, error: res.error, sample: res.text.slice(0, 60) });
+    }
+    return ok({ probe: out });
+  }
+
   if ((url.searchParams.get("what") || "") === "dry") {
     const prompt = (url.searchParams.get("prompt") || "").trim();
     if (!prompt) return bad("prompt مطلوب", 400);
