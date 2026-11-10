@@ -45,6 +45,8 @@ import {
   editMessage,
   escapeHtml,
   getBotIdentity,
+  clearTrace,
+  getTrace,
   sendChatAction,
   sendMessage,
   tgCall,
@@ -1271,6 +1273,48 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
 
 /* ───────────────────────────── entry points ───────────────────────────── */
 
+/**
+ * 🩺 تشخيص: ينفّذ نفس مسار handleUpdate بلا إرسال حقيقي، ويرجّع كل شي كان راح يتبعث
+ * + أي خطأ داخلي. المدار من /api/panel/rewards?op=simulate (لوحة FT AI).
+ */
+export async function simulateUpdate(update: TgUpdate): Promise<{
+  ok: boolean;
+  wouldSend: { method: string; text?: string; chatId?: unknown; buttons?: string[] }[];
+  error: string | null;
+}> {
+  const prevTrace = process.env.TG_TRACE;
+  const prevDry = process.env.TG_DRY_RUN;
+  process.env.TG_TRACE = "1";
+  // قراءة حقيقية من تيليغرام (بوابة الاشتراك تُقيَّم بواقعية) + كتابة متسجّلة بلا إرسال
+  process.env.TG_DRY_RUN = "1";
+  clearTrace();
+  let error: string | null = null;
+  try {
+    await handleUpdate(update);
+  } catch (e) {
+    error = String((e as Error)?.stack || (e as Error)?.message || e);
+  } finally {
+    if (prevTrace === undefined) delete process.env.TG_TRACE;
+    else process.env.TG_TRACE = prevTrace;
+    if (prevDry === undefined) delete process.env.TG_DRY_RUN;
+    else process.env.TG_DRY_RUN = prevDry;
+  }
+  const trace = getTrace().reverse();
+  const wouldSend = trace
+    .filter((t) => ["sendMessage", "sendPhoto", "sendSticker", "editMessageText"].includes(t.method))
+    .map((t) => {
+      const kb = (t.payload.reply_markup as { inline_keyboard?: { text: string }[][] } | undefined)?.inline_keyboard;
+      return {
+        method: t.method,
+        chatId: t.payload.chat_id,
+        text: String(t.payload.text || "").slice(0, 600),
+        buttons: kb ? kb.map((row) => row.map((b) => b.text).join(" | ")) : [],
+      };
+    });
+  clearTrace();
+  return { ok: !error && wouldSend.length > 0, wouldSend, error };
+}
+
 export async function handleUpdate(update: TgUpdate): Promise<void> {
   if (update.callback_query) {
     await handleCallback(update.callback_query);
@@ -1294,6 +1338,25 @@ export async function handleUpdate(update: TgUpdate): Promise<void> {
 }
 
 async function handleMessage(message: TgMessage) {
+  try {
+    await handleMessageInner(message);
+  } catch (error) {
+    console.error("[bot] handleMessage failed", error);
+    // ما نخليوهش يسكت: نقولو للمستخدم وقع خطأ ويمرّ للمالك
+    try {
+      const settings = await getSettings();
+      await sendMessage(
+        message.chat.id,
+        "⚠️ وقع خطأ غير متوقّع. عاود المحاولة، وإلا كلّم المالك " + ownerHandle(settings),
+        keyboard([[{ text: "🏠 الرئيسية", callback_data: "home" }]]),
+      );
+    } catch {
+      /* حتى الإرسال فشل — نسجّلو فقط */
+    }
+  }
+}
+
+async function handleMessageInner(message: TgMessage) {
   const from = message.from;
   if (!from || from.is_bot) return;
   const chat = message.chat;

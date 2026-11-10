@@ -68,6 +68,16 @@ export type TgResult<T = unknown> = {
 
 export type MockCall = { at: number; method: string; payload: Record<string, unknown> };
 
+/** نداءات قراءة فقط — مسموحة في وضع التجربة */
+const READ_METHODS = new Set([
+  "getMe",
+  "getChatMember",
+  "getChat",
+  "getChatAdministrators",
+  "getChatMemberCount",
+  "getWebhookInfo",
+]);
+
 const mockGlobal = globalThis as unknown as {
   __ftMockLog?: MockCall[];
   __ftMockSeq?: number;
@@ -76,6 +86,21 @@ const mockGlobal = globalThis as unknown as {
   /** محاكاة: قنوات تعذّر التحقق منها (البوت ماشي أدمن) */
   __ftMockBroken?: string[];
 };
+
+/** سجل آخر نداءات تيليغرام (للتشخيص فقط — TG_TRACE=1) */
+export type TgTrace = { at: number; method: string; payload: Record<string, unknown>; result?: unknown };
+const traceGlobal = globalThis as unknown as { __ftTrace?: TgTrace[] };
+export function tracePush(item: TgTrace) {
+  traceGlobal.__ftTrace ||= [];
+  traceGlobal.__ftTrace.unshift(item);
+  if (traceGlobal.__ftTrace.length > 200) traceGlobal.__ftTrace.length = 200;
+}
+export function getTrace(): TgTrace[] {
+  return traceGlobal.__ftTrace || [];
+}
+export function clearTrace(): void {
+  traceGlobal.__ftTrace = [];
+}
 
 export function isMock(): boolean {
   return process.env.TELEGRAM_MOCK === "1";
@@ -103,6 +128,15 @@ export async function tgCall<T = unknown>(
 ): Promise<TgResult<T>> {
   const settings = await getSettings();
   const token = settings.botToken;
+
+  // 🩺 وضع المراقبة: نسجّل كل نداء (حتى في وضع المحاكاة)
+  if (process.env.TG_TRACE === "1") tracePush({ at: Date.now(), method, payload });
+
+  // 🧪 وضع التجربة: قراءة حقيقية، وكل كتابة تتسجّل بلا إرسال
+  if (process.env.TG_DRY_RUN === "1" && !READ_METHODS.has(method) && !isMock()) {
+    mockGlobal.__ftMockSeq = (mockGlobal.__ftMockSeq || 0) + 1;
+    return { ok: true, result: { message_id: 900000 + mockGlobal.__ftMockSeq, ok: true } as unknown as T };
+  }
 
   if (isMock()) {
     mockGlobal.__ftMockLog ||= [];
@@ -165,6 +199,7 @@ export async function tgCall<T = unknown>(
   }
 
   if (!token) return { ok: false, description: "لا يوجد توكن للبوت" };
+
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {

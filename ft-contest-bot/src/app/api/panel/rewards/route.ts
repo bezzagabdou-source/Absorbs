@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
 }
 
 type OpResult = { body: Record<string, unknown>; status?: number };
+const json2 = (body: Record<string, unknown>, status = 200): OpResult => ({ body, status });
 const ok = (body: Record<string, unknown>): OpResult => ({ body: { ok: true, ...body } });
 const bad = (error: string, status = 400): OpResult => ({ body: { ok: false, error }, status });
 
@@ -333,6 +334,27 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
           if (r.ok) sent++;
         }
         return { body: { ok: sent > 0, sent, total: users.length } };
+      }
+      case "simulate": {
+        // 🩺 نحاكيو رسالة المستخدم ونشوفو شنو البوت كان راح يرد (بلا إرسال)
+        const text = String(body.text || "/start").trim();
+        const userId = String(body.userId || "1").trim();
+        const inGroup = Boolean(body.inGroup);
+        const { simulateUpdate } = await import("@/lib/bot");
+        const update = {
+          update_id: Date.now(),
+          message: {
+            message_id: 1,
+            date: Math.floor(Date.now() / 1000),
+            chat: inGroup
+              ? { id: Number(body.chatId) || -1000000000000, type: "supergroup", title: "مجموعة" }
+              : { id: Number(userId), type: "private" },
+            from: { id: Number(userId), is_bot: false, first_name: "تشخيص", username: "diag" },
+            text,
+          },
+        };
+        const res = await simulateUpdate(update as never);
+        return json2(res, res.ok ? 200 : 200);
       }
       case "ai_act": {
         const prompt = String(body.prompt || "").trim();
