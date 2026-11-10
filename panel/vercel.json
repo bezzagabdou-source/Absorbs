@@ -1,30 +1,46 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/ai.js": { "maxDuration": 60, "memory": 1024 },
-    "api/webhook.js": { "maxDuration": 30, "memory": 512 },
-    "api/actions.js": { "maxDuration": 60, "memory": 1024 }
+    "api/ai.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/webhook.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/actions.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
   },
-  "rewrites": [
-    { "source": "/api/password", "destination": "/api/auth/password" },
-    { "source": "/api/ai/chat", "destination": "/api/ai" },
-    { "source": "/api/ai/history", "destination": "/api/ai" },
-    { "source": "/api/auth/login", "destination": "/api/login" },
-    { "source": "/api/auth/session", "destination": "/api/session" },
-    { "source": "/api/auth/logout", "destination": "/api/logout" }
-  ],
   "headers": [
     {
       "source": "/app.css",
-      "headers": [{ "key": "cache-control", "value": "no-cache, must-revalidate" }]
+      "headers": [
+        {
+          "key": "cache-control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
     },
     {
       "source": "/app.js",
-      "headers": [{ "key": "cache-control", "value": "no-cache, must-revalidate" }]
+      "headers": [
+        {
+          "key": "cache-control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
     },
     {
       "source": "/",
-      "headers": [{ "key": "cache-control", "value": "no-store" }]
+      "headers": [
+        {
+          "key": "cache-control",
+          "value": "no-store"
+        }
+      ]
     }
   ]
 }

@@ -21,16 +21,6 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-/* إعادة كتابة المسارات (نفس vercel.json) */
-const REWRITES = {
-  "/api/password": "/api/auth/password",
-  "/api/ai/chat": "/api/ai",
-  "/api/ai/history": "/api/ai",
-  "/api/auth/login": "/api/login",
-  "/api/auth/session": "/api/session",
-  "/api/auth/logout": "/api/logout",
-};
-
 const cache = new Map();
 async function loadHandler(route) {
   // /api/a/b → api/a/b.js
@@ -44,8 +34,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   try {
     if (url.pathname.startsWith("/api/")) {
-      const target = REWRITES[url.pathname] ?? url.pathname;
-      const handler = await loadHandler(target);
+      const handler = await loadHandler(url.pathname);
       if (!handler) {
         res.statusCode = 404;
         res.setHeader("content-type", "application/json");
