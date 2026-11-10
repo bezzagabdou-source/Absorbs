@@ -438,7 +438,7 @@ const actions = methods({
       setRuntimeToken(token);
       const me = await getMe();
       if (!me?.ok) return json(res, 400, { ok: false, error: `تيليغرام رفض التوكن: ${me?.description ?? "غير معروف"}` });
-      const hook = await ensureWebhook(baseUrl(req));
+      const hook = process.env.PANEL_OWNS_WEBHOOK === "1" ? await ensureWebhook(baseUrl(req)) : { ok: true, skipped: "اللوحة ما تقبضش webhook (البوت عندو سيرفر خاص)" };
       await updateState((s) => {
         s.settings.botToken = token;
         s.settings.botUsername = me.result.username ?? null;
@@ -496,7 +496,7 @@ const health = methods({
     let healed = null;
     let aiOut = null;
     const keyOk = Boolean(key) && key === String(process.env.WEBHOOK_SECRET || "");
-    if (keyOk && u.searchParams.has("heal")) {
+    if (keyOk && u.searchParams.has("heal") && process.env.PANEL_OWNS_WEBHOOK === "1") {
       healed = await ensureWebhook(canonicalUrl(), { dropPending: true });
       await updateState((s) => { s.meta.webhookAt = now(); s.meta.hookSecret = secretStamp(); return s; });
     }
@@ -578,7 +578,8 @@ export default async function handler(req, res) {
 
   // تسجيل تلقائي: إذا البوت مربوط والـ webhook ماشي مسجّل على الأصل الثابت ⇒ نسجّله
   // (كحد أقصى مرة كل ساعة، وبلا تعطيل الطلب لو فشل)
-  if (st && botToken() && !path0(url.pathname).startsWith("webhook")) {
+  const ownsHook = process.env.PANEL_OWNS_WEBHOOK === "1";
+  if (ownsHook && st && botToken() && !path0(url.pathname).startsWith("webhook")) {
     const last = st.meta?.webhookAt ?? 0;
     const stamp = secretStamp();
     const secretChanged = st.meta?.hookSecret && st.meta.hookSecret !== stamp;

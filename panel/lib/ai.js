@@ -3,9 +3,20 @@ import crypto from "node:crypto";
 import { now, readState, updateState, recordAction } from "./core.js";
 
 const BASE = {
+  groq: (process.env.AI_BASE_GROQ ?? "https://api.groq.com/openai/v1").replace(/\/+$/, ""),
   openrouter: (process.env.AI_BASE_OPENROUTER ?? "https://openrouter.ai/api/v1").replace(/\/+$/, ""),
   grok: (process.env.AI_BASE_XAI ?? "https://api.x.ai/v1").replace(/\/+$/, ""),
 };
+
+/** Groq = المزوّد الأساسي (مفتاح gsk_…). مفاتيحه تُجمَع من GROQ_API_KEY وأيضاً من
+ *  XAI_API_KEY/GROK_API_KEY إذا بدأت بـ gsk_ (الناس تسمّيها «غروك»). */
+export function groqKeys() {
+  const all = [...keysOf("GROQ_API_KEY", "XAI_API_KEY", "GROK_API_KEY", "GROQ_KEY")];
+  return [...new Set(all.filter((k) => k.startsWith("gsk_")))].concat(
+    [...new Set(keysOf("GROQ_API_KEY"))].filter((k) => !k.startsWith("gsk_")),
+  );
+}
+export const GROQ_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b", "qwen/qwen3-32b"];
 
 function keysOf(...names) {
   const out = [];
@@ -17,13 +28,14 @@ function keysOf(...names) {
 
 export function providers() {
   return {
+    groq: groqKeys().length,
     openrouter: keysOf("OPENROUTER_API_KEY").length,
-    grok: keysOf("XAI_API_KEY", "GROK_API_KEY").length,
+    grok: keysOf("XAI_API_KEY", "GROK_API_KEY").filter((k) => k.startsWith("xai-")).length,
   };
 }
 
 export function aiModel() {
-  return process.env.AI_MODEL || "x-ai/grok-4.3";
+  return process.env.AI_MODEL || process.env.AI_MODEL_GROQ || GROQ_MODELS[0];
 }
 
 /* ═══════════════ الأدوات ═══════════════ */
@@ -266,19 +278,18 @@ export const toolMap = () => Object.fromEntries(USER_TOOLS.map((t) => [t.name, t
 
 async function callModel(messages, tools, timeoutMs = 55000) {
   const errors = [];
+  const gKeys = groqKeys();
   const orKeys = keysOf("OPENROUTER_API_KEY");
-  const xKeys = keysOf("XAI_API_KEY", "GROK_API_KEY");
+  const xKeys = keysOf("XAI_API_KEY", "GROK_API_KEY").filter((k) => k.startsWith("xai-"));
   const routes = [];
-  const orModels = [
-    aiModel(),
-    "x-ai/grok-4.3",
-    "deepseek/deepseek-chat-v3.1",
-    "deepseek/deepseek-r1:free",
-    "qwen/qwen3-8b:free",
-    "meta-llama/llama-3.1-8b-instruct:free",
-  ];
+  // 1) Groq أولاً (سريع + مجاني + يدعم tools)
+  const gModels = [aiModel(), ...GROQ_MODELS.filter((m) => m !== aiModel())];
+  for (const m of gModels) if (gKeys.length) routes.push({ provider: "groq", model: m, key: gKeys[0], url: `${BASE.groq}/chat/completions`, maxTokens: 900 });
+  // 2) ثم OpenRouter (إذا كان عندو رصيد)
+  const orModels = ["x-ai/grok-4.3", "deepseek/deepseek-chat-v3.1"];
   for (const m of orModels) if (orKeys.length) routes.push({ provider: "openrouter", model: m, key: orKeys[0], url: `${BASE.openrouter}/chat/completions` });
-  for (const m of ["grok-4.3", "grok-4-fast", "grok-3-mini"]) if (xKeys.length) routes.push({ provider: "grok", model: m, key: xKeys[0], url: `${BASE.grok}/chat/completions` });
+  // 3) ثم xAI الحقيقي (مفاتيح xai-)
+  for (const m of ["grok-4-fast", "grok-3-mini"]) if (xKeys.length) routes.push({ provider: "grok", model: m, key: xKeys[0], url: `${BASE.grok}/chat/completions` });
 
   const ctrlRetry = [];
   for (const route of routes) {
@@ -584,7 +595,7 @@ ${state.settings.aiPersona ? `توجيهات المالك: ${state.settings.aiPe
     const sh = await shieldRun(text, ctx);
     trace.push(...sh.trace);
     if (sh.done) finalText = sh.text;
-    else if (!provider) finalText = "⚠️ مزوّد الذكاء الاصطناعي ما ردّش" + (lastErrors?.length ? `: ${lastErrors[0]}` : "") + "\nزيد مفتاح OPENROUTER_API_KEY أو XAI_API_KEY في إعدادات Vercel ونعاود.";
+    else if (!provider) finalText = "⚠️ مزوّد الذكاء الاصطناعي ما ردّش" + (lastErrors?.length ? `: ${lastErrors[0]}` : "") + "\nزيد مفتاح GROQ_API_KEY (gsk_…) في إعدادات Vercel ونعاود.";
     else finalText = summarise(trace);
   }
 
