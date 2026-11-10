@@ -107,6 +107,18 @@ export function pushSendError(item: TgSendError) {
   if (errGlobal.__ftSendErrors.length > 60) errGlobal.__ftSendErrors.length = 60;
 }
 
+/** 📊 عدّاد نداءات تيليغرام (يبيّن واش الويب هوك كيتنفّذ فعلاً) */
+const ctrGlobal = globalThis as unknown as { __ftTgCalls?: { n: number; lastAt: number; lastMethod: string } };
+export function bumpTgCall(method: string) {
+  ctrGlobal.__ftTgCalls ||= { n: 0, lastAt: 0, lastMethod: "" };
+  ctrGlobal.__ftTgCalls.n += 1;
+  ctrGlobal.__ftTgCalls.lastAt = Date.now();
+  ctrGlobal.__ftTgCalls.lastMethod = method;
+}
+export function getTgCalls() {
+  return ctrGlobal.__ftTgCalls || { n: 0, lastAt: 0, lastMethod: "" };
+}
+
 export function getTrace(): TgTrace[] {
   return traceGlobal.__ftTrace || [];
 }
@@ -140,6 +152,8 @@ export async function tgCall<T = unknown>(
 ): Promise<TgResult<T>> {
   const settings = await getSettings();
   const token = settings.botToken;
+
+  bumpTgCall(method);
 
   // 🩺 وضع المراقبة: نسجّل كل نداء (حتى في وضع المحاكاة)
   if (process.env.TG_TRACE === "1") tracePush({ at: Date.now(), method, payload });

@@ -92,9 +92,19 @@ export async function GET(request: NextRequest) {
   // 🩺 تدقيق: آخر التحديثات + أخطاء الإرسال
   if (url.searchParams.get("op") === "audit") {
     const { readAudit, readBotMeta } = await import("@/app/api/telegram/webhook/route");
-    const { getSendErrors } = await import("@/lib/telegram");
-    const [updates, botMeta] = await Promise.all([readAudit(40), readBotMeta()]);
-    return NextResponse.json({ ok: true, botMeta, updates, sendErrors: getSendErrors(), at: Date.now() });
+    const { getSendErrors, getTgCalls } = await import("@/lib/telegram");
+    const { listRecentUsers, usersCount } = await import("@/lib/users");
+    const [updates, botMeta, users] = await Promise.all([readAudit(40), readBotMeta(), listRecentUsers(10)]);
+    return NextResponse.json({
+      ok: true,
+      botMeta,
+      tgCalls: getTgCalls(),
+      usersCount: await usersCount(),
+      users: users.map((u) => ({ id: u.id, name: u.firstName, username: u.username, joinedAt: u.joinedAt })),
+      updates,
+      sendErrors: getSendErrors(),
+      at: Date.now(),
+    });
   }
 
   // 🩺 simulate عبر GET (للتشخيص السريع من المتصفح)
