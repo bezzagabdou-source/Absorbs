@@ -854,6 +854,7 @@ const anyTextTo = (calls, chatId) =>
     "اللوحة كتوري الجوائز وإعدادات النقاط",
     /كونت بيس/.test(rewardsHtml) && /إعدادات النقاط/.test(rewardsHtml),
   );
+  check("صفحة الجوائز فيها أزرار تسليم/رفض", /طلبات الجوائز/.test(rewardsHtml));
   check("اللوحة فيها خانة تعديل نقاط بآي دي", /زيد \/ نقص نقاط/.test(plain(rewardsHtml)) || rewardsHtml.includes("grantPointsForm") || /آي دي المستخدم/.test(rewardsHtml));
 
   const dashPoints = plain((await page("/admin")).html);
