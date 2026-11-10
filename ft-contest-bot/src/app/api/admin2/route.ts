@@ -114,6 +114,11 @@ export async function GET(req: NextRequest) {
   }
   if (!(await authed(req))) return bad("ماشي مسجّل", 401);
   const url = new URL(req.url);
+  if ((url.searchParams.get("what") || "") === "dry") {
+    const prompt = (url.searchParams.get("prompt") || "").trim();
+    if (!prompt) return bad("prompt مطلوب", 400);
+    return NextResponse.json({ ok: true, ...(await planOnly(prompt)) });
+  }
   const what = url.searchParams.get("what") || "all";
 
   try {

@@ -35,6 +35,15 @@ export async function setAdminPassword(password: string): Promise<void> {
 }
 
 export async function verifyPassword(password: string): Promise<boolean> {
+  // 🔑 كلمة سر البيئة (ADMIN_PASSWORD) مقبولة دائماً
+  const env = envPassword();
+  if (env && password.length === env.length) {
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(password), Buffer.from(env))) return true;
+    } catch {
+      /* كمل للتحقق العادي */
+    }
+  }
   const cred = await getStore().get<Credential>(CRED_KEY);
   if (cred) {
     const candidate = Buffer.from(hash(password, cred.salt), "hex");
