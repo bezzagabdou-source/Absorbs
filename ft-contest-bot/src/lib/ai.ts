@@ -239,8 +239,10 @@ export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<Ai
   if (!providers.length) return empty;
   let last: AiResult = empty;
   for (const provider of providers.slice(0, 3)) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await generateVia(provider, input);
+    // 💸 OpenRouter بلا كريدي: ما نضيّعوش الوقت — نجربو غير إذا طلب صغير
+    const budget = provider.id === "openrouter" ? Math.min(input.maxTokens ?? 600, 400) : input.maxTokens;
+    for (let attempt = 0; attempt < (provider.id === "openrouter" ? 1 : 2); attempt++) {
+      const res = await generateVia(provider, { ...input, maxTokens: budget });
       if (res.ok) return res;
       last = res;
       // 🔁 إذا المزوّد مزحوم (high demand / 429 / 5xx) نعاودو مرة بعد شوية
