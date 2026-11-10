@@ -101,6 +101,17 @@ const ok = (b: Record<string, unknown>) => NextResponse.json({ ok: true, ...b })
 const bad = (error: string, status = 400) => NextResponse.json({ ok: false, error }, { status });
 
 export async function GET(req: NextRequest) {
+  const url0 = new URL(req.url);
+  // 🔎 فحص جاهزية اللوحة (بلا أي سرّ): غير هل المتغيّرات موجودة
+  if ((url0.searchParams.get("what") || "") === "ready") {
+    return ok({
+      panel: true,
+      passwordSet: Boolean(process.env.ADMIN_PASSWORD),
+      secretSet: Boolean(process.env.ADMIN_SECRET),
+      ai: aiStatus(),
+      storage: storageInfo().backend,
+    });
+  }
   if (!(await authed(req))) return bad("ماشي مسجّل", 401);
   const url = new URL(req.url);
   const what = url.searchParams.get("what") || "all";
