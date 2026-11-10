@@ -35,7 +35,7 @@
 ## تشغيل محلي
 
 ```bash
-DASHBOARD_PASSWORD=barq2026 SESSION_SECRET=dev node scripts/dev.js   # http://localhost:8099
+DASHBOARD_PASSWORD=ftai2026 SESSION_SECRET=dev node scripts/dev.js   # http://localhost:8099
 npm test                                                             # 13 اختبار
 ```
 
