@@ -22,7 +22,7 @@ export type AiResult = {
 };
 
 const DEFAULT_MODELS: Record<string, string> = {
-  gemini: "gemini-2.5-flash",
+  gemini: "gemini-3.8-flash",
   openai: "gpt-4o-mini",
   groq: "llama-3.3-70b-versatile",
   openrouter: "google/gemini-2.5-flash",
@@ -31,6 +31,14 @@ const DEFAULT_MODELS: Record<string, string> = {
   xai: "grok-4-fast",
   anthropic: "claude-sonnet-4-5",
 };
+
+/** 🧩 أسماء موديلات Gemini القديمة → الجديدة (2.5 وقف عند Google) */
+function normalizeGeminiModel(model: string): string {
+  const m = (model || "").trim();
+  if (!m) return DEFAULT_MODELS.gemini;
+  if (/^gemini-2\.5/i.test(m) || /^models\/gemini-2\.5/i.test(m)) return m.replace(/^models\//, "").replace(/^gemini-2\.5/i, "gemini-3.8");
+  return m.replace(/^models\//, "");
+}
 
 function env(...names: string[]): string {
   for (const name of names) {
@@ -51,7 +59,7 @@ export function aiProvider(overrideModel?: string): AiProvider | null {
       label: "Google Gemini",
       kind: "gemini",
       key: geminiKey,
-      model: overrideModel || env("AI_MODEL", "GEMINI_FLASH_MODEL") || DEFAULT_MODELS.gemini,
+      model: normalizeGeminiModel(overrideModel || env("AI_MODEL", "GEMINI_FLASH_MODEL") || DEFAULT_MODELS.gemini),
     };
   }
 
