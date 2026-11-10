@@ -26,9 +26,19 @@ export type Reward = {
   delivery: string;
   /** 🗂️ القسم: accounts = حسابات بيس، points = نقاط، services = خدمات */
   section?: SectionId;
+  /** 🖼️ صورة الجائزة (رابط أو base64 داخلي) */
+  image?: string;
 };
 
 export type SectionId = "accounts" | "points" | "services";
+
+/** 🖼️ صورة جائزة افتراضية حسب القسم (SVG صغير داخلي — ما يحتاجش رابط خارجي) */
+export function sectionImage(section?: SectionId): string {
+  const emoji = section === "points" ? "⭐️" : section === "services" ? "🤝" : "🎁";
+  const title = section === "points" ? "نقاط" : section === "services" ? "خدمات FT" : "حساب بيس FT";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d1526"/><stop offset="1" stop-color="#1b2c4a"/></linearGradient></defs><rect width="900" height="600" fill="url(#g)"/><circle cx="450" cy="240" r="130" fill="rgba(246,196,83,0.12)" stroke="#f6c453" stroke-width="4"/><text x="450" y="295" font-size="130" text-anchor="middle">${emoji}</text><text x="450" y="470" font-size="52" fill="#eaf1ff" text-anchor="middle" font-family="Tahoma">${title}</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
 
 export type Section = { id: SectionId; title: string; emoji: string; order: number; active: boolean };
 
@@ -137,7 +147,16 @@ function inferSection(r: Reward): SectionId {
 
 /** 🗂️ كل جائزة لازم يكون عندها قسم */
 export function withSections(list: Reward[]): Reward[] {
-  return list.map((r) => (r.section ? r : { ...r, section: inferSection(r) }));
+  return list.map((r) => {
+    const section = r.section ? r.section : inferSection(r);
+    return { ...r, section };
+  });
+}
+
+/** 🖼️ صورة الجائزة أو صورة القسم الافتراضية */
+export function rewardImage(r: { image?: string; section?: SectionId }): string {
+  if (r.image && r.image.trim()) return r.image.trim();
+  return sectionImage(r.section || "accounts");
 }
 
 export async function saveRewards(list: Reward[]): Promise<void> {

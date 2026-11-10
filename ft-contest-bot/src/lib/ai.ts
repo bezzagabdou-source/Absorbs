@@ -295,7 +295,7 @@ async function generateVia(provider: AiProvider, input: AiGenerateInput): Promis
           generationConfig: { temperature, maxOutputTokens: maxTokens },
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(12_000),
       });
       const json = (await res.json()) as {
         candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -327,7 +327,7 @@ async function generateVia(provider: AiProvider, input: AiGenerateInput): Promis
           messages: [{ role: "user", content: input.prompt }],
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(12_000),
       });
       const json = (await res.json()) as {
         content?: { text?: string }[];
@@ -356,7 +356,7 @@ async function generateVia(provider: AiProvider, input: AiGenerateInput): Promis
         ],
       }),
       cache: "no-store",
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(12_000),
     });
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[];

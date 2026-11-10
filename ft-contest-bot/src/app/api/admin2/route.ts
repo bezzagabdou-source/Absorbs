@@ -18,7 +18,7 @@ import {
 } from "@/lib/rewards";
 import { getSettings } from "@/lib/settings";
 import { listRecentUsers, usersCount, getUser } from "@/lib/users";
-import { listContests } from "@/lib/contests";
+import { listContests, updateContest, getContest } from "@/lib/contests";
 import { storageInfo } from "@/lib/store";
 import { aiStatus } from "@/lib/ai";
 import { ALLOWED_OPS, executeAction, planActions, panelStats, planOnly } from "@/lib/agent";
@@ -236,6 +236,25 @@ export async function POST(req: NextRequest) {
     return ok({ loggedIn: true });
   }
 
+  // 🔑 تغيير كلمة السر (تتخزّن مشفّرة scrypt)
+  if (action === "change_password") {
+    const jar0 = await cookies();
+    if (!tokenValid(jar0.get(COOKIE)?.value)) return bad("ماشي مسجّل", 401);
+    const next = String(body.newPassword || "").trim();
+    if (next.length < 6) return bad("كلمة السر لازم 6 حروف على الأقل", 400);
+    const { setAdminPassword } = await import("@/lib/auth");
+    await setAdminPassword(next);
+    jar0.set(COOKIE, makeToken(), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: MAX_AGE,
+    });
+    await pushAdminLog({ at: Date.now(), op: "change_password", detail: "تبديل كلمة سر اللوحة", via: "panel" });
+    return ok({ changed: true });
+  }
+
   if (action === "logout") {
     const jar = await cookies();
     jar.delete(COOKIE);
@@ -249,8 +268,43 @@ export async function POST(req: NextRequest) {
     if (action === "ai") {
       const prompt = String(body.prompt || "").trim();
       if (!prompt) return bad("اكتب طلبك", 400);
-      const out = await planActions(prompt);
-      return NextResponse.json({ ...out });
+      // ⏱️ سقف زمني: إذا النموذج تبطّل نرجعو للخطة المحلية باش الواجهة ما تفشلش
+      const out = await Promise.race([
+        planActions(prompt),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 14_000)),
+      ]);
+      if (out) return NextResponse.json({ ...out });
+      const { localPlan } = await import("@/lib/agent");
+      return NextResponse.json({ ...(await localPlan(prompt)) });
+    }
+
+    // 🖼️ رفع صورة جائزة (base64 من الواجهة)
+    if (action === "reward_image") {
+      const id = String(body.id || "").trim();
+      const dataUrl = String(body.dataUrl || "").trim();
+      if (!id) return bad("id مطلوب", 400);
+      if (dataUrl && !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(dataUrl)) return bad("صيغة الصورة ماشي مدعومة", 400);
+      if (dataUrl.length > 2_000_000) return bad("الصورة كبيرة — الحد ~1.4 ميغا", 400);
+      const list = await ensureRewards();
+      const target = list.find((r) => r.id === id);
+      if (!target) return bad("الجائزة ماشي موجودة", 404);
+      await saveRewards(list.map((r) => (r.id === id ? { ...r, image: dataUrl } : r)));
+      await pushAdminLog({ at: Date.now(), op: "reward_image", detail: `صورة الجائزة ${target.title}${dataUrl ? "" : " (تحيّدت)"}`, via: "panel" });
+      return ok({ id, size: dataUrl.length });
+    }
+
+    // 🖼️ رفع صورة مسابقة
+    if (action === "contest_image") {
+      const id = String(body.id || "").trim();
+      const dataUrl = String(body.dataUrl || "").trim();
+      if (!id) return bad("id مطلوب", 400);
+      if (dataUrl && !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(dataUrl)) return bad("صيغة الصورة ماشي مدعومة", 400);
+      if (dataUrl.length > 2_000_000) return bad("الصورة كبيرة — الحد ~1.4 ميغا", 400);
+      const contest = await getContest(id);
+      if (!contest) return bad("المسابقة ماشي موجودة", 404);
+      const updated = await updateContest(id, { imageUrl: dataUrl || undefined });
+      await pushAdminLog({ at: Date.now(), op: "contest_image", detail: `صورة المسابقة ${contest.title}${dataUrl ? "" : " (تحيّدت)"}`, via: "panel" });
+      return ok({ contest: { id, image: Boolean(updated?.imageUrl) } });
     }
 
     // 🔍 تجربة جافة للـAI (بلا تنفيذ)

@@ -18,6 +18,7 @@ type Reward = {
   order: number;
   delivery: string;
   section?: string;
+  image?: string;
 };
 type UserRow = { id: string; firstName: string; username: string; joinedAt: number; points: number; banned: boolean };
 type LogRow = { at: number; op: string; detail: string; via: string };
@@ -54,6 +55,7 @@ const TABS = [
   { id: "message", label: "✉️ الرسائل" },
   { id: "gate", label: "🔒 القنوات" },
   { id: "texts", label: "📝 النصوص" },
+  { id: "contests", label: "🏆 المسابقات" },
   { id: "stats", label: "📊 إحصائيات" },
   { id: "log", label: "🧾 السجل" },
 ] as const;
@@ -204,6 +206,7 @@ export default function Panel() {
       {tab === "message" ? <MessageTab users={users} flash={flash} /> : null}
       {tab === "gate" ? <GateTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "texts" ? <TextsTab data={data} flash={flash} onDone={loadAll} /> : null}
+      {tab === "contests" ? <ContestsTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "stats" ? <StatsTab data={data} users={users} /> : null}
       {tab === "log" ? <LogTab log={log} /> : null}
 
@@ -309,6 +312,9 @@ function AiTab({ flash, onDone }: { flash: (k: "ok" | "err", t: string) => void;
           {busy ? "…" : "نفّذ"}
         </button>
       </form>
+      <div className="a2-muted" style={{ marginTop: 8 }}>
+        ⚠️ إذا ظهر «فشل (200)»: معناها النموذج تعطّل/تأخّر — عاود «نفّذ» مرة أخرى، أو استعمل الأزرار فوق (الجوائز/المستخدمين) وتخدم مباشرة بلا AI.
+      </div>
     </div>
   );
 }
@@ -424,7 +430,11 @@ function RewardsTab({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "er
           {(bySection[activeSection] || []).map((r) => (
             <div key={r.id} className="a2-item">
               <div className="top">
-                <span style={{ fontSize: 20 }}>{r.emoji}</span>
+                {r.image ? (
+                  <img src={r.image} alt="" style={{ width: 44, height: 32, objectFit: "cover", borderRadius: 7, border: "1px solid var(--a2-line)" }} />
+                ) : (
+                  <span style={{ fontSize: 20 }}>{r.emoji}</span>
+                )}
                 <b>{r.title}</b>
                 <span className="a2-pill gold">{r.cost} نقطة</span>
                 <span className="a2-pill">{r.stock === null ? "كمية بلا حد" : `كمية ${r.stock}`}</span>
@@ -524,6 +534,36 @@ function RewardForm({
         <span>نص التسليم</span>
         <input value={r.delivery} onChange={(e) => setR({ ...r, delivery: e.target.value })} placeholder="يتواصل معك المالك على الخاص" />
       </label>
+      <label className="f">
+        <span>🖼️ صورة الجائزة (تظهر في البوت مع الاسم والسعر)</span>
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            if (file.size > 1_400_000) {
+              window.alert("الصورة كبيرة — الحد 1.4 ميغا");
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => setR({ ...r, image: String(reader.result || "") });
+            reader.readAsDataURL(file);
+          }}
+        />
+      </label>
+      {r.image ? (
+        <div className="a2-row" style={{ marginBottom: 10 }}>
+          <img src={r.image} alt="" style={{ width: 120, height: 84, objectFit: "cover", borderRadius: 10, border: "1px solid var(--a2-line)" }} />
+          <button className="btn2 sm red" onClick={() => setR({ ...r, image: "" })}>
+            حيّد الصورة
+          </button>
+        </div>
+      ) : (
+        <div className="a2-muted" style={{ marginBottom: 10 }}>
+          بلا صورة → يتصوّر تلقائياً صورة القسم ({SECTION_META[r.section || "accounts"]?.label}).
+        </div>
+      )}
       <div className="a2-row">
         <button className="btn2 gold" onClick={() => onSave(r)} disabled={busy || !r.title.trim()}>
           💾 حفظ
@@ -921,6 +961,134 @@ function TextsTab({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "err"
       <button className="btn2 gold" onClick={save} disabled={busy}>
         💾 حفظ النصوص
       </button>
+      <PasswordCard flash={flash} />
+    </div>
+  );
+}
+
+/* ───────────────────────────── 🔑 كلمة السر ───────────────────────────── */
+function PasswordCard({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
+  const [p1, setP1] = useState("");
+  const [p2, setP2] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function change() {
+    if (p1.length < 6) return flash("err", "كلمة السر لازم 6 حروف على الأقل");
+    if (p1 !== p2) return flash("err", "الكلمتين ماشي كيف كيف");
+    setBusy(true);
+    try {
+      await api({ action: "change_password", newPassword: p1 });
+      flash("ok", "تبدّلت كلمة السر ✅");
+      setP1("");
+      setP2("");
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="a2-item" style={{ marginTop: 14, borderColor: "rgba(90,169,255,0.4)" }}>
+      <div className="top">
+        <b>🔑 تغيير كلمة السر</b>
+      </div>
+      <div className="a2-grid">
+        <label className="f">
+          <span>كلمة السر الجديدة</span>
+          <input type="password" value={p1} onChange={(e) => setP1(e.target.value)} placeholder="••••••" />
+        </label>
+        <label className="f">
+          <span>تأكيد كلمة السر</span>
+          <input type="password" value={p2} onChange={(e) => setP2(e.target.value)} placeholder="••••••" />
+        </label>
+      </div>
+      <button className="btn2 blue" onClick={change} disabled={busy || !p1 || !p2}>
+        {busy ? "…" : "💾 بدّل كلمة السر"}
+      </button>
+      <div className="a2-muted" style={{ marginTop: 6 }}>
+        الكلمة الجديدة تتخزّن مشفّرة (scrypt) في قاعدة البيانات. الكلمة القديمة من Vercel تبقى شغّالة كاحتياط.
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────────── 🏆 المسابقات ───────────────────────────── */
+function ContestsTab({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "err", t: string) => void; onDone: () => void | Promise<void> }) {
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function upload(id: string, file: File) {
+    if (file.size > 1_400_000) return flash("err", "الصورة كبيرة — الحد 1.4 ميغا");
+    setBusy(id);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("ما قدرناش نقراو الصورة"));
+        reader.readAsDataURL(file);
+      });
+      await api({ action: "contest_image", id, dataUrl });
+      flash("ok", "تحمّلت صورة المسابقة ✅");
+      await onDone();
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function clear(id: string) {
+    setBusy(id);
+    try {
+      await api({ action: "contest_image", id, dataUrl: "" });
+      flash("ok", "تحيّدت الصورة");
+      await onDone();
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="a2-card">
+      <h2>
+        🏆 المسابقات وصورها <span className="a2-hint">ارفع صورة لكل مسابقة — تظهر في البوت وفي الموقع</span>
+      </h2>
+      <div className="a2-list">
+        {data.contests.map((c) => (
+          <div key={c.id} className="a2-item">
+            <div className="top">
+              <img
+                src={`/api/contests/${c.id}/image`}
+                alt=""
+                style={{ width: 64, height: 46, objectFit: "cover", borderRadius: 8, border: "1px solid var(--a2-line)" }}
+              />
+              <b>{c.title}</b>
+              <span className={`a2-pill ${c.status === "active" ? "on" : "off"}`}>{c.status === "active" ? "مفتوحة" : c.status}</span>
+              <span className="a2-pill">هدف {c.target}</span>
+              <div style={{ flex: 1 }} />
+              <label className="btn2 sm blue" style={{ cursor: "pointer", margin: 0 }}>
+                {busy === c.id ? "…" : "🖼️ رفع صورة"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) upload(c.id, f);
+                    e.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <button className="btn2 sm red" onClick={() => clear(c.id)} disabled={busy === c.id}>
+                حيّد
+              </button>
+            </div>
+          </div>
+        ))}
+        {!data.contests.length ? <div className="a2-muted">ماكانش مسابقات.</div> : null}
+      </div>
     </div>
   );
 }

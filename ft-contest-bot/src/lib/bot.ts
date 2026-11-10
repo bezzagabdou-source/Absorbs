@@ -661,8 +661,34 @@ async function showReward(chatId: number | string, user: BotUser, rewardId: stri
     [{ text: "⬅️ رجوع للمتجر", callback_data: "shop" }],
   ]);
   const text = [rewardLine(reward, balance), "", `💰 رصيدك: <b>${balance}</b> نقطة`].join("\n");
-  if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
+  if (messageId) {
+    // 🖼️ نحاول نحطو الصورة فوق الرسالة (تعديل الكابشن إذا كانت الرسالة صورة)
+    const origin = await currentOrigin().catch(() => "");
+    const photo = origin ? `${origin}/api/rewards/${reward.id}/image` : "";
+    if (photo) {
+      const edited = await tgCall("editMessageMedia", {
+        chat_id: chatId,
+        message_id: messageId,
+        media: { type: "photo", media: photo, caption: text.slice(0, 1000), parse_mode: "HTML" },
+        reply_markup: kb,
+      });
+      if (edited.ok) return;
+    }
+    await editMessage(chatId, messageId, text, kb);
+    return;
+  }
+  const origin = await currentOrigin().catch(() => "");
+  if (origin) {
+    const sent = await tgCall("sendPhoto", {
+      chat_id: chatId,
+      photo: `${origin}/api/rewards/${reward.id}/image`,
+      caption: text.slice(0, 1000),
+      parse_mode: "HTML",
+      reply_markup: kb,
+    });
+    if (sent.ok) return;
+  }
+  await sendMessage(chatId, text, kb);
 }
 
 async function buyReward(chatId: number | string, user: BotUser, rewardId: string, messageId?: number, settings?: Settings) {

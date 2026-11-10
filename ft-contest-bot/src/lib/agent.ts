@@ -110,10 +110,18 @@ export async function buildContext(): Promise<string> {
     .map((r) => `${r.id} | ${r.emoji} ${r.title} | ${r.cost}ن | مخزون:${r.stock === null ? "∞" : r.stock} | ${r.section || "accounts"} | ${r.active ? "مفعّل" : "مطفي"}`)
     .join("\n");
   const sl = sections.map((s) => `${s.id} (${s.title})`).join("، ");
+  const grouped = sections
+    .map((sec) => {
+      const list = rewards.filter((r) => (r.section || "accounts") === sec.id);
+      return `${sec.emoji} ${sec.title}: ${list.map((r) => `${r.emoji} ${r.title} (${r.cost}ن)`).join("، ") || "بلا"}`;
+    })
+    .join("\n");
   const ul = users.slice(0, 25).map((u) => `${u.id}=${u.firstName}${u.username ? "@" + u.username : ""}`).join("، ");
   return [
     "=== الأقسام ===",
     sl,
+    "=== المتجر حسب الأقسام ===",
+    grouped,
     "=== الجوائز (id | عنوان | سعر | مخزون | قسم | حالة) ===",
     rl || "ما كاينش",
     "=== النقاط ===",
@@ -426,6 +434,7 @@ async function runOne(op: string, a: Record<string, unknown>, via: "panel" | "ai
         order: Math.floor(Number(input.order ?? old?.order ?? list.length + 1)),
         delivery: String(input.delivery ?? old?.delivery ?? "").slice(0, 200),
         section: (input.section ?? old?.section ?? "accounts") as SectionId,
+        image: input.image !== undefined ? String(input.image).slice(0, 2_200_000) : old?.image,
       };
       const next = old ? list.map((r) => (r.id === id ? reward : r)) : [...list, reward];
       await saveRewards(next);
