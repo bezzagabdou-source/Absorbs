@@ -620,18 +620,58 @@ function isAdminUser(settings: Settings, userId: string | number): boolean {
 /* ───────────────────────────── متجر الجوائز ───────────────────────────── */
 
 async function shopKeyboard(rewards: Reward[]): Promise<InlineKeyboard> {
-  // 🎁 الأزرار كيما في النسخة لي كانت: كل جائزة زر، واللي ما تتوفرش تتكتب «غير متوفر الآن»
+  // 🗂️ الأقسام: حسابات بيس وحدها، النقاط وحدها، الخدمات وحدها
+  const active = rewards.filter((r) => r.active);
   const rows: Button[][] = [];
-  const active = rewards.filter((r) => r.active).sort((a, b) => a.order - b.order);
-  for (const r of active) {
-    const soldOut = r.stock !== null && r.stock <= 0;
-    const label = soldOut
-      ? `${r.emoji} ${r.title} ( غير متوفر الآن ) — ${r.cost} نقطة`
-      : `${r.emoji} ${r.title} ( متوفر ) — ${r.cost} نقطة`;
-    rows.push([{ text: label, callback_data: `buy:${r.id}` }]);
+  const defs: { id: "accounts" | "points" | "services"; label: string }[] = [
+    { id: "accounts", label: "🎁 قسم حسابات بيس" },
+    { id: "points", label: "⭐️ قسم النقاط" },
+    { id: "services", label: "🤝 قسم الخدمات" },
+  ];
+  for (const def of defs) {
+    const count = active.filter((r) => (r.section || "accounts") === def.id).length;
+    if (count) rows.push([{ text: `${def.label} (${count})`, callback_data: `sec:${def.id}` }]);
   }
   rows.push([{ text: "⬅️ القائمة الرئيسية BACK", callback_data: "home" }]);
   return keyboard(rows);
+}
+
+/** 🗂️ جوائز قسم واحد — كل جائزة زر يحمل اسمها ونقاطها */
+async function showSection(
+  chatId: number | string,
+  user: BotUser,
+  section: "accounts" | "points" | "services",
+  messageId?: number,
+) {
+  const rewards = (await ensureRewards())
+    .filter((r) => r.active && (r.section || "accounts") === section)
+    .sort((a, b) => a.order - b.order);
+  const balance = await balanceOf(String(user.id));
+  const title = section === "accounts" ? "حسابات بيس" : section === "points" ? "النقاط" : "الخدمات";
+  const icon = section === "accounts" ? "🎁" : section === "points" ? "⭐️" : "🤝";
+  const lines = [
+    `${icon} <b>قسم ${title}</b>`,
+    "",
+    `💵 رصيدك: <b>${balance}</b> نقطة`,
+    "",
+    rewards.length ? "👇 اختر الجائزة:" : "ما زال ماكانش جوائز في هاد القسم.",
+  ];
+  const rows: Button[][] = rewards.map((r) => {
+    const soldOut = r.stock !== null && r.stock <= 0;
+    return [
+      {
+        text: soldOut
+          ? `${r.emoji} ${r.title} ( نفدت ) — ${r.cost} نقطة`
+          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
+        callback_data: `buy:${r.id}`,
+      },
+    ];
+  });
+  rows.push([{ text: "⬅️ المتجر", callback_data: "shop" }]);
+  rows.push([{ text: "🏠 القائمة الرئيسية", callback_data: "home" }]);
+  const kb = keyboard(rows);
+  if (messageId) await editMessage(chatId, messageId, lines.join("\n"), kb);
+  else await sendMessage(chatId, lines.join("\n"), kb);
 }
 
 async function showShop(chatId: number | string, user: BotUser, messageId?: number) {
@@ -655,10 +695,13 @@ async function showReward(chatId: number | string, user: BotUser, rewardId: stri
   const enough = balance >= reward.cost;
   const soldOut = reward.stock !== null && reward.stock <= 0;
   const kb = keyboard([
-    enough && !soldOut
-      ? [{ text: `✅ استبدل بـ ${reward.cost} نقطة`, callback_data: `confirm:${reward.id}` }]
-      : [{ text: soldOut ? "❌ نفدت الكمية" : `🔒 باقي ${reward.cost - balance} نقطة`, callback_data: "shop" }],
-    [{ text: "⬅️ رجوع للمتجر", callback_data: "shop" }],
+    [
+      enough && !soldOut
+        ? { text: `✅ يخدم — استبدل بـ ${reward.cost} نقطة`, callback_data: `confirm:${reward.id}` }
+        : { text: soldOut ? "❌ نفدت الكمية" : `🔒 باقي ${reward.cost - balance} نقطة`, callback_data: "shop" },
+      { text: "❌ ما يخدمش — رجوع", callback_data: "shop" },
+    ],
+    [{ text: "🏠 القائمة الرئيسية", callback_data: "home" }],
   ]);
   const text = [rewardLine(reward, balance), "", `💰 رصيدك: <b>${balance}</b> نقطة`].join("\n");
   if (messageId) {
@@ -1669,6 +1712,9 @@ async function handleCallback(query: TgCallbackQuery) {
   switch (action) {
     case "shop":
       await showShop(chatId, user, messageId);
+      return;
+    case "sec":
+      await showSection(chatId, user, (arg === "points" || arg === "services" ? arg : "accounts"), messageId);
       return;
     case "buy":
       await showReward(chatId, user, arg || "", messageId);

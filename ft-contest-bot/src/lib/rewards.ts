@@ -424,15 +424,30 @@ export async function approveJoin(chatId: string, userId: string): Promise<boole
 
 export function shopText(balance: number, cfg: PointsConfig, rewards: Reward[]): string {
   // كيما في النسخة القديمة: العنوان + الرصيد + سطر الاختيار (بلا لائحة داخل النص)
-  void rewards;
-  void cfg;
-  return [
-    "🎁 <b>المسابقات</b>",
+  const active = rewards.filter((r) => r.active);
+  const lines = [
+    "🎁 <b>المتجر</b>",
     "",
     `💵 رصيدك: <b>${balance}</b> نقطة`,
     "",
-    "اختر الجائزة التي تريد استبدالها:",
-  ].join("\n");
+  ];
+  const sections: SectionId[] = ["accounts", "points", "services"];
+  const icons: Record<SectionId, string> = { accounts: "🎁", points: "⭐️", services: "🤝" };
+  let total = 0;
+  for (const id of sections) {
+    const items = active.filter((r) => (r.section || "accounts") === id).sort((a, b) => a.order - b.order);
+    if (!items.length) continue;
+    total += items.length;
+    lines.push(`${icons[id]} <b>قسم ${id === "accounts" ? "حسابات بيس" : id === "points" ? "النقاط" : "الخدمات"}</b>`);
+    for (const r of items) {
+      lines.push(`• ${r.emoji} ${escapeText(r.title)} — <b>${r.cost}</b> نقطة`);
+    }
+    lines.push("");
+  }
+  if (!total) lines.push("ما زال ماكانش جوائز — المالك يزيدها من اللوحة.");
+  lines.push("👇 اختر القسم من الأزرار تحت:");
+  void cfg;
+  return lines.join("\n");
 }
 
 export function escapeText(value: string): string {
@@ -441,14 +456,19 @@ export function escapeText(value: string): string {
 
 export function rewardLine(reward: Reward, balance: number): string {
   const missing = Math.max(0, reward.cost - balance);
+  const stock = reward.stock === null ? "متوفر ✅" : reward.stock > 0 ? `متوفر ✅ (باقي ${reward.stock})` : "نفدت الكمية ❌";
   return [
     `${reward.emoji} <b>${escapeText(reward.title)}</b>`,
-    `سعرها: <b>${reward.cost}</b> نقطة`,
+    "",
     reward.desc ? escapeText(reward.desc) : "",
-    missing > 0 ? `🔒 باقي لك <b>${missing}</b> نقطة` : "✅ تقدر تستبدلها دابا",
-    escapeText(reward.delivery),
+    "",
+    `⭐️ <b>السعر:</b> ${reward.cost} نقطة`,
+    `📦 <b>الكمية:</b> ${stock}`,
+    reward.delivery ? `🚚 <b>التسليم:</b> ${escapeText(reward.delivery)}` : "",
+    "",
+    missing > 0 ? `🔒 باقي لك <b>${missing}</b> نقطة` : "✅ عندك نقاط كافية — اضغط الزر الأخضر للاستبدال",
   ]
-    .filter(Boolean)
+    .filter((line, i, arr) => !(line === "" && arr[i - 1] === ""))
     .join("\n");
 }
 
