@@ -336,9 +336,15 @@ export async function planOnly(prompt: string): Promise<{ say: string; actions: 
     maxTokens: 700,
     temperature: 0.2,
   });
-  if (!res.ok) return { say: "", actions: [], error: res.error || "النموذج ما جاوبش" };
+  if (!res.ok) {
+    const local = await localPlan(prompt, true);
+    return { say: local.say, actions: local.actions, error: res.error };
+  }
   const parsed = safeJson(res.text);
-  if (!parsed) return { say: "", actions: [], error: "ما فهمناش الخطة" };
+  if (!parsed) {
+    const local = await localPlan(prompt, true);
+    return { say: local.say, actions: local.actions, error: "ما فهمناش الخطة (خطة محلية)" };
+  }
   const allowed = (parsed.actions || []).filter((a) => (ALLOWED_OPS as readonly string[]).includes(String(a.op || "")));
   return { say: String(parsed.say || ""), actions: allowed };
 }
