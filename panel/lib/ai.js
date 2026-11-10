@@ -269,10 +269,18 @@ async function callModel(messages, tools, timeoutMs = 55000) {
   const orKeys = keysOf("OPENROUTER_API_KEY");
   const xKeys = keysOf("XAI_API_KEY", "GROK_API_KEY");
   const routes = [];
-  const orModels = [aiModel(), "x-ai/grok-4.3", "deepseek/deepseek-chat-v3.1", "meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.0-flash-exp:free"];
+  const orModels = [
+    aiModel(),
+    "x-ai/grok-4.3",
+    "deepseek/deepseek-chat-v3.1",
+    "deepseek/deepseek-r1:free",
+    "qwen/qwen3-8b:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+  ];
   for (const m of orModels) if (orKeys.length) routes.push({ provider: "openrouter", model: m, key: orKeys[0], url: `${BASE.openrouter}/chat/completions` });
   for (const m of ["grok-4.3", "grok-4-fast", "grok-3-mini"]) if (xKeys.length) routes.push({ provider: "grok", model: m, key: xKeys[0], url: `${BASE.grok}/chat/completions` });
 
+  const ctrlRetry = [];
   for (const route of routes) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -285,12 +293,19 @@ async function callModel(messages, tools, timeoutMs = 55000) {
           authorization: `Bearer ${route.key}`,
           ...(route.provider === "openrouter" ? { "HTTP-Referer": process.env.PUBLIC_URL || "https://ft-contests-bot.vercel.app", "X-Title": "FT AI" } : {}),
         },
-        body: JSON.stringify({ model: route.model, messages, tools, tool_choice: "auto", temperature: 0.6, max_tokens: 1400 }),
+        body: JSON.stringify({ model: route.model, messages, tools, tool_choice: "auto", temperature: 0.6, max_tokens: route.maxTokens ?? 320 }),
         signal: ctrl.signal,
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.choices?.[0]?.message) {
-        errors.push(`${route.provider}/${route.model}: HTTP ${res.status} ${String(data?.error?.message ?? "").slice(0, 140)}`);
+        const detail = String(data?.error?.message ?? "");
+        errors.push(`${route.provider}/${route.model}: HTTP ${res.status} ${detail.slice(0, 140)}`);
+        // ميزانية صغيرة: OpenRouter يقول «can only afford N» ⇒ نعاود بنفس المسار بسقف أصغر
+        const afford = Number(/can only afford (\d+)/i.exec(detail)?.[1] ?? 0);
+        if (res.status === 402 && afford > 80 && (route.maxTokens ?? 320) > afford - 40) {
+          route.maxTokens = Math.max(96, afford - 40);
+          ctrlRetry.push(route);
+        }
         continue;
       }
       return { ok: true, provider: route.provider, model: data.model ?? route.model, message: data.choices[0].message, latency: now() - started, usage: data.usage ?? null };
@@ -298,6 +313,27 @@ async function callModel(messages, tools, timeoutMs = 55000) {
       errors.push(`${route.provider}/${route.model}: ${String(e?.message ?? e).slice(0, 140)}`);
     } finally {
       clearTimeout(timer);
+    }
+  }
+  // محاولة ثانية بنفس المزوّد بسقف توكنات أصغر (ميزانية منخفضة)
+  for (const route of ctrlRetry.slice(0, 2)) {
+    try {
+      const res = await fetch(route.url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${route.key}`,
+          ...(route.provider === "openrouter" ? { "HTTP-Referer": process.env.PUBLIC_URL || "https://ft-contests-bot.vercel.app", "X-Title": "FT AI" } : {}),
+        },
+        body: JSON.stringify({ model: route.model, messages, tools, tool_choice: "auto", temperature: 0.6, max_tokens: route.maxTokens }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.choices?.[0]?.message) {
+        return { ok: true, provider: route.provider, model: data.model ?? route.model, message: data.choices[0].message, latency: 0, usage: data.usage ?? null };
+      }
+      errors.push(`${route.provider}/${route.model} (retry ${route.maxTokens}): HTTP ${res.status} ${String(data?.error?.message ?? "").slice(0, 100)}`);
+    } catch (e) {
+      errors.push(`${route.provider}/${route.model} retry: ${String(e?.message ?? e).slice(0, 100)}`);
     }
   }
   return { ok: false, errors };
