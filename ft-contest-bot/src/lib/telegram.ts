@@ -108,7 +108,7 @@ const mockGlobal = globalThis as unknown as {
 };
 
 /** سجل آخر نداءات تيليغرام (للتشخيص فقط — TG_TRACE=1) */
-export type TgTrace = { at: number; method: string; payload: Record<string, unknown>; result?: unknown };
+export type TgTrace = { at: number; method: string; payload: Record<string, unknown>; result?: unknown; botId?: number };
 const traceGlobal = globalThis as unknown as { __ftTrace?: TgTrace[] };
 export function tracePush(item: TgTrace) {
   traceGlobal.__ftTrace ||= [];
@@ -175,8 +175,8 @@ export async function tgCall<T = unknown>(
 
   bumpTgCall(method);
 
-  // 🩺 وضع المراقبة: نسجّل كل نداء (حتى في وضع المحاكاة)
-  if (process.env.TG_TRACE === "1") tracePush({ at: Date.now(), method, payload });
+  // 🩺 نسجّل آخر النداءات دايماً (باش اللوحة تشوف شنو تصيفط فعلاً)
+  tracePush({ at: Date.now(), method, payload, botId: Number(token.split(":")[0]) || 0 } as never);
 
   // 🧪 وضع التجربة: قراءة حقيقية، وكل كتابة تتسجّل بلا إرسال
   if (process.env.TG_DRY_RUN === "1" && !READ_METHODS.has(method) && !isMock()) {

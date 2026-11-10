@@ -77,7 +77,10 @@ export async function GET(request: NextRequest) {
   if (url.searchParams.get("op") === "send_probe") {
     const chatId = url.searchParams.get("chatId") || "";
     const text = url.searchParams.get("text") || "✅ اختبار من FT — البوت يخدم";
-    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+    const second = process.env.TELEGRAM_BOT_TOKEN_2 || process.env.BOT_TOKEN_2 || "";
+    const token = url.searchParams.get("bot") === "2" && second
+      ? second
+      : process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
     try {
       const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: "POST",
