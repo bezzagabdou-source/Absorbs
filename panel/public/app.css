@@ -220,3 +220,14 @@ tbody tr:hover{background:rgba(255,255,255,.035)}
   body{background:#fff;color:#000}
   .card{background:#fff;border-color:#ccc;box-shadow:none}
 }
+
+/* ═══════════ تبويب البوت ═══════════ */
+.emoji-bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.emoji{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;
+  font-size:20px;line-height:1;padding:6px 8px;cursor:pointer;transition:transform .12s,background .12s}
+.emoji:hover{transform:translateY(-2px) scale(1.08);background:rgba(124,92,255,.25)}
+#tab-bot .card{margin-bottom:14px}
+#tab-bot table input{width:100%}
+#tab-bot .tiny{font-size:12px}
+#bot-ai-out{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px;min-height:38px}
+#bot-health .st b{font-size:20px}

@@ -591,6 +591,61 @@ const health = methods({
   },
 });
 
+
+/* ═══════════ 🤖 البوت المربوط (FT مسابقات) — وسيط تحكّم ═══════════
+   اللوحة = FT AI (بتاعتها). البوت = مشروع مستقل، ما كنمسّوش الويب هوك تاعو.
+   كل التحكّم (نقاط، جوائز، مسابقات، رسائل) كيدوز عبر /api/panel/rewards في البوت،
+   ومحمي بمفتاح PANEL_BOT_KEY (سرّ مشترك). */
+const BOT_BASE = () => String(process.env.BOT_BASE_URL ?? "https://ft-contests-bot.vercel.app").replace(/\/+$/, "");
+const BOT_KEY = () =>
+  String(process.env.BOT_PANEL_KEY ?? process.env.PANEL_PUBLIC_KEY ?? "ftai-life-7c3e91");
+
+async function botFetch(path, { method = "GET", body } = {}) {
+  const url = `${BOT_BASE()}${path}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { "x-panel-key": BOT_KEY(), ...(body ? { "content-type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+      cache: "no-store",
+    });
+    let data = {};
+    try { data = await res.json(); } catch { data = { ok: false, error: `جواب ماشي JSON (${res.status})` }; }
+    return { ...data, status: res.status };
+  } catch (e) {
+    return {
+      ok: false,
+      status: 0,
+      error: e?.name === "AbortError" ? "البوت ما جاوبش في الوقت (20s)" : String(e?.message ?? e),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const botProxy = methods({
+  GET: authed(async (req, res) => {
+    const r = await botFetch("/api/panel/rewards");
+    if (!r.ok) {
+      return json(res, r.status && r.status >= 400 ? r.status : 502, {
+        ok: false,
+        error: r.error || "ما قدرناش نجيبو بيانات البوت",
+        hint: "تأكد أن PANEL_PUBLIC_KEY مضبوط في مشروع البوت، وأن BOT_BASE_URL صحيح في اللوحة.",
+        bot: { base: BOT_BASE(), status: r.status },
+      });
+    }
+    return json(res, 200, { ...r, source: BOT_BASE() });
+  }),
+  POST: authed(async (req, res) => {
+    const b = await body(req);
+    const r = await botFetch("/api/panel/rewards", { method: "POST", body: b ?? {} });
+    return json(res, r.status && r.status > 0 ? r.status : 502, r);
+  }),
+});
+
 /* ═══════════ الموجّه ═══════════ */
 const ROUTES = {
   "auth/login": login,
@@ -614,6 +669,8 @@ const ROUTES = {
   health,
   obs,
   webhook,
+  bot: botProxy,
+  "bot/*": botProxy,
 };
 
 const path0 = (p) => String(p).replace(/^\/api\/?/, "").replace(/\/+$/, "");
@@ -651,7 +708,7 @@ export default async function handler(req, res) {
     }
   }
   const path = url.pathname.replace(/^\/api\/?/, "").replace(/\/+$/, "");
-  const route = ROUTES[path];
+  const route = ROUTES[path] ?? (path.startsWith("bot/") ? ROUTES["bot/*"] : undefined);
   if (!route) {
     return json(res, 404, { ok: false, error: `مسار غير معروف: /api/${path}`, routes: Object.keys(ROUTES) });
   }

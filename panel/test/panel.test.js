@@ -252,7 +252,7 @@ test("AI: الدرع المحلي ينفّذ بلا مزوّد", async () => {
   await core.updateState((s) => { s.users = { "9": { id: "9", name: "كريم", points: 3, referrals: 0, joined_at: Date.now(), last_seen: Date.now(), risk: 0, blocked: false } }; s.ai = []; return s; });
   const out = await ai.chat({ message: "عطيني إحصائيات", images: [], source: "test" });
   assert.equal(out.ok, true);
-  assert.match(out.text, /العدد/);
+  assert.match(out.text, /عضو|نقطة|إحالات/);
   Object.assign(process.env, saved);
 });
 

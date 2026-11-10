@@ -69,7 +69,7 @@
   });
 
   /* ── التنقّل ── */
-  const TITLES = { overview: "نظرة عامة", ai: "FT AI", users: "الأعضاء", refs: "الإحالات", quiz: "الأسئلة", media: "الصور", settings: "الإعدادات", security: "الأمان" };
+  const TITLES = { overview: "نظرة عامة", ai: "FT AI", bot: "البوت", users: "الأعضاء", refs: "الإحالات", quiz: "الأسئلة", media: "الصور", settings: "الإعدادات", security: "الأمان" };
   function tab(name) {
     state.tab = name;
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
@@ -77,6 +77,7 @@
     $("#tab-title").textContent = TITLES[name] ?? "FT AI";
     $("#side")?.classList.remove("open");
     $(".side")?.classList.remove("open");
+    if (name === "bot") loadBot();
     if (name === "users") loadUsers();
     if (name === "refs") loadRefs();
     if (name === "quiz") loadQuestions();
@@ -462,6 +463,293 @@
       } else toast(r.ok ? "تصحّح ✅" : r.error || "فشل", r.ok ? "ok" : "bad");
     })
   );
+
+
+  /* ═══════════════ 🤖 البوت — تحكّم حقيقي عبر FT AI ═══════════════ */
+  const BOT_API = "/api/bot";           // وسيط اللوحة ← البوت
+  const bot = { data: null, editing: null, lastPrompt: [] };
+
+  async function botCall(method = "GET", body) {
+    const res = await fetch(BOT_API, {
+      method,
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: "same-origin",
+    });
+    let data = {};
+    try { data = await res.json(); } catch { data = { ok: false, error: "جواب ماشي صالح" }; }
+    return { ...data, status: res.status };
+  }
+
+  async function loadBot() {
+    const r = await botCall("GET");
+    if (!r.ok) {
+      $("#bot-health").innerHTML = `<div class="st bad"><b>!</b><span>${esc(r.error || "ما قدرناش نوصلو للبوت")}</span></div>`;
+      $("#bot-health-note").textContent = r.hint || "تأكد أن البوت مربوط وأن VERCEL_BOT_KEY مضبوط في اللوحة.";
+      return;
+    }
+    bot.data = r;
+    renderBotHealth(r);
+    renderBotPoints(r.points);
+    renderBotRewards(r.rewards ?? []);
+    renderBotRequests(r.requests ?? []);
+    renderBotBalances(r.leaderboard ?? []);
+    renderBotContests(r.contests ?? []);
+    renderBotGroup(r.joinGroup);
+  }
+
+  function renderBotHealth(r) {
+    const h = r.health ?? {};
+    const ai = h.ai ?? {};
+    $("#bot-health").innerHTML = [
+      ["👥", h.users ?? 0, "مستخدم", ""],
+      ["🏆", h.contests ?? 0, "مسابقة", ""],
+      ["🎁", (r.rewards ?? []).filter((x) => x.active).length, "جائزة مفعّلة", "gold"],
+      ["📨", (r.requests ?? []).filter((x) => x.status === "pending").length, "طلب في الانتظار", "gold"],
+      ["💾", h.storage?.backend ?? "—", "التخزين", ""],
+      ["⚡", ai.available ? "شغّال" : "متوقف", "FT AI", ai.available ? "gold" : ""],
+    ].map(([ic, v, l, cls]) => `<div class="st ${cls}"><b>${esc(v)}</b><span>${ic} ${esc(l)}</span></div>`).join("");
+    $("#bot-health-note").textContent = `متصل بـ ${r.source || "البوت"} · المزوّد: ${ai.provider || "—"} · النموذج: ${ai.model || "—"}`;
+  }
+
+  function renderBotPoints(p) {
+    if (!p) return;
+    const rows = [
+      ["perJoin", "نقاط كل عضو جديد", p.perJoin],
+      ["perActivated", "نقاط أول استعمال", p.perActivated],
+      ["dailyMin", "هدية اليوم — من", p.dailyMin],
+      ["dailyMax", "هدية اليوم — إلى", p.dailyMax],
+    ];
+    $("#bot-points").innerHTML =
+      `<label class="tiny"><input type="checkbox" id="bp-enabled" ${p.enabled ? "checked" : ""}> نظام النقاط مفعّل</label>` +
+      rows.map(([k, l, v]) => `<label class="tiny">${l}<input data-bp="${k}" type="number" min="0" value="${Number(v) || 0}"></label>`).join("") +
+      `<label class="tiny">نص المتجر<input data-bp="shopIntro" value="${esc(p.shopIntro ?? "")}"></label>`;
+  }
+
+  function renderBotRewards(list) {
+    $("#bot-rewards-count").textContent = `${list.length}`;
+    $("#bot-rewards-table tbody").innerHTML = list.length
+      ? list.map((r) => `<tr>
+          <td>${esc(r.emoji)}</td>
+          <td><b>${esc(r.title)}</b><div class="tiny muted">${esc(r.desc || "")}</div></td>
+          <td>${r.cost}</td>
+          <td>${r.stock === null ? "∞" : r.stock}</td>
+          <td>${r.active ? "✅" : "🚫"}</td>
+          <td class="row">
+            <button class="btn ghost sm" data-rw-edit="${esc(r.id)}">✏️</button>
+            <button class="btn ghost sm" data-rw-del="${esc(r.id)}">🗑</button>
+          </td>
+        </tr>`).join("")
+      : `<tr><td colspan="6" class="muted">ما فيه حتى جائزة</td></tr>`;
+  }
+
+  function renderBotRequests(list) {
+    $("#bot-requests tbody").innerHTML = list.length
+      ? list.slice(0, 40).map((r) => `<tr>
+          <td>${esc(r.userName || r.userId)}<div class="tiny muted">${r.username ? "@" + esc(r.username) : esc(r.userId)}</div></td>
+          <td>${esc(r.emoji)} ${esc(r.rewardTitle)}</td>
+          <td>${r.cost}</td>
+          <td>${r.status === "pending" ? "⏳" : r.status === "approved" ? "✅ سلّمت" : "↩️ مرفوض"}</td>
+          <td class="row">${r.status === "pending"
+            ? `<button class="btn sm" data-rq-ok="${esc(r.id)}">✅</button><button class="btn ghost sm" data-rq-no="${esc(r.id)}">↩️</button>`
+            : ""}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="5" class="muted">ما زال ما فيه طلبات</td></tr>`;
+  }
+
+  function renderBotBalances(list) {
+    $("#bot-balances tbody").innerHTML = list.length
+      ? list.map((u) => `<tr>
+          <td>${esc(u.name)}<div class="tiny muted">${esc(u.userId)}</div></td>
+          <td><b>${u.balance ?? u.points}</b></td>
+          <td><button class="btn ghost sm" data-pt-set="${esc(u.userId)}">تعديل</button></td>
+        </tr>`).join("")
+      : `<tr><td colspan="3" class="muted">—</td></tr>`;
+  }
+
+  function renderBotContests(list) {
+    $("#bot-contests tbody").innerHTML = list.length
+      ? list.slice(0, 20).map((c) => `<tr>
+          <td>${esc(c.title)}<div class="tiny muted">${esc(c.prize || "")}</div></td>
+          <td>${c.target}</td>
+          <td>${c.status === "active" ? "🟢" : c.status === "ended" ? "🔴" : "⚪️"}</td>
+          <td class="row">
+            <button class="btn ghost sm" data-ct-toggle="${esc(c.id)}" data-ct-status="${c.status === "active" ? "ended" : "active"}">${c.status === "active" ? "⏹" : "▶️"}</button>
+            <button class="btn ghost sm" data-ct-del="${esc(c.id)}">🗑</button>
+          </td>
+        </tr>`).join("")
+      : `<tr><td colspan="4" class="muted">ما فيه مسابقات</td></tr>`;
+  }
+
+  function renderBotGroup(g) {
+    $("#bot-group-state").textContent = g ? `المجموعة الحالية: ${g.title} (${g.chatId})` : "ما فيه حتى مجموعة مربوطة";
+    $("#bot-group-id").value = g?.chatId ?? "";
+  }
+
+  /* أحداث تبويب البوت */
+  $("#bot-save-points")?.addEventListener("click", async () => {
+    const points = { enabled: $("#bp-enabled").checked };
+    $$("[data-bp]").forEach((el) => {
+      points[el.dataset.bp] = el.type === "number" ? Number(el.value) : el.value;
+    });
+    const r = await botCall("POST", { op: "save_points", points });
+    toast(r.ok ? "تسجّلت إعدادات النقاط ✅" : r.error || "فشل", r.ok ? "ok" : "bad");
+    if (r.ok) loadBot();
+  });
+
+  $("#bot-save-group")?.addEventListener("click", async () => {
+    const chatId = $("#bot-group-id").value.trim();
+    if (!chatId) return toast("حط آي دي المجموعة", "bad");
+    const r = await botCall("POST", { op: "set_group", chatId });
+    toast(r.ok ? `تربطت: ${r.joinGroup?.title ?? chatId}` : r.error || "فشل", r.ok ? "ok" : "bad");
+    if (r.ok) loadBot();
+  });
+
+  $("#rw-save")?.addEventListener("click", async () => {
+    const reward = {
+      id: bot.editing?.id,
+      emoji: $("#rw-emoji").value.trim() || "🎁",
+      title: $("#rw-title").value.trim(),
+      cost: Number($("#rw-cost").value) || 10,
+      stock: $("#rw-stock").value === "" ? null : Number($("#rw-stock").value),
+      active: $("#rw-active").checked,
+      desc: $("#rw-desc").value.trim(),
+      delivery: $("#rw-delivery").value.trim(),
+      order: bot.editing?.order,
+    };
+    if (!reward.title) return toast("سمّي الجائزة", "bad");
+    const r = await botCall("POST", { op: "save_reward", reward });
+    toast(r.ok ? "تسجّلت الجائزة ✅" : r.error || "فشل", r.ok ? "ok" : "bad");
+    if (r.ok) { clearRewardForm(); loadBot(); }
+  });
+
+  function clearRewardForm() {
+    bot.editing = null;
+    ["rw-emoji", "rw-title", "rw-cost", "rw-stock", "rw-desc", "rw-delivery"].forEach((id) => ($("#" + id).value = ""));
+    $("#rw-emoji").value = "🎁";
+    $("#rw-active").checked = true;
+  }
+  $("#rw-reset")?.addEventListener("click", clearRewardForm);
+
+  $("#pt-apply")?.addEventListener("click", async () => {
+    const userId = $("#pt-user").value.trim();
+    const delta = Number($("#pt-delta").value);
+    if (!userId || !Number.isFinite(delta)) return toast("آي دي + عدد", "bad");
+    const r = await botCall("POST", { op: "set_points", userId, delta });
+    toast(r.ok ? `الرصيد: ${r.balance}` : r.error || "فشل", r.ok ? "ok" : "bad");
+    if (r.ok) loadBot();
+  });
+
+  $("#ct-create")?.addEventListener("click", async () => {
+    const contest = {
+      title: $("#ct-title").value.trim(),
+      target: Number($("#ct-target").value) || 20,
+      prize: $("#ct-prize").value.trim(),
+      status: "active",
+    };
+    if (!contest.title) return toast("عنوان المسابقة", "bad");
+    const r = await botCall("POST", { op: "save_contest", contest });
+    toast(r.ok ? "تزادت المسابقة ✅" : r.error || "فشل", r.ok ? "ok" : "bad");
+    if (r.ok) { $("#ct-title").value = $("#ct-target").value = $("#ct-prize").value = ""; loadBot(); }
+  });
+
+  $("#msg-send")?.addEventListener("click", async () => {
+    const text = $("#msg-text").value.trim();
+    const to = $("#msg-to").value.trim();
+    if (!text) return toast("اكتب الرسالة", "bad");
+    const r = to
+      ? await botCall("POST", { op: "send_message", chatId: to, text })
+      : await botCall("POST", { op: "announce", text, limit: 25 });
+    toast(r.ok ? (to ? "تصيفطت ✅" : `بثّ: ${r.sent}/${r.total}`) : r.error || "فشل", r.ok ? "ok" : "bad");
+  });
+
+  $("#msg-ai")?.addEventListener("click", async () => {
+    const idea = $("#msg-text").value.trim() || "إعلان مسابقة جديدة وجوائز في متجر البوت";
+    toast("FT AI يكتب…");
+    const r = await botCall("POST", { op: "ai_write", idea, kind: "announcement" });
+    if (r.ok && r.text) { $("#msg-text").value = r.text.trim(); toast("تكتبت ✅"); }
+    else toast(r.error || "فشل", "bad");
+  });
+
+  /* إيموجي */
+  const EMOJIS = ["🔥","⚡","🎁","🏆","🎯","⭐","🌟","💫","🧸","💵","🤝","📢","🚀","✅","❤️","😂","😍","🙏","💎","👑","🆓","📌","🕹","🎮"];
+  $("#emoji-bar") && ($("#emoji-bar").innerHTML = EMOJIS.map((e) => `<button class="emoji" data-emoji="${e}">${e}</button>`).join(""));
+  $("#emoji-bar")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-emoji]");
+    if (!b) return;
+    const el = $("#msg-text");
+    el.value += b.dataset.emoji;
+    el.focus();
+  });
+
+  $("#sticker-send")?.addEventListener("click", async () => {
+    const fileId = $("#sticker-id").value.trim();
+    const to = $("#msg-to").value.trim();
+    if (!fileId) return toast("حط file_id", "bad");
+    const r = await botCall("POST", { op: "send_sticker", chatId: to || "all", fileId });
+    toast(r.ok ? "تصيفط الستيكر ✅" : r.error || "فشل", r.ok ? "ok" : "bad");
+  });
+
+  /* ⚡ FT AI ينفّذ أوامر على البوت */
+  $("#bot-ai-run")?.addEventListener("click", async () => {
+    const prompt = $("#bot-ai-input").value.trim();
+    if (!prompt) return toast("كتب طلبك", "bad");
+    $("#bot-ai-out").textContent = "…";
+    const ctx = bot.data
+      ? `المستخدمون: ${bot.data.health?.users ?? 0}\nالجوائز: ${(bot.data.rewards ?? []).map((r) => `${r.title}=${r.cost}`).join("، ")}\nالمسابقات: ${(bot.data.contests ?? []).map((c) => `${c.title}(${c.status})`).join("، ")}`
+      : "";
+    const r = await botCall("POST", { op: "ai_act", prompt, context: ctx, history: bot.lastPrompt.slice(-6) });
+    bot.lastPrompt.push(prompt);
+    $("#bot-ai-out").textContent = r.ok ? (r.text || "تنفّذ ✅") : (r.error || "فشل");
+    if (r.ok) { toast("FT AI نفّذ ✅"); loadBot(); }
+    else toast(r.error || "فشل", "bad");
+  });
+
+  /* أحداث الجداول (تفويض) */
+  document.addEventListener("click", async (e) => {
+    const t = e.target.closest("[data-rw-edit],[data-rw-del],[data-rq-ok],[data-rq-no],[data-pt-set],[data-ct-toggle],[data-ct-del]");
+    if (!t) return;
+    if (t.dataset.rwEdit) {
+      const r = (bot.data?.rewards ?? []).find((x) => x.id === t.dataset.rwEdit);
+      if (!r) return;
+      bot.editing = r;
+      $("#rw-emoji").value = r.emoji; $("#rw-title").value = r.title; $("#rw-cost").value = r.cost;
+      $("#rw-stock").value = r.stock ?? ""; $("#rw-active").checked = r.active;
+      $("#rw-desc").value = r.desc ?? ""; $("#rw-delivery").value = r.delivery ?? "";
+      $("#rw-title").focus();
+    }
+    if (t.dataset.rwDel) {
+      if (!confirm("تحيد الجائزة؟")) return;
+      const r = await botCall("POST", { op: "delete_reward", id: t.dataset.rwDel });
+      toast(r.ok ? "تحيدت" : r.error || "فشل", r.ok ? "ok" : "bad");
+      if (r.ok) loadBot();
+    }
+    if (t.dataset.rqOk || t.dataset.rqNo) {
+      const id = t.dataset.rqOk || t.dataset.rqNo;
+      const r = await botCall("POST", { op: "decide", id, status: t.dataset.rqOk ? "approved" : "rejected" });
+      toast(r.ok ? "تم ✅" : r.error || "فشل", r.ok ? "ok" : "bad");
+      if (r.ok) loadBot();
+    }
+    if (t.dataset.ptSet) {
+      const id = t.dataset.ptSet;
+      const val = prompt(`الرصيد الجديد لـ ${id} (فارغ = بلا تغيير):`);
+      if (val === null) return;
+      const r = await botCall("POST", { op: "set_points", userId: id, points: Number(val) });
+      toast(r.ok ? `الرصيد: ${r.balance}` : r.error || "فشل", r.ok ? "ok" : "bad");
+      if (r.ok) loadBot();
+    }
+    if (t.dataset.ctToggle) {
+      const r = await botCall("POST", { op: "set_contest_status", id: t.dataset.ctToggle, status: t.dataset.ctStatus });
+      toast(r.ok ? "تبدّلت الحالة" : r.error || "فشل", r.ok ? "ok" : "bad");
+      if (r.ok) loadBot();
+    }
+    if (t.dataset.ctDel) {
+      if (!confirm("تحيد المسابقة؟")) return;
+      const r = await botCall("POST", { op: "delete_contest", id: t.dataset.ctDel });
+      toast(r.ok ? "تحيدت" : r.error || "فشل", r.ok ? "ok" : "bad");
+      if (r.ok) loadBot();
+    }
+  });
 
   /* ── أدوات ── */
   function esc(s) {

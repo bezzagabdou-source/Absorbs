@@ -38,6 +38,7 @@
     <nav class="nav">
       <button class="nav-item" data-tab="overview"><span>📊</span> نظرة عامة</button>
       <button class="nav-item ai" data-tab="ai"><span>⚡</span> FT AI</button>
+      <button class="nav-item" data-tab="bot"><span>🤖</span> البوت</button>
       <button class="nav-item" data-tab="users"><span>👥</span> الأعضاء</button>
       <button class="nav-item" data-tab="refs"><span>🔗</span> الإحالات</button>
       <button class="nav-item" data-tab="quiz"><span>🎯</span> الأسئلة</button>
@@ -118,6 +119,129 @@
             <button id="send" class="btn primary" type="submit">إرسال</button>
           </form>
         </div>
+      </div>
+    </section>
+
+
+    <!-- ═══════════ البوت: تحكّم حقيقي ═══════════ -->
+    <section class="tab" id="tab-bot" hidden>
+      <div class="card" id="bot-health-card">
+        <h3>🤖 حالة البوت المربوط</h3>
+        <div class="stats sm" id="bot-health"></div>
+        <p class="tiny muted" id="bot-health-note">…</p>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>🎁 النقاط والجوائز</h3>
+          <div class="set-grid" id="bot-points"></div>
+          <button id="bot-save-points" class="btn primary">💾 حفظ إعدادات النقاط</button>
+        </div>
+        <div class="card">
+          <h3>🚪 مجموعة الدخول</h3>
+          <p class="tiny muted" id="bot-group-state">…</p>
+          <div class="row">
+            <input id="bot-group-id" placeholder="-1001234567890" style="flex:1">
+            <button id="bot-save-group" class="btn gold">ربط</button>
+          </div>
+          <p class="tiny muted">البوت يعطي كل عضو رابط دعوة باسمه، وكل من يدخل من رابطك = نقاط في رصيدك.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🏷️ الجوائز <span class="pill tiny" id="bot-rewards-count"></span></h3>
+        <div class="table-wrap">
+          <table id="bot-rewards-table">
+            <thead><tr><th></th><th>الاسم</th><th>الثمن</th><th>المخزون</th><th>ظاهرة</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h3 style="margin-top:14px">➕ / ✏️ جائزة</h3>
+        <div class="row wrap">
+          <input id="rw-emoji" placeholder="🎁" style="width:70px">
+          <input id="rw-title" placeholder="اسم الجائزة" style="flex:1;min-width:140px">
+          <input id="rw-cost" type="number" min="1" placeholder="الثمن" style="width:100px">
+          <input id="rw-stock" type="number" min="0" placeholder="مخزون (خالي=∞)" style="width:140px">
+          <label class="tiny"><input id="rw-active" type="checkbox" checked> ظاهرة</label>
+        </div>
+        <div class="row wrap" style="margin-top:8px">
+          <input id="rw-desc" placeholder="وصف قصير" style="flex:1;min-width:160px">
+          <input id="rw-delivery" placeholder="طريقة التسليم" style="flex:1;min-width:160px">
+          <button id="rw-save" class="btn primary">💾 حفظ الجائزة</button>
+          <button id="rw-reset" class="btn ghost">مسح</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>📨 طلبات الجوائز</h3>
+        <div class="table-wrap">
+          <table id="bot-requests">
+            <thead><tr><th>العضو</th><th>الجائزة</th><th>الثمن</th><th>الحالة</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>💰 أرصدة المستخدمين</h3>
+          <div class="table-wrap">
+            <table id="bot-balances">
+              <thead><tr><th>العضو</th><th>الرصيد</th><th>تعديل</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <input id="pt-user" placeholder="آي دي العضو" style="flex:1">
+            <input id="pt-delta" type="number" placeholder="+50 / -10" style="width:110px">
+            <button id="pt-apply" class="btn gold">طبّق</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>🏆 المسابقات</h3>
+          <div class="table-wrap">
+            <table id="bot-contests">
+              <thead><tr><th>المسابقة</th><th>الهدف</th><th>الحالة</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row wrap" style="margin-top:10px">
+            <input id="ct-title" placeholder="عنوان المسابقة" style="flex:1;min-width:140px">
+            <input id="ct-target" type="number" min="1" placeholder="الهدف" style="width:90px">
+            <input id="ct-prize" placeholder="الجائزة" style="flex:1;min-width:120px">
+            <button id="ct-create" class="btn primary">➕ زيد</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>✉️ رسائل</h3>
+        <textarea id="msg-text" rows="3" placeholder="نص الرسالة…"></textarea>
+        <div class="row wrap" style="margin-top:8px">
+          <input id="msg-to" placeholder="آي دي عضو (خالي = بثّ للجميع)" style="flex:1;min-width:180px">
+          <button id="msg-send" class="btn primary">إرسال</button>
+          <button id="msg-ai" class="btn gold">⚡ FT AI يكتب</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>😀 إيموجي وستيكرات</h3>
+        <div class="emoji-bar" id="emoji-bar"></div>
+        <p class="tiny muted">اكتب في خانة الرسائل ثم اضغط إيموجي باش يتزاد في النص. الستيكرات ترسل كرسالة.</p>
+        <div class="row wrap" style="margin-top:8px">
+          <input id="sticker-id" placeholder="file_id تاع ستيكر (اختياري)" style="flex:1">
+          <button id="sticker-send" class="btn ghost">إرسال ستيكر</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>⚡ FT AI يتصرف في البوت</h3>
+        <p class="tiny muted">كتب طلبك بالدارجة: «زيد جائزة 30 نجمة بـ60 نقطة»، «عطي 50 نقطة لـ123456»، «صيفط رسالة لكل الأعضاء»…</p>
+        <div class="row">
+          <input id="bot-ai-input" placeholder="مثال: زيد جائزة «حساب FT مميز» بـ400 نقطة" style="flex:1">
+          <button id="bot-ai-run" class="btn primary">نفّذ</button>
+        </div>
+        <pre id="bot-ai-out" class="tiny" style="white-space:pre-wrap;margin-top:10px"></pre>
       </div>
     </section>
 
