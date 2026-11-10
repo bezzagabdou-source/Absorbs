@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { handleUpdate } from "@/lib/bot";
 import { getSettings } from "@/lib/settings";
 import { trackBotMessage } from "@/lib/stats";
-import { getTrace, type TgUpdate } from "@/lib/telegram";
+import { getTrace, runWithBotToken, secondBotToken, type TgUpdate } from "@/lib/telegram";
 
 export type AuditEntry = {
   at: number;
@@ -151,6 +151,17 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
   }
+
+  // 🧩 أي بوت؟ البوت الثاني كيتسجّل على نفس الرابط بعلامة ?bot=2 — نفس المتجر والبيانات
+  const which = new URL(request.url).searchParams.get("bot");
+  const second = secondBotToken();
+  if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update));
+
+  return await handleWebhook(update);
+}
+
+async function handleWebhook(update: TgUpdate) {
+  const settings = await getSettings();
 
   // 🩺 نسجّلو هوية البوت + حالة الويب هوك ف كل تحديث (باش نعرفو واش الإرسال يخدم)
   try {

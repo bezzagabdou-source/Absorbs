@@ -1,4 +1,24 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { getSettings, saveSettings } from "./settings";
+
+/**
+ * 🧩 تشغيل أكثر من بوت على نفس الكود ونفس البيانات.
+ * كل طلب ويب هوك يحدّد التوكن متاعو، وكل ndاءات تيليغرام ف ذاك الطلب تمشي بيه.
+ */
+const tokenCtx = new AsyncLocalStorage<{ token: string }>();
+
+export function runWithBotToken<T>(token: string, fn: () => Promise<T>): Promise<T> {
+  return token === tokenCtx.getStore()?.token ? fn() : tokenCtx.run({ token }, fn);
+}
+
+export function currentBotToken(): string {
+  return tokenCtx.getStore()?.token || "";
+}
+
+/** البوت الثاني (اختياري): @ftmosaba9atbot — نفس المتجر والنقاط */
+export function secondBotToken(): string {
+  return process.env.TELEGRAM_BOT_TOKEN_2 || process.env.BOT_TOKEN_2 || "";
+}
 
 export type TgUser = {
   id: number;
@@ -151,7 +171,7 @@ export async function tgCall<T = unknown>(
   payload: Record<string, unknown> = {},
 ): Promise<TgResult<T>> {
   const settings = await getSettings();
-  const token = settings.botToken;
+  const token = currentBotToken() || settings.botToken;
 
   bumpTgCall(method);
 
@@ -250,6 +270,11 @@ export async function tgCall<T = unknown>(
 
 export async function getBotIdentity(): Promise<{ id: number | null; username: string }> {
   const settings = await getSettings();
+  // 🧩 بوت ثاني ف نفس الطلب؟ نجيبه من تيليغرام وما نكتبوهش ف الإعدادات
+  if (currentBotToken() && currentBotToken() !== settings.botToken) {
+    const me = await tgCall<TgUser>("getMe");
+    return { id: me.ok ? me.result?.id ?? null : null, username: me.ok ? me.result?.username || "" : "" };
+  }
   if (settings.botUsername) {
     return { id: settings.botId, username: settings.botUsername };
   }

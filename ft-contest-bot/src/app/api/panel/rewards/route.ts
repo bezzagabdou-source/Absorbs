@@ -92,6 +92,40 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // 🧩 ربط البوت الثاني (@ftmosaba9atbot…) على نفس المتجر — توكن + ويب هوك على ?bot=2
+  if (url.searchParams.get("op") === "link_second_bot") {
+    const token = String(url.searchParams.get("token") || "").trim();
+    if (!/^\d{6,}:[A-Za-z0-9_-]{30,}$/.test(token)) {
+      return NextResponse.json({ ok: false, error: "شكل التوكن ماشي صحيح" }, { status: 400 });
+    }
+    const base = new URL(request.url);
+    const hookUrl = `${base.origin}/api/telegram/webhook?bot=2`;
+    const { getSettings } = await import("@/lib/settings");
+    const s2 = await getSettings();
+    const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`, { cache: "no-store" });
+    const me = (await meRes.json()) as { ok: boolean; result?: { id: number; username?: string }; description?: string };
+    if (!me.ok) return NextResponse.json({ ok: false, error: `تيليغرام رفض التوكن: ${me.description || ""}` }, { status: 400 });
+    const payload: Record<string, unknown> = {
+      url: hookUrl,
+      allowed_updates: ["message", "edited_message", "callback_query", "my_chat_member", "chat_member", "chat_join_request"],
+    };
+    if (s2.webhookSecret) payload.secret_token = s2.webhookSecret;
+    const r = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+    const j = (await r.json()) as Record<string, unknown>;
+    return NextResponse.json({
+      ok: true,
+      bot: { id: me.result?.id, username: me.result?.username },
+      hookUrl,
+      tg: j,
+      note: "لازم تزيد TELEGRAM_BOT_TOKEN_2 ف متغيّرات المشروع بنفس التوكن باش يخدم الإرسال",
+    });
+  }
+
   // 🩺 إعادة تسجيل الويب هوك بسرّنا الحالي (نفس الرابط)
   if (url.searchParams.get("op") === "set_webhook") {
     const { getSettings } = await import("@/lib/settings");
