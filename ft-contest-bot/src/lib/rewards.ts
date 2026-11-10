@@ -34,10 +34,53 @@ export type SectionId = "accounts" | "points" | "services";
 
 /** 🖼️ صورة جائزة افتراضية حسب القسم (SVG صغير داخلي — ما يحتاجش رابط خارجي) */
 export function sectionImage(section?: SectionId): string {
-  const emoji = section === "points" ? "⭐️" : section === "services" ? "🤝" : "🎁";
-  const title = section === "points" ? "نقاط" : section === "services" ? "خدمات FT" : "حساب بيس FT";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d1526"/><stop offset="1" stop-color="#1b2c4a"/></linearGradient></defs><rect width="900" height="600" fill="url(#g)"/><circle cx="450" cy="240" r="130" fill="rgba(246,196,83,0.12)" stroke="#f6c453" stroke-width="4"/><text x="450" y="295" font-size="130" text-anchor="middle">${emoji}</text><text x="450" y="470" font-size="52" fill="#eaf1ff" text-anchor="middle" font-family="Tahoma">${title}</text></svg>`;
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  // PNG 600×400 صغير (16 بايت لكل صف) بلون القسم — مضغوط ومضمون في تيليغرام
+  const color = section === "points" ? [246, 196, 83] : section === "services" ? [90, 169, 255] : [46, 230, 168];
+  const png = solidPng(600, 400, color[0], color[1], color[2]);
+  return `data:image/png;base64,${png}`;
+}
+
+/** يولّد PNG بلون واحد (بلا مكتبات خارجية) */
+function solidPng(width: number, height: number, r: number, g: number, b: number): string {
+  const raw: number[] = [];
+  for (let y = 0; y < height; y++) {
+    raw.push(0);
+    for (let x = 0; x < width; x++) raw.push(r, g, b);
+  }
+  const table = (() => {
+    const t: number[] = [];
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      t.push(c >>> 0);
+    }
+    return t;
+  })();
+  const crc32 = (buf: Buffer): number => {
+    let c = 0xffffffff;
+    for (const byte of buf) c = table[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const deflated = require("node:zlib").deflateSync(Buffer.from(raw));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflated),
+    chunk("IEND", Buffer.alloc(0)),
+  ]).toString("base64");
 }
 
 export type Section = { id: SectionId; title: string; emoji: string; order: number; active: boolean };
