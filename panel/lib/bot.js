@@ -188,6 +188,15 @@ export async function ensureWebhook(baseUrl, opts = {}) {
     drop_pending_updates: opts.dropPending === true,
     max_connections: 40,
   }).catch((e) => ({ ok: false, description: String(e) }));
+  // قائمة الأوامر في تيليغرام (تظهر في زرّ ☰ عند المستخدمين)
+  await tg("setMyCommands", { commands: COMMANDS }).catch(() => null);
+  const botInfo = await tg("getMe", {}).catch(() => null);
+  if (botInfo?.ok) {
+    await tg("setMyDescription", {
+      description: "⚡ مسابقات FT — جاوب على أسئلة، اجمع نقاط، وعيّط لأصحابك! /quiz للبدء",
+    }).catch(() => null);
+    await tg("setMyShortDescription", { short_description: "⚡ مسابقات FT — نقاط ومسابقات كل يوم" }).catch(() => null);
+  }
   return { ok: !!r.ok, url, description: r.description ?? null, demo: demoMode() };
 }
 
