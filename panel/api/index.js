@@ -479,11 +479,57 @@ const webhook = methods({
       update = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
     } catch { update = {}; }
     const ip = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
+    // تشخيص: نسجّل آخر التحديثات الواصلة (باش نعرفو واش تيليغرام يوصل فعلاً)
+    try {
+      const f = update.message?.from ?? update.callback_query?.from ?? null;
+      const line = {
+        at: now(),
+        kind: update.message ? "message" : update.callback_query ? "callback" : Object.keys(update)[0] ?? "?",
+        from: f ? { id: f.id, name: [f.first_name, f.last_name].filter(Boolean).join(" "), username: f.username ?? null } : null,
+        text: String(update.message?.text ?? update.callback_query?.data ?? "").slice(0, 120),
+        chat: update.message?.chat?.type ?? null,
+      };
+      await updateState((s) => {
+        s.meta.updates = [line, ...(Array.isArray(s.meta.updates) ? s.meta.updates : [])].slice(0, 40);
+        s.meta.updatesTotal = Number(s.meta.updatesTotal ?? 0) + 1;
+        return s;
+      });
+    } catch { /* تشخيص فقط */ }
     // نردّ بسرعة (تيليغرام يعيد المحاولة إذا تأخّرنا)
     res.statusCode = 200;
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ ok: true }));
     await handleUpdate(update, { ip }).catch((e) => console.error("[webhook]", e?.message ?? e));
+  },
+});
+
+/* ═══════════ مراقبة: واش البوت يستقبل ويبعث فعلاً؟ ═══════════ */
+const obs = methods({
+  GET: async (req, res) => {
+    const u = new URL(req.url ?? "/", "http://x");
+    const keyOk = String(u.searchParams.get("key") ?? "") === String(process.env.WEBHOOK_SECRET || "");
+    const state = await readStateFresh();
+    const updates = Array.isArray(state.meta?.updates) ? state.meta.updates : [];
+    const base = {
+      ok: true,
+      service: "FT AI",
+      storage: hasRedis() ? "redis" : "memory",
+      updates_total: Number(state.meta?.updatesTotal ?? 0),
+      updates_seen: updates.length,
+      last_update_at: updates[0]?.at ?? null,
+      users: Object.keys(state.users).length,
+      ai_replies: (state.ai ?? []).filter((m) => m.role === "assistant").length,
+      last_action_at: state.actions?.[0]?.at ?? null,
+    };
+    if (!keyOk) return json(res, 200, base);
+    return json(res, 200, {
+      ...base,
+      updates: updates.slice(0, 20),
+      actions: (state.actions ?? []).slice(0, 15),
+      ai: (state.ai ?? []).slice(0, 12).map((m) => ({ role: m.role, at: m.at, provider: m.provider ?? null, text: String(m.content ?? "").slice(0, 240) })),
+      settings: { protectionLevel: state.settings.protectionLevel, botName: state.settings.botName },
+      meta: { passwordChangedAt: state.meta?.passwordChangedAt ?? 0, webhookAt: state.meta?.webhookAt ?? 0 },
+    });
   },
 });
 
@@ -562,6 +608,7 @@ const ROUTES = {
   settings,
   actions,
   health,
+  obs,
   webhook,
 };
 

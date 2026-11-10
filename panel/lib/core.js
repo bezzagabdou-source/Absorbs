@@ -257,7 +257,7 @@ export function defaultState() {
     ai: [],
     actions: [],
     metrics: { visits: 0, answers: 0, correct: 0, broadcasts: 0 },
-    meta: { passwordChangedAt: 0, lastBroadcastAt: 0, webhookAt: 0, bootAt: 0 },
+    meta: { passwordChangedAt: 0, lastBroadcastAt: 0, webhookAt: 0, bootAt: 0, updatesTotal: 0, updates: [] },
   };
 }
 
