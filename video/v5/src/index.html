@@ -1,0 +1,23 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:'Alex';src:url('/assets/fonts/Alexandria/Alexandria%5Bwght%5D.ttf') format('truetype');font-weight:100 900;font-display:block}
+@font-face{font-family:'Kuf';src:url('/assets/fonts/Kufam/Kufam%5Bwght%5D.ttf') format('truetype');font-weight:400 900;font-display:block}
+@font-face{font-family:'Anton';src:url('/assets/fonts/Anton/Anton-Regular.ttf') format('truetype');font-weight:400;font-display:block}
+html,body{margin:0;background:#000;overflow:hidden}
+</style>
+<script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+</head><body>
+<script>
+  (function(){ var q = new URLSearchParams(location.search);
+    if (q.get('w')) window.__W = +q.get('w');
+    if (q.get('h')) window.__H = +q.get('h');
+    var st = document.createElement('style');
+    st.textContent = 'canvas{width:' + (window.__W||1080) + 'px;height:' + (window.__H||1920) + 'px}';
+    document.head.appendChild(st);
+  })();
+</script>
+<script type="module">
+window.addEventListener('error', e => { console.log('PAGEERR ' + e.message); });
+try { await import('/src/film.js'); } catch (e) { console.log('IMPORTERR ' + (e && e.message)); }
+</script>
+</body></html>

@@ -48,3 +48,11 @@ PRO-CODES-V*.txt
 /video/v4/out/*.wav
 /video/v4/vo/*.wav
 /video/v4/*.log
+/video/v5/frames/
+/video/v5/out/*.wav
+/video/v5/vo/*_raw.wav
+/video/v5/vo/*.wav
+/video/v5/assets/img/g/
+/video/v5/toolkit/node_modules/
+/video/v5/toolkit/package-lock.json
+/video/v5/*.log
