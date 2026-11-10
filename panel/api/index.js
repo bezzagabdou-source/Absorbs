@@ -482,6 +482,39 @@ const webhook = methods({
   },
 });
 
+/* ═══════════ صحة عامة (بلا أسرار) ═══════════ */
+const health = methods({
+  GET: async (req, res) => {
+    const state = await readStateFresh();
+    let me = null;
+    let hook = null;
+    try {
+      const r = await getMe();
+      me = r?.ok ? { id: r.result.id, username: r.result.username, name: r.result.first_name } : { error: r?.description ?? "لا اتصال" };
+      const h = await getWebhookInfo();
+      hook = h?.ok ? h.result : { error: h?.description ?? "لا اتصال" };
+    } catch (e) {
+      me = { error: String(e?.message ?? e) };
+    }
+    const expected = `${baseUrl(req)}/api/webhook`;
+    return json(res, 200, {
+      ok: true,
+      brand: "FT AI",
+      storage: hasRedis() ? "redis" : "memory",
+      users: Object.keys(state.users).length,
+      bot: me,
+      webhook: {
+        registered: hook?.url ?? null,
+        expected,
+        matches: Boolean(hook?.url && hook.url === expected),
+        pending: hook?.pending_update_count ?? null,
+        last_error: hook?.last_error_message ?? null,
+        secret_set: Boolean(process.env.WEBHOOK_SECRET),
+      },
+    });
+  },
+});
+
 /* ═══════════ الموجّه ═══════════ */
 const ROUTES = {
   "auth/login": login,
@@ -502,16 +535,37 @@ const ROUTES = {
   ai,
   settings,
   actions,
+  health,
   webhook,
 };
+
+const path0 = (p) => String(p).replace(/^\/api\/?/, "").replace(/\/+$/, "");
 
 export default async function handler(req, res) {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   // التوكن قد يكون محفوظاً من اللوحة (Vercel Functions بلا حالة)
+  let st = null;
   try {
-    const st = await readStateFresh();
+    st = await readStateFresh();
     if (st.settings?.botToken) setRuntimeToken(st.settings.botToken);
   } catch { /* ignore */ }
+
+  // تسجيل تلقائي: إذا البوت مربوط والـ webhook ماشي مسجّل، نسجّله مرة واحدة
+  if (st && botToken() && !path0(url.pathname).startsWith("webhook")) {
+    const last = st.meta?.webhookAt ?? 0;
+    if (!last || now() - last > 1000 * 60 * 60 * 6) {
+      try {
+        const info = await getWebhookInfo();
+        const want = `${baseUrl(req)}/api/webhook`;
+        if (!info?.ok || info.result?.url !== want) {
+          await ensureWebhook(baseUrl(req));
+          await updateState((s) => { s.meta.webhookAt = now(); return s; });
+        } else if (!last) {
+          await updateState((s) => { s.meta.webhookAt = now(); return s; });
+        }
+      } catch { /* لا نعطّل الطلب */ }
+    }
+  }
   const path = url.pathname.replace(/^\/api\/?/, "").replace(/\/+$/, "");
   const route = ROUTES[path];
   if (!route) {

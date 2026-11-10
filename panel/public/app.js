@@ -458,7 +458,6 @@
       }
       const r = await api("/api/actions", { method: "POST", body: { job } });
       if (job === "diagnose") {
-        bubble?.("sys", "");
         toast(`البوت: ${r.bot?.username ?? "؟"} · webhook: ${r.webhook?.url || "ماشي مضبوط"}`, r.ok ? "ok" : "bad");
       } else toast(r.ok ? "تصحّح ✅" : r.error || "فشل", r.ok ? "ok" : "bad");
     })
