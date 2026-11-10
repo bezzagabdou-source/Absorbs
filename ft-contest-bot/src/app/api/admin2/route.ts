@@ -126,6 +126,8 @@ export async function GET(req: NextRequest) {
       for (const [k, v] of Object.entries(process.env)) if (typeof v === "string" && /_API_KEY$|GOOGLE_API_KEY$/.test(k)) saved[k] = v;
       for (const k of Object.keys(saved)) delete process.env[k];
       if (prov.id === "gemini") process.env.GEMINI_API_KEY = prov.key;
+      else if (prov.id === "github") process.env.GITHUB_MODELS_TOKEN = prov.key;
+      else if (prov.id === "xai") process.env.XAI_API_KEY = prov.key;
       else if (prov.id === "anthropic") process.env.ANTHROPIC_API_KEY = prov.key;
       else process.env[`${prov.id.toUpperCase()}_API_KEY`] = prov.key;
       const res = await aiGenerate({ prompt: "قول كلمة: test", maxTokens: 40, temperature: 0 });

@@ -24,9 +24,11 @@ export type AiResult = {
 const DEFAULT_MODELS: Record<string, string> = {
   gemini: "gemini-3.8-flash",
   openai: "gpt-4o-mini",
-  groq: "llama-3.1-8b-instant",
-  openrouter: "google/gemini-2.5-flash",
+  groq: "openai/gpt-oss-20b",
+  openrouter: "nvidia/nemotron-nano-9b-v2:free",
   cerebras: "gpt-oss-120b",
+  mistral: "mistral-small-latest",
+  github: "openai/gpt-4o-mini",
   deepseek: "deepseek-chat",
   xai: "grok-4-fast",
   anthropic: "claude-sonnet-4-5",
@@ -255,6 +257,15 @@ export function aiProviderList(overrideModel?: string): AiProvider[] {
   return out;
 }
 
+/** 🔁 موديلات بديلة إذا الموديل المطلوب ما كانش عند المزوّد */
+const FALLBACK_MODELS: Record<string, string[]> = {
+  groq: ["openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen/qwen3-32b", "meta-llama/llama-4-scout-17b-16e-instruct"],
+  openrouter: ["nvidia/nemotron-nano-9b-v2:free", "meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.5-flash"],
+  gemini: ["gemini-3.8-flash", "gemini-flash-latest"],
+  mistral: ["mistral-small-latest", "open-mistral-nemo"],
+  github: ["openai/gpt-4o-mini", "gpt-4o-mini"],
+};
+
 /** 🤝 توليد مع تجربة المزوّدين بالترتيب (إذا Gemini مزحوم نكمّلو بـ Groq/OpenRouter) */
 export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<AiResult> {
   const providers = aiProviderList(input.model);
@@ -266,11 +277,21 @@ export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<Ai
     if (Date.now() > deadline) break;
     // 💸 OpenRouter بلا كريدي: ما نضيّعوش الوقت — نجربو غير إذا طلب صغير
     const budget =
-      provider.id === "openrouter" ? Math.min(input.maxTokens ?? 600, 110) : Math.min(input.maxTokens ?? 600, 500);
-    for (let attempt = 0; attempt < (provider.id === "openrouter" ? 1 : 3); attempt++) {
+      provider.id === "openrouter" ? Math.min(input.maxTokens ?? 600, 400) : Math.min(input.maxTokens ?? 600, 500);
+    for (let attempt = 0; attempt < 4; attempt++) {
       const res = await generateVia(provider, { ...input, maxTokens: budget });
       if (res.ok) return res;
       last = res;
+      // 🔁 إذا الموديل ما موجودش، نجربو موديل بديل من نفس المزوّد
+      if (/does not exist|not have access|not found|decommission|deprecated|invalid model/i.test(res.error)) {
+        const alt = (FALLBACK_MODELS[provider.id] || []).find((m) => m !== provider.model);
+        if (alt) {
+          provider.model = alt;
+          attempt -= 1;
+          continue;
+        }
+        break;
+      }
       // 🔁 إذا المزوّد مزحوم (high demand / 429 / 5xx) نعاودو مرة بعد شوية
       if (!/high demand|overload|429|5\d\d|timeout|aborted/i.test(res.error)) break;
       await new Promise((r) => setTimeout(r, 350 + attempt * 400));
