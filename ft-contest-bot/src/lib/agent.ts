@@ -189,7 +189,7 @@ export function forbiddenIntent(prompt: string): string | null {
   return null;
 }
 
-export async function localPlan(prompt: string): Promise<AiRunResult> {
+export async function localPlan(prompt: string, dry = false): Promise<AiRunResult> {
   const p = prompt.trim();
   const actions: AiAction[] = [];
   const say: string[] = [];
@@ -308,7 +308,7 @@ export async function localPlan(prompt: string): Promise<AiRunResult> {
   }
 
   const results: ActionOutcome[] = [];
-  for (const action of actions.slice(0, 6)) results.push(await executeAction(action, "ai"));
+  if (!dry) for (const action of actions.slice(0, 6)) results.push(await executeAction(action, "ai"));
   return {
     ok: actions.length > 0,
     say: actions.length
@@ -318,6 +318,29 @@ export async function localPlan(prompt: string): Promise<AiRunResult> {
     results,
     refused: [],
   };
+}
+
+/** 🔍 تجربة جافة: يخطط فقط بلا تنفيذ (للفحص) */
+export async function planOnly(prompt: string): Promise<{ say: string; actions: AiAction[]; blocked?: string; error?: string }> {
+  const blocked = forbiddenIntent(prompt);
+  if (blocked) return { say: blocked, actions: [], blocked };
+  const status = aiStatus();
+  if (!status.available) {
+    const local = await localPlan(prompt, true);
+    return { say: local.say, actions: local.actions };
+  }
+  const ctx = await buildContext();
+  const res = await aiGenerate({
+    system: SYSTEM,
+    prompt: [ctx, `طلب المالك: ${prompt}`].join("\n"),
+    maxTokens: 700,
+    temperature: 0.2,
+  });
+  if (!res.ok) return { say: "", actions: [], error: res.error || "النموذج ما جاوبش" };
+  const parsed = safeJson(res.text);
+  if (!parsed) return { say: "", actions: [], error: "ما فهمناش الخطة" };
+  const allowed = (parsed.actions || []).filter((a) => (ALLOWED_OPS as readonly string[]).includes(String(a.op || "")));
+  return { say: String(parsed.say || ""), actions: allowed };
 }
 
 /** 🧠 يحوّل الكلام لأوامر */

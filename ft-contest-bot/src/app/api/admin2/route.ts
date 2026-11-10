@@ -21,7 +21,7 @@ import { listRecentUsers, usersCount, getUser } from "@/lib/users";
 import { listContests } from "@/lib/contests";
 import { storageInfo } from "@/lib/store";
 import { aiStatus } from "@/lib/ai";
-import { ALLOWED_OPS, executeAction, planActions, panelStats } from "@/lib/agent";
+import { ALLOWED_OPS, executeAction, planActions, panelStats, planOnly } from "@/lib/agent";
 import { getBotIdentity, tgCall } from "@/lib/telegram";
 
 export const runtime = "nodejs";
@@ -224,6 +224,13 @@ export async function POST(req: NextRequest) {
       if (!prompt) return bad("اكتب طلبك", 400);
       const out = await planActions(prompt);
       return NextResponse.json({ ...out });
+    }
+
+    // 🔍 تجربة جافة للـAI (بلا تنفيذ)
+    if (action === "dry") {
+      const prompt = String(body.prompt || "").trim();
+      if (!prompt) return bad("اكتب طلبك", 400);
+      return NextResponse.json({ ok: true, ...(await planOnly(prompt)) });
     }
 
     // ⚙️ تنفيذ عملية مباشرة (من الواجهة)
