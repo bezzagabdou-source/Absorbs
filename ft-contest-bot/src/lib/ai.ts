@@ -43,9 +43,23 @@ function normalizeGeminiModel(model: string): string {
 function env(...names: string[]): string {
   for (const name of names) {
     const value = process.env[name];
-    if (value && value.trim().length > 8) return value.trim();
+    if (value && value.trim().length > 8) return value.trim().split(/[,\s]+/)[0];
   }
   return "";
+}
+
+/** 🔑 كل المفاتيح من نفس المتغيّر (مفصولة بفاصلة) — ندورو عليهم إذا واحدهم خلص */
+function envAll(...names: string[]): string[] {
+  const out: string[] = [];
+  for (const name of names) {
+    const raw = process.env[name];
+    if (!raw) continue;
+    for (const part of raw.split(/[,\n;]+/)) {
+      const key = part.trim();
+      if (key.length > 8 && !out.includes(key)) out.push(key);
+    }
+  }
+  return out;
 }
 
 /** أول مزوّد متاح حسب المفاتيح الموجودة */
@@ -219,6 +233,16 @@ export function aiProviderList(overrideModel?: string): AiProvider[] {
       make: (key) => ({ id: "xai", label: "xAI Grok", kind: "openai", key, baseUrl: "https://api.x.ai/v1", model: overrideModel || env("AI_MODEL", "XAI_MODEL") || DEFAULT_MODELS.xai }),
     },
     {
+      id: "mistral",
+      names: ["MISTRAL_API_KEY"],
+      make: (key) => ({ id: "mistral", label: "Mistral", kind: "openai", key, baseUrl: "https://api.mistral.ai/v1", model: overrideModel || env("AI_MODEL", "MISTRAL_MODEL") || "mistral-small-latest" }),
+    },
+    {
+      id: "github",
+      names: ["GITHUB_MODELS_TOKEN", "GITHUB_TOKEN"],
+      make: (key) => ({ id: "github", label: "GitHub Models", kind: "openai", key, baseUrl: "https://models.github.ai/inference", model: overrideModel || env("AI_MODEL", "GITHUB_MODEL") || "openai/gpt-4o-mini" }),
+    },
+    {
       id: "anthropic",
       names: ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
       make: (key) => ({ id: "anthropic", label: "Anthropic Claude", kind: "anthropic", key, model: overrideModel || env("AI_MODEL", "ANTHROPIC_MODEL") || DEFAULT_MODELS.anthropic }),
@@ -226,8 +250,7 @@ export function aiProviderList(overrideModel?: string): AiProvider[] {
   ];
   const out: AiProvider[] = [];
   for (const def of defs) {
-    const key = env(...def.names);
-    if (key) out.push(def.make(key));
+    for (const key of envAll(...def.names)) out.push(def.make(key));
   }
   return out;
 }
@@ -238,7 +261,9 @@ export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<Ai
   const empty: AiResult = { ok: false, text: "", provider: "", model: "", error: "لا يوجد مفتاح ذكاء اصطناعي في البيئة" };
   if (!providers.length) return empty;
   let last: AiResult = empty;
-  for (const provider of providers.slice(0, 3)) {
+  const deadline = Date.now() + 10_000; // ⏱️ ما نعلّقوش: 10 ثواني كافية
+  for (const provider of providers.slice(0, 6)) {
+    if (Date.now() > deadline) break;
     // 💸 OpenRouter بلا كريدي: ما نضيّعوش الوقت — نجربو غير إذا طلب صغير
     const budget =
       provider.id === "openrouter" ? Math.min(input.maxTokens ?? 600, 110) : Math.min(input.maxTokens ?? 600, 500);
