@@ -17,6 +17,7 @@ export type AuditEntry = {
 
 const AUDIT_KEY = "audit:updates";
 const META_KEY = "bot:meta";
+const ALERT_KEY = "bot:alertAt";
 
 function describeUpdate(update: TgUpdate) {
   if (update.callback_query) {
@@ -72,6 +73,20 @@ async function saveBotMeta() {
 export async function readBotMeta() {
   const { getStore } = await import("@/lib/store");
   return getStore().get<Record<string, unknown>>(META_KEY);
+}
+
+/** 🚨 تنبيه المالك إذا البوت ما قدرش يبعث (مرة ف كل 5 دقايق ماكس) */
+async function alertOwner(reason: string) {
+  const { getStore } = await import("@/lib/store");
+  const lastAt = Number((await getStore().get<number>(ALERT_KEY)) || 0);
+  if (Date.now() - lastAt < 5 * 60_000) return;
+  const { getSettings } = await import("@/lib/settings");
+  const { sendMessage } = await import("@/lib/telegram");
+  const s = await getSettings();
+  const who = (s.adminIds || []).find((x) => /^\d+$/.test(x)) || (/^\d+$/.test(s.ownerUsername) ? s.ownerUsername : "");
+  if (!who) return;
+  await sendMessage(who, `🚨 البوت ما قدرش يبعث رسالة\nالسبب: ${reason.slice(0, 200)}`);
+  await getStore().set(ALERT_KEY, Date.now());
 }
 
 async function pushAudit(entry: AuditEntry & { sent?: { method: string; text?: string; error?: string }[] }) {
@@ -137,13 +152,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
   }
 
-  // 🩺 كل 1 من 20 تحديث نسجّلو هوية البوت + حالة الويب هوك (تشخيص)
-  if (Math.random() < 0.05) {
-    try {
-      await saveBotMeta();
-    } catch {
-      /* ما نعطّلوش الردّ */
-    }
+  // 🩺 نسجّلو هوية البوت + حالة الويب هوك ف كل تحديث (باش نعرفو واش الإرسال يخدم)
+  try {
+    await saveBotMeta();
+  } catch {
+    /* ما نعطّلوش الردّ */
   }
 
   await trackBotMessage();
@@ -161,6 +174,15 @@ export async function POST(request: NextRequest) {
     await pushAudit({ at: Date.now(), ...detail, error });
   } catch {
     /* التدقيق ما يعطّلش الردّ */
+  }
+
+  // 🚨 إلا فشل الإرسال لتّيليغرام، نبلغو المالك على الخاص (باش ما نبقاوش في السكوت)
+  try {
+    const { getSendErrors } = await import("@/lib/telegram");
+    const errs = getSendErrors().filter((e) => Date.now() - e.at < 20_000);
+    if (errs.length) await alertOwner(errs[0].error);
+  } catch {
+    /* تنبيه فقط */
   }
 
   return NextResponse.json({ ok: true });
