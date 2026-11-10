@@ -151,6 +151,40 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, status: r.status, tg: j, hookUrl, secretUsed: Boolean(s2.webhookSecret) });
   }
 
+  // 🩺 إعادة تنفيذ تحديث حقيقي عبر نفس مسار البوت (للتأكد أن الرد كيخرج)
+  if (url.searchParams.get("op") === "replay") {
+    const chatId = Number(url.searchParams.get("chatId") || 0);
+    const text = url.searchParams.get("text") || "/start";
+    if (!chatId) return NextResponse.json({ ok: false, error: "chatId مطلوب" }, { status: 400 });
+    const update = {
+      update_id: Date.now(),
+      message: {
+        message_id: Math.floor(Date.now() / 1000),
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: chatId, type: "private" },
+        from: { id: chatId, is_bot: false, first_name: "replay", username: "replay" },
+        text,
+      },
+    };
+    const { handleUpdate } = await import("@/lib/bot");
+    const tg = await import("@/lib/telegram");
+    const second = process.env.TELEGRAM_BOT_TOKEN_2 || "";
+    const run = async () => {
+      tg.clearTrace();
+      const t0 = Date.now();
+      let error: string | null = null;
+      try {
+        await handleUpdate(update as never);
+      } catch (e) {
+        error = String((e as Error)?.stack || (e as Error)?.message || e);
+      }
+      const trace = tg.getTrace().reverse().filter((t) => /send|edit|copy|answer/i.test(t.method));
+      return { ms: Date.now() - t0, error, sent: trace.map((t) => ({ method: t.method, text: String(t.payload.text || "").slice(0, 300) })) };
+    };
+    const out = url.searchParams.get("bot") === "2" && second ? await tg.runWithBotToken(second, run) : await run();
+    return NextResponse.json({ ok: true, ...out, sendErrors: (await import("@/lib/telegram")).getSendErrors().slice(0, 3) });
+  }
+
   // 🩺 إرسال مباشر عبر كودنا (نفس مسار البوت) — نشوفو Trace والحالة
   if (url.searchParams.get("op") === "send_via_code") {
     const chatId = url.searchParams.get("chatId") || "";
