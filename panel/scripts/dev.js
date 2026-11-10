@@ -24,7 +24,7 @@ const MIME = {
 const cache = new Map();
 async function loadHandler(route) {
   // /api/a/b → api/a/b.js
-  const file = path.join(ROOT, "api", `${route.replace(/^\/api\//, "")}.js`);
+  const file = path.join(ROOT, "api", route.replace(/^\/api\//, ""));
   if (!fs.existsSync(file)) return null;
   const mod = await import(`file://${file}?t=${fs.statSync(file).mtimeMs}`);
   return mod.default;
@@ -34,7 +34,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   try {
     if (url.pathname.startsWith("/api/")) {
-      const handler = await loadHandler(url.pathname);
+      const handler = await loadHandler("/api/index.js");
       if (!handler) {
         res.statusCode = 404;
         res.setHeader("content-type", "application/json");

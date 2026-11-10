@@ -229,7 +229,7 @@ test("البوت: جواب صحيح يزيد النقاط", async () => {
 });
 
 test("رفع صورة: كشف النوع من البايتات + حفظ في Redis", async () => {
-  const { sniff } = await import("../api/_lib.js");
+  const { sniff } = await import("../lib/http-kit.js");
   const png = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489", "hex");
   assert.equal(sniff(png), "image/png");
   const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
