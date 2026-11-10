@@ -73,6 +73,14 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return denied();
   const url = new URL(request.url);
 
+  // 🩺 تدقيق: آخر التحديثات + أخطاء الإرسال
+  if (url.searchParams.get("op") === "audit") {
+    const { readAudit } = await import("@/app/api/telegram/webhook/route");
+    const { getSendErrors } = await import("@/lib/telegram");
+    const updates = await readAudit(40);
+    return NextResponse.json({ ok: true, updates, sendErrors: getSendErrors(), at: Date.now() });
+  }
+
   // 🩺 simulate عبر GET (للتشخيص السريع من المتصفح)
   if (url.searchParams.get("op") === "simulate") {
     const res = await runOp({

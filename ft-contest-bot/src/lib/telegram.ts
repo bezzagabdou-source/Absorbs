@@ -95,6 +95,18 @@ export function tracePush(item: TgTrace) {
   traceGlobal.__ftTrace.unshift(item);
   if (traceGlobal.__ftTrace.length > 200) traceGlobal.__ftTrace.length = 200;
 }
+/** أخطاء الإرسال الأخيرة (تظهر في تدقيق اللوحة) */
+export type TgSendError = { at: number; method: string; chatId: unknown; error: string };
+const errGlobal = globalThis as unknown as { __ftSendErrors?: TgSendError[] };
+export function getSendErrors(): TgSendError[] {
+  return errGlobal.__ftSendErrors || [];
+}
+export function pushSendError(item: TgSendError) {
+  errGlobal.__ftSendErrors ||= [];
+  errGlobal.__ftSendErrors.unshift(item);
+  if (errGlobal.__ftSendErrors.length > 60) errGlobal.__ftSendErrors.length = 60;
+}
+
 export function getTrace(): TgTrace[] {
   return traceGlobal.__ftTrace || [];
 }
@@ -210,10 +222,14 @@ export async function tgCall<T = unknown>(
       signal: AbortSignal.timeout(8000),
     });
     const json = (await res.json()) as TgResult<T>;
-    if (!json.ok) console.error(`[tg] ${method}`, json.description);
+    if (!json.ok) {
+      console.error(`[tg] ${method}`, json.description);
+      pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: String(json.description || "خطأ") });
+    }
     return json;
   } catch (error) {
     console.error(`[tg] ${method} network error`, error);
+    pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "تعذّر الاتصال بتلغرام" });
     return { ok: false, description: "تعذّر الاتصال بتلغرام" };
   }
 }
