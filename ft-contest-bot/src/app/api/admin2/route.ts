@@ -104,8 +104,12 @@ export async function GET(req: NextRequest) {
   const url0 = new URL(req.url);
   // 🔎 فحص جاهزية اللوحة (بلا أي سرّ): غير هل المتغيّرات موجودة
   if ((url0.searchParams.get("what") || "") === "ready") {
+    const aiKeys = Object.keys(process.env)
+      .filter((k) => /_API_KEY$|GOOGLE_API_KEY$|AI_MODEL$/.test(k))
+      .map((k) => `${k}:${(process.env[k] || "").length}`);
     return ok({
       panel: true,
+      aiKeys,
       passwordSet: Boolean(process.env.ADMIN_PASSWORD),
       secretSet: Boolean(process.env.ADMIN_SECRET),
       ai: aiStatus(),

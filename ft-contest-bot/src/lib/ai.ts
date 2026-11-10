@@ -239,9 +239,14 @@ export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<Ai
   if (!providers.length) return empty;
   let last: AiResult = empty;
   for (const provider of providers.slice(0, 3)) {
-    const res = await generateVia(provider, input);
-    if (res.ok) return res;
-    last = res;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await generateVia(provider, input);
+      if (res.ok) return res;
+      last = res;
+      // 🔁 إذا المزوّد مزحوم (high demand / 429 / 5xx) نعاودو مرة بعد شوية
+      if (!/high demand|overload|429|5\d\d|timeout|aborted/i.test(res.error)) break;
+      await new Promise((r) => setTimeout(r, 350 + attempt * 400));
+    }
   }
   return last;
 }
