@@ -49,9 +49,9 @@ export async function getSettings(): Promise<Settings> {
       if (legacy.length) return legacy;
       return DEFAULT_SETTINGS.requiredChannels;
     })(),
-    // 🚫 ما نفرضوش بوابة الاشتراك على المستخدم: البوت يخدم كيما كان.
-    // تتشعّل غير إذا المالك شغّلها بيده من اللوحة.
-    requireJoin: Boolean(saved.requireJoin),
+    // 🚫 البوابة مطفية (البوت يخدم كيما كان). اللي يشغّلها بيده من اللوحة تبقى شغّالة
+    // (نعرفوها من gateOn: تتكتب غير كي يختار المالك القيمة بنفسه).
+    requireJoin: Boolean(saved.gateOn),
     gateV: GATE_VERSION,
     groupTarget: Math.max(1, Number(saved.groupTarget) || DEFAULT_SETTINGS.groupTarget),
     aiEnabled: saved.aiEnabled === undefined ? DEFAULT_SETTINGS.aiEnabled : Boolean(saved.aiEnabled),
@@ -68,6 +68,8 @@ export async function getSettings(): Promise<Settings> {
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
   const next: Settings = { ...current, ...patch, gateV: GATE_VERSION };
+  // أي تعديل صريح على requireJoin = قرار المالك → نثبّتوه
+  if (patch.requireJoin !== undefined) next.gateOn = Boolean(patch.requireJoin);
   await getStore().set(SETTINGS_KEY, next);
   return next;
 }
