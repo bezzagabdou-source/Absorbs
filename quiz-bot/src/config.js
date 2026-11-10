@@ -68,6 +68,14 @@ export const config = {
 
   protectionLevel: (str("PROTECTION_LEVEL", "max") || "max").toLowerCase(),
 
+  ai: {
+    openrouterKeys: str("OPENROUTER_API_KEY"),
+    xaiKeys: str("XAI_API_KEY") || str("GROK_API_KEY"),
+    model: str("AI_MODEL", "x-ai/grok-4"),
+    modelGrok: str("AI_MODEL_GROK", "grok-4"),
+    enabled: true,
+  },
+
   telegram: {
     apiBase: "https://api.telegram.org",
     msgPerSec: int("TG_MSG_PER_SEC", 22),

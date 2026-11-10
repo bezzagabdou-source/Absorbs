@@ -12,12 +12,17 @@ import { json, text, html, clientIp, rateLimit, checkWebhookSecret, readJson, se
 import { sha256, now } from "./util.js";
 import { seedDemo } from "./demo.js";
 import { safetyReport } from "./services/crypto.js";
+import { aiApi } from "./web/ai-api.js";
+import { ensurePasswordInitialized } from "./services/passwords.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 seedSettings();
+ensurePasswordInitialized();
 if (config.demo) seedDemo();
+if (config.ai.openrouterKeys && !process.env.OPENROUTER_API_KEY) process.env.OPENROUTER_API_KEY = config.ai.openrouterKeys;
+if (config.ai.xaiKeys && !process.env.XAI_API_KEY) process.env.XAI_API_KEY = config.ai.xaiKeys;
 
 /* ────────────────────────── Webhook ────────────────────────── */
 
@@ -121,6 +126,20 @@ const server = http.createServer(async (req, res) => {
       return await handleWebhook(req, res);
     }
 
+    /* الصور المرفوعة (عامّة بمعرّف عشوائي، بلا كشف أي مسار داخلي) */
+    if (url.pathname.startsWith("/uploads/")) {
+      const { getUpload } = await import("./services/uploads.js");
+      const row = getUpload(url.pathname.slice("/uploads/".length).replace(/\.[a-z]+$/, ""));
+      if (!row) return text(res, 404, "not found");
+      res.writeHead(200, {
+        "content-type": row.mime || "image/jpeg",
+        "cache-control": "public, max-age=86400",
+        "x-content-type-options": "nosniff",
+      });
+      fs.createReadStream(row.path).pipe(res);
+      return;
+    }
+
     /* لوحة التحكم API */
     if (url.pathname.startsWith("/api/")) {
       if (url.pathname === "/api/track" && req.method === "POST") {
@@ -142,8 +161,20 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
       // حماية API: قيود معدّل + نفس الأصل
-      const rl = rateLimit(`api:${ip}`, { max: 240, windowMs: 60000 });
+      const rl = rateLimit(`api:${ip}`, { max: 300, windowMs: 60000 });
       if (!rl.ok) return json(res, 429, { ok: false, error: "طلبات كثيرة" });
+
+      // كل مسارات الذكاء الاصطناعي والصور والأسئلة تحتاج جلسة لوحة
+      if (url.pathname.startsWith("/api/ai/") || url.pathname.startsWith("/api/uploads") || url.pathname.startsWith("/api/questions")) {
+        // (فقط بعد التحقق من الجلسة أدناه)
+        const { verify, cookieName } = await import("./services/auth.js");
+        const { cookie } = await import("./web/http.js");
+        const sess = verify(cookie(req, cookieName()), ip);
+        if (!sess) return json(res, 401, { ok: false, error: "غير مصرّح" });
+        await aiApi(req, res, url);
+        return;
+      }
+
       await dashboardApi(req, res, url);
       return;
     }

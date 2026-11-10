@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { q, tx, getSettingInt, getSetting, logEvent } from "../db.js";
 import { config } from "../config.js";
 import { QUESTIONS, CATEGORIES, categoryLabel, shuffledQuestion } from "../data/questions.js";
+import { randomCustomQuestion } from "./questions.js";
 import { awardPoints } from "./points.js";
 import { guard, Deny, jitter, profile, lock } from "./guards.js";
 import { confirmOnEngagement } from "./referral.js";
@@ -37,6 +38,11 @@ function chooseQuestion(category) {
   const pool = category && category !== "mix"
     ? QUESTIONS.filter((x) => x.cat === category)
     : QUESTIONS;
+  // الأسئلة المخصّصة (مضافة من اللوحة أو الذكاء الاصطناعي) تُدمج بنسبة 40%
+  if (Math.random() < 0.4) {
+    const custom = randomCustomQuestion(category);
+    if (custom) return { ...custom, text: custom.text, options: custom.options, correct: custom.correct, cat: custom.cat };
+  }
   return pool[Math.floor(Math.random() * pool.length)];
 }
 

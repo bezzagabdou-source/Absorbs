@@ -157,6 +157,56 @@ CREATE TABLE IF NOT EXISTS broadcast_jobs (
   cursor_id  INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS custom_questions (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  category      TEXT NOT NULL,
+  question      TEXT NOT NULL,
+  options       TEXT NOT NULL,
+  correct_idx   INTEGER NOT NULL,
+  active        INTEGER NOT NULL DEFAULT 1,
+  created_by    TEXT,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cq_cat ON custom_questions(category, active);
+
+CREATE TABLE IF NOT EXISTS uploads (
+  id        TEXT PRIMARY KEY,
+  name      TEXT,
+  mime      TEXT,
+  bytes     INTEGER NOT NULL,
+  path      TEXT NOT NULL,
+  kind      TEXT NOT NULL DEFAULT 'image',
+  at        INTEGER NOT NULL,
+  used_at   INTEGER,
+  note      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_uploads_at ON uploads(at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  at        INTEGER NOT NULL,
+  role      TEXT NOT NULL,
+  content   TEXT,
+  tools     TEXT,
+  tokens    INTEGER DEFAULT 0,
+  provider  TEXT,
+  model     TEXT,
+  latency   INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_ai_at ON ai_messages(at DESC);
+
+CREATE TABLE IF NOT EXISTS ai_actions (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  at        INTEGER NOT NULL,
+  tool      TEXT NOT NULL,
+  args      TEXT,
+  result    TEXT,
+  ok        INTEGER NOT NULL DEFAULT 1,
+  source    TEXT NOT NULL DEFAULT 'ai',
+  undo      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ai_actions_at ON ai_actions(at DESC);
+
 CREATE TABLE IF NOT EXISTS visits (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
   at      INTEGER NOT NULL,

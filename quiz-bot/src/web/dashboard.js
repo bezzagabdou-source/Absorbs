@@ -23,6 +23,10 @@ import { awardPoints, ledger, pointsBalance } from "../services/points.js";
 import { confirmReferral, rejectReferral, invitees, referrerSummary, referrersBoard, pendingReferrals } from "../services/referral.js";
 import { quizStats } from "../services/quiz.js";
 import { envTokens } from "../services/crypto.js";
+import { changePassword } from "../services/auth.js";
+import { passwordChangedAt, storedHash } from "../services/passwords.js";
+import { aiProviders } from "../ai/brain.js";
+import { selfDiagnose } from "../ai/shield.js";
 import { isLocked, unlock, unlockIp } from "../services/guards.js";
 import { startBroadcast, broadcastStatus } from "../services/broadcast.js";
 import { tg } from "../services/telegram.js";
@@ -71,6 +75,23 @@ export async function dashboardApi(req, res, url) {
     return true;
   }
 
+  if (p === "/api/auth/password" && method === "POST") {
+    if (!guardApi(req, res, "pwchange", { max: 6, windowMs: 300000 })) return true;
+    const s2 = authed(req);
+    if (!s2) return deny(res), true;
+    const body = await readJson(req, 8192);
+    const out = changePassword(body?.current, body?.next);
+    if (!out.ok) {
+      logEvent("password_change_fail", { severity: "warn", ip, detail: out.error });
+      json(res, 400, { ok: false, error: out.error });
+      return true;
+    }
+    logEvent("password_change_ok", { ip });
+    clearSessionCookie(res);
+    json(res, 200, { ok: true, relogin: true });
+    return true;
+  }
+
   if (p === "/api/auth/logout" && method === "POST") {
     logout(cookie(req, cookieName()));
     clearSessionCookie(res);
@@ -84,6 +105,9 @@ export async function dashboardApi(req, res, url) {
       ok: true,
       authed: Boolean(s),
       demo: config.demo,
+      ai: aiProviders(),
+      passwordChangedAt: passwordChangedAt(),
+      passwordCustom: Boolean(storedHash()),
       startedAt: s?.at ?? null,
       sessions: sessionCount(),
       bot: tg.me ? { username: tg.me.username, name: tg.me.first_name } : null,
@@ -528,6 +552,11 @@ export async function dashboardApi(req, res, url) {
     });
     res.end("\ufeff" + head + csv);
     return true;
+  }
+
+  if (p === "/api/ai/status") {
+    const diag = selfDiagnose();
+    return json(res, 200, { ok: true, providers: aiProviders(), diag }), true;
   }
 
   if (p === "/api/health") {

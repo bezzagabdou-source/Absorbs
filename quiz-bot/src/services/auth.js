@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { config } from "../config.js";
 import { safeEqual, randToken, sha256 } from "../util.js";
 import { rateLimit } from "../web/http.js";
+import { checkPassword, setPassword, ensurePasswordInitialized, passwordChangedAt } from "./passwords.js";
 
 /**
  * جلسات لوحة التحكم:
@@ -20,6 +21,20 @@ export function passwordFingerprint() {
   return sha256(`${config.dashboardPassword}:${config.sessionSecret}`);
 }
 
+/** تغيير كلمة السر: يتطلب الحالية، ويُبطل كل الجلسات */
+export function changePassword(current, next) {
+  if (!checkPassword(String(current ?? ""))) return { ok: false, error: "كلمة السر الحالية غالطة" };
+  const pw = String(next ?? "");
+  if (pw.length < 8) return { ok: false, error: "كلمة السر الجديدة لازم 8 أحرف على الأقل" };
+  if (pw === String(current ?? "")) return { ok: false, error: "كلمة السر الجديدة نفس القديمة" };
+  if (!/[A-Za-z؀-ۿ]/.test(pw) || !/[0-9]/.test(pw)) {
+    return { ok: false, error: "خلي فيها حرف ورقم باش تكون قوية" };
+  }
+  setPassword(pw);
+  revokeAll();
+  return { ok: true };
+}
+
 function sign(data) {
   return crypto.createHmac("sha256", config.sessionSecret || "dev").update(data).digest("base64url");
 }
@@ -33,9 +48,8 @@ export function login(ip, password, ua = "") {
   }
   if (!rl.ok) return { ok: false, error: "محاولات كثيرة. جرب بعد شوية.", waitMs: rl.retryMs };
 
-  const expected = passwordFingerprint();
-  const got = sha256(`${password}:${config.sessionSecret}`);
-  if (!safeEqual(expected, got)) {
+  ensurePasswordInitialized();
+  if (!checkPassword(String(password ?? ""))) {
     const n = (f?.n ?? 0) + 1;
     const until = n >= 5 ? Date.now() + Math.min(15 * 60000, n * 60000) : 0;
     failed.set(ip, { n, until });
@@ -44,7 +58,7 @@ export function login(ip, password, ua = "") {
   failed.delete(ip);
 
   const id = randToken(18).replace(/[^A-Za-z0-9]/g, "").slice(0, 24);
-  sessions.set(id, { at: Date.now(), exp: Date.now() + TTL_MS, ip, ua: String(ua).slice(0, 120) });
+  sessions.set(id, { at: Date.now(), exp: Date.now() + TTL_MS, ip, ua: String(ua).slice(0, 120), pwAt: passwordChangedAt() ?? 0 });
   const payload = `${id}.${Date.now() + TTL_MS}`;
   const cookieValue = `${payload}.${sign(payload)}`;
   return { ok: true, cookie: cookieValue, id };
@@ -64,7 +78,12 @@ export function verify(cookieValue, ip = null) {
     sessions.delete(id);
     return null;
   }
-  // لو تغيّرت كلمة السر، الجلسة تُلغى (البصمة تتغير)
+  // لو تغيّرت كلمة السر بعد إنشاء الجلسة ⇒ تُلغى
+  const pca = passwordChangedAt() ?? 0;
+  if ((s.pwAt ?? 0) < pca) {
+    sessions.delete(id);
+    return null;
+  }
   s.lastSeen = Date.now();
   return { id, ...s, ip: s.ip };
 }
