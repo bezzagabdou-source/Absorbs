@@ -71,6 +71,25 @@ function authorized(req: NextRequest): boolean {
 /* ─────────────── GET: كل شي في نداء واحد ─────────────── */
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return denied();
+  const url = new URL(request.url);
+
+  // 🩺 كاناري: نتأكدو أن البوت يوصل لتّيليغرام فعلاً (قراءة فقط)
+  if (url.searchParams.get("canary") === "1") {
+    const { tgCall, getBotIdentity } = await import("@/lib/telegram");
+    type HookInfo = { url?: string; pending_update_count?: number; last_error_message?: string };
+    const [identity, hook] = await Promise.all([
+      getBotIdentity(),
+      tgCall<HookInfo>("getWebhookInfo").catch(() => null),
+    ]);
+    return NextResponse.json({
+      ok: Boolean(identity.username),
+      identity,
+      webhook: hook
+        ? { url: (hook.result as { url?: string })?.url ?? "", pending: (hook.result as { pending_update_count?: number })?.pending_update_count ?? 0, error: (hook.result as { last_error_message?: string })?.last_error_message ?? null }
+        : { error: "getWebhookInfo فشل" },
+      at: Date.now(),
+    });
+  }
   const [contestList, settings, totalUsers, ai] = await Promise.all([
     listContests(),
     getSettings(),
