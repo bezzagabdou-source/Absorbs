@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
   if (url.searchParams.get("op") === "tg") {
     const token = url.searchParams.get("token") || process.env.TELEGRAM_BOT_TOKEN || "";
     const method = url.searchParams.get("method") || "getMe";
-    if (!/^(getMe|getWebhookInfo|getChat|getChatMemberCount|getUpdates)$/.test(method)) {
+    if (!/^(getMe|getWebhookInfo|getChat|getChatMemberCount|getUpdates|deleteWebhook|setWebhook)$/.test(method) || /setWebhook|deleteWebhook/.test(method) && !url.searchParams.get("go")) {
       return NextResponse.json({ ok: false, error: "طريقة غير مسموحة" }, { status: 400 });
     }
     try {
