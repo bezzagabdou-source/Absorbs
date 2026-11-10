@@ -235,6 +235,7 @@ export function defaultState() {
     password: null,
     settings: {
       botName: "FT AI",
+      botToken: "",
       protectionLevel: "max",
       rewardCorrect: 10,
       rewardStreak: 5,

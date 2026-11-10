@@ -260,4 +260,6 @@ test("نقاط الحماية: سقف محاولات الدخول", async () => 
 test.after(async () => {
   redisServer.close();
   aiServer.close();
+  // اتصال Redis الداخلي يخلّي العملية حيّة — نخرج بعد ما تنتهي كل الاختبارات
+  setTimeout(() => process.exit(0), 300).unref();
 });

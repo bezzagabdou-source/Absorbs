@@ -106,6 +106,7 @@
       ? o.actions.map((a) => `<li><b>${esc(a.kind)}</b><span>${esc(a.detail ?? "")}</span><span class="tiny muted">${time(a.at)}</span></li>`).join("")
       : '<li class="muted">ما كاينش نشاط بعد</li>';
     $("#top5").innerHTML = (o.top ?? []).map((u) => `<li>${esc(u.name)} — <b>${u.points}</b> نقطة</li>`).join("") || '<li class="muted">—</li>';
+    renderTokenState(o);
     $("#ai-status").textContent = `مزوّدون: OpenRouter ${o.ai.providers.openrouter} · Grok ${o.ai.providers.grok} · النموذج ${o.ai.model}`;
   }
   $("#refresh").addEventListener("click", () => { loadAll(); toast("تحدّث"); });
@@ -379,6 +380,30 @@
     const out = await api("/api/settings", { method: "POST", body: { settings } });
     toast(out.ok ? "تحفظت ✅" : out.error || "ما تحفظتش", out.ok ? "ok" : "bad");
     loadAll();
+  });
+
+  /* ── ربط البوت ── */
+  function renderTokenState(o) {
+    const el = $("#token-state");
+    if (!el || !o?.bot) return;
+    const src = o.bot.tokenSource ?? "none";
+    el.textContent = src === "env"
+      ? `متصل عبر متغيّر Vercel (BOT_TOKEN)${o.bot.username ? " · @" + o.bot.username : ""}`
+      : src === "panel"
+        ? `متصل عبر اللوحة${o.bot.username ? " · @" + o.bot.username : ""}`
+        : "ماشي مربوط — حط التوكن هنا وراه يتسجّل الـ webhook وحدو";
+  }
+  $("#save-token")?.addEventListener("click", async () => {
+    const token = $("#bot-token").value.trim();
+    if (!token) return toast("حط التوكن أول", "bad");
+    $("#save-token").disabled = true;
+    const r = await api("/api/actions", { method: "POST", body: { job: "set_token", token } });
+    $("#save-token").disabled = false;
+    if (r.ok) {
+      toast(`تربط البوت @${r.bot?.username ?? ""} ✅ — الـ webhook تسجّل`, "ok");
+      $("#bot-token").value = "";
+      loadAll();
+    } else toast(r.error || "ما تربطش", "bad");
   });
 
   /* ── الأمان ── */

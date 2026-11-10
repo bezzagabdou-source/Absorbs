@@ -6,7 +6,7 @@ import {
   hasRedis, putImage, getImage, delImage, recordAction, uid, now,
 } from "../lib/core.js";
 import { providers, aiModel, USER_TOOLS, chat } from "../lib/ai.js";
-import { sendMessage, sendPhoto, getMe, getWebhookInfo, botToken, demoMode } from "../lib/tg.js";
+import { sendMessage, sendPhoto, getMe, getWebhookInfo, botToken, demoMode, setRuntimeToken, tokenSource } from "../lib/tg.js";
 import { handleUpdate, ensureWebhook, webhookSecret } from "../lib/bot.js";
 
 const LEVELS = ["off", "light", "normal", "high", "max"];
@@ -96,6 +96,7 @@ const overview = methods({
         name: state.settings.botName,
         username: process.env.BOT_USERNAME || null,
         tokenSet: Boolean(botToken()),
+        tokenSource: tokenSource(),
         demo: demoMode(),
         webhook: `${baseUrl(req)}/api/webhook`,
       },
@@ -399,12 +400,30 @@ const actions = methods({
         expected_webhook: `${baseUrl(req)}/api/webhook`,
         secrets: {
           BOT_TOKEN: Boolean(botToken()),
+          bot_source: tokenSource(),
           OPENROUTER_API_KEY: Boolean(process.env.OPENROUTER_API_KEY),
           XAI_API_KEY: Boolean(process.env.XAI_API_KEY || process.env.GROK_API_KEY),
           REDIS_URL: Boolean(process.env.REDIS_URL),
           DASHBOARD_PASSWORD: Boolean(process.env.DASHBOARD_PASSWORD || process.env.ADMIN_PASSWORD),
         },
       });
+    }
+
+    if (job === "set_token") {
+      const token = String(b?.token ?? "").trim();
+      if (!/^\d{6,}:[A-Za-z0-9_-]{30,}$/.test(token)) return json(res, 400, { ok: false, error: "شكل التوكن ماشي صحيح (123456:ABC…)" });
+      setRuntimeToken(token);
+      const me = await getMe();
+      if (!me?.ok) return json(res, 400, { ok: false, error: `تيليغرام رفض التوكن: ${me?.description ?? "غير معروف"}` });
+      const hook = await ensureWebhook(baseUrl(req));
+      await updateState((s) => {
+        s.settings.botToken = token;
+        s.settings.botUsername = me.result.username ?? null;
+        s.meta.webhookAt = Date.now();
+        recordAction(s, { kind: "token", detail: `ربط البوت @${me.result.username ?? me.result.id}` });
+        return s;
+      });
+      return json(res, 200, { ok: true, bot: { id: me.result.id, username: me.result.username, name: me.result.first_name }, webhook: hook });
     }
 
     if (job === "fix_webhook") {
@@ -467,6 +486,11 @@ const ROUTES = {
 
 export default async function handler(req, res) {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+  // التوكن قد يكون محفوظاً من اللوحة (Vercel Functions بلا حالة)
+  try {
+    const st = await readState();
+    if (st.settings?.botToken) setRuntimeToken(st.settings.botToken);
+  } catch { /* ignore */ }
   const path = url.pathname.replace(/^\/api\/?/, "").replace(/\/+$/, "");
   const route = ROUTES[path];
   if (!route) {

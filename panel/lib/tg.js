@@ -2,7 +2,11 @@
 import { now } from "./core.js";
 
 const API_BASE = () => process.env.TELEGRAM_API_BASE || "https://api.telegram.org";
-export const botToken = () => process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "";
+let runtimeToken = "";
+/** التوكن: من متغيّر البيئة أو من اللوحة (يُخزَّن في Redis) */
+export const botToken = () => process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || runtimeToken || "";
+export const setRuntimeToken = (t) => { runtimeToken = String(t ?? "").trim(); };
+export const tokenSource = () => (process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN ? "env" : runtimeToken ? "panel" : "none");
 export const demoMode = () => !botToken();
 
 /* ───── سقف معدّل عالمي ───── */
