@@ -492,10 +492,17 @@ const health = methods({
   GET: async (req, res) => {
     const u = new URL(req.url ?? "/", "http://x");
     const key = u.searchParams.get("key") || u.searchParams.get("heal");
+    const ask = u.searchParams.get("ai");
     let healed = null;
-    if (key && key === String(process.env.WEBHOOK_SECRET || "")) {
+    let aiOut = null;
+    const keyOk = Boolean(key) && key === String(process.env.WEBHOOK_SECRET || "");
+    if (keyOk && u.searchParams.has("heal")) {
       healed = await ensureWebhook(canonicalUrl(), { dropPending: true });
       await updateState((s) => { s.meta.webhookAt = now(); s.meta.hookSecret = secretStamp(); return s; });
+    }
+    // تشغيل FT AI من المتصفّح (محمي بمفتاح السرّ): ?key=...&ai=نصّ الأمر
+    if (keyOk && ask) {
+      aiOut = await chat({ message: String(ask).slice(0, 1500), source: "url", baseUrl: canonicalUrl() }).catch((e) => ({ ok: false, error: String(e?.message ?? e) }));
     }
     const state = await readStateFresh();
     let me = null;
@@ -529,6 +536,7 @@ const health = methods({
       },
       routes: Object.keys(ROUTES),
       ...(healed ? { healed } : {}),
+      ...(aiOut ? { ai: aiOut } : {}),
     });
   },
 });
