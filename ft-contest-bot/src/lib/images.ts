@@ -39,11 +39,14 @@ export function isInlineImage(value?: string): boolean {
 }
 
 /** يفك data URL إلى نوع المحتوى + البايتات */
-export function decodeInlineImage(value: string): { mime: string; bytes: Buffer } | null {
+export function decodeInlineImage(value: string): { mime: string; bytes: Uint8Array } | null {
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([\s\S]+)$/.exec(value || "");
   if (!match) return null;
   try {
-    return { mime: match[1], bytes: Buffer.from(match[2], "base64") };
+    const bin = atob(match[2].replace(/\s/g, ""));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { mime: match[1], bytes };
   } catch {
     return null;
   }

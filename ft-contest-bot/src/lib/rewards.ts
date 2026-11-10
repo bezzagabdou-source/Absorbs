@@ -1,3 +1,4 @@
+import { deflateSync } from "node:zlib";
 import { getStore } from "./store";
 import { getSettings } from "./settings";
 import { approveJoinRequest, createChatInviteLink, getChatInfo } from "./telegram";
@@ -74,7 +75,7 @@ function solidPng(width: number, height: number, r: number, g: number, b: number
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8;
   ihdr[9] = 2;
-  const deflated = require("node:zlib").deflateSync(Buffer.from(raw));
+  const deflated = deflateSync(Buffer.from(raw));
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk("IHDR", ihdr),
