@@ -96,8 +96,10 @@ export async function GET(request: NextRequest) {
     rewards: [...rewards].sort((a, b) => a.order - b.order),
     requests,
     leaderboard: top.map((row, i) => ({ ...row, balance: balances[i], ...nameOf(row.userId) })),
-    joinGroup: target,
-    contests: contestList.sort((a, b) => b.createdAt - a.createdAt),
+    joinGroup: target || (settings.groupChat ? { chatId: settings.groupChat, title: settings.groupTitle || "المجموعة" } : null),
+    contests: contestList
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((c) => ({ ...c, imageUrl: c.imageUrl ? "1" : "" })),
     settings: {
       ownerUsername: settings.ownerUsername,
       supportUsername: settings.supportUsername,
