@@ -20,6 +20,8 @@ export interface Store {
   sAdd(key: string, member: string): Promise<boolean>;
   sHas(key: string, member: string): Promise<boolean>;
   sCard(key: string): Promise<number>;
+  sDel(key: string, member: string): Promise<void>;
+  sMembers(key: string): Promise<string[]>;
   zIncr(key: string, member: string, by?: number): Promise<number>;
   zScore(key: string, member: string): Promise<number>;
   zTop(key: string, limit: number): Promise<ZItem[]>;
@@ -107,6 +109,13 @@ class RedisStore implements Store {
   }
   async sCard(key: string) {
     return Number(await this.cmd<number>(["SCARD", this.k(key)]));
+  }
+  async sDel(key: string, member: string) {
+    await this.cmd(["SREM", this.k(key), member]);
+  }
+  async sMembers(key: string): Promise<string[]> {
+    const raw = await this.cmd<string[]>(["SMEMBERS", this.k(key)]);
+    return Array.isArray(raw) ? raw.map(String) : [];
   }
   async zIncr(key: string, member: string, by = 1) {
     return Number(await this.cmd<number>(["ZINCRBY", this.k(key), by, member]));
@@ -286,6 +295,15 @@ class PostgresStore implements Store {
     );
     return Number(rows[0].c);
   }
+  async sDel(key: string, member: string) {
+    const pool = await getPool();
+    await pool.query("delete from ft_set where k = $1 and m = $2", [key, member]);
+  }
+  async sMembers(key: string) {
+    const pool = await getPool();
+    const { rows } = await pool.query("select m from ft_set where k = $1", [key]);
+    return rows.map((r: { m: string }) => String(r.m));
+  }
   async zIncr(key: string, member: string, by = 1) {
     const pool = await getPool();
     const { rows } = await pool.query(
@@ -451,6 +469,14 @@ class MemoryStore implements Store {
   }
   async sCard(key: string) {
     return (mem().sets[key] || []).length;
+  }
+  async sDel(key: string, member: string) {
+    const d = mem();
+    d.sets[key] = (d.sets[key] || []).filter((m) => m !== member);
+    persist();
+  }
+  async sMembers(key: string) {
+    return [...(mem().sets[key] || [])];
   }
   async zIncr(key: string, member: string, by = 1) {
     const d = mem();

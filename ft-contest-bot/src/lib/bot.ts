@@ -31,6 +31,7 @@ import {
   getPointsConfig,
   groupEntryLink,
   invitesOf as rewardInvitesOf,
+  isBanned,
   rewardLine,
   shopText,
   topBalances,
@@ -128,9 +129,9 @@ export async function checkChannels(
   const soft: string[] = [];
   for (const chat of required) {
     const res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
+    // 🛟 أي فشل من تيليغرام = تجاوز القناة (ما نوقفوش البوت على خطأ تحقّق)
     if (!res.ok || !res.result) {
-      if (SOFT_ERROR.test(res.description || "")) soft.push(`${chat}: ${res.description}`);
-      else soft.push(`${chat}: ${res.description || "تعذّر التحقّق"}`);
+      soft.push(`${chat}: ${res.description || "تعذّر التحقّق"}`);
       continue;
     }
     if (!MEMBER_STATUS.includes(res.result.status)) {
@@ -1397,6 +1398,12 @@ async function handleMessageInner(message: TgMessage) {
   if (!from || from.is_bot) return;
   const chat = message.chat;
   const chatId = chat.id;
+
+  // 🚫 محظور: ما نجاوبوهش نهائياً ف الخاص
+  if (!groupType(chat) && (await isBanned(String(from.id)))) {
+    console.warn("[ban] blocked user", from.id);
+    return;
+  }
 
   // 🛡️ الرشق: إلا تجاوز الحد، نسكتو عليه (بلا إرسال) ونكملو
   if (!groupType(chat) && floodBlocked(String(from.id))) {

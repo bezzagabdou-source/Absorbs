@@ -24,7 +24,19 @@ export type Reward = {
   order: number;
   /** نص التسليم (مثال: «يُرسل الحساب على الخاص») */
   delivery: string;
+  /** 🗂️ القسم: accounts = حسابات بيس، points = نقاط، services = خدمات */
+  section?: SectionId;
 };
+
+export type SectionId = "accounts" | "points" | "services";
+
+export type Section = { id: SectionId; title: string; emoji: string; order: number; active: boolean };
+
+export const DEFAULT_SECTIONS: Section[] = [
+  { id: "accounts", title: "حسابات بيس", emoji: "🎁", order: 1, active: true },
+  { id: "points", title: "نقاط", emoji: "⭐️", order: 2, active: true },
+  { id: "services", title: "خدمات", emoji: "🤝", order: 3, active: true },
+];
 
 export type RewardRequest = {
   id: string;
@@ -64,14 +76,14 @@ export const DEFAULT_POINTS: PointsConfig = {
 };
 
 export const DEFAULT_REWARDS: Reward[] = [
-  { id: "r_wa", emoji: "🤝", title: "وساطة مجانية", desc: "وساطة مجانية في بيع/شراء حساب FT", cost: 15, stock: null, active: true, order: 1, delivery: "يتواصل معك المالك على الخاص" },
-  { id: "r_usd", emoji: "💵", title: "1$ دولار", desc: "دولار واحد (رصيد/تحويل حسب المالك)", cost: 45, stock: 0, active: true, order: 2, delivery: "يتواصل معك المالك على الخاص" },
-  { id: "r_star25", emoji: "🌟", title: "25 نجمة", desc: "25 نجمة تيليغرام", cost: 35, stock: 0, active: true, order: 3, delivery: "بعد الموافقة تُرسل النجوم" },
-  { id: "r_star50", emoji: "⭐", title: "50 نجمة", desc: "50 نجمة تيليغرام على حسابك", cost: 65, stock: 0, active: true, order: 4, delivery: "بعد الموافقة تُرسل النجوم" },
-  { id: "r_star100", emoji: "💫", title: "100 نجمة", desc: "100 نجمة تيليغرام", cost: 100, stock: 0, active: true, order: 5, delivery: "بعد الموافقة تُرسل النجوم" },
-  { id: "r_bear", emoji: "🧸", title: "دب", desc: "هدية دب تيليغرام", cost: 20, stock: 0, active: true, order: 6, delivery: "بعد الموافقة تُرسل الهدية" },
-  { id: "r_bp2", emoji: "🎁", title: "كونت بيس 2", desc: "حساب بيس (باقة ثانية)", cost: 55, stock: null, active: true, order: 7, delivery: "يُسلّم إيميل + كلمة سر" },
-  { id: "r_bp", emoji: "🎁", title: "كونت بيس", desc: "حساب بيس كامل", cost: 280, stock: null, active: true, order: 8, delivery: "يُسلّم إيميل + كلمة سر" },
+  { id: "r_wa", emoji: "🤝", title: "وساطة مجانية", desc: "وساطة مجانية في بيع/شراء حساب FT", cost: 15, stock: null, active: true, order: 1, delivery: "يتواصل معك المالك على الخاص", section: "services" },
+  { id: "r_usd", emoji: "💵", title: "1$ دولار", desc: "دولار واحد (رصيد/تحويل حسب المالك)", cost: 45, stock: 0, active: true, order: 2, delivery: "يتواصل معك المالك على الخاص", section: "services" },
+  { id: "r_star25", emoji: "🌟", title: "25 نجمة", desc: "25 نجمة تيليغرام", cost: 35, stock: 0, active: true, order: 3, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
+  { id: "r_star50", emoji: "⭐", title: "50 نجمة", desc: "50 نجمة تيليغرام على حسابك", cost: 65, stock: 0, active: true, order: 4, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
+  { id: "r_star100", emoji: "💫", title: "100 نجمة", desc: "100 نجمة تيليغرام", cost: 100, stock: 0, active: true, order: 5, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
+  { id: "r_bear", emoji: "🧸", title: "دب", desc: "هدية دب تيليغرام", cost: 20, stock: 0, active: true, order: 6, delivery: "بعد الموافقة تُرسل الهدية", section: "points" },
+  { id: "r_bp2", emoji: "🎁", title: "كونت بيس 2", desc: "حساب بيس (باقة ثانية)", cost: 55, stock: null, active: true, order: 7, delivery: "يُسلّم إيميل + كلمة سر", section: "accounts" },
+  { id: "r_bp", emoji: "🎁", title: "كونت بيس", desc: "حساب بيس كامل", cost: 280, stock: null, active: true, order: 8, delivery: "يُسلّم إيميل + كلمة سر", section: "accounts" },
 ];
 
 const KEY = {
@@ -84,6 +96,9 @@ const KEY = {
   joined: (id: string) => `refs:joined:${id}`,
   activated: (id: string) => `refs:act:${id}`,
   top: "pts:top",
+  sections: "rewards:sections",
+  banned: "users:banned",
+  log: "admin:log",
 };
 
 export /** 🚫 الأصناف لي ما تتوفرش: نبدّلو الكمية صفر إذا كانت بعد بقيمة قديمة */
@@ -105,13 +120,28 @@ export async function ensureRewards(): Promise<Reward[]> {
     );
     await store.set(KEY.rewardList, next);
     await store.set(SOLD_OUT_KEY, "1");
-    return next;
+    return withSections(next);
   }
-  return saved;
+  return withSections(saved);
+}
+
+/** 🗂️ تخمين القسم من العنوان (للجوائز القديمة لي ماكانش عندها قسم) */
+function inferSection(r: Reward): SectionId {
+  const known = DEFAULT_REWARDS.find((d) => d.id === r.id);
+  if (known?.section) return known.section;
+  const t = `${r.title} ${r.desc}`;
+  if (/نجم|نجوم|دب|star|bear|هدية تيليغرام/i.test(t)) return "points";
+  if (/وساط|دولار|خدم|usd|\$|service/i.test(t)) return "services";
+  return "accounts";
+}
+
+/** 🗂️ كل جائزة لازم يكون عندها قسم */
+export function withSections(list: Reward[]): Reward[] {
+  return list.map((r) => (r.section ? r : { ...r, section: inferSection(r) }));
 }
 
 export async function saveRewards(list: Reward[]): Promise<void> {
-  await getStore().set(KEY.rewardList, list);
+  await getStore().set(KEY.rewardList, withSections(list));
 }
 
 export async function getPointsConfig(): Promise<PointsConfig> {
@@ -357,4 +387,90 @@ export function rewardLine(reward: Reward, balance: number): string {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/* ───────────────────────── 🗂️ الأقسام (حسابات / نقاط / خدمات) ───────────────────────── */
+
+export async function ensureSections(): Promise<Section[]> {
+  const store = getStore();
+  const saved = await store.get<Section[]>(KEY.sections);
+  if (!Array.isArray(saved) || !saved.length) {
+    await store.set(KEY.sections, DEFAULT_SECTIONS);
+    return DEFAULT_SECTIONS;
+  }
+  // أي قسم جديد نزيدوه تلقائياً
+  const missing = DEFAULT_SECTIONS.filter((d) => !saved.some((s) => s.id === d.id));
+  if (missing.length) {
+    const next = [...saved, ...missing];
+    await store.set(KEY.sections, next);
+    return next;
+  }
+  return saved;
+}
+
+export async function saveSections(list: Section[]): Promise<Section[]> {
+  const clean = list
+    .filter((s) => s && s.id)
+    .map((s, i) => ({
+      id: s.id,
+      title: String(s.title || "قسم").slice(0, 40),
+      emoji: String(s.emoji || "🎁").slice(0, 8),
+      order: Math.floor(Number(s.order) || i + 1),
+      active: s.active === undefined ? true : Boolean(s.active),
+    }))
+    .sort((a, b) => a.order - b.order);
+  await getStore().set(KEY.sections, clean);
+  return clean;
+}
+
+/** جوائز قسم معيّن */
+export function rewardsInSection(list: Reward[], section: SectionId): Reward[] {
+  return list.filter((r) => (r.section || "accounts") === section).sort((a, b) => a.order - b.order);
+}
+
+/* ───────────────────────── 🚫 الحظر ───────────────────────── */
+
+export async function isBanned(userId: string): Promise<boolean> {
+  return getStore().sHas(KEY.banned, String(userId));
+}
+
+export async function setBanned(userId: string, banned: boolean): Promise<boolean> {
+  const store = getStore();
+  if (banned) await store.sAdd(KEY.banned, String(userId));
+  else await store.sDel(KEY.banned, String(userId));
+  return banned;
+}
+
+export async function bannedIds(): Promise<string[]> {
+  return getStore().sMembers(KEY.banned);
+}
+
+/* ───────────────────────── 📝 سجل عمليات المالك ───────────────────────── */
+
+export type AdminLogEntry = { at: number; op: string; detail: string; via: "panel" | "ai" };
+
+export async function pushAdminLog(entry: AdminLogEntry): Promise<void> {
+  const store = getStore();
+  await store.listPush(KEY.log, [JSON.stringify(entry)]);
+  const len = await store.listLen(KEY.log);
+  if (len > 400) {
+    const keep = (await store.listAll(KEY.log, 500)).slice(-350);
+    await store.delList(KEY.log);
+    await store.listPush(KEY.log, keep);
+  }
+}
+
+export async function readAdminLog(limit = 120): Promise<AdminLogEntry[]> {
+  const raw = await getStore().listAll(KEY.log, 500);
+  return raw
+    .map((l) => {
+      try {
+        return JSON.parse(l) as AdminLogEntry;
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is AdminLogEntry => Boolean(x))
+    .slice(-limit)
+    .reverse();
 }
