@@ -177,14 +177,15 @@ export async function handleUpdate(update, { ip } = {}) {
 }
 
 /* ───── تسجيل الـ webhook ───── */
-export async function ensureWebhook(baseUrl) {
+export async function ensureWebhook(baseUrl, opts = {}) {
   const url = `${baseUrl.replace(/\/$/, "")}${webhookPath()}`;
   const secret = webhookSecret();
   const r = await tg("setWebhook", {
     url,
     secret_token: secret,
     allowed_updates: ["message", "callback_query"],
-    drop_pending_updates: false,
+    // إلا التحديثات العالقة قديمة/تبع بوت سابق، نمسحها مرة واحدة باش ما يتلوّحش 401
+    drop_pending_updates: opts.dropPending === true,
     max_connections: 40,
   }).catch((e) => ({ ok: false, description: String(e) }));
   return { ok: !!r.ok, url, description: r.description ?? null, demo: demoMode() };

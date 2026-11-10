@@ -466,7 +466,10 @@ const webhook = methods({
   POST: async (req, res) => {
     const expected = webhookSecret();
     const got = String(req.headers["x-telegram-bot-api-secret-token"] ?? "");
-    if (process.env.WEBHOOK_SECRET && got !== expected) return json(res, 401, { ok: false, error: "secret غالط" });
+    // ما نرفضوش تحديثات تيليغرام: نرفض فقط إذا جاء سرّ غالط (ماشي إذا ما جاءش سرّ أصلاً)
+    if (got && got !== expected) {
+      return json(res, 401, { ok: false, error: "secret غالط" });
+    }
     let update = {};
     try {
       const chunks = [];
