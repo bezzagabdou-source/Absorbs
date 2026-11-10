@@ -24,7 +24,7 @@ export type AiResult = {
 const DEFAULT_MODELS: Record<string, string> = {
   gemini: "gemini-3.8-flash",
   openai: "gpt-4o-mini",
-  groq: "llama-3.3-70b-versatile",
+  groq: "llama-3.1-8b-instant",
   openrouter: "google/gemini-2.5-flash",
   cerebras: "gpt-oss-120b",
   deepseek: "deepseek-chat",
@@ -240,7 +240,8 @@ export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<Ai
   let last: AiResult = empty;
   for (const provider of providers.slice(0, 3)) {
     // 💸 OpenRouter بلا كريدي: ما نضيّعوش الوقت — نجربو غير إذا طلب صغير
-    const budget = provider.id === "openrouter" ? Math.min(input.maxTokens ?? 600, 400) : input.maxTokens;
+    const budget =
+      provider.id === "openrouter" ? Math.min(input.maxTokens ?? 600, 110) : Math.min(input.maxTokens ?? 600, 500);
     for (let attempt = 0; attempt < (provider.id === "openrouter" ? 1 : 3); attempt++) {
       const res = await generateVia(provider, { ...input, maxTokens: budget });
       if (res.ok) return res;
