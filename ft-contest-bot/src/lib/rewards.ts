@@ -86,12 +86,26 @@ const KEY = {
   top: "pts:top",
 };
 
+export /** 🚫 الأصناف لي ما تتوفرش: نبدّلو الكمية صفر إذا كانت بعد بقيمة قديمة */
+const SOLD_OUT_IDS = ["r_usd", "r_star25", "r_star50", "r_star100", "r_bear"];
+const SOLD_OUT_KEY = "rewards:soldOutV1";
+
 export async function ensureRewards(): Promise<Reward[]> {
   const store = getStore();
   const saved = await store.get<Reward[]>(KEY.rewardList);
   if (!Array.isArray(saved) || !saved.length) {
     await store.set(KEY.rewardList, DEFAULT_REWARDS);
     return DEFAULT_REWARDS;
+  }
+  // ترحيل مرة واحدة: الأصناف المعلّمة «غير متوفر الآن» تولّي كميتها 0
+  const migrated = await store.get<string>(SOLD_OUT_KEY);
+  if (!migrated) {
+    const next = saved.map((r) =>
+      SOLD_OUT_IDS.includes(r.id) && (r.stock === null || r.stock === undefined) ? { ...r, stock: 0 } : r,
+    );
+    await store.set(KEY.rewardList, next);
+    await store.set(SOLD_OUT_KEY, "1");
+    return next;
   }
   return saved;
 }

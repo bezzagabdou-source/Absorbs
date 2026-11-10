@@ -231,3 +231,15 @@ tbody tr:hover{background:rgba(255,255,255,.035)}
 #tab-bot .tiny{font-size:12px}
 #bot-ai-out{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px;min-height:38px}
 #bot-health .st b{font-size:20px}
+
+/* حالة «غير متوفر الآن» ف جدول الجوائز */
+.badge.off {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffd7d7;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}

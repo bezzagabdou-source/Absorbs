@@ -533,7 +533,7 @@
           <td>${esc(r.emoji)}</td>
           <td><b>${esc(r.title)}</b><div class="tiny muted">${esc(r.desc || "")}</div></td>
           <td>${r.cost}</td>
-          <td>${r.stock === null ? "∞" : r.stock}</td>
+          <td>${r.stock === null ? "∞" : r.stock === 0 ? "<span class=\"badge off\">غير متوفر الآن</span>" : r.stock}</td>
           <td>${r.active ? "✅" : "🚫"}</td>
           <td class="row">
             <button class="btn ghost sm" data-rw-edit="${esc(r.id)}">✏️</button>
