@@ -91,7 +91,7 @@ async function authed(req: NextRequest): Promise<boolean> {
   const jar = await cookies();
   if (tokenValid(jar.get(COOKIE)?.value)) return true;
   const header = req.headers.get("authorization") || "";
-  const key = req.headers.get("x-panel-key") || "";
+  const key = req.headers.get("x-panel-key") || new URL(req.url).searchParams.get("key") || "";
   const expected = process.env.PANEL_PUBLIC_KEY || "";
   if (expected && (key === expected || header === `Bearer ${expected}`)) return true;
   return false;
