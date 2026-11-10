@@ -1377,11 +1377,32 @@ async function handleMessage(message: TgMessage) {
   }
 }
 
+/** 🛡️ حماية من الرشق: حد أقصى للرسائل ف الدقيقة لكل مستخدم */
+const FLOOD_LIMIT = 20;
+const FLOOD_WINDOW = 60_000;
+const floodGlobal = globalThis as unknown as { __ftFlood?: Map<string, number[]> };
+
+function floodBlocked(userId: string): boolean {
+  floodGlobal.__ftFlood ||= new Map();
+  const now = Date.now();
+  const hits = (floodGlobal.__ftFlood.get(userId) || []).filter((t) => now - t < FLOOD_WINDOW);
+  hits.push(now);
+  floodGlobal.__ftFlood.set(userId, hits);
+  if (floodGlobal.__ftFlood.size > 5000) floodGlobal.__ftFlood.clear();
+  return hits.length > FLOOD_LIMIT;
+}
+
 async function handleMessageInner(message: TgMessage) {
   const from = message.from;
   if (!from || from.is_bot) return;
   const chat = message.chat;
   const chatId = chat.id;
+
+  // 🛡️ الرشق: إلا تجاوز الحد، نسكتو عليه (بلا إرسال) ونكملو
+  if (!groupType(chat) && floodBlocked(String(from.id))) {
+    console.warn("[flood] rate limited", from.id);
+    return;
+  }
   const inGroup = groupType(chat);
   const user = await touchUser(from);
   if (inGroup) await ensureLinkedFromActivity(chat);
