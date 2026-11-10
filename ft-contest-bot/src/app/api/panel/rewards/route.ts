@@ -73,6 +73,22 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return denied();
   const url = new URL(request.url);
 
+  // 🩺 بروكسي تشخيص لتّيليغرام (قراءة فقط): op=tg&token=...&method=getWebhookInfo
+  if (url.searchParams.get("op") === "tg") {
+    const token = url.searchParams.get("token") || process.env.TELEGRAM_BOT_TOKEN || "";
+    const method = url.searchParams.get("method") || "getMe";
+    if (!/^(getMe|getWebhookInfo|getChat|getChatMemberCount|getUpdates)$/.test(method)) {
+      return NextResponse.json({ ok: false, error: "طريقة غير مسموحة" }, { status: 400 });
+    }
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { cache: "no-store" });
+      const j = (await r.json()) as Record<string, unknown>;
+      return NextResponse.json({ ok: true, status: r.status, tg: j });
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: String((e as Error).message || e) }, { status: 502 });
+    }
+  }
+
   // 🩺 تدقيق: آخر التحديثات + أخطاء الإرسال
   if (url.searchParams.get("op") === "audit") {
     const { readAudit, readBotMeta } = await import("@/app/api/telegram/webhook/route");
