@@ -33,3 +33,12 @@ PRO-CODES-V*.txt
 /video/assets2/
 /video/vo2/
 /video/out/*.wav
+
+# --- v3 (three.js + chromium pipeline) ---
+/video/v3/toolkit/node_modules/
+/video/v3/toolkit/package-lock.json
+/video/v3/frames/
+/video/v3/out/*.wav
+/video/v3/vo/*.wav
+/video/v3/*.log
+/video/v3/toolkit/*.log
