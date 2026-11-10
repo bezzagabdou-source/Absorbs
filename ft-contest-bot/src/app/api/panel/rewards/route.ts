@@ -75,10 +75,10 @@ export async function GET(request: NextRequest) {
 
   // 🩺 تدقيق: آخر التحديثات + أخطاء الإرسال
   if (url.searchParams.get("op") === "audit") {
-    const { readAudit } = await import("@/app/api/telegram/webhook/route");
+    const { readAudit, readBotMeta } = await import("@/app/api/telegram/webhook/route");
     const { getSendErrors } = await import("@/lib/telegram");
-    const updates = await readAudit(40);
-    return NextResponse.json({ ok: true, updates, sendErrors: getSendErrors(), at: Date.now() });
+    const [updates, botMeta] = await Promise.all([readAudit(40), readBotMeta()]);
+    return NextResponse.json({ ok: true, botMeta, updates, sendErrors: getSendErrors(), at: Date.now() });
   }
 
   // 🩺 simulate عبر GET (للتشخيص السريع من المتصفح)
@@ -357,10 +357,27 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
       case "simulate": {
         // 🩺 نحاكيو رسالة المستخدم ونشوفو شنو البوت كان راح يرد (بلا إرسال)
         const text = String(body.text || "/start").trim();
+        const cb = String(body.callback || "").trim();
         const userId = String(body.userId || "1").trim();
         const inGroup = Boolean(body.inGroup);
         const { simulateUpdate } = await import("@/lib/bot");
-        const update = {
+        const update = cb
+          ? {
+              update_id: Date.now(),
+              callback_query: {
+                id: String(Date.now()),
+                from: { id: Number(userId), is_bot: false, first_name: "تشخيص", username: "diag" },
+                chat_instance: "diag",
+                data: cb,
+                message: {
+                  message_id: Number(body.messageId) || 1,
+                  date: Math.floor(Date.now() / 1000),
+                  chat: { id: Number(userId), type: "private" },
+                  text: "…",
+                },
+              },
+            }
+          : {
           update_id: Date.now(),
           message: {
             message_id: 1,

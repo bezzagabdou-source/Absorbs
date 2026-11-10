@@ -16,6 +16,7 @@ export type AuditEntry = {
 };
 
 const AUDIT_KEY = "audit:updates";
+const META_KEY = "bot:meta";
 
 function describeUpdate(update: TgUpdate) {
   if (update.callback_query) {
@@ -47,6 +48,30 @@ function describeUpdate(update: TgUpdate) {
     return { kind: "my_chat_member", chatId: m.chat.id, userId: m.from.id, name: m.chat.title || "", text: m.new_chat_member.status };
   }
   return { kind: "other", chatId: 0, userId: 0, name: "", text: "" };
+}
+
+/** 🩺 نسجّل بوت الحقيقة لي كيتصل بيه السيرفر (التوكن الفعّال) */
+async function saveBotMeta() {
+  const { getStore } = await import("@/lib/store");
+  const { tgCall } = await import("@/lib/telegram");
+  const [me, info] = await Promise.all([
+    tgCall<{ id: number; username?: string }>("getMe", {}),
+    tgCall<{ url?: string; pending_update_count?: number; last_error_message?: string }>("getWebhookInfo", {}),
+  ]);
+  const payload = {
+    tokenBotId: Number((process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "").split(":")[0]) || 0,
+    identity: me.result ? { id: me.result.id, username: me.result.username || "" } : null,
+    url: info.result?.url || "",
+    pending: info.result?.pending_update_count || 0,
+    error: info.result?.last_error_message || null,
+    at: Date.now(),
+  };
+  await getStore().set(META_KEY, payload);
+}
+
+export async function readBotMeta() {
+  const { getStore } = await import("@/lib/store");
+  return getStore().get<Record<string, unknown>>(META_KEY);
 }
 
 async function pushAudit(entry: AuditEntry & { sent?: { method: string; text?: string; error?: string }[] }) {
@@ -110,6 +135,15 @@ export async function POST(request: NextRequest) {
     update = (await request.json()) as TgUpdate;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
+  }
+
+  // 🩺 كل 1 من 20 تحديث نسجّلو هوية البوت + حالة الويب هوك (تشخيص)
+  if (Math.random() < 0.05) {
+    try {
+      await saveBotMeta();
+    } catch {
+      /* ما نعطّلوش الردّ */
+    }
   }
 
   await trackBotMessage();
