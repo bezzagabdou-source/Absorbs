@@ -73,6 +73,17 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return denied();
   const url = new URL(request.url);
 
+  // 🩺 simulate عبر GET (للتشخيص السريع من المتصفح)
+  if (url.searchParams.get("op") === "simulate") {
+    const res = await runOp({
+      op: "simulate",
+      text: url.searchParams.get("text") || "/start",
+      userId: url.searchParams.get("userId") || "1",
+      inGroup: url.searchParams.get("inGroup") === "1",
+    });
+    return NextResponse.json(res.body, { status: res.status ?? 200 });
+  }
+
   // 🩺 كاناري: نتأكدو أن البوت يوصل لتّيليغرام فعلاً (قراءة فقط)
   if (url.searchParams.get("canary") === "1") {
     const { tgCall, getBotIdentity } = await import("@/lib/telegram");
