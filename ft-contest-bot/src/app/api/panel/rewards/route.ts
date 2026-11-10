@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
       text: url.searchParams.get("text") || "/start",
       userId: url.searchParams.get("userId") || "1",
       inGroup: url.searchParams.get("inGroup") === "1",
+      callback: url.searchParams.get("callback") || "",
     });
     return NextResponse.json(res.body, { status: res.status ?? 200 });
   }
