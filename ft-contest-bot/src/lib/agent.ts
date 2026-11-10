@@ -318,7 +318,7 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
   const results: ActionOutcome[] = [];
   if (!dry) for (const action of actions.slice(0, 6)) results.push(await executeAction(action, "ai"));
   return {
-    ok: actions.length > 0,
+    ok: true,
     say: actions.length
       ? say.join(" ")
       : "ما فهمتش الطلب مليح — عاود صيغتو (مثال: «بدّل سعر كونت بيس لـ 250 نقطة»).",

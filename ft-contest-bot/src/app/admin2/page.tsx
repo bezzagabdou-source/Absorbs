@@ -242,7 +242,17 @@ function AiTab({ flash, onDone }: { flash: (k: "ok" | "err", t: string) => void;
     setMsgs((m) => [...m, { who: "me", text: p }]);
     setBusy(true);
     try {
-      const res = (await api({ action: "ai", prompt: p })) as unknown as AiRun;
+      const raw = (await fetch("/api/admin2", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "ai", prompt: p }),
+      }).then((r) => r.json().catch(() => ({})))) as Record<string, unknown>;
+      const res = {
+        say: String(raw.say || raw.error || "تم."),
+        actions: (raw.actions as AiRun["actions"]) || [],
+        results: (raw.results as Outcome[]) || [],
+        refused: (raw.refused as string[]) || [],
+      } as AiRun;
       setMsgs((m) => [
         ...m,
         { who: "ai", text: res.say || "تم.", results: res.results, refused: res.refused },

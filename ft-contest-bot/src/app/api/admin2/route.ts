@@ -269,13 +269,36 @@ export async function POST(req: NextRequest) {
       const prompt = String(body.prompt || "").trim();
       if (!prompt) return bad("اكتب طلبك", 400);
       // ⏱️ سقف زمني: إذا النموذج تبطّل نرجعو للخطة المحلية باش الواجهة ما تفشلش
-      const out = await Promise.race([
-        planActions(prompt),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 14_000)),
-      ]);
-      if (out) return NextResponse.json({ ...out });
+      try {
+        const out = await Promise.race([
+          planActions(prompt),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 12_000)),
+        ]);
+        if (out) {
+          const actions = out.actions || [];
+          const results = out.results || [];
+          const noResult = !actions.length && !results.length;
+          return NextResponse.json({
+            ok: true,
+            say: out.say || out.error || "ما فهمتش الطلب — عاود صيغتو.",
+            actions,
+            results,
+            refused: out.refused || [],
+            error: noResult ? "" : undefined,
+          });
+        }
+      } catch {
+        /* نكملو للخطة المحلية */
+      }
       const { localPlan } = await import("@/lib/agent");
-      return NextResponse.json({ ...(await localPlan(prompt)) });
+      const local = await localPlan(prompt).catch(() => null);
+      return NextResponse.json({
+        ok: true,
+        say: local?.say || "ما فهمتش الطلب — عاود صيغتو بالدارجة.",
+        actions: local?.actions || [],
+        results: local?.results || [],
+        refused: [],
+      });
     }
 
     // 🖼️ رفع صورة جائزة (base64 من الواجهة)
