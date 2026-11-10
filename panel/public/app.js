@@ -11,7 +11,11 @@
     });
     let data = {};
     try { data = await res.json(); } catch { data = { ok: false }; }
-    if (res.status === 401 && !path.includes("/login")) showLogin();
+    if (res.status === 401 && !path.includes("/login") && !path.includes("password")) {
+      // ماشي دائماً انتهاء جلسة: نبيّن السبب ونطلب إعادة الدخول
+      if (data?.error) toast(data.error, "bad");
+      showLogin();
+    }
     return { ...data, status: res.status };
   };
 
@@ -428,11 +432,11 @@
     if ($("#pw-next").value !== $("#pw-next2").value) { msg.textContent = "التأكيد ماشي كيما الجديدة"; return; }
     const out = await api("/api/auth/password", {
       method: "POST",
-      body: { current: $("#pw-current").value, next: $("#pw-next").value },
+      body: { current: $("#pw-current").value.trim(), next: $("#pw-next").value },
     });
     if (out.ok) {
       msg.className = "msg ok";
-      msg.textContent = "تبدّلت ✅ — كل الأجهزة الأخرى خرجت";
+      msg.textContent = "تبدّلت ✅ — كل الأجهزة الأخرى خرجت (جلسة هذا الجهاز بقيت)";
       e.target.reset();
       setTimeout(() => ($("#pw-modal").hidden = true), 1400);
       loadSecurity();

@@ -261,8 +261,11 @@ export function defaultState() {
   };
 }
 
-export async function readState() {
-  if (memState) return memState;
+let memAt = 0;
+const MEM_TTL = 1200; // ملّي ثانية: تمنع قراءة قديمة بين نسخ الدوال على Vercel
+
+export async function readState({ fresh = false } = {}) {
+  if (memState && !fresh && now() - memAt < MEM_TTL) return memState;
   let s = null;
   try {
     const raw = await rc("GET", STATE_KEY);
@@ -280,11 +283,16 @@ export async function readState() {
   if (!Array.isArray(s.actions)) s.actions = [];
   if (!s.users || typeof s.users !== "object") s.users = {};
   memState = s;
+  memAt = now();
   return s;
 }
 
+/** قراءة موثوقة للتحقّق من الجلسات (بلا كاش) */
+export const readStateFresh = () => readState({ fresh: true });
+
 export async function writeState(s) {
   memState = s;
+  memAt = now();
   try {
     await rc("SET", STATE_KEY, JSON.stringify(s));
   } catch { /* نحتفظ بالنسخة في الذاكرة */ }
@@ -293,7 +301,7 @@ export async function writeState(s) {
 
 export async function updateState(fn) {
   const run = async () => {
-    const s = await readState();
+    const s = await readState({ fresh: true });
     const out = await fn(s);
     await writeState(s);
     return out;
@@ -387,7 +395,7 @@ export function makeSession(state, req) {
 }
 
 export async function requireAuth(req, res) {
-  const state = await readState();
+  const state = await readStateFresh();
   const token = parseCookies(req)[COOKIE];
   const sess = verifySession(token, state);
   if (!sess) {

@@ -256,6 +256,41 @@ test("نقاط الحماية: سقف محاولات الدخول", async () => 
   assert.equal(allowed, false);
 });
 
+
+test("كلمة السر: قابلة للتغيير بلا كلمة حالية + الجلسة تبقى صالحة", async () => {
+  const state = await core.readStateFresh();
+  state.password = { hash: core.hashPassword("Start2026"), version: 7 };
+  await core.writeState(state);
+
+  // الحالية غالطة ⇒ رفض
+  assert.equal(core.checkPassword("wrong", state.password.hash), false);
+  // بلا كلمة حالية: نولّد جلسة صالحة ثم نغيّر
+  const token = core.signSession({ exp: Date.now() + 60000, pv: 7 });
+  assert.ok(core.verifySession(token, state));
+  state.password = { hash: core.hashPassword("After2026"), version: 8 };
+  await core.writeState(state);
+
+  const fresh = await core.readStateFresh();
+  assert.equal(core.checkPassword("After2026", fresh.password.hash), true);
+  assert.equal(core.verifySession(token, fresh), null, "الجلسة القديمة تُرفض بعد التغيير");
+
+  const newToken = core.signSession({ exp: Date.now() + 60000, pv: fresh.password.version });
+  assert.ok(core.verifySession(newToken, fresh), "الجلسة الجديدة مقبولة فوراً");
+});
+
+test("الذاكرة الوسيطة لا تخفي تغييراً حصل في نسخة أخرى (Vercel)", async () => {
+  await core.updateState((s) => { s.settings.protectionLevel = "max"; return s; });
+  await core.readState(); // يملأ الكاش
+  // نسخة أخرى من الدالة كتبت القيمة الجديدة مباشرة في Redis
+  const raw = store.get("ftai:state:v2");
+  const obj = JSON.parse(raw);
+  obj.settings.protectionLevel = "high";
+  store.set("ftai:state:v2", JSON.stringify(obj));
+  const fresh = await core.readStateFresh();
+  assert.equal(fresh.settings.protectionLevel, "high", "القراءة الطازجة ترى تغيير النسخة الأخرى");
+  await core.updateState((s) => { s.settings.protectionLevel = "max"; return s; });
+});
+
 /* ───── تنظيف ───── */
 test.after(async () => {
   redisServer.close();

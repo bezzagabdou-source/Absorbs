@@ -1,7 +1,7 @@
 /* FT AI — موجّه واحد لكل نقاط الـ API (Vercel Hobby يسمح بـ 12 دالة فقط) */
 import { methods, authed, body, baseUrl, sniff } from "../lib/http-kit.js";
 import {
-  json, readState, writeState, updateState, ensurePassword, checkPassword, hashPassword, passwordProblem,
+  json, readState, readStateFresh, writeState, updateState, ensurePassword, checkPassword, hashPassword, passwordProblem,
   makeSession, sessionCookie, clearCookie, loginAllowed, clientIp, parseCookies, verifySession, COOKIE,
   hasRedis, putImage, getImage, delImage, recordAction, uid, now,
 } from "../lib/core.js";
@@ -18,12 +18,12 @@ const login = methods({
     const ip = clientIp(req);
     if (!(await loginAllowed(ip))) return json(res, 429, { ok: false, error: "محاولات كثيرة — عاود بعد 5 دقايق" });
     const b = await body(req);
-    const state = await readState();
+    const state = await readStateFresh();
     await ensurePassword(state);
     if (!state.password?.hash) {
       return json(res, 400, {
         ok: false,
-        error: "كلمة السر ماشي مضبوطة — زيد DASHBOARD_PASSWORD في إعدادات Vercel",
+        error: "كلمة السر ماشي مضبوطة — زيد DASHBOARD_PASSWORD في إعدادات Vercel ولا عاود النشر",
       });
     }
     const pw = String(b?.password ?? "");
@@ -38,7 +38,7 @@ const login = methods({
 
 const session = methods({
   GET: async (req, res) => {
-    const state = await readState();
+    const state = await readStateFresh();
     await ensurePassword(state);
     const token = parseCookies(req)[COOKIE];
     const sess = verifySession(token, state);
@@ -64,12 +64,16 @@ const password = methods({
     const b = await body(req);
     const current = String(b?.current ?? "");
     const next = String(b?.next ?? "");
-    if (!state.password?.hash || !checkPassword(current, state.password.hash)) {
+
+    // الحالية اختيارية: الجلسة الصالحة وحدها تكفي. إن كتبها المستخدم نتحقّق منها.
+    if (current && state.password?.hash && !checkPassword(current, state.password.hash)) {
       return json(res, 401, { ok: false, error: "كلمة السر الحالية غالطة" });
     }
     const problem = passwordProblem(next);
     if (problem) return json(res, 400, { ok: false, error: problem });
-    if (checkPassword(next, state.password.hash)) return json(res, 400, { ok: false, error: "كلمة السر الجديدة كيما القديمة" });
+    if (state.password?.hash && checkPassword(next, state.password.hash)) {
+      return json(res, 400, { ok: false, error: "كلمة السر الجديدة كيما القديمة — بدّلها" });
+    }
 
     const out = await updateState((s) => {
       s.password = { hash: hashPassword(next), version: (s.password?.version ?? 0) + 1, changedAt: now() };
