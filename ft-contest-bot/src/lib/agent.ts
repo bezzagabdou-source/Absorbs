@@ -149,6 +149,7 @@ const SYSTEM = [
   'broadcast {text}',
   'save_settings {settings:{ownerUsername، supportUsername، welcomeText، rulesText، requiredChannels:[...]، requiredChannelsAdd، requiredChannelsRemove}}',
   'set_gate {enabled:true|false}',
+  'أمثلة دارجة: «ضع البوت في صيانة» → save_settings {settings:{maintenanceMode:true}} · «طفي الصيانة» → maintenanceMode:false · «بدّل سعر X لـ 250» → save_reward.',
   "قواعد صارمة:",
   "- ما ترفضش طلبات المالك، اختار أقرب عملية مفيدة.",
   "- إذا الطلب خارج القائمة (كشف مفاتيح، حذف قاعدة البيانات، تنفيذ كود، تغيير التوكن أو الويب هوك) أرجع actions فارغة و say يشرح أن هذا ممنوع.",
@@ -218,6 +219,13 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
     return hits + idHit;
   };
   const wantsRemove = /(حذف|نحّي|نحي|remove)/i.test(p);
+
+  // 🛠️ وضع الصيانة
+  if (/(صيانة|maintenance)/i.test(p)) {
+    const off = /(طفي|اطفي|أطفي|طفّي|وقف|وقّف|عطل|عطّل|حيّد|حيد|فك|شيل|off)/i.test(p);
+    actions.push({ op: "save_settings", settings: { maintenanceMode: !off } });
+    say.push(off ? "طفّيت وضع الصيانة — البوت رجع يخدم عادي." : "شعّلت وضع الصيانة — البوت يعتذر بلطف للزبون.");
+  }
 
   // 🔒 بوابة الاشتراك
   if (/(بواب|اشتراك|قناة|قنوات|gate)/i.test(p) && /(طفي|اطفي|أطفي|وقّف|اوقف|عطّل|off|حبس)/i.test(p)) {
@@ -309,6 +317,24 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
     }
   }
 
+  // 💡 عبارات شائعة بالدارجة (باش ما يقولش «ما فهمتش»)
+  if (!actions.length) {
+    const num = numbersIn(p).filter((n) => n >= 1 && n < 1_000_000).pop();
+    if (num && /(سعر|ثمن|نقط|نقطة)/i.test(p) && /(بدّل|بدل|غيّر|غير|حط|دير)/i.test(p)) {
+      const rew = [...rewards].sort((a, b) => scoreReward(b) - scoreReward(a))[0];
+      if (rew && scoreReward(rew) > 0) {
+        actions.push({ op: "save_reward", reward: { ...rew, cost: num } });
+        say.push(`بدّلت سعر «${rew.title}» لـ ${num} نقطة.`);
+      }
+    }
+  }
+  if (!actions.length && /(شحال|عدد|كم|احصائ|إحصائ|stats)/i.test(p)) {
+    const { usersCount } = await import("./users");
+    const count = await usersCount().catch(() => 0);
+    say.push(`📊 عندنا <b>${count}</b> مستخدم و <b>${rewards.length}</b> جائزة.`);
+    actions.push({ op: "save_settings", settings: {} }); // بلا تغيير — غير باش يبان الجواب
+  }
+
   // 📝 نص الترحيب
   if (afterColon && /(ترحيب|welcome)/i.test(p)) {
     actions.push({ op: "save_settings", settings: { welcomeText: afterColon } });
@@ -340,7 +366,7 @@ export async function planOnly(prompt: string): Promise<{ say: string; actions: 
   const ctx = await buildContext();
   const res = await aiGenerate({
     system: SYSTEM,
-    prompt: [ctx, `طلب المالك: ${prompt}`].join("\n"),
+    prompt: [ctx.slice(0, 2600), `طلب المالك: ${prompt}`].join("\n"),
     maxTokens: 700,
     temperature: 0.2,
   });
@@ -552,7 +578,7 @@ async function runOne(op: string, a: Record<string, unknown>, via: "panel" | "ai
       for (const key of ["ownerUsername", "supportUsername", "welcomeText", "rulesText", "logChatId"] as const) {
         if (s[key] !== undefined) patch[key] = String(s[key]).slice(0, 2000);
       }
-      for (const key of ["autoApproveJoins", "aiEnabled"] as const) {
+      for (const key of ["autoApproveJoins", "aiEnabled", "maintenanceMode"] as const) {
         if (s[key] !== undefined) patch[key] = Boolean(s[key]);
       }
       const current = await getSettings();

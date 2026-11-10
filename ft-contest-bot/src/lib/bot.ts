@@ -660,10 +660,14 @@ async function showSection(
     const soldOut = r.stock !== null && r.stock <= 0;
     return [
       {
-        text: soldOut
-          ? `${r.emoji} ${r.title} ( نفدت ) — ${r.cost} نقطة`
-          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
+        // 🎁 الزر الأول: الجائزة (صورة + تفاصيل + استبدال)
+        text: soldOut ? `${r.emoji} ${r.title} ( نفدت )` : `${r.emoji} ${r.title}`,
         callback_data: `buy:${r.id}`,
+      },
+      {
+        // ⭐️ الزر الثاني: نقاطها + رصيدك
+        text: `⭐️ ${r.cost} نقطة (عندك ${balance})`,
+        callback_data: `pts:${r.id}`,
       },
     ];
   });
@@ -1483,6 +1487,16 @@ async function handleMessageInner(message: TgMessage) {
   const user = await touchUser(from);
   if (inGroup) await ensureLinkedFromActivity(chat);
   const settings = await getSettings();
+  // 🛠️ وضع الصيانة: البوت يردّ باعتذار لطيف (المالك والأدمن يخدمو عادي)
+  if (settings.maintenanceMode && !groupType(chat) && !isAdminUser(settings, from.id)) {
+    await sendMessage(
+      chatId,
+      "🛠️ <b>البوت في صيانة</b>\n\nرانا نصلّحو حوايج باش يخدم أحسن. عاود جرّب بعد شوية 🙏\n" +
+        `للاستفسار: ${ownerHandle(settings)}`,
+      keyboard([[{ text: `💬 مراسلة المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }]]),
+    );
+    return;
+  }
   const text = message.text!.trim();
   const [rawCommand, ...args] = text.split(/\s+/);
   const command = rawCommand.split("@")[0].toLowerCase();
@@ -1719,6 +1733,32 @@ async function handleCallback(query: TgCallbackQuery) {
     case "buy":
       await showReward(chatId, user, arg || "", messageId);
       return;
+    case "pts": {
+      const rewards = await ensureRewards();
+      const r = rewards.find((x) => x.id === (arg || ""));
+      const bal = await balanceOf(String(user.id));
+      const missing = r ? Math.max(0, r.cost - bal) : 0;
+      const text = r
+        ? [
+            `⭐️ <b>نقاط ${escapeHtml(r.title)}</b>`,
+            "",
+            `💰 رصيدك: <b>${bal}</b> نقطة`,
+            `🎁 المطلوب: <b>${r.cost}</b> نقطة`,
+            missing > 0 ? `🔒 باقي لك <b>${missing}</b> نقطة` : "✅ عندك ما يكفي — تقدر تستبدل دابا",
+          ].join("\n")
+        : "ما لقيتش هاد الجائزة.";
+      const kb = keyboard([
+        [
+          r && missing === 0
+            ? { text: `✅ يخدم — استبدل بـ ${r.cost} نقطة`, callback_data: `confirm:${r.id}` }
+            : { text: "❌ ما يخدمش — رجوع", callback_data: `sec:${r?.section || "accounts"}` },
+          { text: "⬅️ القسم", callback_data: `sec:${r?.section || "accounts"}` },
+        ],
+      ]);
+      if (messageId) await editMessage(chatId, messageId, text, kb);
+      else await sendMessage(chatId, text, kb);
+      return;
+    }
     case "confirm":
       await buyReward(chatId, user, arg || "", messageId, settings);
       return;

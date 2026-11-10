@@ -63,6 +63,8 @@ export type Settings = {
   aiEnabled: boolean;
   /** موديل مخصص (اختياري) */
   aiModel: string;
+  /** 🛠️ وضع الصيانة: البوت يعتذر بلطف بدل ما يخدم */
+  maintenanceMode?: boolean;
   welcomeText: string;
   rulesText: string;
   webhookSecret: string;
