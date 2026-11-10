@@ -58,7 +58,7 @@ function referralLanding(token, to) {
 <html lang="ar" dir="rtl"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<title>${valid ? `دعوة من ${escapeHtml(name)} — برق ⚡` : "رابط غير صالح — برق"}</title>
+<title>${valid ? `دعوة من ${escapeHtml(name)} — FT AI ⚡` : "رابط غير صالح — FT AI"}</title>
 <style>
 :root{color-scheme:dark}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -76,7 +76,7 @@ p{color:#93a4c4;font-size:15px;line-height:1.7}
 <div class="bolt">⚡</div>
 ${
   valid
-    ? `<h1>${escapeHtml(name)} عازمك!</h1><p>ادخل لبوت <b>برق</b>، جاوب على الأسئلة، اجمع النقاط، وتنافس في لوحة الشرف.</p>
+    ? `<h1>${escapeHtml(name)} عازمك!</h1><p>ادخل لبوت <b>FT AI</b>، جاوب على الأسئلة، اجمع النقاط، وتنافس في لوحة الشرف.</p>
 <div class="pts"><span class="chip">🎯 مسابقات</span><span class="chip">🎁 مكافآت يومية</span><span class="chip">🏆 لوحة شرف</span></div>`
     : `<h1 class="err">الرابط ماشي صالح</h1><p>يمكن الرابط قديم ولا صاحبه محظور. تقدر تدخل البوت عادي.</p>`
 }
@@ -220,7 +220,7 @@ function landingPage() {
   const bot = config.botUsername || "YourBot";
   return `<!doctype html><html lang="ar" dir="rtl"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>برق ⚡ — بوت المسابقات</title>
+<title>FT AI ⚡ — بوت المسابقات</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{min-height:100vh;display:grid;place-items:center;background:radial-gradient(900px 500px at 50% -10%,#1d4ed855,transparent),#070b14;color:#e6edff;font-family:system-ui,Tahoma,sans-serif;padding:22px}
@@ -231,7 +231,7 @@ p{color:#93a4c4;line-height:1.8;font-size:15px}
 a.btn{display:inline-block;margin-top:26px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;text-decoration:none;padding:16px 34px;border-radius:16px;font-weight:800}
 .small{margin-top:22px;font-size:12px;color:#5b6c8c}
 </style></head><body><div class="card">
-<div class="b">⚡</div><h1>برق</h1>
+<div class="b">⚡</div><h1>FT AI</h1>
 <p>بوت مسابقات تيليغرام: أسئلة، نقاط، إحالات، لوحة شرف.<br>وحماية قصوى من الحظر ورشق النقاط.</p>
 <a class="btn" href="https://t.me/${escapeAttr(bot)}">افتح البوت</a>
 <div class="small">لوحة التحكم: <a href="/dashboard" style="color:#7aa2ff">/dashboard</a></div>
@@ -246,7 +246,7 @@ if (problems.length) {
 }
 
 server.listen(config.port, config.host, async () => {
-  console.log(`⚡ برق — سيرفر شغّال على http://${config.host}:${config.port}`);
+  console.log(`⚡ FT AI — سيرفر شغّال على http://${config.host}:${config.port}`);
   console.log(`   مستوى الحماية: ${config.protectionLevel} · وضع: ${config.demo ? "تجريبي" : "إنتاج"}`);
   if (!config.demo) {
     try {

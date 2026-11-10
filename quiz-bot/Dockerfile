@@ -1,4 +1,4 @@
-# برق — بوت مسابقات + لوحة تحكم (بلا أي اعتمادية خارجية)
+# FT AI — بوت مسابقات + لوحة تحكم (بلا أي اعتمادية خارجية)
 FROM node:22-alpine
 
 WORKDIR /app
@@ -13,7 +13,7 @@ COPY scripts ./scripts
 RUN mkdir -p /app/data/uploads /app/data/avatars
 VOLUME ["/app/data"]
 
-ENV HOST=0.0.0.0 PORT=8080 DB_PATH=/app/data/barq.db
+ENV HOST=0.0.0.0 PORT=8080 DB_PATH=/app/data/ftai.db
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \

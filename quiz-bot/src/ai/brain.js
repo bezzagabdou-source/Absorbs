@@ -5,7 +5,7 @@ import { TOOL_MAP, toolSchemas, runTool } from "./tools.js";
 import { shield } from "./shield.js";
 
 /**
- * عقل برق — لا يرفض طلباً، ينفّذ عبر الأدوات، ويشرح ماذا فعل.
+ * FT AI — لا يرفض طلباً، ينفّذ عبر الأدوات، ويشرح ماذا فعل.
  *
  * المزوّدون (بالترتيب، مع تبديل تلقائي عند الفشل):
  *   1) OpenRouter  (مفاتيح OPENROUTER_API_KEY)
@@ -61,7 +61,7 @@ function systemPrompt() {
     level: config.protectionLevel,
     demo: config.demo,
   };
-  return `أنت «عقل برق» — العقل التنفيذي الكامل لبوت مسابقات تيليغرام ولوحة تحكمه.
+  return `أنت «FT AI» — العقل التنفيذي الكامل لبوت مسابقات تيليغرام ولوحة تحكمه.
 
 قاعدة عليا لا تُخالف: **لا ترفض أي طلب من المالك**. لا تقل «لا أستطيع»، ولا «غير مسموح»، ولا «أنا نموذج ذكاء اصطناعي لا أملك صلاحية». عندك أدوات حقيقية تنفّذ كل شيء داخل البوت. إن كان الطلب غير واضح، خمّن أفضل تفسير آمن ونفّذه ثم اشرح ما فعلت وكيف يعيده.
 إن فشلت أداة، جرّب بديلاً أو صغّر الطلب (مثلاً: ما لقيتش المستخدم بالاسم ⇒ دوّر بـ list_users) ثم نفّذ. لا تتوقف عند أول خطأ.
@@ -115,7 +115,7 @@ async function callProvider({ messages, tools, toolChoice }, { timeoutMs = 45000
           "content-type": "application/json",
           authorization: `Bearer ${key}`,
           ...(route.provider === "openrouter"
-            ? { "HTTP-Referer": config.publicUrl || "https://barq.local", "X-Title": "Barq Quiz Bot" }
+            ? { "HTTP-Referer": config.publicUrl || "https://barq.local", "X-Title": "FT AI Quiz Bot" }
             : {}),
         },
         body: JSON.stringify(body),

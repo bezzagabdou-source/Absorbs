@@ -114,7 +114,7 @@ async function startFlow({ user, isNew, chatId, param, from, msg }) {
   }
 
   const fresh = getUser(user.tg_id);
-  await tg.sendMessage(chatId, T.welcome(fresh, { botName: "برق" }) + referralNote, {
+  await tg.sendMessage(chatId, T.welcome(fresh, { botName: "FT AI" }) + referralNote, {
     reply_markup: { inline_keyboard: T.mainMenu(fresh) },
   });
   logEvent("start", { userId: user.tg_id, detail: refToken ? `ref=${refToken}` : null });
@@ -300,7 +300,7 @@ async function onCallback(cb, ipHint) {
       await tg.sendMessage(chatId, T.referralCard(user, link, summary), {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "📤 مشاركة الرابط", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("عازمك نلعبو في برق ⚡")}` }],
+            [{ text: "📤 مشاركة الرابط", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("عازمك نلعبو في FT AI ⚡")}` }],
             [{ text: "👥 شكون سجّل بسببي", callback_data: "ref:list" }],
           ],
         },

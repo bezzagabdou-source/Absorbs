@@ -119,7 +119,7 @@ test("الرفع يتحقق من التوقيع الحقيقي لا من الا�
 
 /* ───────────── العقل (مزوّد وهمي متوافق مع OpenAI) ───────────── */
 
-test("عقل برق ينفّذ حلقة أدوات كاملة مع مزوّد حقيقي-الشكل", async () => {
+test("FT AI ينفّذ حلقة أدوات كاملة مع مزوّد حقيقي-الشكل", async () => {
   const out = await chat({ message: "قداش من مستخدم عندنا؟", source: "test" });
   assert.equal(out.ok, true);
   assert.equal(out.provider, "openrouter");

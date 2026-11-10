@@ -10,7 +10,7 @@ import { saveUpload, listUploads, getUpload, deleteUpload } from "../services/up
 import { customQuestions, addQuestion, removeQuestion, customStats } from "../services/questions.js";
 import { CATEGORIES } from "../data/questions.js";
 
-/** واجهة عقل برق: محادثة + رفع صور + إدارة الأدوات والأسئلة */
+/** واجهة FT AI: محادثة + رفع صور + إدارة الأدوات والأسئلة */
 export async function aiApi(req, res, url) {
   const p = url.pathname;
   const method = req.method ?? "GET";
@@ -19,7 +19,7 @@ export async function aiApi(req, res, url) {
   /* ─────────── محادثة ─────────── */
   if (p === "/api/ai/chat" && method === "POST") {
     const rl = rateLimit(`ai:${ip}`, { max: 40, windowMs: 60000 });
-    if (!rl.ok) return json(res, 429, { ok: false, error: "طلبات كثيرة على العقل، هدّي شوية." }), true;
+    if (!rl.ok) return json(res, 429, { ok: false, error: "طلبات كثيرة على FT AI، هدّي شوية." }), true;
     const body = await readJson(req, 256 * 1024);
     if (!body) return json(res, 400, { ok: false, error: "JSON غير صالح" }), true;
     const message = String(body.message ?? "").slice(0, 4000);
@@ -54,7 +54,7 @@ export async function aiApi(req, res, url) {
       grok: providers.grok > 0,
     };
     const issues = [...diag.issues];
-    if (!keys.openrouter && !keys.grok) issues.push("ما كاين حتى مفتاح ذكاء اصطناعي — العقل يخدم بدرع التنفيذ فقط");
+    if (!keys.openrouter && !keys.grok) issues.push("ما كاين حتى مفتاح ذكاء اصطناعي — FT AI يخدم بدرع التنفيذ فقط");
     return json(res, 200, { ok: true, ...diag, issues, providers, bot: { demo: config.demo, username: config.botUsername } }), true;
   }
 

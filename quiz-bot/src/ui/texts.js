@@ -9,7 +9,7 @@ export function displayName(u) {
   return full || handle || `#${u.tg_id}`;
 }
 
-export function welcome(user, { botName = "برق" } = {}) {
+export function welcome(user, { botName = "FT AI" } = {}) {
   const admin = isAdmin(user.tg_id) ? "👑 أنت آدمِن." : "";
   return (
     `⚡ <b>${esc(botName)}</b> — بوت المسابقات\n` +

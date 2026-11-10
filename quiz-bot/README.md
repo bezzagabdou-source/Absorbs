@@ -1,4 +1,4 @@
-# ⚡ برق — بوت مسابقات تيليغرام + لوحة تحكم
+# ⚡ FT AI — بوت مسابقات تيليغرام + لوحة تحكم
 
 بوت مسابقات تيليغرام كامل (نقاط · أسئلة · إحالات · مكافآت يومية)، مع **حماية قصوى من الحظر** و**حماية من رشق النقاط**، ولوحة تحكم ويب فيها **لوحة مخصّصة لمعرفة شكون دخل ومن طرف شكون** مع الاسم والصورة الشخصية لكل حساب.
 
@@ -151,15 +151,15 @@ DASHBOARD_PASSWORD=... SESSION_SECRET=... ADMIN_IDS=123456 node src/server.js
 ## 🧪 الفحص
 
 ```bash
-npm test            # 36 اختباراً: حماية (22) + العقل والصور وكلمة السر (14)
+npm test            # 36 اختباراً: حماية (22) + FT AI والصور وكلمة السر (14)
 npm run selfcheck   # فحص بنية الواجهة + عدم تسريب الأسرار
 ```
 
 ---
 
-## 🧠 عقل برق — ذكاء اصطناعي تنفيذي (لا يرفض)
+## 🧠 FT AI — ذكاء اصطناعي تنفيذي (لا يرفض)
 
-صفحة **عقل برق** داخل اللوحة: تكتب طلبك بالدارجة/العربية/الفرنسية وهو **ينفّذه في البوت مباشرة**.
+صفحة **FT AI** داخل اللوحة: تكتب طلبك بالدارجة/العربية/الفرنسية وهو **ينفّذه في البوت مباشرة**.
 
 | القدرة | أمثلة |
 |---|---|
@@ -200,17 +200,17 @@ npm run selfcheck   # فحص بنية الواجهة + عدم تسريب الأ�
 
 ```bash
 # Docker (أي VPS / Hetzner / Contabo)
-docker build -t barq .
-docker run -d --name barq -p 8080:8080 -v $PWD/data:/app/data \
+docker build -t ftai .
+docker run -d --name ftai -p 8080:8080 -v $PWD/data:/app/data \
   -e BOT_TOKEN=... -e WEBHOOK_SECRET=... -e PUBLIC_URL=https://bot.example.com \
   -e DASHBOARD_PASSWORD=... -e SESSION_SECRET=... -e ADMIN_IDS=123456 \
-  -e OPENROUTER_API_KEY=... -e XAI_API_KEY=... barq
+  -e OPENROUTER_API_KEY=... -e XAI_API_KEY=... ftai
 
 # Railway
 railway up          # يقرأ Dockerfile + railway.json تلقائياً
 
 # Fly.io
-fly launch --no-deploy && fly volumes create barq_data -s 1 && fly deploy
+fly launch --no-deploy && fly volumes create ftai_data -s 1 && fly deploy
 ```
 
 ملفات جاهزة: `Dockerfile` · `railway.json` · `fly.toml` · `HEALTHCHECK` على `/healthz`.

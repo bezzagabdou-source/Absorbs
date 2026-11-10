@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#05080f">
-<title>برق ⚡ — لوحة التحكم</title>
+<title>FT AI ⚡ — لوحة التحكم</title>
 <link rel="stylesheet" href="/app.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 </head>
@@ -16,8 +16,8 @@
 <div id="gate" class="gate">
   <form class="gate-card" id="loginForm" autocomplete="off">
     <div class="gate-bolt">⚡</div>
-    <h1>برق</h1>
-    <p class="muted">لوحة تحكم المسابقات · عقل تنفيذي</p>
+    <h1>FT AI</h1>
+    <p class="muted">لوحة تحكم المسابقات · FT AI</p>
     <div class="field icon">
       <span>🔒</span>
       <input id="pw" type="password" placeholder="كلمة السر" required autocomplete="current-password">
@@ -34,12 +34,12 @@
   <aside class="side">
     <div class="brand">
       <span class="bolt">⚡</span>
-      <div><b>برق</b><small id="brandSub">Quiz Engine</small></div>
+      <div><b>FT AI</b><small id="brandSub">Quiz Engine</small></div>
     </div>
 
     <nav id="nav">
       <button class="nav-btn active" data-tab="overview"><span class="ic">📊</span><span>نظرة عامة</span></button>
-      <button class="nav-btn ai" data-tab="ai"><span class="ic">🧠</span><span>عقل برق</span><em class="dot-live"></em></button>
+      <button class="nav-btn ai" data-tab="ai"><span class="ic">🧠</span><span class="ai-nav-name">FT AI</span><em class="dot-live"></em></button>
       <button class="nav-btn" data-tab="referrals"><span class="ic">🔗</span><span>الإحالات</span><em class="badge" id="bRefs"></em></button>
       <button class="nav-btn" data-tab="users"><span class="ic">👥</span><span>المستخدمون</span></button>
       <button class="nav-btn" data-tab="questions"><span class="ic">❓</span><span>الأسئلة</span></button>
@@ -73,7 +73,7 @@
             <p class="muted" id="heroSub">هذه صورة حيّة عن بوتك.</p>
           </div>
           <div class="hero-actions">
-            <button class="ghost" data-goto="ai">🧠 اطلب من العقل</button>
+            <button class="ghost" data-goto="ai">🧠 اطلب من FT AI</button>
             <button class="primary" data-goto="settings" id="bcJump">📢 بثّ رسالة</button>
           </div>
         </div>
@@ -97,12 +97,12 @@
         </div>
       </section>
 
-      <!-- ─────────── عقل برق ─────────── -->
+      <!-- ─────────── FT AI ─────────── -->
       <section class="view" id="view-ai">
         <div class="ai-wrap">
           <div class="ai-main panel">
             <div class="panel-head">
-              <h2>🧠 عقل برق — نفّذ أي حاجة في البوت</h2>
+              <h2>🧠 FT AI — نفّذ أي حاجة في البوت</h2>
               <div class="ai-head-tools">
                 <span class="chip" id="aiModelChip">…</span>
                 <button class="link" id="aiClear">مسح المحادثة</button>
@@ -139,7 +139,7 @@
 
           <aside class="ai-side">
             <div class="panel">
-              <div class="panel-head"><h2>حالة العقل</h2></div>
+              <div class="panel-head"><h2>حالة FT AI</h2></div>
               <div class="kv" id="aiStatus"></div>
               <div class="row"><button class="ghost sm" id="aiDiagnose">🩺 تشخيص فوري</button></div>
             </div>

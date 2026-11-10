@@ -63,7 +63,7 @@ export const config = {
   dashboardPassword: str("DASHBOARD_PASSWORD"),
   sessionSecret: str("SESSION_SECRET"),
 
-  dbPath: str("DB_PATH") || path.join(ROOT, "data", "barq.db"),
+  dbPath: str("DB_PATH") || path.join(ROOT, "data", "ftai.db"),
   avatarDir: path.join(ROOT, "data", "avatars"),
 
   protectionLevel: (str("PROTECTION_LEVEL", "max") || "max").toLowerCase(),

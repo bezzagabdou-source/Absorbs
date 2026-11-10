@@ -299,7 +299,7 @@ export class TelegramClient {
     if (method === "getMe") {
       return Promise.resolve({
         ok: true,
-        result: { id: 1, is_bot: true, first_name: "برق (وضع تجريبي)", username: "barq_demo_bot" },
+        result: { id: 1, is_bot: true, first_name: "FT AI (وضع تجريبي)", username: "ft_ai_demo_bot" },
       });
     }
     return Promise.resolve({ ok: true, result: { message_id: Math.floor(Math.random() * 1e6), demo: true } });

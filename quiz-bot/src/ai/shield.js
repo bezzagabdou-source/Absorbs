@@ -67,7 +67,7 @@ const INTENTS = [
   {
     id: "block",
     test: (t) => /(احظر|حظر|block|اقفل حساب|اوقفه)/i.test(t) && !/(فك|ارفع|شبك|IP)/i.test(t) && who(t),
-    plan: (t) => [{ tool: "block_user", args: { ...who(t), reason: /(مزيف|فارم|fake|غش)/i.test(t) ? "إحالات مزيفة" : "حظر من عقل برق" } }],
+    plan: (t) => [{ tool: "block_user", args: { ...who(t), reason: /(مزيف|فارم|fake|غش)/i.test(t) ? "إحالات مزيفة" : "حظر من FT AI" } }],
   },
   {
     id: "unblock",
@@ -87,7 +87,7 @@ const INTENTS = [
       const n = number(AR_DIGITS(t), /(-?\d{1,6})\s*(?:نقطة|نقاط|point)/i) ?? number(AR_DIGITS(t), /(?:زيد|ضيف|اعطي|أعطي|امنح|خصم|انقص|give|add)\s+(-?\d{1,6})/i) ?? 100;
       if (!who(t)) return [];
       const neg = /(خصم|انقص|نقص|remove|minus)/i.test(t);
-      return [{ tool: "give_points", args: { ...who(t), delta: neg ? -Math.abs(n) : Math.abs(n), reason: "طلب من عقل برق" } }];
+      return [{ tool: "give_points", args: { ...who(t), delta: neg ? -Math.abs(n) : Math.abs(n), reason: "طلب من FT AI" } }];
     },
   },
   {
@@ -95,7 +95,7 @@ const INTENTS = [
     test: (t) => /(شبك|network|ip)/i.test(t) && /(احظر|حظر|block)/i.test(t) && !/(فك|ارفع|رفع|unblock)/i.test(t),
     plan: (t) => {
       const m = /((?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?)/.exec(t);
-      return m ? [{ tool: "block_network", args: { ip: m[1], reason: "حظر من عقل برق" } }] : [];
+      return m ? [{ tool: "block_network", args: { ip: m[1], reason: "حظر من FT AI" } }] : [];
     },
   },
   {
@@ -120,7 +120,7 @@ const INTENTS = [
     test: (t) => /(ارسل|أرسل|ابعث|send|قول ل|بلغ)/i.test(t) && who(t),
     plan: (t) => {
       const m = /(?:ارسل|أرسل|ابعث|send|قول ل|بلغ)\s*(?:ل(?:ـ)?\s*)?(?:@[\w]+|\d{5,})?\s*[:：]?\s*([\s\S]{3,})/i.exec(t);
-      const text = (m?.[1] ?? "مرحبا من إدارة برق ⚡").trim();
+      const text = (m?.[1] ?? "مرحبا من إدارة FT AI ⚡").trim();
       return [{ tool: "send_message", args: { ...who(t), text } }];
     },
   },

@@ -1,4 +1,4 @@
-/* برق — لوحة التحكم. بلا أي مكتبة خارجية، كل شيء على نفس الأصل. */
+/* FT AI — لوحة التحكم. بلا أي مكتبة خارجية، كل شيء على نفس الأصل. */
 "use strict";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -128,7 +128,7 @@ $("#logoutBtn").addEventListener("click", async () => {
 
 const TITLES = {
   overview: "نظرة عامة",
-  ai: "عقل برق 🧠",
+  ai: "FT AI 🧠",
   referrals: "الإحالات",
   users: "المستخدمون",
   questions: "الأسئلة",
@@ -284,11 +284,11 @@ function reasonLabel(r) {
     same_network: "نفس الشبكة", ip_reused: "IP مستعمل", velocity: "سرعة عالية", name_pattern: "أسماء متشابهة",
     username_pattern: "يوزرات متشابهة", same_device: "نفس الجهاز", self_referral: "عزم روحو", daily_cap: "سقف يومي",
     referrer_blocked: "المُحيل محظور", ip_blocked: "شبكة محظورة", referrer_too_new: "حساب جديد",
-    already_referred: "مسجّل من قبل", manual_ok: "تأكيد يدوي", ai_ok: "تأكيد بالعقل", rejected: "مرفوضة",
+    already_referred: "مسجّل من قبل", manual_ok: "تأكيد يدوي", ai_ok: "تأكيد بـ FT AI", rejected: "مرفوضة",
   }[r] ?? r;
 }
 
-/* ══════════════ عقل برق ══════════════ */
+/* ══════════════ FT AI ══════════════ */
 
 let pendingImages = [];
 
@@ -404,7 +404,7 @@ function showTyping() {
 }
 
 async function sendAI(text) {
-  if (state.aiBusy) return toast("عقل برق يخدم دوك، استنى…", true);
+  if (state.aiBusy) return toast("FT AI يخدم دوك، استنى…", true);
   text = String(text ?? $("#aiInput").value ?? "").trim();
   const images = [...pendingImages];
   if (!text && !images.length) return;
@@ -931,7 +931,7 @@ async function openUser(id) {
           await api(`/api/users/${u.tg_id}`, { method: "POST", body: JSON.stringify({ action: "reset-risk" }) });
           toast("تصفّر"); openUser(id);
         }}),
-        el("button", { text: "🧠 اطلب من العقل", onclick: () => { drawer.hidden = true; setTab("ai"); $("#aiInput").value = `دير تشخيص كامل للمستخدم ${u.tg_id} وقلي واش خاصو`; $("#aiInput").focus(); }})
+        el("button", { text: "🧠 اطلب من FT AI", onclick: () => { drawer.hidden = true; setTab("ai"); $("#aiInput").value = `دير تشخيص كامل للمستخدم ${u.tg_id} وقلي واش خاصو`; $("#aiInput").focus(); }})
       )
     );
   } catch (e) {
@@ -957,7 +957,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-/* drag & drop على الشاشة كلها لصور العقل */
+/* drag & drop على الشاشة كلها لصور FT AI */
 document.addEventListener("dragover", (e) => {
   if (state.tab !== "ai") return;
   e.preventDefault();

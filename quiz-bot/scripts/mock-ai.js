@@ -46,7 +46,7 @@ export function startMockAI({ port = 9911 } = {}) {
             ],
           });
         }
-        return respond(res, { role: "assistant", content: hasImage ? "شفت الصورة ✅ — نقدر نستعملها في المسابقة." : "أهلا بيك! أنا عقل برق، اطلب أي شيء ⚡" });
+        return respond(res, { role: "assistant", content: hasImage ? "شفت الصورة ✅ — نقدر نستعملها في المسابقة." : "أهلا بيك! أنا FT AI، اطلب أي شيء ⚡" });
       }
 
       // الجولة الثانية: نلخّص نتيجة الأداة

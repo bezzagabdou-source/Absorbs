@@ -1,4 +1,4 @@
-app = "barq-quiz-bot"
+app = "ft-ai-quiz-bot"
 primary_region = "cdg"
 
 [build]
@@ -7,11 +7,11 @@ primary_region = "cdg"
 [env]
   HOST = "0.0.0.0"
   PORT = "8080"
-  DB_PATH = "/data/barq.db"
+  DB_PATH = "/data/ftai.db"
   PROTECTION_LEVEL = "max"
 
 [[mounts]]
-  source = "barq_data"
+  source = "ftai_data"
   destination = "/data"
 
 [http_service]
