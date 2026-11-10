@@ -340,45 +340,163 @@ async function callModel(messages, tools, timeoutMs = 55000) {
 }
 
 /* درع محلي: ينفّذ أوامر واضحة حتى لو كل المزوّدين طاحو */
+/* درع محلي: ينفّذ الأوامر الواضحة حتى لو الرصيد صفر/المزوّدين طاحو */
 async function shieldRun(text, ctx) {
-  const t = String(text ?? "").toLowerCase();
+  const raw = String(text ?? "").trim();
+  const t = raw.toLowerCase();
   const trace = [];
   const run = async (name, args) => {
-    const out = await toolMap()[name].run(args, ctx);
-    trace.push({ tool: name, args, ok: out.ok !== false, result: out });
+    const tool = toolMap()[name];
+    if (!tool) return { ok: false, error: `أداة غير معروفة: ${name}` };
+    let out;
+    try { out = await tool.run(args, ctx); } catch (e) { out = { ok: false, error: String(e?.message ?? e) }; }
+    trace.push({ tool: name, args, ok: out.ok !== false, result: trim(out) });
     return out;
   };
-  const statsOut = async () => { const s = await run("get_stats", {}); return `📊 العدد: ${s.users} عضو · ${s.points_total} نقطة · إحالات مؤكّدة ${s.referrals_confirmed} · معلّقة ${s.referrals_pending} · محظورون ${s.blocked_users} · الحماية ${s.protection_level}`; };
+  const done = (msg) => ({ done: true, text: msg, trace });
+  const nm = (u) => `${u.name}${u.username ? " @" + u.username : ""}`;
+  const idIn = () => (/[@\s](\d{5,})/.exec(raw) ?? /(\d{5,})/.exec(raw))?.[1] ?? null;
+  const userIn = () => { const m = /@([a-zA-Z0-9_]{3,})/.exec(raw); return m ? m[1] : null; };
+  const askUser = () => ({ user_id: idIn(), username: userIn() });
+  const statsLine = (s) => `📊 ${s.users} عضو · ${s.new_today} جديد اليوم · ${s.active_24h} نشط 24س · ${s.points_total} نقطة\n🔗 إحالات: ${s.referrals_confirmed} مؤكّدة · ${s.referrals_pending} معلّقة · ${s.referrals_flagged} مشبوهة\n🎯 أسئلة: ${s.questions} · 🖼 صور: ${s.uploads} · ⛔ محظورون: ${s.blocked_users} · 🛡 الحماية: ${s.protection_level}`;
 
-  if (/باسورد|كلمة السر|كلمه السر|password|mdp/.test(t) && /غير|بدل|تغيير|change/.test(t)) {
-    const m = String(text).match(/[a-zA-Z0-9@#$%._-]{8,}/);
-    if (m) { await run("change_password", { new_password: m[0] }); return { done: true, text: "✅ بدّلت كلمة السر. كل الجلسات القديمة انتهت — ادخل بالجديدة.", trace }; }
-    return { done: true, text: "عطيني كلمة السر الجديدة (8 حروف + رقم).", trace };
+  // ── إحصائيات / صحة ──
+  if (/احصائي|إحصائ|احصائ|stats|أرقام|ارقام|شحال|كيفاش راك|وضع|تقرير/.test(t)) {
+    const s = await run("get_stats", {});
+    if (s.ok !== false) return done(statsLine(s));
   }
-  if (/حظر|block/.test(t) && /فك|unblock|رفع/.test(t) === false) {
-    const id = /(\d{6,})/.exec(String(text))?.[1];
-    if (id) { const o = await run("block_user", { user_id: id, reason: "أمر مباشر" }); return { done: true, text: `⛔ حظرت ${o.name ?? id}.`, trace }; }
+  if (/(اصلح|أصلح|صلح|fix)/.test(t) && /(webhook|ويب|ربط|هوك)/.test(t)) {
+    const o = await run("fix_webhook", {});
+    return done(o.ok === false ? `⚠️ ${o.description ?? o.error}` : `🔧 الـ webhook تصلّح على: ${o.url}\n(البوت ولّى يستقبل الرسائل دُروك)`);
   }
-  if (/فك الحظر|الغاء الحظر|إلغاء الحظر|unblock/.test(t)) {
-    const id = /(\d{6,})/.exec(String(text))?.[1];
-    if (id) { const o = await run("unblock_user", { user_id: id }); return { done: true, text: `✅ فكّيت الحظر على ${o.name ?? id}.`, trace }; }
+  if (/صحة|health|webhook|ويب هوك|ويبهوك|فحص|تشخيص|diagnos/.test(t)) {
+    const [h, s] = [await run("bot_health", {}), await run("get_stats", {})];
+    const bot = h.bot?.username ? `@${h.bot.username}` : h.bot?.error ? `خطأ: ${h.bot.error}` : "؟";
+    return done(`🩺 البوت: ${bot}\n🔗 الـ webhook: ${h.webhook?.url || "ماشي مسجّل"}\n📥 معلّق: ${h.webhook?.pending_update_count ?? 0} · آخر خطأ: ${h.webhook?.last_error_message ?? "لا شيء"}\n📊 ${s.users} عضو`);
   }
-  if (/بث|للجميع|broadcast|ارسل للكل|أرسل للكل/.test(t) && /:/.test(String(text))) {
-    const msg = String(text).split(":").slice(1).join(":").trim();
-    if (msg) { const o = await run("broadcast", { text: msg }); return { done: true, text: `📣 البث وصل لـ ${o.sent}/${o.total}.`, trace }; }
+
+  // ── كلمة السر ──
+  if (/باسورد|كلمة السر|كلمه السر|password|mdp/.test(t) && /غير|بدل|تغيير|change|جديد/.test(t)) {
+    const m = raw.match(/[A-Za-z0-9@#$%._!-]{8,}/g)?.find((w) => /\d/.test(w));
+    if (m) { const o = await run("change_password", { new_password: m }); return done(o.ok === false ? `⚠️ ${o.error}` : "✅ بدّلت كلمة السر — الجلسات الأخرى تقطعت، هذا الجهاز باقي داخل."); }
+    return done("عطيني كلمة السر الجديدة (8 حروف/أرقام + رقم على الأقل).");
   }
-  if (/حماية|protection|حصانة/.test(t)) { const o = await run("get_settings", {}); return { done: true, text: `🛡️ مستوى الحماية: ${o.settings.protectionLevel} · إجابات/10د ${o.settings.maxAnswersPer10m} · إحالات/يوم ${o.settings.maxReferralsPerDay}`, trace }; }
-  if (/احصائي|إحصائ|stats|ارقام|أرقام|كيفاش راك|شحال/.test(t)) { return { done: true, text: await statsOut(), trace }; }
-  if (/مستخدم|users|اعضاء|أعضاء|ليست/.test(t)) {
+
+  // ── أعضاء ──
+  if (/افضل|أفضل|top|ترتيب|leaderboard|ليدر/.test(t)) {
+    const o = await run("leaderboard", {});
+    const rows = (o.users ?? o.leaderboard ?? o.top ?? []);
+    return done("🏆 أفضل الأعضاء:\n" + (rows.map((u, i) => `${i + 1}. ${nm(u)} — ${u.points} نقطة`).join("\n") || "ما كاينش أعضاء بعد."));
+  }
+  if (/علّق|علق|block|احظر|حظر/.test(t) && !/فك|رفع|unblock/.test(t)) {
+    const a = askUser();
+    if (a.user_id || a.username) { const o = await run("block_user", { ...a, reason: "أمر المالك" }); return done(o.ok === false ? `⚠️ ${o.error}` : `⛔ حظرت ${o.name ?? a.user_id ?? a.username}.`); }
+    return done("عطيني ID ولا @username باش نحظرو.");
+  }
+  if (/فك الحظر|فك حظر|الغاء الحظر|إلغاء الحظر|unblock|ارفع الحظر/.test(t)) {
+    const a = askUser();
+    if (a.user_id || a.username) { const o = await run("unblock_user", a); return done(o.ok === false ? `⚠️ ${o.error}` : `✅ فكّيت الحظر على ${o.name ?? a.user_id ?? a.username}.`); }
+    return done("عطيني ID ولا @username.");
+  }
+  if (/نقاط|points|منح|زيد نقط/.test(t) && /(?:^|\s)[+-]?\d{1,6}(?:\s|$)/.test(raw)) {
+    const amt = Number((/([+-]?\d{1,6})/.exec(raw) ?? [])[1]);
+    const a = askUser();
+    if (a.user_id || a.username) { const o = await run("give_points", { ...a, amount: amt, reason: "أمر المالك" }); return done(o.ok === false ? `⚠️ ${o.error}` : `✅ ${amt > 0 ? "زدت" : "نقصت"} ${Math.abs(amt)} نقطة لـ ${o.name ?? a.user_id}.`); }
+  }
+  if (/مستخدم|users|اعضاء|أعضاء|ليست|قائمة/.test(t)) {
     const o = await run("list_users", { limit: 10 });
-    return { done: true, text: o.users.map((u) => `• ${u.name}${u.username ? " @" + u.username : ""} — ${u.points} نقطة`).join("\n") || "ما كاينش أعضاء.", trace };
+    const rows = o.users ?? [];
+    return done(rows.length ? rows.map((u) => `• ${nm(u)} — ${u.points} نقطة${u.blocked ? " ⛔" : ""}`).join("\n") : "ما كاينش أعضاء مسجّلين بعد.");
   }
-  if (/صحة|health|webhook|ويب هوك|فحص/.test(t)) {
-    const o = await run("bot_health", {});
-    return { done: true, text: `🩺 البوت: ${JSON.stringify(o.bot?.username ?? o.bot?.first_name ?? o.bot)} · webhook: ${o.webhook?.url || "ماشي مضبوط"}`, trace };
+  if (/ملف|تفاصيل|profil|detail|شكون/.test(t) && (idIn() || userIn())) {
+    const o = await run("user_detail", askUser());
+    return done(o.ok === false ? `⚠️ ${o.error}` : `👤 ${o.user?.name ?? "؟"} · ${o.user?.points ?? 0} نقطة · ${o.user?.referrals ?? 0} إحالة${o.user?.blocked ? " · ⛔ محظور" : ""}`);
+  }
+
+  // ── إحالات ──
+  if (/احال|إحال|referral|دعو/.test(t)) {
+    const o = await run("referral_chain", { status: "all", limit: 20 });
+    const rows = o.referrals ?? o.rows ?? [];
+    return done(rows.length
+      ? rows.slice(0, 20).map((r) => `• ${r.invitee_name ?? r.new_name ?? r.invitee ?? r.to ?? "عضو"} ← ${r.referrer_name ?? r.by ?? r.from ?? "؟"} · ${r.status ?? "pending"} · ${r.points ?? 0} نقطة`).join("\n")
+      : "ما كاينش إحالات مسجّلة.");
+  }
+
+  // ── أسئلة ──
+  if (/(اضف|أضف|زيد|ضيف|add).*(سؤال|question)|سؤال جديد/.test(t)) {
+    const q = raw.split(/[:：]/).slice(1).join(":").trim() || raw.replace(/.*(?:سؤال|question)\s*/i, "").trim();
+    const parts = q.split(/[\/|,،؛;]+/).map((x) => x.trim()).filter(Boolean);
+    if (parts.length >= 3) {
+      const text = parts[0];
+      const opts = parts.slice(1, 5);
+      const correct = Math.max(0, Number((/صح(?:يح)?\s*[:=]?\s*(\d)/.exec(q) ?? [])[1] ?? 1) - 1);
+      const o = await run("add_question", { text, options: opts, correct: Math.min(correct, opts.length - 1), category: "عام" });
+      return done(o.ok === false ? `⚠️ ${o.error}` : `✅ زدت السؤال: «${text}» · الاختيارات: ${opts.join(" / ")}`);
+    }
+    return done("اكتب السؤال هكذا: أضف سؤال: عاصمة الجزائر؟ / الجزائر / وهران / قسنطينة / عنابة");
+  }
+  if (/(احذف|مسح|delete|امسح).*(سؤال|question)/.test(t)) {
+    const o = await run("delete_question", { id: idIn() ?? "all" });
+    return done(o.ok === false ? `⚠️ ${o.error}` : `🗑 حذفت ${o.deleted ?? (idIn() ?? "كل")} سؤال.`);
+  }
+  if (/(اسئلة|أسئلة|questions)/.test(t)) {
+    const o = await run("list_questions", {});
+    return done(o.count ? `🎯 ${o.count} سؤال:\n` + (o.questions ?? []).slice(-10).map((q, i) => `${i + 1}. ${q.text}`).join("\n") : "ما كاينش أسئلة — زيد واحد.");
+  }
+  if (/(ارسل|أرسل|ابعت|send).*(سؤال|quiz)/.test(t)) {
+    const a = askUser();
+    const o = await run("send_quiz", { ...a, target: a.user_id ?? a.username ?? "all" });
+    return done(o.ok === false ? `⚠️ ${o.error}` : `🎯 بعثت سؤال (${o.sent ?? o.target ?? "الكل"}).`);
+  }
+
+  // ── بثّ / رسائل ──
+  if (/(بث|للجميع|للكل|broadcast|اعلان|إعلان)/.test(t)) {
+    const msg = raw.split(/[:：]/).slice(1).join(":").trim();
+    if (msg) { const o = await run("broadcast", { text: msg, limit: 100 }); return done(`📣 البث وصل لـ ${o.sent ?? 0}/${o.total ?? 0}${o.failed ? ` · فشل ${o.failed}` : ""}.`); }
+    return done("اكتب: بث: <نص الرسالة>");
+  }
+  if (/(ارسل|أرسل|ابعت|send|قول|قل).*(رسالة|message)/.test(t)) {
+    const a = askUser();
+    const msg = raw.split(/[:：]/).slice(1).join(":").trim();
+    if ((a.user_id || a.username) && msg) {
+      const o = await run("send_message", { ...a, text: msg });
+      return done(o.ok === false ? `⚠️ ${o.error}` : `📨 بعثت الرسالة لـ ${a.username ? "@" + a.username : a.user_id}.`);
+    }
+    return done("اكتب: أرسل رسالة 123456789: <النص>");
+  }
+
+  // ── إعدادات / حماية ──
+  if (/حماي|حمان|protection|حصانة/.test(t)) {
+    const lvl = /(off|light|normal|high|max)/.exec(t)?.[1];
+    if (lvl && /(بدل|غير|خلي|حط|صير|set|level|مستوى)/.test(t)) {
+      const o = await run("update_settings", { protectionLevel: lvl });
+      return done(o.ok === false ? `⚠️ ${o.error}` : `🛡 مستوى الحماية ولّى ${lvl}.`);
+    }
+    const o = await run("get_settings", {});
+    const s = o.settings ?? {};
+    return done(`🛡 الحماية: ${s.protectionLevel} · إجابات/10د: ${s.maxAnswersPer10m} · إحالات/يوم: ${s.maxReferralsPerDay} · مكافأة صحيحة: ${s.rewardCorrect}`);
+  }
+  if (/(اعداد|إعداد|settings|نقاط المكافأة|مكافأة)/.test(t) && /(بدل|غير|حط|خلي|set)/.test(t)) {
+    const n = Number((/(\d{1,5})/.exec(raw) ?? [])[1] ?? 0);
+    if (n > 0) { const o = await run("update_settings", { rewardCorrect: n }); return done(o.ok === false ? `⚠️ ${o.error}` : `⚙️ مكافأة الإجابة الصحيحة ولّات ${n} نقطة.`); }
+  }
+
+  // ── webhook / ربط ──
+  if (/(اصلح|أصلح|صلح|fix).*(webhook|ويب|ربط)/.test(t)) {
+    const o = await run("fix_webhook", {});
+    return done(o.ok === false ? `⚠️ ${o.description ?? o.error}` : `🔧 الـ webhook تصلّح: ${o.url}`);
+  }
+  if (/(اربط|ربط|اربطلي|link).*(بوت|bot)/.test(t)) {
+    const h = await run("bot_health", {});
+    return done(h.bot?.username ? `🤖 البوت مربوط: @${h.bot.username} — webhook: ${h.webhook?.url ?? "ماشي مسجّل"}` : "البوت ماشي مربوط — حط TELEGRAM_BOT_TOKEN في Vercel.");
+  }
+  if (/(صور|صورة|upload|مكتبة)/.test(t)) {
+    const o = await run("list_uploads", {});
+    return done(o.count ? `🖼 ${o.count} صورة في المكتبة.` : "ما كاينش صور مرفوعة — اسحب صورة في تبويب الصور.");
   }
   return { done: false, text: "", trace };
 }
+
 
 export async function chat({ message, images = [], source = "panel", baseUrl = "" }) {
   const started = now();
