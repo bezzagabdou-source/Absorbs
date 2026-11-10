@@ -1,8 +1,9 @@
 /* FT AI — موجّه واحد لكل نقاط الـ API (Vercel Hobby يسمح بـ 12 دالة فقط) */
 import { methods, authed, body, baseUrl, sniff } from "../lib/http-kit.js";
 import {
-  json, readState, readStateFresh, writeState, updateState, ensurePassword, checkPassword, hashPassword, passwordProblem,
-  makeSession, sessionCookie, clearCookie, loginAllowed, clientIp, parseCookies, verifySession, COOKIE,
+  json, readStateFresh, writeState, updateState, ensurePassword, checkPassword, hashPassword, passwordProblem,
+  sessionCookie, clearCookie, loginAllowed, clientIp, parseCookies, verifySession, COOKIE,
+  openSession, closeSession, purgeSessions,
   hasRedis, putImage, getImage, delImage, recordAction, uid, now,
 } from "../lib/core.js";
 import { providers, aiModel, USER_TOOLS, chat } from "../lib/ai.js";
@@ -28,7 +29,7 @@ const login = methods({
     }
     const pw = String(b?.password ?? "");
     if (!pw || !checkPassword(pw, state.password.hash)) return json(res, 401, { ok: false, error: "كلمة السر غالطة" });
-    const token = makeSession(state, req);
+    const token = await openSession(req);
     state.meta.lastLoginAt = now();
     await writeState(state);
     res.setHeader("set-cookie", sessionCookie(token, secureCookie(req)));
@@ -41,7 +42,7 @@ const session = methods({
     const state = await readStateFresh();
     await ensurePassword(state);
     const token = parseCookies(req)[COOKIE];
-    const sess = verifySession(token, state);
+    const sess = await verifySession(token);
     return json(res, 200, {
       ok: true,
       authed: Boolean(sess),
@@ -54,18 +55,24 @@ const session = methods({
 
 const logout = methods({
   POST: async (req, res) => {
+    await closeSession(parseCookies(req)[COOKIE]);
     res.setHeader("set-cookie", clearCookie());
     return json(res, 200, { ok: true });
   },
 });
 
 const password = methods({
-  POST: authed(async (req, res, state) => {
+  POST: async (req, res) => {
     const b = await body(req);
     const current = String(b?.current ?? "");
     const next = String(b?.next ?? "");
 
-    // الحالية اختيارية: الجلسة الصالحة وحدها تكفي. إن كتبها المستخدم نتحقّق منها.
+    // الجلسة شرط أساسي (الدخول حاصل)؛ كلمة السر الحالية اختيارية
+    const token = parseCookies(req)[COOKIE];
+    const sess = await verifySession(token);
+    if (!sess) return json(res, 401, { ok: false, error: "الجلسة انتهت — عاود ادخل بكلمة السر", code: "session" });
+
+    const state = await readStateFresh();
     if (current && state.password?.hash && !checkPassword(current, state.password.hash)) {
       return json(res, 401, { ok: false, error: "كلمة السر الحالية غالطة" });
     }
@@ -81,9 +88,19 @@ const password = methods({
       recordAction(s, { kind: "password", detail: "تغيير كلمة سر اللوحة" });
       return s;
     });
-    res.setHeader("set-cookie", sessionCookie(makeSession(out, req), secureCookie(req)));
-    return json(res, 200, { ok: true, changed_at: out.meta.passwordChangedAt, note: "تم التغيير — كل الأجهزة الأخرى خرجت" });
-  }),
+
+    // جلسة جديدة لهذا الجهاز + قطع كل الجلسات الأخرى
+    const sid = sess.sid ?? null;
+    const newToken = await openSession(req);
+    await purgeSessions(newToken);
+    if (sid) await closeSession(sid);
+    res.setHeader("set-cookie", sessionCookie(newToken, secureCookie(req)));
+    return json(res, 200, {
+      ok: true,
+      changed_at: out.meta.passwordChangedAt,
+      note: "تم التغيير — الأجهزة الأخرى خرجت، هذا الجهاز باقي",
+    });
+  },
 });
 
 /* ═══════════ البيانات ═══════════ */
@@ -360,7 +377,7 @@ const actions = methods({
   POST: authed(async (req, res) => {
     const b = await body(req);
     const job = String(b?.job ?? "");
-    const state = await readState();
+    const state = await readStateFresh();
 
     if (job === "message") {
       const to = String(b?.user_id ?? "").trim();
@@ -443,7 +460,7 @@ const actions = methods({
 /* ═══════════ ويب هوك تيليغرام ═══════════ */
 const webhook = methods({
   GET: async (req, res) => {
-    const state = await readState();
+    const state = await readStateFresh();
     return json(res, 200, { ok: true, service: "FT AI webhook", users: Object.keys(state.users).length });
   },
   POST: async (req, res) => {
@@ -492,7 +509,7 @@ export default async function handler(req, res) {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   // التوكن قد يكون محفوظاً من اللوحة (Vercel Functions بلا حالة)
   try {
-    const st = await readState();
+    const st = await readStateFresh();
     if (st.settings?.botToken) setRuntimeToken(st.settings.botToken);
   } catch { /* ignore */ }
   const path = url.pathname.replace(/^\/api\/?/, "").replace(/\/+$/, "");

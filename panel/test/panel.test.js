@@ -26,6 +26,27 @@ const redisServer = net.createServer((sock) => {
       } else if (C === "SET") { store.set(args[0], args[1]); out = "+OK\r\n"; }
       else if (C === "DEL") { out = `:${store.delete(args[0]) ? 1 : 0}\r\n`; }
       else if (C === "INCR") { const v = Number(store.get(args[0]) ?? 0) + 1; store.set(args[0], String(v)); out = `:${v}\r\n`; }
+      else if (C === "SADD") {
+        const set = new Set(String(store.get(args[0]) ?? "").split(",").filter(Boolean));
+        set.add(args[1]);
+        const added = !String(store.get(args[0]) ?? "").split(",").includes(args[1]);
+        store.set(args[0], [...set].join(","));
+        out = `:${added ? 1 : 0}\r\n`;
+      }
+      else if (C === "SREM") {
+        const set = new Set(String(store.get(args[0]) ?? "").split(",").filter(Boolean));
+        set.delete(args[1]);
+        store.set(args[0], [...set].join(","));
+        out = ":1\r\n";
+      }
+      else if (C === "SMEMBERS") {
+        const items = String(store.get(args[0]) ?? "").split(",").filter(Boolean);
+        out = `*${items.length}\r\n` + items.map((i) => `$${Buffer.byteLength(i)}\r\n${i}\r\n`).join("");
+      }
+      else if (C === "SCAN") {
+        const keys = [...store.keys()].filter((k) => k.startsWith("ftai:sess:") && k !== "ftai:sess:index");
+        out = `*2\r\n$1\r\n0\r\n*${keys.length}\r\n` + keys.map((k) => `$${Buffer.byteLength(k)}\r\n${k}\r\n`).join("");
+      }
       else if (C === "EXPIRE") out = ":1\r\n";
       else out = "+OK\r\n";
       sock.write(out);
@@ -105,15 +126,54 @@ test("كلمة السر: scrypt + تحقّق", () => {
   assert.equal(core.passwordProblem("good1234"), null);
 });
 
-test("الجلسات: توقيع + انتهاء + إبطال بعد تغيير كلمة السر", async () => {
-  const s = await core.readState();
-  s.password = { hash: core.hashPassword("oldpass1"), version: 1 };
+test("الجلسات: تُخزَّن في Redis وتنتهي عند إغلاقها", async () => {
+  const req = { headers: {} };
+  const sid = await core.openSession(req);
+  assert.ok(/^[a-f0-9]{48}$/.test(sid));
+  assert.ok(store.get(`ftai:sess:${sid}`), "الجلسة في Redis");
+  assert.ok(await core.verifySession(sid));
+  assert.equal(await core.verifySession("a".repeat(48)), null, "معرّف غير معروف يُرفض");
+  await core.closeSession(sid);
+  assert.equal(await core.verifySession(sid), null, "بعد الخروج تنتهي");
+});
+
+test("الجلسات: توكن موقّع قديم لا يزال يتحقّق (توافق)", async () => {
   const token = core.signSession({ exp: Date.now() + 60000, pv: 1 });
-  assert.ok(core.verifySession(token, s));
-  assert.equal(core.verifySession(token + "x", s), null);
-  assert.equal(core.verifySession(core.signSession({ exp: Date.now() - 1, pv: 1 }), s), null);
-  s.password.version = 2;
-  assert.equal(core.verifySession(token, s), null, "الجلسة القديمة تنتهي بعد التغيير");
+  assert.ok(await core.verifySession(token));
+  assert.equal(await core.verifySession(token + "zz"), null);
+  assert.equal(await core.verifySession(core.signSession({ exp: Date.now() - 1 })), null);
+});
+
+test("تبديل كلمة السر يقطع الجلسات الأخرى ويُبقي الحالية", async () => {
+  const sidA = await core.openSession({ headers: {} });
+  const sidB = await core.openSession({ headers: {} });
+  assert.ok(await core.verifySession(sidA));
+  await core.purgeSessions(sidB);
+  assert.equal(await core.verifySession(sidA), null, "الجلسة الأخرى انقطعت");
+  assert.ok(await core.verifySession(sidB), "جلسة هذا الجهاز باقية");
+  assert.ok(store.get(`ftai:sess:${sidB}`), "الجلسة الباقية مازالت في Redis");
+});
+
+test("تدفّق كامل: دخول → تبديل بلا كلمة حالية → الطلب ينجح بنفس الجهاز", async () => {
+  const core2 = core;
+  const state = await core.readStateFresh();
+  state.password = { hash: core.hashPassword("Panel2026"), version: 11 };
+  await core.writeState(state);
+  const req = { headers: {} };
+  const sid = await core.openSession(req);
+  const s1 = await core.verifySession(sid);
+  assert.ok(s1, "دخل");
+  // محاكاة التبديل كما في api/index.js
+  const out = await core.updateState((s) => {
+    s.password = { hash: core.hashPassword("Panel2027"), version: 12 };
+    return s;
+  });
+  const newSid = await core.openSession(req);
+  await core.purgeSessions(newSid);
+  await core.closeSession(sid);
+  assert.equal(await core.verifySession(sid), null, "الجلسة القديمة ماتت");
+  assert.ok(await core.verifySession(newSid), "الجلسة الجديدة صالحة");
+  assert.equal(core.checkPassword("Panel2027", out.password.hash), true);
 });
 
 test("الأدوات: إحصائيات، نقاط، حظر، أسئلة، إعدادات", async () => {
@@ -261,21 +321,24 @@ test("كلمة السر: قابلة للتغيير بلا كلمة حالية + 
   const state = await core.readStateFresh();
   state.password = { hash: core.hashPassword("Start2026"), version: 7 };
   await core.writeState(state);
-
-  // الحالية غالطة ⇒ رفض
   assert.equal(core.checkPassword("wrong", state.password.hash), false);
-  // بلا كلمة حالية: نولّد جلسة صالحة ثم نغيّر
-  const token = core.signSession({ exp: Date.now() + 60000, pv: 7 });
-  assert.ok(core.verifySession(token, state));
-  state.password = { hash: core.hashPassword("After2026"), version: 8 };
-  await core.writeState(state);
 
-  const fresh = await core.readStateFresh();
-  assert.equal(core.checkPassword("After2026", fresh.password.hash), true);
-  assert.equal(core.verifySession(token, fresh), null, "الجلسة القديمة تُرفض بعد التغيير");
+  const sid = await core.openSession({ headers: {} });
+  assert.ok(await core.verifySession(sid));
 
-  const newToken = core.signSession({ exp: Date.now() + 60000, pv: fresh.password.version });
-  assert.ok(core.verifySession(newToken, fresh), "الجلسة الجديدة مقبولة فوراً");
+  const out = await core.updateState((s) => {
+    s.password = { hash: core.hashPassword("After2026"), version: 8, changedAt: Date.now() };
+    return s;
+  });
+  assert.equal(core.checkPassword("After2026", out.password.hash), true);
+  assert.equal(out.password.version, 8);
+
+  // نفس الجهاز: جلسة جديدة صالحة، القديمة ماتت
+  const newSid = await core.openSession({ headers: {} });
+  await core.purgeSessions(newSid);
+  await core.closeSession(sid);
+  assert.equal(await core.verifySession(sid), null);
+  assert.ok(await core.verifySession(newSid));
 });
 
 test("الذاكرة الوسيطة لا تخفي تغييراً حصل في نسخة أخرى (Vercel)", async () => {

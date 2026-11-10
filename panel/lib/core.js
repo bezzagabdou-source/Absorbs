@@ -354,9 +354,11 @@ export function passwordProblem(pw) {
   return null;
 }
 
-/* ───────── الجلسات ───────── */
+/* ───────── الجلسات (مخزّنة في Redis — بلا اعتماد على ذاكرة النسخة) ───────── */
 export const COOKIE = "ftai_sess";
 const TTL_MS = 1000 * 60 * 60 * 12;
+const SESSION_KEY = (sid) => `ftai:sess:${sid}`;
+const SESSION_INDEX = "ftai:sess:index";
 
 export function secret() {
   const base = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || process.env.BOT_TOKEN || "ftai-dev-secret";
@@ -365,22 +367,86 @@ export function secret() {
 
 function b64(buf) { return Buffer.from(buf).toString("base64url"); }
 
+/** توقيع بسيط (احتياطي عندما لا يوجد Redis) */
 export function signSession(payload) {
   const body = b64(JSON.stringify(payload));
   const sig = b64(crypto.createHmac("sha256", secret()).update(body).digest()).slice(0, 32);
   return `${body}.${sig}`;
 }
 
-export function verifySession(token, state) {
-  if (!token || !token.includes(".")) return null;
-  const [body, sig] = token.split(".");
+const memSessions = new Map();
+
+/** تفتح جلسة جديدة وتخزّنها (Redis) — الكوكي يحمل المعرّف فقط */
+export async function openSession(req) {
+  const sid = crypto.randomBytes(24).toString("hex");
+  const exp = now() + TTL_MS;
+  const rec = { exp, ip: clientIp(req).slice(0, 24), at: now() };
+  memSessions.set(sid, rec);
+  try {
+    await rc("SET", SESSION_KEY(sid), JSON.stringify(rec), "PX", TTL_MS);
+    await rc("SADD", SESSION_INDEX, sid);
+  } catch { /* ذاكرة */ }
+  return sid;
+}
+
+/** تحقّق: معرّف موجود في Redis وغير منتهي */
+export async function verifySession(token) {
+  if (!token) return null;
+  // جلسة مخزّنة
+  const sid = String(token);
+  if (/^[a-f0-9]{32,64}$/.test(sid)) {
+    let rec = memSessions.get(sid) ?? null;
+    try {
+      const raw = await rc("GET", SESSION_KEY(sid));
+      if (raw) rec = JSON.parse(raw);
+    } catch { /* بلا Redis: ذاكرة */ }
+    if (!rec || rec.exp < now()) return null;
+    return { sid, ...rec };
+  }
+  // احتياطي: توقيع HMAC (توكنات قديمة)
+  if (!sid.includes(".")) return null;
+  const [body, sig] = sid.split(".");
   const want = b64(crypto.createHmac("sha256", secret()).update(body).digest()).slice(0, 32);
   if (sig !== want) return null;
-  let p = null;
-  try { p = JSON.parse(Buffer.from(body, "base64url").toString("utf8")); } catch { return null; }
-  if (!p || p.exp < now()) return null;
-  if ((p.pv ?? 0) !== (state?.password?.version ?? 0)) return null;
-  return p;
+  try {
+    const p = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    return p && p.exp > now() ? p : null;
+  } catch { return null; }
+}
+
+export async function closeSession(token) {
+  const sid = String(token ?? "");
+  memSessions.delete(sid);
+  try {
+    await rc("DEL", SESSION_KEY(sid));
+    await rc("SREM", SESSION_INDEX, sid);
+  } catch { /* ignore */ }
+}
+
+/** بعد تغيير كلمة السر: اقطع كل الجلسات إلا الحالية */
+export async function purgeSessions(keepSid = null) {
+  for (const sid of [...memSessions.keys()]) if (sid !== keepSid) memSessions.delete(sid);
+  let listed = null;
+  try {
+    const members = await rc("SMEMBERS", SESSION_INDEX);
+    if (Array.isArray(members)) listed = members;
+  } catch { /* لا فهرس */ }
+  if (!listed) {
+    // احتياط: SCAN
+    try {
+      const out = await rc("SCAN", "0", "MATCH", "ftai:sess:*", "COUNT", 500);
+      if (Array.isArray(out) && Array.isArray(out[1])) {
+        listed = out[1].map((k) => String(k).split("ftai:sess:").pop()).filter(Boolean);
+      }
+    } catch { /* بلا */ }
+  }
+  for (const sid of listed ?? []) {
+    if (!sid || sid === keepSid || sid === "index") continue;
+    try {
+      await rc("DEL", SESSION_KEY(sid));
+      await rc("SREM", SESSION_INDEX, sid);
+    } catch { /* ignore */ }
+  }
 }
 
 export function sessionCookie(token, secure = true) {
@@ -390,22 +456,23 @@ export function clearCookie() {
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
-export function makeSession(state, req) {
-  return signSession({ iat: now(), exp: now() + TTL_MS, pv: state?.password?.version ?? 0, ip: clientIp(req).slice(0, 24) });
-}
-
 export async function requireAuth(req, res) {
-  const state = await readStateFresh();
   const token = parseCookies(req)[COOKIE];
-  const sess = verifySession(token, state);
+  const sess = await verifySession(token);
   if (!sess) {
-    json(res, 401, { ok: false, error: "غير مصرّح — ادخل بكلمة السر" });
+    json(res, 401, {
+      ok: false,
+      error: "الجلسة انتهت ولا ماشي موجودة — عاود ادخل بكلمة السر",
+      code: "session",
+    });
     return null;
   }
+  const state = await readStateFresh();
+  await ensurePassword(state);
   return state;
 }
 
-/* كلمة السر الأولية: من متغيّر البيئة، وإلا تُنشأ واحدة */
+/** كلمة السر الأولى: من متغيّر البيئة، وإلا تُنشأ واحدة */
 export async function ensurePassword(state) {
   if (state.password?.hash) return state;
   const envPw = process.env.DASHBOARD_PASSWORD || process.env.ADMIN_PASSWORD || process.env.PANEL_PASSWORD;

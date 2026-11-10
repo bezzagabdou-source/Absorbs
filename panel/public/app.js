@@ -11,7 +11,7 @@
     });
     let data = {};
     try { data = await res.json(); } catch { data = { ok: false }; }
-    if (res.status === 401 && !path.includes("/login") && !path.includes("password")) {
+    if (res.status === 401 && data?.code === "session" && !path.includes("/login")) {
       // ماشي دائماً انتهاء جلسة: نبيّن السبب ونطلب إعادة الدخول
       if (data?.error) toast(data.error, "bad");
       showLogin();
@@ -438,7 +438,7 @@
       msg.className = "msg ok";
       msg.textContent = "تبدّلت ✅ — كل الأجهزة الأخرى خرجت (جلسة هذا الجهاز بقيت)";
       e.target.reset();
-      setTimeout(() => ($("#pw-modal").hidden = true), 1400);
+      setTimeout(() => ($("#pw-modal").hidden = true), 1600);
       loadSecurity();
     } else msg.textContent = out.error || "ما تبدّلتش";
   });
