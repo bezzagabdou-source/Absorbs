@@ -196,7 +196,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     /* الملفات الثابتة (اللوحة) */
-    if (serveStatic(res, PUBLIC_DIR, url.pathname)) return;
+    if (serveStatic(res, PUBLIC_DIR, url.pathname, req.headers)) return;
 
     /* SPA fallback لمسارات اللوحة */
     if (!url.pathname.startsWith("/api/") && !url.pathname.includes(".")) {
@@ -218,24 +218,88 @@ const server = http.createServer(async (req, res) => {
 
 function landingPage() {
   const bot = config.botUsername || "YourBot";
-  return `<!doctype html><html lang="ar" dir="rtl"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FT AI ⚡ — بوت المسابقات</title>
+  const stats = {
+    users: q.get("SELECT COUNT(*) AS n FROM users WHERE is_bot = 0").n,
+    points: q.get("SELECT COALESCE(SUM(points),0) AS n FROM users").n,
+    refs: q.get("SELECT COUNT(*) AS n FROM referral_events WHERE points_awarded > 0").n,
+    quizzes: q.get("SELECT COUNT(*) AS n FROM quiz_sessions WHERE answered_at IS NOT NULL").n,
+  };
+  return `<!doctype html>
+<html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05080f">
+<meta name="description" content="FT AI — بوت مسابقات تيليغرام: أسئلة، نقاط، إحالات، لوحة شرف، وحماية قصوى.">
+<title>FT AI ⚡ — بوت المسابقات ولوحة التحكم</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <style>
+:root{color-scheme:dark}
 *{margin:0;padding:0;box-sizing:border-box}
-body{min-height:100vh;display:grid;place-items:center;background:radial-gradient(900px 500px at 50% -10%,#1d4ed855,transparent),#070b14;color:#e6edff;font-family:system-ui,Tahoma,sans-serif;padding:22px}
-.card{width:min(520px,100%);background:#0d1424;border:1px solid #1e2a45;border-radius:28px;padding:40px 28px;text-align:center}
-.b{font-size:64px;filter:drop-shadow(0 0 22px #38bdf877)}
-h1{font-size:30px;margin:12px 0}
-p{color:#93a4c4;line-height:1.8;font-size:15px}
-a.btn{display:inline-block;margin-top:26px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;text-decoration:none;padding:16px 34px;border-radius:16px;font-weight:800}
-.small{margin-top:22px;font-size:12px;color:#5b6c8c}
-</style></head><body><div class="card">
-<div class="b">⚡</div><h1>FT AI</h1>
-<p>بوت مسابقات تيليغرام: أسئلة، نقاط، إحالات، لوحة شرف.<br>وحماية قصوى من الحظر ورشق النقاط.</p>
-<a class="btn" href="https://t.me/${escapeAttr(bot)}">افتح البوت</a>
-<div class="small">لوحة التحكم: <a href="/dashboard" style="color:#7aa2ff">/dashboard</a></div>
-</div></body></html>`;
+body{
+  min-height:100vh;display:grid;place-items:center;padding:24px;overflow-x:hidden;
+  background:#05080f;color:#eaf1ff;font-family:"Segoe UI",system-ui,-apple-system,Tahoma,"Noto Naskh Arabic",sans-serif;line-height:1.7
+}
+.aurora{position:fixed;inset:0;z-index:0;filter:blur(90px);opacity:.55;pointer-events:none;overflow:hidden}
+.aurora i{position:absolute;display:block;width:44vw;height:44vw;border-radius:50%;animation:f 22s ease-in-out infinite}
+.aurora i:nth-child(1){background:#1d4ed8;top:-14vw;right:-8vw}
+.aurora i:nth-child(2){background:#7c3aed;bottom:-18vw;left:-10vw;animation-delay:-8s}
+.aurora i:nth-child(3){background:#0891b2;top:30%;left:36%;width:28vw;height:28vw;animation-delay:-14s;opacity:.75}
+@keyframes f{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-4vw,4vw,0) scale(1.15)}}
+.wrap{position:relative;z-index:1;width:min(680px,100%);text-align:center}
+.bolt{font-size:66px;line-height:1;filter:drop-shadow(0 0 26px #38bdf8aa);animation:g 3.5s ease-in-out infinite}
+@keyframes g{50%{filter:drop-shadow(0 0 44px #8b5cf6cc)}}
+h1{
+  font-size:clamp(34px,8vw,54px);letter-spacing:-.03em;margin:10px 0 4px;
+  background:linear-gradient(100deg,#fff,#9cc0ff 50%,#c4b5fd);-webkit-background-clip:text;background-clip:text;color:transparent
+}
+.tag{color:#8b9cbd;font-size:15.5px;max-width:520px;margin:0 auto}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+.btn{
+  display:inline-block;text-decoration:none;font-weight:800;padding:15px 30px;border-radius:16px;
+  background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;box-shadow:0 18px 40px -18px #4f46e5cc;transition:.2s
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 24px 48px -20px #4f46e5ee}
+.btn.ghost{background:#0c1526;border:1px solid #1f2d4a;color:#c4d3ee;box-shadow:none}
+.btn.ghost:hover{border-color:#34507f;color:#fff}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:30px}
+.st{background:linear-gradient(170deg,#0e1829,#080f1c);border:1px solid #17223a;border-radius:16px;padding:14px 10px}
+.st b{display:block;font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.st span{font-size:11.5px;color:#5d6f90}
+.feats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+.f{font-size:12.5px;padding:7px 13px;border-radius:99px;background:#0b1526cc;border:1px solid #1f2d4a;color:#a8bade}
+.foot{margin-top:30px;font-size:12px;color:#5d6f90}
+.foot a{color:#7aa2ff;text-decoration:none}
+</style></head>
+<body>
+<div class="aurora"><i></i><i></i><i></i></div>
+<div class="wrap">
+  <div class="bolt">⚡</div>
+  <h1>FT AI</h1>
+  <p class="tag">بوت مسابقات تيليغرام: أسئلة، نقاط، إحالات، مكافآت يومية ولوحة شرف — مع حماية قصوى من الحظر ورشق النقاط.</p>
+
+  <div class="btns">
+    <a class="btn" href="https://t.me/${escapeAttr(bot)}">▶ افتح البوت في تيليغرام</a>
+    <a class="btn ghost" href="/dashboard">🎛️ لوحة التحكم</a>
+  </div>
+
+  <div class="stats">
+    <div class="st"><b>${stats.users}</b><span>عضو</span></div>
+    <div class="st"><b>${stats.quizzes}</b><span>سؤال مُجاب</span></div>
+    <div class="st"><b>${stats.refs}</b><span>إحالة مفعّلة</span></div>
+    <div class="st"><b>${stats.points}</b><span>نقطة موزّعة</span></div>
+  </div>
+
+  <div class="feats">
+    <span class="f">🎯 مسابقات</span>
+    <span class="f">🔗 إحالات</span>
+    <span class="f">🎁 مكافآت يومية</span>
+    <span class="f">🏆 لوحة شرف</span>
+    <span class="f">🧠 FT AI</span>
+    <span class="f">🛡️ حماية قصوى</span>
+  </div>
+
+  <div class="foot">صُنع بـ ⚡ · <a href="/dashboard">لوحة التحكم</a> · <a href="/healthz">حالة السيرفر</a></div>
+</div>
+</body></html>`;
 }
 
 /* ────────────────────────── الإقلاع ────────────────────────── */

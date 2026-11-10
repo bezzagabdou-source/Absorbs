@@ -103,7 +103,7 @@ export function cookie(req, name) {
   return null;
 }
 
-export function serveStatic(res, root, urlPath) {
+export function serveStatic(res, root, urlPath, req_headers = null) {
   const clean = decodeURIComponent(urlPath.split("?")[0]);
   const rel = clean === "/" ? "/index.html" : clean;
   const file = path.join(root, rel);
@@ -111,9 +111,20 @@ export function serveStatic(res, root, urlPath) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
   const ext = path.extname(file).toLowerCase();
   const body = fs.readFileSync(file);
+  const stat = fs.statSync(file);
+  const mtime = new Date(stat.mtimeMs);
+  const etag = `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+  if (req_headers?.["if-none-match"] === etag) {
+    res.writeHead(304, { etag, "cache-control": "no-cache" });
+    res.end();
+    return true;
+  }
   const headers = {
     "content-type": MIME[ext] ?? "application/octet-stream",
-    "cache-control": ext === ".html" ? "no-store" : "public, max-age=300",
+    "last-modified": mtime.toUTCString(),
+    // المتصفح يعيد التحقق دائماً ⇒ أي تعديل يبان فوراً بلا «الموقع مازال كيما كان»
+    "cache-control": ext === ".html" ? "no-store" : "no-cache, must-revalidate",
+    etag,
     "x-content-type-options": "nosniff",
   };
   if (ext === ".html") {
