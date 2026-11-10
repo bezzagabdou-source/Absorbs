@@ -166,6 +166,86 @@ function mockAnswer(prompt: string): string {
 }
 
 /** يطلب توليد نص من المزوّد المتاح */
+export type AiGenerateInput = {
+  prompt: string;
+  system?: string;
+  maxTokens?: number;
+  temperature?: number;
+  model?: string;
+};
+
+/** كل المزوّدين المتوفرين بالترتيب حسب المفاتيح الموجودة */
+export function aiProviderList(overrideModel?: string): AiProvider[] {
+  const defs: { id: string; names: string[]; make: (key: string) => AiProvider }[] = [
+    {
+      id: "gemini",
+      names: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+      make: (key) => ({
+        id: "gemini",
+        label: "Google Gemini",
+        kind: "gemini",
+        key,
+        model: normalizeGeminiModel(overrideModel || env("AI_MODEL", "GEMINI_FLASH_MODEL") || DEFAULT_MODELS.gemini),
+      }),
+    },
+    {
+      id: "openai",
+      names: ["OPENAI_API_KEY"],
+      make: (key) => ({ id: "openai", label: "OpenAI", kind: "openai", key, baseUrl: "https://api.openai.com/v1", model: overrideModel || env("AI_MODEL", "OPENAI_MODEL") || DEFAULT_MODELS.openai }),
+    },
+    {
+      id: "groq",
+      names: ["GROQ_API_KEY"],
+      make: (key) => ({ id: "groq", label: "Groq", kind: "openai", key, baseUrl: "https://api.groq.com/openai/v1", model: overrideModel || env("AI_MODEL", "GROQ_MODEL") || DEFAULT_MODELS.groq }),
+    },
+    {
+      id: "openrouter",
+      names: ["OPENROUTER_API_KEY"],
+      make: (key) => ({ id: "openrouter", label: "OpenRouter", kind: "openai", key, baseUrl: "https://openrouter.ai/api/v1", model: overrideModel || env("AI_MODEL", "OPENROUTER_MODEL") || DEFAULT_MODELS.openrouter }),
+    },
+    {
+      id: "cerebras",
+      names: ["CEREBRAS_API_KEY"],
+      make: (key) => ({ id: "cerebras", label: "Cerebras", kind: "openai", key, baseUrl: "https://api.cerebras.ai/v1", model: overrideModel || env("AI_MODEL", "CEREBRAS_MODEL") || DEFAULT_MODELS.cerebras }),
+    },
+    {
+      id: "deepseek",
+      names: ["DEEPSEEK_API_KEY"],
+      make: (key) => ({ id: "deepseek", label: "DeepSeek", kind: "openai", key, baseUrl: "https://api.deepseek.com/v1", model: overrideModel || env("AI_MODEL", "DEEPSEEK_MODEL") || DEFAULT_MODELS.deepseek }),
+    },
+    {
+      id: "xai",
+      names: ["XAI_API_KEY", "GROK_API_KEY"],
+      make: (key) => ({ id: "xai", label: "xAI Grok", kind: "openai", key, baseUrl: "https://api.x.ai/v1", model: overrideModel || env("AI_MODEL", "XAI_MODEL") || DEFAULT_MODELS.xai }),
+    },
+    {
+      id: "anthropic",
+      names: ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY"],
+      make: (key) => ({ id: "anthropic", label: "Anthropic Claude", kind: "anthropic", key, model: overrideModel || env("AI_MODEL", "ANTHROPIC_MODEL") || DEFAULT_MODELS.anthropic }),
+    },
+  ];
+  const out: AiProvider[] = [];
+  for (const def of defs) {
+    const key = env(...def.names);
+    if (key) out.push(def.make(key));
+  }
+  return out;
+}
+
+/** 🤝 توليد مع تجربة المزوّدين بالترتيب (إذا Gemini مزحوم نكمّلو بـ Groq/OpenRouter) */
+export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<AiResult> {
+  const providers = aiProviderList(input.model);
+  const empty: AiResult = { ok: false, text: "", provider: "", model: "", error: "لا يوجد مفتاح ذكاء اصطناعي في البيئة" };
+  if (!providers.length) return empty;
+  let last: AiResult = empty;
+  for (const provider of providers.slice(0, 3)) {
+    const res = await generateVia(provider, input);
+    if (res.ok) return res;
+    last = res;
+  }
+  return last;
+}
+
 export async function aiGenerate(input: {
   prompt: string;
   system?: string;
@@ -173,8 +253,12 @@ export async function aiGenerate(input: {
   temperature?: number;
   model?: string;
 }): Promise<AiResult> {
-  const provider = aiProvider(input.model);
-  const empty: AiResult = { ok: false, text: "", provider: "", model: "", error: "" };
+  return aiGenerateWithFallback(input);
+}
+
+/** توليد عبر مزوّد واحد محدّد */
+async function generateVia(provider: AiProvider, input: AiGenerateInput): Promise<AiResult> {
+  const empty: AiResult = { ok: false, text: "", provider: provider.label, model: provider.model, error: "" };
 
   if (process.env.AI_MOCK === "1") {
     return {
@@ -184,9 +268,6 @@ export async function aiGenerate(input: {
       model: "mock",
       error: "",
     };
-  }
-  if (!provider) {
-    return { ...empty, error: "لا يوجد مفتاح ذكاء اصطناعي في البيئة" };
   }
 
   const maxTokens = input.maxTokens ?? 600;
