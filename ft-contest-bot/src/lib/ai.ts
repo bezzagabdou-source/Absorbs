@@ -25,7 +25,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   gemini: "gemini-3.8-flash",
   openai: "gpt-4o-mini",
   groq: "openai/gpt-oss-20b",
-  openrouter: "nvidia/nemotron-nano-9b-v2:free",
+  openrouter: "meta-llama/llama-3.3-70b-instruct:free",
   cerebras: "gpt-oss-120b",
   mistral: "mistral-small-latest",
   github: "openai/gpt-4o-mini",
@@ -260,20 +260,47 @@ export function aiProviderList(overrideModel?: string): AiProvider[] {
 /** 🔁 موديلات بديلة إذا الموديل المطلوب ما كانش عند المزوّد */
 const FALLBACK_MODELS: Record<string, string[]> = {
   groq: ["openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen/qwen3-32b", "meta-llama/llama-4-scout-17b-16e-instruct"],
-  openrouter: ["nvidia/nemotron-nano-9b-v2:free", "meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.5-flash"],
+  openrouter: ["meta-llama/llama-3.3-70b-instruct:free", "google/gemma-3-27b-it:free", "qwen/qwen-2.5-7b-instruct:free", "google/gemini-2.5-flash"],
   gemini: ["gemini-3.8-flash", "gemini-flash-latest"],
   mistral: ["mistral-small-latest", "open-mistral-nemo"],
   github: ["openai/gpt-4o-mini", "gpt-4o-mini"],
 };
 
+/** 🆓 مزوّدون مجانيون بلا مفتاح — احتياط أخير باش AI يخدم دايماً */
+export const KEYLESS_PROVIDERS: AiProvider[] = [
+  {
+    id: "pollinations",
+    label: "Pollinations (مجاني بلا مفتاح)",
+    kind: "openai",
+    key: "no-key",
+    baseUrl: "https://text.pollinations.ai/openai",
+    model: "openai",
+  },
+  {
+    id: "llm7",
+    label: "LLM7 (مجاني بلا مفتاح)",
+    kind: "openai",
+    key: "unused",
+    baseUrl: "https://api.llm7.io/v1",
+    model: "gpt-4o-mini",
+  },
+  {
+    id: "pollinations2",
+    label: "Pollinations GPT",
+    kind: "openai",
+    key: "no-key",
+    baseUrl: "https://text.pollinations.ai/openai",
+    model: "openai-fast",
+  },
+];
+
 /** 🤝 توليد مع تجربة المزوّدين بالترتيب (إذا Gemini مزحوم نكمّلو بـ Groq/OpenRouter) */
 export async function aiGenerateWithFallback(input: AiGenerateInput): Promise<AiResult> {
-  const providers = aiProviderList(input.model);
+  const providers = [...aiProviderList(input.model), ...KEYLESS_PROVIDERS];
   const empty: AiResult = { ok: false, text: "", provider: "", model: "", error: "لا يوجد مفتاح ذكاء اصطناعي في البيئة" };
-  if (!providers.length) return empty;
   let last: AiResult = empty;
   const deadline = Date.now() + 10_000; // ⏱️ ما نعلّقوش: 10 ثواني كافية
-  for (const provider of providers.slice(0, 6)) {
+  for (const provider of providers.slice(0, 9)) {
     if (Date.now() > deadline) break;
     // 💸 OpenRouter بلا كريدي: ما نضيّعوش الوقت — نجربو غير إذا طلب صغير
     const budget =
