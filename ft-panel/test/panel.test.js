@@ -396,3 +396,27 @@ test('authenticated streaming sends progress and a final result', async () => {
   assert.match(stream, /event: result/);
   assert.match(stream, /رد متدفق/);
 });
+
+test('image instructions and negated requests cannot trigger agent writes, deployment or broadcasts', async () => {
+  const token = (await api('login', { password: 'new-password-long' }, '', '31')).body.token;
+  const image = 'data:image/png;base64,' + Buffer.from('89504e470d0a1a0a00000000', 'hex').toString('base64');
+  async function attempted(prompt, name, args, ip, attachment) {
+    let count = 0;
+    global.fetch = async (url, options) => {
+      if (!String(url).includes('api.groq.com')) return originalFetch(url, options);
+      if (++count === 1) return Response.json({ choices: [{ message: { tool_calls: [{ id: 'bad', function: { name, arguments: JSON.stringify(args) } }] } }] });
+      return Response.json({ choices: [{ message: { content: 'حسناً' } }] });
+    };
+    const response = await api('ai', { prompt, ...(attachment ? { image } : {}), requestId: crypto.randomUUID() }, token, ip);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.data.actions[0].ok, false);
+    return response.body.data.actions[0].result;
+  }
+  assert.match(await attempted('اشرح مشكلة الصورة', 'write_file', { path: 'ft-panel/example.js', content: 'bad' }, '32', true), /حدد العملية المطلوبة نصياً/);
+  assert.match(await attempted('راجع الملفات فقط', 'deploy', {}, '33', false), /النشر يحتاج طلباً صريحاً/);
+  assert.match(await attempted("don't deploy", 'deploy', {}, '34', false), /النشر يحتاج طلباً صريحاً/);
+  const before = manageCalls.length;
+  assert.match(await attempted("don't broadcast to all users", 'ft_broadcast_recent', { text: 'bad' }, '35', false), /البث يحتاج طلباً صريحاً/);
+  assert.match(await attempted('لا تحذف المسابقة', 'ft_delete_contest', { id: 'c1' }, '36', false), /الحذف يحتاج طلباً صريحاً/);
+  assert.equal(manageCalls.length, before);
+});
