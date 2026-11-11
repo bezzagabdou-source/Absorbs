@@ -455,6 +455,7 @@ async function ask(q, image = "") {
       { role: "assistant", content: r.reply },
     );
     HIST = HIST.slice(-12);
+    if (image && r.retainImage) restoreAiImage(image);
     w.innerHTML =
       esc(r.reply).split("\n").join("<br>") +
       (r.actions || [])
@@ -464,6 +465,7 @@ async function ask(q, image = "") {
         )
         .join("");
   } catch (err) {
+    if (image) restoreAiImage(image);
     w.innerHTML = "<span class=err>" + esc(err.message) + "</span>";
   }
   AI_BUSY = false;
@@ -480,6 +482,11 @@ $("#af").addEventListener("submit", (e) => {
   clearAiImage();
   ask(q, image);
 });
+function restoreAiImage(image) {
+  AI_IMAGE = image;
+  $("#ai-preview").src = image;
+  $("#ai-attachment").hidden = false;
+}
 function clearAiImage() {
   AI_IMAGE = "";
   $("#ai-image").value = "";

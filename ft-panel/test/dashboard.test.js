@@ -39,6 +39,8 @@ test('dashboard edits real bot items with image retry and sends an AI image', as
         else if (body.action === 'bot_manage' && body.op === 'reward_save') data = { ok: true, reward: { id: body.input.id || 'created-id', ...body.input.reward } };
         else if (body.action === 'bot_image' && imageFails) { imageFails = false; ok = false; error = 'تعذّر رفع الصورة'; }
         else if (body.action === 'bot_image') data = { ok: true };
+        else if (body.action === 'ai' && body.prompt === 'احتفظ بالمرفق') data = { reply: 'حدد الجائزة أولاً', actions: [], retainImage: true };
+        else if (body.action === 'ai' && body.prompt === 'خطأ شبكة') throw new Error('اختبار انقطاع الشبكة');
         else if (body.action === 'ai') data = { reply: 'هذه صورة تجريبية', actions: [] };
         return { status: 200, json: async () => ({ ok, ...(ok ? { data } : { error }) }) };
       };
@@ -84,6 +86,19 @@ test('dashboard edits real bot items with image retry and sends an AI image', as
     assert.equal(ai.prompt, 'اشرح الصورة');
     assert.equal(document.querySelector('#ai-attachment').hidden, true);
     await waitFor(() => document.querySelector('#chat').textContent.includes('هذه صورة تجريبية'), 'AI reply');
+    assert.deepEqual(errors, []);
+
+    aiInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await waitFor(() => !document.querySelector('#ai-attachment').hidden, 'second AI attachment');
+    document.querySelector('#aq').value = 'احتفظ بالمرفق';
+    document.querySelector('#af').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await waitFor(() => document.querySelector('#chat').textContent.includes('حدد الجائزة أولاً'), 'clarification');
+    assert.equal(document.querySelector('#ai-attachment').hidden, false, 'retain image for clarification without re-uploading');
+    document.querySelector('#aq').value = 'خطأ شبكة';
+    document.querySelector('#af').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await waitFor(() => document.querySelector('#chat').textContent.includes('اختبار انقطاع الشبكة'), 'network error');
+    assert.equal(document.querySelector('#ai-attachment').hidden, false, 'retain image after network failure');
+    assert.equal(calls.filter(c => c.action === 'ai' && c.prompt === 'خطأ شبكة').length, 2, 'idempotent request may be retried');
     assert.deepEqual(errors, []);
   } finally { dom.window.close(); }
 });

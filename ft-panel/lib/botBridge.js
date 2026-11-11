@@ -99,10 +99,10 @@ function validImage(data) {
   if (match[1] === 'gif') return ['GIF87a', 'GIF89a'].includes(bytes.subarray(0, 6).toString('ascii'));
   return bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP';
 }
-async function uploadImage(kind, id, data) {
+async function uploadImage(kind, id, data, { timeout = 20000 } = {}) {
   if (!['contest', 'reward'].includes(kind) || !/^[A-Za-z0-9_-]{1,64}$/.test(String(id))) throw new Error('المسابقة أو الجائزة غير صالحة');
   if (!validImage(data)) throw new Error('الصورة غير صالحة أو أكبر من 1.4 ميغا؛ استعمل JPG أو PNG أو WEBP أو GIF');
-  return json(await call('/api/admin2', { body: { action: `${kind}_image`, id, dataUrl: data }, timeout: 20000 }));
+  return json(await call('/api/admin2', { body: { action: `${kind}_image`, id, dataUrl: data }, timeout }));
 }
 async function photos(ids) {
   const unique = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(id => /^\d{1,20}$/.test(id)))].slice(0, 20);
@@ -127,12 +127,12 @@ async function photos(ids) {
 // The new management route has a fixed allowlist; never proxy arbitrary URLs or the bot's unrestricted AI endpoint.
 const VIEWS = new Set(['catalog', 'overview', 'stats', 'requests', 'log', 'users', 'user', 'leaderboard']);
 const OPERATIONS = new Set(['reward_save', 'reward_delete', 'contest_save', 'contest_delete', 'user_points', 'user_ban', 'request_decide', 'points_config', 'settings_save', 'set_group', 'send_message', 'broadcast']);
-async function manageView(view, id) {
+async function manageView(view, id, { timeout = 15000 } = {}) {
   if (!VIEWS.has(view)) throw new Error('عرض البوت غير مسموح');
   if (['user', 'leaderboard'].includes(view) && !/^[A-Za-z0-9_-]{1,64}$/.test(String(id || ''))) throw new Error('المعرّف غير صالح');
   const query = new URLSearchParams({ view });
   if (id) query.set('id', String(id));
-  return json(await call(`/api/panel/manage?${query}`));
+  return json(await call(`/api/panel/manage?${query}`, { timeout }));
 }
 async function manageOp(op, input = {}) {
   if (!OPERATIONS.has(op) || !input || typeof input !== 'object' || Array.isArray(input)) throw new Error('عملية البوت غير مسموحة');
@@ -140,7 +140,7 @@ async function manageOp(op, input = {}) {
 }
 async function analyzeImage(image, prompt) {
   if (!image || !validImage(image)) throw new Error('الصورة غير صالحة أو أكبر من 1.4 ميغا');
-  const result = await json(await call('/api/panel/vision', { body: { image, prompt: String(prompt || '').slice(0, 3000) }, timeout: 22000 }));
+  const result = await json(await call('/api/panel/vision', { body: { image, prompt: String(prompt || '').slice(0, 3000) }, timeout: 24000 }));
   if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('مزوّد الصور لم يرجع وصفاً');
   return { text: result.text.slice(0, 5000), provider: String(result.provider || '') };
 }

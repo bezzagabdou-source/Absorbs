@@ -164,19 +164,22 @@ export function setMockChannelState(next: { left?: string[]; broken?: string[] }
   mockGlobal.__ftMockBroken = (next.broken || []).map(String);
 }
 
-export type InlineKeyboard = { inline_keyboard: { text: string; url?: string; callback_data?: string }[][] };
+export type InlineKeyboard = { inline_keyboard: { text: string; url?: string; callback_data?: string; style?: "success" | "danger" | "primary" }[][] };
 
 export async function tgCall<T = unknown>(
   method: string,
   payload: Record<string, unknown> = {},
+  options: { quietFailure?: boolean } = {},
 ): Promise<TgResult<T>> {
   const settings = await getSettings();
   const token = currentBotToken() || settings.botToken;
 
   bumpTgCall(method);
 
-  // 🩺 نسجّل آخر النداءات دايماً (باش اللوحة تشوف شنو تصيفط فعلاً)
-  tracePush({ at: Date.now(), method, payload, botId: Number(token.split(":")[0]) || 0 } as never);
+  // Do not retain large embedded image data in diagnostic traces or mock logs.
+  const inlinePhoto = method === "sendPhoto" && typeof payload.photo === "string" && payload.photo.startsWith("data:image/");
+  const loggedPayload = inlinePhoto ? { ...payload, photo: "[inline image]" } : payload;
+  tracePush({ at: Date.now(), method, payload: loggedPayload, botId: Number(token.split(":")[0]) || 0 } as never);
 
   // 🧪 وضع التجربة: قراءة حقيقية، وكل كتابة تتسجّل بلا إرسال
   if (process.env.TG_DRY_RUN === "1" && !READ_METHODS.has(method) && !isMock()) {
@@ -186,7 +189,7 @@ export async function tgCall<T = unknown>(
 
   if (isMock()) {
     mockGlobal.__ftMockLog ||= [];
-    mockGlobal.__ftMockLog.unshift({ at: Date.now(), method, payload });
+    mockGlobal.__ftMockLog.unshift({ at: Date.now(), method, payload: loggedPayload });
     if (mockGlobal.__ftMockLog.length > 400) mockGlobal.__ftMockLog.length = 400;
     mockGlobal.__ftMockSeq = (mockGlobal.__ftMockSeq || 0) + 1;
     if (method === "getMe") {
@@ -248,22 +251,40 @@ export async function tgCall<T = unknown>(
 
 
   try {
+    let body: string | FormData = JSON.stringify(payload);
+    let headers: Record<string, string> | undefined = { "Content-Type": "application/json" };
+    if (inlinePhoto) {
+      const match = /^data:(image\/(?:png|jpe?g|webp|gif));base64,([\s\S]+)$/.exec(String(payload.photo));
+      if (!match) return { ok: false, description: "الصورة غير صالحة" };
+      const encoded = match[2].replace(/\s/g, "");
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) return { ok: false, description: "الصورة غير صالحة" };
+      const bytes = Buffer.from(encoded, "base64");
+      if (!bytes.length || bytes.length > 1_500_000 || bytes.toString("base64") !== encoded) return { ok: false, description: "الصورة غير صالحة أو كبيرة" };
+      const form = new FormData();
+      for (const [key, value] of Object.entries(payload)) {
+        if (value === undefined || value === null || key === "photo") continue;
+        form.set(key, typeof value === "object" ? JSON.stringify(value) : String(value));
+      }
+      const mime = match[1] === "image/jpg" ? "image/jpeg" : match[1];
+      const extension = mime === "image/jpeg" ? "jpg" : mime.split("/")[1];
+      form.set("photo", new Blob([bytes], { type: mime }), `reward.${extension}`);
+      body = form;
+      headers = undefined; // fetch creates the multipart boundary.
+    }
     const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
+      method: "POST", headers, body, cache: "no-store", signal: AbortSignal.timeout(method === "sendPhoto" ? 12000 : 8000),
     });
     const json = (await res.json()) as TgResult<T>;
-    if (!json.ok) {
+    if (!json.ok && !options.quietFailure) {
       console.error(`[tg] ${method}`, json.description);
       pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: String(json.description || "خطأ") });
     }
     return json;
   } catch (error) {
-    console.error(`[tg] ${method} network error`, error);
-    pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "تعذّر الاتصال بتلغرام" });
+    if (!options.quietFailure) {
+      console.error(`[tg] ${method} network error`, error);
+      pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "تعذّر الاتصال بتلغرام" });
+    }
     return { ok: false, description: "تعذّر الاتصال بتلغرام" };
   }
 }
@@ -322,9 +343,13 @@ export async function editMessage(
     parse_mode: "HTML",
     disable_web_page_preview: true,
     ...(keyboard ? { reply_markup: keyboard } : {}),
-  });
+  }, { quietFailure: true });
   if (!res.ok) {
-    return sendMessage(chatId, text, keyboard);
+    // Photo messages cannot be edited as text. Once a replacement is sent, remove
+    // the old keyboard so its purchase/confirm button cannot be tapped again.
+    const sent = await sendMessage(chatId, text, keyboard);
+    if (sent.ok) await tgCall("editMessageReplyMarkup", { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }, { quietFailure: true });
+    return sent;
   }
   return res;
 }

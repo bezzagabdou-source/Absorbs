@@ -64,7 +64,7 @@ import { getUser, touchUser } from "./users";
 
 /* ───────────────────────────── helpers ───────────────────────────── */
 
-type Button = { text: string; callback_data?: string; url?: string };
+type Button = { text: string; callback_data?: string; url?: string; style?: "success" | "danger" | "primary" };
 
 function keyboard(rows: Button[][]): InlineKeyboard {
   return { inline_keyboard: rows };
@@ -126,16 +126,17 @@ export async function checkChannels(
   userId: number | string,
 ): Promise<{ required: string[]; missing: ChannelCheck[]; soft: string[]; ok: boolean }> {
   const required = requiredChannelsOf(settings);
+  // Independent membership checks run concurrently so reward photos open promptly.
+  const checked = await Promise.all(required.map(async (chat) => ({
+    chat, res: await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId }),
+  })));
   const missing: ChannelCheck[] = [];
   const soft: string[] = [];
-  for (const chat of required) {
-    const res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
+  for (const { chat, res } of checked) {
     // 🛟 أي فشل من تيليغرام = تجاوز القناة (ما نوقفوش البوت على خطأ تحقّق)
     if (!res.ok || !res.result) {
       soft.push(`${chat}: ${res.description || "تعذّر التحقّق"}`);
-      continue;
-    }
-    if (!MEMBER_STATUS.includes(res.result.status)) {
+    } else if (!MEMBER_STATUS.includes(res.result.status)) {
       missing.push({ chat, url: channelUrl(chat), status: res.result.status });
     }
   }
@@ -225,6 +226,15 @@ function sortForDisplay(list: Reward[]): Reward[] {
   });
 }
 
+/** اسم الجائزة أخضر والسعر أحمر؛ كلا الزرين يفتح نفس الجائزة والصورة. */
+function rewardButtons(r: Reward): Button[] {
+  const soldOut = r.stock !== null && r.stock <= 0;
+  return [
+    { text: `${r.emoji} ${r.title}${soldOut ? " 🚫" : ""}`, callback_data: `buy:${r.id}`, style: "success" },
+    { text: `⭐ ${r.cost} نقطة`, callback_data: `buy:${r.id}`, style: "danger" },
+  ];
+}
+
 /**
  * 🎁 «المسابقات» (كيما الصورة): كل الجوائز في سطر واحد لكل جائزة
  *    🎁 المسابقات / 💵 رصيدك: N نقطة / اختر الجائزة التي تريد استبدالها
@@ -244,17 +254,7 @@ async function showRewardsAll(
     "",
     rewards.length ? "اختر الجائزة التي تريد استبدالها:" : "ما زال ماكانش جوائز — المالك يزيدها من اللوحة.",
   ];
-  const rows: Button[][] = rewards.map((r) => {
-    const soldOut = r.stock !== null && r.stock <= 0;
-    return [
-      {
-        text: soldOut
-          ? `${r.emoji} ${r.title} — ${r.cost} نقطة ( غير متوفر الآن 🚫 )`
-          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
-        callback_data: `buy:${r.id}`,
-      },
-    ];
-  });
+  const rows: Button[][] = rewards.map(rewardButtons);
   rows.push([{ text: "⬅️ القائمة الرئيسية BACK", callback_data: "home" }]);
   const kb = keyboard(rows);
   const text = lines.join("\n");
@@ -782,17 +782,7 @@ async function showSection(
     `— قسم ${title}`,
   ];
   // 🎁 كيما الصورة: سطر واحد لكل جائزة → «Emoji الاسم — النقاط نقطة»
-  const rows: Button[][] = rewards.map((r) => {
-    const soldOut = r.stock !== null && r.stock <= 0;
-    return [
-      {
-        text: soldOut
-          ? `${r.emoji} ${r.title} — ${r.cost} نقطة ( غير متوفر الآن 🚫 )`
-          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
-        callback_data: `buy:${r.id}`,
-      },
-    ];
-  });
+  const rows: Button[][] = rewards.map(rewardButtons);
   rows.push([{ text: "⬅️ المتجر", callback_data: "shop" }]);
   rows.push([{ text: "🏠 القائمة الرئيسية", callback_data: "home" }]);
   const kb = keyboard(rows);
@@ -823,44 +813,36 @@ async function showReward(chatId: number | string, user: BotUser, rewardId: stri
   const kb = keyboard([
     [
       enough && !soldOut
-        ? { text: `✅ يخدم — استبدل بـ ${reward.cost} نقطة`, callback_data: `confirm:${reward.id}` }
+        ? { text: `✅ استبدل بـ ${reward.cost} نقطة`, callback_data: `confirm:${reward.id}`, style: "success" }
         : {
             text: soldOut ? "🚫 غير متوفر الآن" : `🔒 باقي ${reward.cost - balance} نقطة`,
-            callback_data: "shop",
+            callback_data: "shop", style: "danger",
           },
-      { text: "❌ ما يخدمش — رجوع", callback_data: "shop" },
+      { text: "⬅️ رجوع", callback_data: "shop", style: "danger" },
     ],
     [{ text: "🏠 القائمة الرئيسية", callback_data: "home" }],
   ]);
   const text = [rewardLine(reward, balance), "", `💰 رصيدك: <b>${balance}</b> نقطة`].join("\n");
-  if (messageId) {
-    // 🖼️ الصورة تظهر غير إذا رفعها المالك من اللوحة
-    const origin = reward.image ? await currentOrigin().catch(() => "") : "";
-    const photo = origin ? `${origin}/api/rewards/${reward.id}/image` : "";
-    if (photo) {
-      const edited = await tgCall("editMessageMedia", {
-        chat_id: chatId,
-        message_id: messageId,
-        media: { type: "photo", media: photo, caption: text.slice(0, 1000), parse_mode: "HTML" },
-        reply_markup: kb,
-      });
-      if (edited.ok) return;
+  // Telegram cannot turn a text message into a photo using editMessageMedia.
+  // Send a real photo message, uploading stored bytes directly to avoid stale or protected URLs.
+  if (reward.image) {
+    const caption = [
+      `${String(reward.emoji || "🎁").slice(0, 16)} ${String(reward.title || "").slice(0, 160)}`,
+      reward.desc ? reward.desc.slice(0, 500) : "",
+      `⭐ السعر: ${reward.cost} نقطة`,
+      soldOut ? "📦 نفدت الكمية ❌" : reward.stock === null ? "📦 متوفر ✅" : `📦 متوفر ✅ (باقي ${reward.stock})`,
+      reward.delivery ? `🚚 التسليم: ${reward.delivery.slice(0, 200)}` : "",
+      `💰 رصيدك: ${balance} نقطة`,
+      soldOut ? "🚫 غير متوفر الآن" : enough ? "✅ عندك نقاط كافية" : `🔒 باقي لك ${reward.cost - balance} نقطة`,
+    ].filter(Boolean).join("\n").slice(0, 1000);
+    const sent = await tgCall("sendPhoto", { chat_id: chatId, photo: reward.image, caption, reply_markup: kb });
+    if (sent.ok) {
+      if (messageId) await tgCall("editMessageReplyMarkup", { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }, { quietFailure: true });
+      return;
     }
-    await editMessage(chatId, messageId, text, kb);
-    return;
   }
-  const origin = reward.image ? await currentOrigin().catch(() => "") : "";
-  if (origin) {
-    const sent = await tgCall("sendPhoto", {
-      chat_id: chatId,
-      photo: `${origin}/api/rewards/${reward.id}/image`,
-      caption: text.slice(0, 1000),
-      parse_mode: "HTML",
-      reply_markup: kb,
-    });
-    if (sent.ok) return;
-  }
-  await sendMessage(chatId, text, kb);
+  if (messageId) await editMessage(chatId, messageId, text, kb);
+  else await sendMessage(chatId, text, kb);
 }
 
 async function buyReward(chatId: number | string, user: BotUser, rewardId: string, messageId?: number, settings?: Settings) {

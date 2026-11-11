@@ -163,13 +163,8 @@ export async function POST(request: NextRequest) {
 async function handleWebhook(update: TgUpdate) {
   const settings = await getSettings();
 
-  // 🩺 نسجّلو هوية البوت + حالة الويب هوك ف كل تحديث (باش نعرفو واش الإرسال يخدم)
-  try {
-    await saveBotMeta();
-  } catch {
-    /* ما نعطّلوش الردّ */
-  }
-
+  // Diagnostics run in parallel instead of blocking the user's callback/photo.
+  const meta = saveBotMeta().catch(() => undefined);
   await trackBotMessage();
 
   // 🩺 تدقيق: آخر 40 تحديث وصلو + شنو ردّ البوت عليهم/أي خطأ (للتشخيص من اللوحة)
@@ -181,6 +176,7 @@ async function handleWebhook(update: TgUpdate) {
     error = String((e as Error)?.message || e);
     console.error("[webhook] failed to handle update", e);
   }
+  await meta;
   try {
     await pushAudit({ at: Date.now(), ...detail, error });
   } catch {
