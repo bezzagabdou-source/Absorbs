@@ -132,12 +132,14 @@ export const DEFAULT_POINTS: PointsConfig = {
 export const DEFAULT_REWARDS: Reward[] = [
   { id: "r_wa", emoji: "🤝", title: "وساطة مجانية", desc: "وساطة مجانية في بيع/شراء حساب FT", cost: 15, stock: null, active: true, order: 1, delivery: "يتواصل معك المالك على الخاص", section: "services" },
   { id: "r_usd", emoji: "💵", title: "1$ دولار", desc: "دولار واحد (رصيد/تحويل حسب المالك)", cost: 45, stock: 0, active: true, order: 2, delivery: "يتواصل معك المالك على الخاص", section: "services" },
-  { id: "r_star25", emoji: "🌟", title: "25 نجمة", desc: "25 نجمة تيليغرام", cost: 35, stock: 0, active: true, order: 3, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
-  { id: "r_star50", emoji: "⭐", title: "50 نجمة", desc: "50 نجمة تيليغرام على حسابك", cost: 65, stock: 0, active: true, order: 4, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
-  { id: "r_star100", emoji: "💫", title: "100 نجمة", desc: "100 نجمة تيليغرام", cost: 100, stock: 0, active: true, order: 5, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
-  { id: "r_bear", emoji: "🧸", title: "دب", desc: "هدية دب تيليغرام", cost: 20, stock: 0, active: true, order: 6, delivery: "بعد الموافقة تُرسل الهدية", section: "points" },
-  { id: "r_bp2", emoji: "🎁", title: "كونت بيس 2", desc: "حساب بيس (باقة ثانية)", cost: 55, stock: null, active: true, order: 7, delivery: "يُسلّم إيميل + كلمة سر", section: "accounts" },
-  { id: "r_bp", emoji: "🎁", title: "كونت بيس", desc: "حساب بيس كامل", cost: 280, stock: null, active: true, order: 8, delivery: "يُسلّم إيميل + كلمة سر", section: "accounts" },
+  // 🎁 الجوائز النافدة (كيما الصورة — «غير متوفر الآن»)
+  { id: "r_star25", emoji: "🌟", title: "25 نجمة", desc: "25 نجمة تيليغرام", cost: 35, stock: 0, active: true, order: 7, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
+  { id: "r_star50", emoji: "⭐", title: "50 نجمة", desc: "50 نجمة تيليغرام على حسابك", cost: 65, stock: 0, active: true, order: 8, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
+  { id: "r_star100", emoji: "💫", title: "100 نجمة", desc: "100 نجمة تيليغرام", cost: 100, stock: 0, active: true, order: 9, delivery: "بعد الموافقة تُرسل النجوم", section: "points" },
+  { id: "r_bear", emoji: "🧸", title: "دب", desc: "هدية دب تيليغرام", cost: 20, stock: 0, active: true, order: 10, delivery: "بعد الموافقة تُرسل الهدية", section: "points" },
+  // 🎁 الجوائز المتوفرة (فوق، كيما الصورة)
+  { id: "r_bp", emoji: "🎁", title: "كونت بيس", desc: "حساب بيس كامل", cost: 280, stock: null, active: true, order: 11, delivery: "يُسلّم إيميل + كلمة سر", section: "accounts" },
+  { id: "r_bp2", emoji: "🎁", title: "حساب بيس رقم 2", desc: "حساب بيس (باقة ثانية)", cost: 55, stock: null, active: true, order: 12, delivery: "يُسلّم إيميل + كلمة سر", section: "accounts" },
 ];
 
 const KEY = {

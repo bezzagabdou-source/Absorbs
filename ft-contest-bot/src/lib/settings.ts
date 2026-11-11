@@ -25,9 +25,10 @@ const SETTINGS_KEY = "settings";
 const GATE_VERSION = 2;
 const SECRET_KEY = "system:secret";
 
-/** هل النص هو الترحيب الطويل القديم؟ (نهاجر منه إلى النص القصير) */
+/** هل النص هو ترحيب قديم جداً لازم يتبدّل؟ (نحافظ على ترحيب الصورة) */
 function isOldLongWelcome(text: string): boolean {
-  return text.length > 90 || /هنا تربح|اختر من الأزرار|أهلاً \{name\}/.test(text);
+  if (text.includes("{points}")) return false; // ترحيب النسخة القديمة (الصورة) — نحافظ عليه
+  return text.length > 90 || /هنا تربح|اختر من الأزرار/.test(text);
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -41,7 +42,10 @@ export async function getSettings(): Promise<Settings> {
     botToken: saved.botToken || envToken,
     ownerUsername: (saved.ownerUsername || OWNER_USERNAME).replace(/^@/, ""),
     supportUsername: (saved.supportUsername || saved.ownerUsername || OWNER_USERNAME).replace(/^@/, ""),
-    welcomeText: !savedWelcome || isOldLongWelcome(savedWelcome) ? WELCOME_TEXT : savedWelcome,
+    welcomeText:
+      !savedWelcome || savedWelcome === "مرحبا بكم في بوت مسابقات FT" || isOldLongWelcome(savedWelcome)
+        ? WELCOME_TEXT
+        : savedWelcome,
     requiredChannels: (() => {
       const list = normalizeChannels(saved.requiredChannels);
       if (list.length) return list;

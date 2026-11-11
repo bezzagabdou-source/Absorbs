@@ -232,28 +232,51 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   return keyboard(rows);
 }
 
-/** 🎁 لائحة المسابقات (زر «المسابقات» في القائمة الرئيسية) */
-async function showContestList(
+/** 🎁 ترتيب العرض كيما الصورة: حسابات بيس (تنازلي) ← النقاط ← الخدمات (تصاعدي) */
+function sortForDisplay(list: Reward[]): Reward[] {
+  const rank = (r: Reward) => (r.section === "accounts" ? 0 : r.section === "points" ? 1 : 2);
+  return [...list].sort((a, b) => {
+    const d = rank(a) - rank(b);
+    if (d !== 0) return d;
+    return rank(a) === 0 ? b.cost - a.cost : a.cost - b.cost;
+  });
+}
+
+/**
+ * 🎁 «المسابقات» (كيما الصورة): كل الجوائز في سطر واحد لكل جائزة
+ *    🎁 المسابقات / 💵 رصيدك: N نقطة / اختر الجائزة التي تريد استبدالها
+ */
+async function showRewardsAll(
   chatId: number | string,
   user: BotUser,
   settings: Settings,
   messageId?: number,
 ) {
-  const contests = (await listContests()).filter((c) => c.status !== "draft");
-  const rows: Button[][] = contests.map((c) => [
-    {
-      text: `${c.status === "ended" ? "🏁" : "🎯"} ${c.title} • ${c.target} جهة`,
-      callback_data: c.mode === "group" ? "fastest" : `c:${c.id}`,
-    },
-  ]);
-  const text = contests.length
-    ? ["🎁 <b>المسابقات</b>", "", "👇 اختر مسابقة:"].join("\n")
-    : "🎁 ما فيه مسابقة منشورة دابا.";
+  const rewards = sortForDisplay((await ensureRewards()).filter((r) => r.active));
+  const balance = await balanceOf(String(user.id));
+  const lines = [
+    "🎁 <b>المسابقات</b>",
+    "",
+    `💵 رصيدك: <b>${balance}</b> نقطة`,
+    "",
+    rewards.length ? "اختر الجائزة التي تريد استبدالها:" : "ما زال ماكانش جوائز — المالك يزيدها من اللوحة.",
+  ];
+  const rows: Button[][] = rewards.map((r) => {
+    const soldOut = r.stock !== null && r.stock <= 0;
+    return [
+      {
+        text: soldOut
+          ? `${r.emoji} ${r.title} — ${r.cost} نقطة ( غير متوفر الآن 🚫 )`
+          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
+        callback_data: `buy:${r.id}`,
+      },
+    ];
+  });
   rows.push([{ text: "⬅️ القائمة الرئيسية BACK", callback_data: "home" }]);
   const kb = keyboard(rows);
+  const text = lines.join("\n");
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else await sendMessage(chatId, text, kb);
-  void user;
   void settings;
 }
 
@@ -443,9 +466,11 @@ async function showHome(
   messageId?: number,
 ) {
   const contests = await listContests();
+  const balance = await balanceOf(String(user.id));
   const text = (settings.welcomeText || "مرحبا بكم في بوت مسابقات FT")
     .replace(/\{name\}/g, nameOf(user))
-    .replace(/\{count\}/g, String(contests.filter((c) => c.status === "active").length));
+    .replace(/\{count\}/g, String(contests.filter((c) => c.status === "active").length))
+    .replace(/\{points\}/g, String(balance));
   const kb = homeKeyboard(settings, contests);
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else await sendMessage(chatId, text, kb);
@@ -761,18 +786,18 @@ async function showSection(
   section: "accounts" | "points" | "services",
   messageId?: number,
 ) {
-  const rewards = (await ensureRewards())
-    .filter((r) => r.active && (r.section || "accounts") === section)
-    .sort((a, b) => a.order - b.order);
+  const rewards = sortForDisplay(
+    (await ensureRewards()).filter((r) => r.active && (r.section || "accounts") === section),
+  );
   const balance = await balanceOf(String(user.id));
   const title = section === "accounts" ? "حسابات بيس" : section === "points" ? "النقاط" : "الخدمات";
-  const icon = section === "accounts" ? "🎁" : section === "points" ? "⭐️" : "🤝";
   const lines = [
-    `${icon} <b>قسم ${title}</b>`,
+    "🎁 <b>المسابقات</b>",
     "",
     `💵 رصيدك: <b>${balance}</b> نقطة`,
     "",
-    rewards.length ? "👇 اختر الجائزة:" : "ما زال ماكانش جوائز في هاد القسم.",
+    rewards.length ? "اختر الجائزة التي تريد استبدالها:" : "ما زال ماكانش جوائز في هاد القسم.",
+    `— قسم ${title}`,
   ];
   // 🎁 كيما الصورة: سطر واحد لكل جائزة → «Emoji الاسم — النقاط نقطة»
   const rows: Button[][] = rewards.map((r) => {
@@ -1852,7 +1877,7 @@ async function handleCallback(query: TgCallbackQuery) {
 
   switch (action) {
     case "home_list":
-      await showContestList(chatId, user, settings, messageId);
+      await showRewardsAll(chatId, user, settings, messageId);
       return;
     case "profile":
       await showProfile(chatId, user, settings, messageId);
