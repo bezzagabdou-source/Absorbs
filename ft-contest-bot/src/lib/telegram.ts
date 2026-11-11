@@ -88,6 +88,8 @@ export type TgResult<T = unknown> = {
   parameters?: { retry_after?: number };
   /** The request may have reached Telegram, so it must not be retried blindly. */
   uncertain?: boolean;
+  /** The connection failed before HTTP could be sent; safe to try again. */
+  retryable?: boolean;
 };
 
 export type MockCall = { at: number; method: string; payload: Record<string, unknown> };
@@ -289,6 +291,10 @@ export async function tgCall<T = unknown>(
       method: "POST", headers, body, cache: "no-store", signal: AbortSignal.timeout(method === "sendPhoto" ? 12000 : 8000),
     });
     const json = (await res.json()) as TgResult<T>;
+    if (!json || typeof json.ok !== "boolean" || (!json.ok && !Number.isInteger(json.error_code))) {
+      // A malformed response cannot prove whether Telegram accepted the write.
+      return { ok: false, description: "رد غير واضح من تلغرام", uncertain: true };
+    }
     if (!json.ok && !options.quietFailure) {
       console.error(`[tg] ${method}`, json.description);
       pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: String(json.description || "خطأ") });
@@ -299,7 +305,12 @@ export async function tgCall<T = unknown>(
       console.error(`[tg] ${method} network error`, error);
       pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "تعذّر الاتصال بتلغرام" });
     }
-    return { ok: false, description: "تعذّر الاتصال بتلغرام", uncertain: true };
+    const failure = error as { code?: string; cause?: { code?: string } };
+    const code = String(failure?.cause?.code || failure?.code || "");
+    const retryable = ["ENOTFOUND", "EAI_AGAIN", "ENETUNREACH", "EHOSTUNREACH", "ECONNREFUSED", "UND_ERR_CONNECT_TIMEOUT"].includes(code);
+    // A timeout/reset after connecting may have delivered the message: never
+    // retry that automatically. DNS/connect failures are known pre-send.
+    return { ok: false, description: "تعذّر الاتصال بتلغرام", uncertain: !retryable, retryable };
   }
 }
 

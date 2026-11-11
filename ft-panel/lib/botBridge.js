@@ -126,7 +126,7 @@ async function photos(ids) {
 }
 // The new management route has a fixed allowlist; never proxy arbitrary URLs or the bot's unrestricted AI endpoint.
 const VIEWS = new Set(['catalog', 'overview', 'stats', 'requests', 'log', 'users', 'user', 'leaderboard', 'broadcast']);
-const OPERATIONS = new Set(['reward_save', 'reward_delete', 'contest_save', 'contest_delete', 'user_points', 'user_ban', 'request_decide', 'points_config', 'settings_save', 'set_group', 'send_message', 'broadcast', 'broadcast_start', 'broadcast_step']);
+const OPERATIONS = new Set(['reward_save', 'reward_delete', 'contest_save', 'contest_delete', 'user_points', 'user_ban', 'request_decide', 'points_config', 'settings_save', 'set_group', 'send_message', 'broadcast', 'broadcast_start', 'broadcast_step', 'broadcast_retry']);
 async function manageView(view, id, { timeout = 15000 } = {}) {
   if (!VIEWS.has(view)) throw new Error('عرض البوت غير مسموح');
   if ((['user', 'leaderboard'].includes(view) || (view === 'broadcast' && id)) && !/^[A-Za-z0-9_-]{1,100}$/.test(String(id || ''))) throw new Error('المعرّف غير صالح');
@@ -136,7 +136,7 @@ async function manageView(view, id, { timeout = 15000 } = {}) {
 }
 async function manageOp(op, input = {}) {
   if (!OPERATIONS.has(op) || !input || typeof input !== 'object' || Array.isArray(input)) throw new Error('عملية البوت غير مسموحة');
-  return json(await call('/api/panel/manage', { body: { ...input, op }, timeout: ['broadcast', 'broadcast_start', 'broadcast_step'].includes(op) ? 45000 : 20000 }));
+  return json(await call('/api/panel/manage', { body: { ...input, op }, timeout: ['broadcast', 'broadcast_start', 'broadcast_step', 'broadcast_retry'].includes(op) ? 45000 : 20000 }));
 }
 async function analyzeImage(image, prompt) {
   if (!image || !validImage(image)) throw new Error('الصورة غير صالحة أو أكبر من 1.4 ميغا');

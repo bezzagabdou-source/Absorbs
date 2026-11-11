@@ -61,6 +61,7 @@ const TOOLS = [
   fn('ft_send_message', 'إرسال رسالة حقيقية لعضو FT-bot بمعرفه', { userId: S, text: S }, ['userId', 'text']),
   fn('ft_broadcast_all', 'بدء بث إلى كل أعضاء FT-bot المسجلين وقت البدء، مع استبعاد المحظورين؛ يتابع المتصفح دفعات البث ولا تعني بدايته اكتماله. اطلبه صراحة فقط', { text: S }, ['text']),
   fn('ft_broadcast_status', 'حالة آخر بث أو بث محدد: الإرسال والفشل والمستبعد وغير المؤكد والمتبقي', { jobId: S }),
+  fn('ft_broadcast_retry', 'إعادة محاولة الرسائل المرفوضة فقط بعد انتهاء بث محدد، دون إعادة الناجحة أو غير المؤكدة. نفّذ بطلب صريح', { jobId: S }, ['jobId']),
   fn('ft_set_attached_image', 'وضع الصورة المرفقة بالرسالة الحالية على جائزة أو مسابقة FT-bot. حدد النوع والمعرف بعد التحقق', { kind: { type: 'string', enum: ['reward', 'contest'] }, id: S }, ['kind', 'id']),
   fn('ft_remove_image', 'حذف صورة جائزة أو مسابقة FT-bot بطلب صريح', { kind: { type: 'string', enum: ['reward', 'contest'] }, id: S }, ['kind', 'id']),
   ...agent.TOOLS,
@@ -105,6 +106,7 @@ const IMPL = {
   ft_send_message: a => bot.manageOp('send_message', pick(a, ['userId', 'text'])),
   ft_broadcast_all: (a, context) => bot.manageOp('broadcast_start', { text: a.text, jobId: context.requestId, confirm: true }),
   ft_broadcast_status: a => bot.manageView('broadcast', a.jobId),
+  ft_broadcast_retry: a => bot.manageOp('broadcast_retry', { jobId: a.jobId, confirm: true }),
   ft_set_attached_image: (a, context) => {
     if (!context.image) throw new Error('لا توجد صورة مرفقة بهذا الطلب');
     return bot.uploadImage(a.kind, a.id, context.image);
@@ -114,7 +116,7 @@ const IMPL = {
 };
 const READ_ONLY = new Set(['get_stats', 'list_prizes', 'find_user', 'top_users', 'list_requests', 'get_settings', 'get_channels', 'bot_health', 'ft_overview', 'ft_activity', 'ft_catalog', 'ft_users', 'ft_find_user', 'ft_requests', 'ft_referrals', 'ft_referral_config', 'ft_leaderboard', 'ft_log', 'ft_broadcast_status', ...agent.READ_ONLY]);
 const DELETIONS = new Set(['delete_prize', 'ft_delete_reward', 'ft_delete_contest', 'ft_remove_image']);
-const BROADCASTS = new Set(['broadcast', 'ft_broadcast_all']);
+const BROADCASTS = new Set(['broadcast', 'ft_broadcast_all', 'ft_broadcast_retry']);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function chat(messages, deadline) {
@@ -369,6 +371,7 @@ async function runAI(prompt, history, image, options = {}) {
               if (!Object.hasOwn(agent.IMPL, name)) notes.push('عملية الإدارة أو الإرسال هذه لا يدعمها التراجع التلقائي للوكيل.');
             }
             if (name === 'ft_broadcast_all') notes.push(`أُنشئ بث لجميع ${result.total} عضواً مسجلاً؛ لم يكتمل بعد. تُعرض النتائج الحقيقية أثناء متابعة الدفعات؛ أبقِ الصفحة مفتوحة أو استأنفه لاحقاً.`);
+            if (name === 'ft_broadcast_retry') notes.push(`أُنشئت إعادة محاولة لـ ${result.total} من المرفوضين فقط، لا الناجحين ولا غير المؤكدين؛ أبقِ الصفحة مفتوحة حتى تنتهي الدفعات.`);
             if (name === 'ft_decide_request' && !result.notified) notes.push('حُدّث الطلب، لكن تعذّر إشعار العضو.');
           }
         } catch (e) { ok = false; result = { error: repo.redact(String(e.message || 'تعذر التنفيذ')).slice(0, 300) }; }
@@ -390,7 +393,7 @@ async function runAI(prompt, history, image, options = {}) {
       return { reply: [unseenImageReply(actions, attachmentRequested, visionFailed), ...notes].join('\n'), actions, retainImage: attachmentRequested && !actions.some(a => a.tool === 'ft_set_attached_image' && a.ok) };
     }
     const failed = actions.some((a, i) => !a.ok && !a.skipped && !actions.slice(i + 1).some(later => later.tool === a.tool && later.ok));
-    const startedBroadcast = actions.some(a => a.tool === 'ft_broadcast_all' && a.ok);
+    const startedBroadcast = actions.some(a => ['ft_broadcast_all', 'ft_broadcast_retry'].includes(a.tool) && a.ok);
     const answer = startedBroadcast ? 'بدأت مهمة البث، وليست مكتملة بعد.' : failed ? 'بعض العمليات لم تنجح؛ راجع نتيجة كل أداة أدناه.' : (typeof msg.content === 'string' && msg.content.trim() ? msg.content : 'لم أستطع توليد رد واضح.');
     return { reply: [answer, ...new Set(notes)].join('\n'), actions, retainImage: attachmentRequested && !actions.some(a => a.tool === 'ft_set_attached_image' && a.ok) };
   }

@@ -125,7 +125,12 @@ test('owner instruction page saves settings and broadcast UI runs durable batche
         else if (body.action === 'bot_view' && body.view === 'overview') data = { stats: {}, settings: {}, points: {}, group: {} };
         else if (body.action === 'bot_view' && body.view === 'stats') data = { activity: {} };
         else if (body.action === 'bot_manage' && body.op === 'broadcast_start') data = { jobId: body.input.jobId, total: 120, sent: 0, failed: 0, excludedBanned: 0, unknown: 0, remaining: 120, done: false };
-        else if (body.action === 'bot_manage' && body.op === 'broadcast_step') { steps++; data = { jobId: body.input.jobId, total: 120, sent: steps === 1 ? 60 : 118, failed: steps === 1 ? 0 : 1, excludedBanned: 1, unknown: 0, remaining: steps === 1 ? 59 : 0, done: steps > 1 }; }
+        else if (body.action === 'bot_manage' && body.op === 'broadcast_retry') data = { jobId: 'retry_12345678901234567890', total: 1, sent: 0, failed: 0, excludedBanned: 0, unknown: 0, remaining: 1, done: false };
+        else if (body.action === 'bot_manage' && body.op === 'broadcast_step') {
+          steps++;
+          data = body.input.jobId.startsWith('retry_') ? { jobId: body.input.jobId, total: 1, sent: 1, failed: 0, excludedBanned: 0, unknown: 0, remaining: 0, done: true }
+            : { jobId: body.input.jobId, total: 120, sent: steps === 1 ? 60 : 118, failed: steps === 1 ? 0 : 1, excludedBanned: 1, unknown: 0, remaining: steps === 1 ? 59 : 0, done: steps > 1, failureReasons: { blocked: 1, notStarted: 0, deactivated: 0, network: 0, other: 0 } };
+        }
         return { status: 200, json: async () => ({ ok: true, data }) };
       };
     },
@@ -148,7 +153,12 @@ test('owner instruction page saves settings and broadcast UI runs durable batche
     assert.equal(steps, 2);
     assert.equal(calls.find(c => c.op === 'broadcast_start').input.confirm, true);
     assert.match(document.querySelector('#broadcast-progress').textContent, /أُرسل 118/);
+    assert.match(document.querySelector('#broadcast-progress').textContent, /حظروا البوت 1/);
     assert.equal(dom.window.localStorage.getItem('ft-active-broadcast-v1'), null);
+    document.querySelector('[data-act="broadcast-retry"]').click();
+    await waitFor(() => calls.some(c => c.op === 'broadcast_retry'), 'retry rejected messages');
+    await waitFor(() => steps === 3 && document.querySelector('#broadcast-progress').textContent.includes('أُرسل 1'), 'retry completion');
+    assert.equal(calls.find(c => c.op === 'broadcast_retry').input.confirm, true);
     assert.deepEqual(errors, []);
   } finally { dom.window.close(); }
 });

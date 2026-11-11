@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { broadcastStatus, createBroadcast, latestBroadcast, processBroadcast } from "@/lib/broadcast";
+import { broadcastStatus, createBroadcast, latestBroadcast, processBroadcast, retryFailedBroadcast } from "@/lib/broadcast";
 import { NextResponse, type NextRequest } from "next/server";
 import { createContest, deleteContest, getContest, getLeaderboard, listContests, updateContest } from "@/lib/contests";
 import { panelStats } from "@/lib/agent";
@@ -288,6 +288,16 @@ export async function POST(request: NextRequest) {
       const result = await createBroadcast(id, text);
       await log("broadcast_start", `بدء بث ${id} إلى ${result.total} عضو مسجل`);
       return reply({ ok: true, ...result });
+    }
+    if (op === "broadcast_retry") {
+      if (body.confirm !== true) return fail("تأكيد إعادة محاولة المرفوضين مطلوب");
+      const id = typeof body.jobId === "string" ? body.jobId : "";
+      if (!/^[A-Za-z0-9_-]{16,100}$/.test(id)) return fail("معرّف البث غير صالح");
+      try {
+        const result = await retryFailedBroadcast(id);
+        await log("broadcast_retry", `إعادة المرفوضين من البث ${id}: ${result.total}`);
+        return reply({ ok: true, ...result });
+      } catch (error) { return fail(error instanceof Error ? error.message.slice(0, 200) : "تعذّرت إعادة المحاولة", 409); }
     }
     if (op === "broadcast_step") {
       const id = typeof body.jobId === "string" ? body.jobId : "";

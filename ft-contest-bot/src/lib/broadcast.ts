@@ -1,12 +1,13 @@
 import crypto from "node:crypto";
 import { getStore } from "./store";
-import { sendMessage, type TgResult } from "./telegram";
+import { runWithBotToken, secondBotToken, sendMessage, type TgResult } from "./telegram";
+import { getSettings } from "./settings";
 
 // Each job freezes the registered-ID set, including legacy users without a
 // joined-ranking entry. IDs added after creation belong to the next broadcast.
 // Claims are durable *before* Telegram is called: a killed/timed-out request
 // is reported as uncertain instead of ever being sent twice.
-type Job = { id: string; text: string; ids: string[]; createdAt: number };
+type Job = { id: string; text: string; ids: string[]; createdAt: number; retryOf?: string };
 const base = (id: string) => `broadcast:job:${id}`;
 const LOCK = "broadcast:worker:lease"; // one sender across ALL jobs
 const COOLDOWN = "broadcast:worker:cooldown";
@@ -43,20 +44,80 @@ export async function createBroadcast(id: string, text: string) {
   await store.set("broadcast:latest", id);
   return broadcastStatus(id);
 }
+// Only a definite rejection may be retried. Uncertain deliveries are excluded.
+// A deterministic ID prevents repeated clicks or lost responses from creating
+// two separate retry jobs for the same source broadcast.
+export async function retryFailedBroadcast(sourceId: string) {
+  const store = persistentStore(), source = await jobById(sourceId), token = crypto.randomUUID();
+  if (!await store.acquireLease(LOCK, token, 75000)) throw new Error("عملية بث أخرى قيد التنفيذ؛ حاول بعد انتهائها");
+  try {
+    const id = "retry_" + crypto.createHash("sha256").update(sourceId).digest("hex").slice(0, 40);
+    let job = await store.get<Job>(base(id));
+    if (!job) {
+      if (!(await broadcastStatus(sourceId)).done) throw new Error("انتظر انتهاء البث قبل إعادة المحاولة");
+      const [failed, sent] = await Promise.all([store.sMembers(base(sourceId) + ":failed"), store.sMembers(base(sourceId) + ":sent")]);
+      const delivered = new Set(sent);
+      const ids = failed.filter(user => !delivered.has(user));
+      if (!ids.length) throw new Error("لا توجد رسائل مرفوضة لإعادة محاولتها");
+      const candidate: Job = { id, text: source.text, ids, createdAt: Date.now(), retryOf: sourceId };
+      await store.setIfAbsent(base(id), candidate);
+      job = await store.get<Job>(base(id));
+    }
+    if (!job || job.retryOf !== sourceId) throw new Error("تعذّر تأكيد مهمة إعادة المحاولة");
+    await store.set("broadcast:latest", id);
+    return broadcastStatus(id);
+  } finally { await store.releaseLease(LOCK, token).catch(() => undefined); }
+}
+
+// An account reached through the other configured FT bot may be absent from
+// this bot's private chats. Try the second bot ONLY after the first explicitly
+// says chat not found. Never bypass a user's block or retry an unknown result.
+export async function sendWithSecondaryOnMissingChat(
+  primary: () => Promise<TgResult>, secondary?: () => Promise<TgResult>, wait = pause,
+): Promise<TgResult> {
+  const first = await primary();
+  if (secondary && !first.ok && !first.uncertain && first.error_code === 400 && /chat not found/i.test(first.description || "")) {
+    await wait(125);
+    return secondary();
+  }
+  return first;
+}
+async function sendBroadcastMessage(user: string, text: string): Promise<TgResult> {
+  const send = () => sendMessage(user, text, undefined, { parse_mode: undefined });
+  const first = await send(), second = secondBotToken();
+  if (!second || first.ok || first.uncertain || first.error_code !== 400 || !/chat not found/i.test(first.description || "")) return first;
+  const primary = (await getSettings()).botToken;
+  return sendWithSecondaryOnMissingChat(async () => first, second !== primary ? () => runWithBotToken(second, send) : undefined);
+}
+function failureCategory(result: TgResult): "blocked" | "notStarted" | "deactivated" | "other" {
+  const description = String(result.description || "").toLowerCase();
+  if (/deactivated|deleted user/.test(description)) return "deactivated";
+  if (/blocked|bot was kicked/.test(description)) return "blocked";
+  if (/chat not found|can't initiate|have no rights to send/.test(description)) return "notStarted";
+  return "other";
+}
+function invalidBot(result: TgResult) {
+  return result.error_code === 401 || result.error_code === 404 || result.description === "لا يوجد توكن للبوت";
+}
 export async function latestBroadcast() {
   const id = await persistentStore().get<string>("broadcast:latest");
   return id ? broadcastStatus(id) : null;
 }
 export async function broadcastStatus(id: string) {
   const store = persistentStore(), job = await jobById(id), key = base(id);
-  const [attempted, sent, failed, excludedBanned, cursor, cooldown] = await Promise.all([
+  const [attempted, sent, failed, excludedBanned, cursor, cooldown, blocked, notStarted, deactivated, network, problem] = await Promise.all([
     store.sCard(key + ":attempted"), store.sCard(key + ":sent"), store.sCard(key + ":failed"),
     store.sCard(key + ":banned"), store.get<number>(key + ":cursor"), store.get<number>(COOLDOWN),
+    store.sCard(key + ":reason:blocked"), store.sCard(key + ":reason:notStarted"),
+    store.sCard(key + ":reason:deactivated"), store.sCard(key + ":reason:network"), store.get<string>(key + ":problem"),
   ]);
   const unknown = Math.max(0, attempted - sent - failed - excludedBanned);
   return {
-    jobId: id, scope: "all_registered_at_start", createdAt: job.createdAt, total: job.ids.length,
+    jobId: id, scope: job.retryOf ? "failed_only_retry" : "all_registered_at_start", retryOf: job.retryOf || null,
+    createdAt: job.createdAt, total: job.ids.length,
     attempted, sent, failed, excludedBanned, unknown, remaining: Math.max(0, job.ids.length - attempted),
+    failureReasons: { blocked, notStarted, deactivated, network, other: Math.max(0, failed - blocked - notStarted - deactivated - network) },
+    problem: Number(cooldown || 0) > Date.now() ? problem : null,
     done: Number(cursor || 0) >= job.ids.length,
     retryAfterMs: Math.max(0, Number(cooldown || 0) - Date.now()),
   };
@@ -77,9 +138,11 @@ export async function processBroadcast(id: string, options: ProcessOptions = {})
   try {
     const cooldown = Number(await store.get<number>(COOLDOWN) || 0);
     if (cooldown > Date.now()) return { ...await broadcastStatus(id), busy: false };
+    // A previous configuration problem is no longer active after its cooldown.
+    if (await store.get<string>(key + ":problem")) await store.set(key + ":problem", null);
     const end = Date.now() + Math.min(20000, Math.max(1000, options.maxMs || 18000));
     const maxItems = Math.min(100, Math.max(1, options.maxItems || 100));
-    const send = options.send || ((user: string, text: string) => sendMessage(user, text, undefined, { parse_mode: undefined }));
+    const send = options.send || sendBroadcastMessage;
     const wait = options.wait || pause;
     let count = 0;
     while (cursor < job.ids.length && count < maxItems && Date.now() < end) {
@@ -93,6 +156,27 @@ export async function processBroadcast(id: string, options: ProcessOptions = {})
         try { result = await send(user, job.text); }
         catch { result = { ok: false, uncertain: true }; }
         if (result.ok) await store.sAdd(key + ":sent", user);
+        else if (!result.uncertain && invalidBot(result)) {
+          // A broken token is systemic, not hundreds of independent failures.
+          // Preserve the recipient and pause before retrying configuration.
+          await store.set(key + ":problem", "توكن البوت مرفوض أو غير مهيأ؛ تحقّق من إعدادات البوت.");
+          await store.set(COOLDOWN, Date.now() + 60000);
+          await store.sDel(key + ":attempted", user);
+          break;
+        }
+        else if (result.retryable && !result.uncertain) {
+          // DNS/connect failures are known to occur before the request is sent.
+          // Retry a bounded number of times; timeouts after sending remain unknown.
+          const tries = await store.incr(key + ":network-retries:" + user);
+          if (tries <= 3) {
+            await store.set(key + ":problem", "انقطع الاتصال قبل الإرسال؛ ستُعاد المحاولة تلقائياً.");
+            await store.set(COOLDOWN, Date.now() + Math.min(30000, 1000 * 2 ** tries));
+            await store.sDel(key + ":attempted", user);
+            break;
+          }
+          await store.sAdd(key + ":failed", user);
+          await store.sAdd(key + ":reason:network", user);
+        }
         else if (result.error_code === 429 && !result.uncertain) {
           // Telegram explicitly rejected this attempt, so retrying it later is
           // safe. Save the global cooldown before releasing the claim.
@@ -103,6 +187,8 @@ export async function processBroadcast(id: string, options: ProcessOptions = {})
           break;
         } else if (!result.uncertain && !(Number(result.error_code) >= 500)) {
           await store.sAdd(key + ":failed", user);
+          const category = failureCategory(result);
+          if (category !== "other") await store.sAdd(key + ":reason:" + category, user);
         }
         // At most eight broadcasts/second, shared across all jobs. Other bot
         // traffic can still trigger Telegram's flood limit, handled above.

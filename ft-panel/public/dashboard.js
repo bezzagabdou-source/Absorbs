@@ -80,9 +80,13 @@ function broadcastProgress(status, message = '') {
   box.hidden = false;
   const counts = status && Number.isFinite(Number(status.total))
     ? `المسجلون ${status.total} · أُرسل ${status.sent} · فشل ${status.failed} · محظور ${status.excludedBanned} · غير مؤكد ${status.unknown} · متبقٍ ${status.remaining}` : '';
-  const done = status?.done;
+  const done = status?.done, reasons = status?.failureReasons;
+  const explanation = reasons && status.failed ? `حظروا البوت ${reasons.blocked} · لم يبدأوا المحادثة ${reasons.notStarted} · حسابات غير نشطة ${reasons.deactivated} · اتصال ${reasons.network || 0} · أسباب أخرى أو قديمة ${reasons.other}` : '';
   box.innerHTML = `<b>${esc(message || (done ? 'انتهت معالجة البث' : 'البث جارٍ'))}</b><small>${esc(counts)}</small>` +
+    (explanation ? `<small>${esc(explanation)}</small>` : '') +
+    (status?.problem ? `<small class="err">${esc(status.problem)}</small>` : '') +
     (!done && status?.jobId ? `<button type="button" class="sm" data-act="broadcast-resume" data-id="${esc(status.jobId)}">استئناف البث</button>` : '') +
+    (done && status?.failed > 0 && status?.jobId ? `<button type="button" class="sm" data-act="broadcast-retry" data-id="${esc(status.jobId)}">إعادة محاولة المرفوضين فقط</button>` : '') +
     `<small>أبقِ الصفحة مفتوحة لمتابعة الدفعات. لا تُعاد المحاولات غير المؤكدة تلقائياً.</small>`;
 }
 async function resumeBroadcast(jobId) {
@@ -94,7 +98,7 @@ async function resumeBroadcast(jobId) {
   try {
     while (TOKEN) {
       last = await api('bot_manage', { op: 'broadcast_step', input: { jobId } });
-      broadcastProgress(last, last.busy ? 'تنتظر الدفعة انتهاء عملية أخرى…' : 'متابعة البث…');
+      broadcastProgress(last, last.problem || (last.busy ? 'تنتظر الدفعة انتهاء عملية أخرى…' : 'متابعة البث…'));
       if (last.done) {
         if (localStorage.getItem(BROADCAST_KEY) === jobId) localStorage.removeItem(BROADCAST_KEY);
         broadcastProgress(last, 'انتهت معالجة البث');
@@ -110,7 +114,7 @@ async function resumeBroadcast(jobId) {
   } finally { BROADCAST_RUNNING.delete(jobId); }
 }
 function startBroadcastFromAction(action) {
-  if (!action?.ok || action.tool !== 'ft_broadcast_all') return;
+  if (!action?.ok || !['ft_broadcast_all', 'ft_broadcast_retry'].includes(action.tool)) return;
   try {
     const result = JSON.parse(action.result);
     if (result.jobId) void resumeBroadcast(result.jobId);
@@ -334,6 +338,12 @@ document.addEventListener("click", async (e) => {
   try {
     if (a === "broadcast-resume") {
       void resumeBroadcast(id);
+    } else if (a === "broadcast-retry") {
+      if (!confirm('إعادة المحاولة فقط للرسائل التي رفضها تيليغرام؟ لن نعيد الرسائل الناجحة أو غير المؤكدة.')) return;
+      b.disabled = true;
+      const result = await api('bot_manage', { op: 'broadcast_retry', input: { jobId: id, confirm: true } });
+      broadcastProgress(result, 'بدء إعادة محاولة الرسائل المرفوضة فقط');
+      if (!result.done) void resumeBroadcast(result.jobId);
     } else if (a === "padd") {
       EDIT = null;
       openDlg({});
