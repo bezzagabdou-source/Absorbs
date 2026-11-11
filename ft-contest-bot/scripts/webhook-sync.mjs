@@ -146,6 +146,43 @@ async function main() {
       ? `⚠️ البوت ماشي أدمن في: ${notAdmin.join(", ")} — التحقّق من الاشتراك كيتجاوز هذي القنوات (البوت ما يتوقّفش).`
       : "✅ البوت أدمن في كل القنوات.",
   );
+
+  // ── 🩺 فحص التشغيل الحقيقي: نقراو الموقع المنشور (الإنتاج) بلا أسرار
+  const panelKey = (process.env.PANEL_PUBLIC_KEY || "").trim();
+  const base = host ? `https://${host.replace(/^https?:\/\//, "").replace(/\/$/, "")}` : "";
+  if (base) {
+    log("════════ فحص تشغيل الموقع المنشور (runtime) ════════");
+    try {
+      const st = await fetch(`${base}/api/telegram/status`, { signal: AbortSignal.timeout(15_000) }).then((r) => r.json());
+      log(`/status → ok=${st.ok} bot=@${st.bot?.username || "?"} connected=${st.bot?.connected}`);
+      log(`/status → webhook=${st.bot?.webhookCurrent || "(فارغ)"} matches=${st.bot?.webhookMatches} pending=${st.bot?.pendingUpdates} last_error=${st.bot?.lastError || "لا شيء"}`);
+      log(`/status → ai=${st.ai?.available ? `${st.ai.provider}/${st.ai.model}` : "غير مفعّل"} · storage=${st.storage?.backend}`);
+    } catch (e) {
+      log("⚠️ تعذّر قراءة /status:", e instanceof Error ? e.message : String(e));
+    }
+
+    if (panelKey) {
+      // 🧠 تجربة AI حقيقية: سؤال للقراءة فقط (إحصائيات) — ما يبدّلش حتى داتا
+      try {
+        const started = Date.now();
+        const res = await fetch(`${base}/api/admin2`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-panel-key": panelKey },
+          body: JSON.stringify({ action: "ai", prompt: "شحال من مستخدم عندنا؟" }),
+          signal: AbortSignal.timeout(45_000),
+        }).then((r) => r.json());
+        log(
+          `AI probe → ok=${res.ok} provider=${res.provider || "?"} tools=${res.tools ? "نعم" : "لا"} ${Date.now() - started}ms`,
+        );
+        log(`AI probe → say=${String(res.say || "").replace(/\s+/g, " ").slice(0, 220)}`);
+        if (res.error) log(`AI probe → error=${String(res.error).slice(0, 200)}`);
+      } catch (e) {
+        log("⚠️ AI probe فشل (شبكة/مهلة):", e instanceof Error ? e.message : String(e));
+      }
+    } else {
+      log("ℹ️ PANEL_PUBLIC_KEY ماشي مضبوط — نتخطّاو فحص AI.");
+    }
+  }
   log("════════ انتهى ════════");
 }
 
