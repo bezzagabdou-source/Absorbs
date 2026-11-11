@@ -33,7 +33,17 @@ jobs:
 
       - name: Build debug APK (installable, debug-signed)
         working-directory: absorbs-android
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../gradle-build.log
+
+      - name: Upload Gradle build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: gradle-build.log
+          if-no-files-found: ignore
 
       - name: Prepare Absorbs.apk
         run: |
