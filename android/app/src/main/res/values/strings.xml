@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DZ Exchange</string>
+    <string name="offline_title">Pas de connexion</string>
+    <string name="offline_hint">Vérifiez votre connexion Internet puis réessayez. Vos annonces et messages restent intacts.</string>
+    <string name="offline_retry">Réessayer</string>
+    <string name="choose_photo">Choisir une photo</string>
+    <string name="notification_channel_name">Messages et offres</string>
+</resources>

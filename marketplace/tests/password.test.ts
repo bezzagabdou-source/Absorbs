@@ -1,0 +1,3 @@
+import { describe, expect, it } from "vitest";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
+describe("password storage", () => { it("uses unique salts and verifies without storing plaintext", async () => { const a = await hashPassword("correct horse battery staple"); const b = await hashPassword("correct horse battery staple"); expect(a).not.toBe(b); expect(a).not.toContain("correct horse"); expect(await verifyPassword("correct horse battery staple", a)).toBe(true); expect(await verifyPassword("wrong password", a)).toBe(false); expect(await verifyPassword("anything", null)).toBe(false); }); });

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793959922351,
+      "tag": "0000_sudden_scream",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793971427109,
+      "tag": "0001_media_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0002_app_handoff_codes",
+      "breakpoints": true
+    }
+  ]
+}
