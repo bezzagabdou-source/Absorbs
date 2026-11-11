@@ -1,0 +1,60 @@
+name: Build Absorbs Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "absorbs-android/**"
+      - ".github/workflows/absorbs-apk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build & publish Absorbs.apk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate Gradle wrapper
+        working-directory: absorbs-android
+        run: gradle wrapper --gradle-version 8.9 --distribution-type bin
+
+      - name: Build debug APK (installable, debug-signed)
+        working-directory: absorbs-android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare Absorbs.apk
+        run: |
+          cp absorbs-android/app/build/outputs/apk/debug/app-debug.apk ./Absorbs.apk
+          ls -lh ./Absorbs.apk
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Absorbs-apk
+          path: ./Absorbs.apk
+          if-no-files-found: error
+
+      - name: Publish to GitHub Release (direct download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: absorbs-v1.0.0
+          name: "Absorbs Android v1.0.0"
+          body: |
+            📱 **تطبيق Absorbs للأندرويد** — حمّل ملف `Absorbs.apk` وثبّته مباشرة.
+            عند التثبيت فعّل «السماح من هذا المصدر» (APK تجريبي موقّع بمفتاح Debug).
+            يفتح التطبيق النسخة الحية: https://absorbs-app-abdoubita986-gif.vercel.app
+          files: ./Absorbs.apk
+          fail_on_unmatched_files: true
