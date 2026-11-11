@@ -28,6 +28,7 @@ let AI_BUSY = false;
 let AI_IMAGE = "";
 const TITLES = {
   ai: "المساعد",
+  instructions: "تعليمات المساعد",
   bot: "إدارة FT-bot",
   stats: "الأرقام",
   prizes: "الجوائز",
@@ -68,6 +69,72 @@ async function api(action, data) {
   if (!j.ok) throw new Error(j.error || "خطأ");
   return j.data !== undefined ? j.data : j;
 }
+// A browser drives bounded, durable server-side batches. Closing the page
+// pauses further batches; the saved job ID can be resumed without resending.
+const BROADCAST_KEY = 'ft-active-broadcast-v1';
+const BROADCAST_RUNNING = new Set();
+const sleepBroadcast = ms => new Promise(resolve => setTimeout(resolve, ms));
+function broadcastProgress(status, message = '') {
+  const box = $('#broadcast-progress');
+  if (!box) return;
+  box.hidden = false;
+  const counts = status && Number.isFinite(Number(status.total))
+    ? `المسجلون ${status.total} · أُرسل ${status.sent} · فشل ${status.failed} · محظور ${status.excludedBanned} · غير مؤكد ${status.unknown} · متبقٍ ${status.remaining}` : '';
+  const done = status?.done;
+  box.innerHTML = `<b>${esc(message || (done ? 'انتهت معالجة البث' : 'البث جارٍ'))}</b><small>${esc(counts)}</small>` +
+    (!done && status?.jobId ? `<button type="button" class="sm" data-act="broadcast-resume" data-id="${esc(status.jobId)}">استئناف البث</button>` : '') +
+    `<small>أبقِ الصفحة مفتوحة لمتابعة الدفعات. لا تُعاد المحاولات غير المؤكدة تلقائياً.</small>`;
+}
+async function resumeBroadcast(jobId) {
+  if (!/^[A-Za-z0-9_-]{16,100}$/.test(String(jobId || '')) || BROADCAST_RUNNING.has(jobId)) return;
+  BROADCAST_RUNNING.add(jobId);
+  localStorage.setItem(BROADCAST_KEY, jobId);
+  let last = { jobId };
+  broadcastProgress(last, 'جارٍ متابعة البث…');
+  try {
+    while (TOKEN) {
+      last = await api('bot_manage', { op: 'broadcast_step', input: { jobId } });
+      broadcastProgress(last, last.busy ? 'تنتظر الدفعة انتهاء عملية أخرى…' : 'متابعة البث…');
+      if (last.done) {
+        if (localStorage.getItem(BROADCAST_KEY) === jobId) localStorage.removeItem(BROADCAST_KEY);
+        broadcastProgress(last, 'انتهت معالجة البث');
+        return;
+      }
+      await sleepBroadcast(last.busy ? 2000 : Math.max(250, Math.min(30000, Number(last.retryAfterMs) || 0)));
+    }
+  } catch (error) {
+    if (/البث غير موجود/.test(error.message)) {
+      if (localStorage.getItem(BROADCAST_KEY) === jobId) localStorage.removeItem(BROADCAST_KEY);
+      broadcastProgress({ ...last, done: true }, 'لم تُنشأ مهمة بهذا المعرّف؛ يمكنك بدء بث جديد.');
+    } else broadcastProgress(last, 'توقفت المتابعة: ' + error.message + ' — استأنف بنفس البث ولا تبدأ بثاً جديداً.');
+  } finally { BROADCAST_RUNNING.delete(jobId); }
+}
+function startBroadcastFromAction(action) {
+  if (!action?.ok || action.tool !== 'ft_broadcast_all') return;
+  try {
+    const result = JSON.parse(action.result);
+    if (result.jobId) void resumeBroadcast(result.jobId);
+  } catch { /* A missing result must not create or replay a broadcast. */ }
+}
+async function loadInstructions() {
+  const status = $('#instructions-status');
+  try {
+    const data = await api('agent_instructions_get');
+    $('#instructions-text').value = data.text || '';
+    status.textContent = data.updatedAt ? 'محفوظة ومفعّلة للمحادثات التالية.' : 'لا توجد تعليمات إضافية محفوظة.';
+  } catch (error) { status.textContent = error.message; }
+}
+$('#instructions-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button');
+  button.disabled = true;
+  try {
+    await api('agent_instructions_save', { text: $('#instructions-text').value });
+    $('#instructions-status').textContent = 'حُفظت التعليمات للمحادثات التالية.';
+    toast('حُفظت تعليمات المساعد');
+  } catch (error) { toast(error.message, true); }
+  finally { button.disabled = false; }
+});
 function logout() {
   localStorage.removeItem("ftp");
   try { sessionStorage.removeItem(HISTORY_KEY); } catch {}
@@ -242,6 +309,7 @@ async function loadReferralConfig() {
   } catch (error) { el.innerHTML = `<h3>نقاط إحالات FT-bot</h3><p class='err'>${esc(error.message)}</p>`; }
 }
 const LOAD = {
+  instructions: loadInstructions,
   stats: loadStats,
   prizes: loadPrizes,
   reqs: loadReqs,
@@ -264,7 +332,9 @@ document.addEventListener("click", async (e) => {
     id = b.dataset.id,
     v = b.dataset.v;
   try {
-    if (a === "padd") {
+    if (a === "broadcast-resume") {
+      void resumeBroadcast(id);
+    } else if (a === "padd") {
       EDIT = null;
       openDlg({});
     } else if (a === "pedit") {
@@ -502,10 +572,11 @@ async function ask(q, image = "") {
   try {
     const r = await aiRequest({ prompt: q, history: HIST, image: image || undefined, requestId: requestId() }, event => {
       if (event.type === "heartbeat") return;
-      if (event.type === "tool_end" && event.action) progressActions.push(event.action);
+      if (event.type === "tool_end" && event.action) { progressActions.push(event.action); startBroadcastFromAction(event.action); }
       const status = event.type === "tool_start" ? `تنفيذ ${event.tool}…` : event.message || "جارٍ العمل…";
       w.innerHTML = `<span class='agent-progress'>${esc(status)}</span>` + progressActions.map(renderAction).join("");
     });
+    (r.actions || []).forEach(startBroadcastFromAction);
     HIST.push(
       { role: "user", content: (q || "اشرح الصورة") + (image ? " [صورة مرفقة]" : "") },
       { role: "assistant", content: r.reply },
@@ -617,6 +688,8 @@ function start() {
   $("#login").hidden = true;
   $("#app").hidden = false;
   show("ai");
+  const pendingBroadcast = localStorage.getItem(BROADCAST_KEY);
+  if (pendingBroadcast) void resumeBroadcast(pendingBroadcast);
   api("health", { light: true })
     .then((h) => {
       $("#bot").textContent = h.bot;

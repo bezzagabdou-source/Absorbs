@@ -343,7 +343,7 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
       say.push(`بعثت رسالة لـ ${uid}.`);
     } else {
       actions.push({ op: "broadcast", text: afterColon });
-      say.push("بثّيت الرسالة للجميع.");
+      say.push("هذه الواجهة ترسل لآخر الأعضاء فقط؛ راجع النتيجة.");
     }
   }
 
@@ -645,15 +645,14 @@ async function runOne(op: string, a: Record<string, unknown>, via: "panel" | "ai
       const banned = new Set(await bannedIds());
       const limit = Math.min(500, Math.max(1, Math.floor(Number(a.limit) || 100)));
       const users = await listRecentUsers(limit);
-      let sent = 0;
-      let failed = 0;
+      let sent = 0, failed = 0, unknown = 0, excluded = 0;
       for (const u of users) {
-        if (banned.has(u.id)) continue;
-        const r = await sendMessage(u.id, text).catch(() => ({ ok: false }));
-        if (r.ok) sent++;
-        else failed++;
+        if (banned.has(u.id)) { excluded++; continue; }
+        const r = await sendMessage(u.id, text).catch(() => ({ ok: false, uncertain: true }));
+        if (r.ok) sent++; else if (r.uncertain) unknown++; else failed++;
+        await new Promise((resolve) => setTimeout(resolve, 125));
       }
-      return `بثّ: ${sent} وصل، ${failed} فشل (من ${users.length})`;
+      return `بث لآخر ${users.length} عضو فقط: أُرسل ${sent}، فشل ${failed}، غير مؤكد ${unknown}، محظور ${excluded}. للبث لكل المسجلين استعمل لوحة FT.`;
     }
     case "save_settings": {
       const s = (a.settings || a) as Record<string, unknown>;

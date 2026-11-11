@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { broadcastStatus, createBroadcast, latestBroadcast, processBroadcast } from "@/lib/broadcast";
 import { NextResponse, type NextRequest } from "next/server";
 import { createContest, deleteContest, getContest, getLeaderboard, listContests, updateContest } from "@/lib/contests";
 import { panelStats } from "@/lib/agent";
@@ -75,6 +76,10 @@ export async function GET(request: NextRequest) {
   const query = new URL(request.url).searchParams;
   const view = query.get("view") || "catalog";
   try {
+    if (view === "broadcast") {
+      const id = query.get("id");
+      return reply({ ok: true, broadcast: id ? await broadcastStatus(id) : await latestBroadcast() });
+    }
     if (view === "catalog") {
       const [rewards, contests, sections] = await Promise.all([ensureRewards(), listContests(), ensureSections()]);
       return reply({ ok: true, rewards: rewards.map(cleanReward), contests: contests.map(cleanContest), sections });
@@ -109,6 +114,7 @@ export async function GET(request: NextRequest) {
     }
     return fail("عرض غير معروف", 404);
   } catch (error) {
+    if (error instanceof Error && error.message === "البث غير موجود") return fail(error.message, 404);
     return error instanceof InputError ? fail(error.message, error.status) : fail("تعذّر تحميل بيانات البوت", 500);
   }
 }
@@ -273,23 +279,24 @@ export async function POST(request: NextRequest) {
       await log(op, `إرسال رسالة إلى ${id}`);
       return reply({ ok: true, userId: id, sent: true });
     }
-    if (op === "broadcast") {
-      const text = str(body.text, "الرسالة", 4000, true);
-      const limit = body.limit === undefined ? 50 : number(body.limit, "حد البث", 1, 50);
+    if (op === "broadcast" || op === "broadcast_start") {
       if (body.confirm !== true) return fail("تأكيد البث مطلوب");
-      const users = await listRecentUsers(limit);
-      const banned = new Set(await bannedIds());
-      const recipients = users.filter((u) => !banned.has(u.id));
-      let sent = 0, failed = 0;
-      for (let i = 0; i < recipients.length; i += 10) {
-        const results = await Promise.all(recipients.slice(i, i + 10).map((u) => sendMessage(u.id, text, undefined, { parse_mode: undefined }).catch(() => ({ ok: false }))));
-        results.forEach((r) => { if (r.ok) sent++; else failed++; });
-      }
-      await log(op, `بث إلى ${sent} من آخر ${users.length} مستخدماً`);
-      return reply({ ok: true, sent, failed, attempted: recipients.length, excludedBanned: users.length - recipients.length, sampled: users.length, limit, scope: "recent_users_only" });
+      const text = str(body.text, "الرسالة", 4000, true);
+      // The caller supplies a stable ID so a lost start response can be retried safely.
+      const id = typeof body.jobId === "string" ? body.jobId : "";
+      if (!/^[A-Za-z0-9_-]{16,100}$/.test(id)) return fail("معرّف البث مطلوب لإمكان الاستئناف بأمان");
+      const result = await createBroadcast(id, text);
+      await log("broadcast_start", `بدء بث ${id} إلى ${result.total} عضو مسجل`);
+      return reply({ ok: true, ...result });
+    }
+    if (op === "broadcast_step") {
+      const id = typeof body.jobId === "string" ? body.jobId : "";
+      if (!/^[A-Za-z0-9_-]{16,100}$/.test(id)) return fail("معرّف البث غير صالح");
+      return reply({ ok: true, ...await processBroadcast(id) });
     }
     return fail("العملية غير معروفة", 404);
   } catch (error) {
-    return error instanceof InputError ? fail(error.message, error.status) : fail("تعذّر تنفيذ العملية في البوت", 500);
+    if (error instanceof Error && error.message === "البث غير موجود") return fail(error.message, 404);
+    return error instanceof InputError ? fail(error.message, error.status) : fail("تعذّر تنفيذ العملية في البوت؛ تحقّق من التخزين أو البث", 500);
   }
 }

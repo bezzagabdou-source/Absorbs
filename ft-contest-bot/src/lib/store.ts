@@ -41,6 +41,10 @@ export interface Store {
   readonly backend: "redis" | "postgres" | "memory";
   get<T = unknown>(key: string): Promise<T | null>;
   set(key: string, value: unknown): Promise<void>;
+  /** Atomic primitives for resumable, at-most-once broadcasts. */
+  setIfAbsent(key: string, value: unknown): Promise<boolean>;
+  acquireLease(key: string, token: string, ttlMs: number): Promise<boolean>;
+  releaseLease(key: string, token: string): Promise<void>;
   del(key: string): Promise<void>;
   incr(key: string, by?: number): Promise<number>;
   sAdd(key: string, member: string): Promise<boolean>;
@@ -127,6 +131,15 @@ class RedisStore implements Store {
   }
   async set(key: string, value: unknown) {
     await this.cmd(["SET", this.k(key), JSON.stringify(value)]);
+  }
+  async setIfAbsent(key: string, value: unknown) {
+    return await this.cmd<string | null>(["SET", this.k(key), JSON.stringify(value), "NX"]) === "OK";
+  }
+  async acquireLease(key: string, token: string, ttlMs: number) {
+    return await this.cmd<string | null>(["SET", this.k(key), token, "NX", "PX", ttlMs]) === "OK";
+  }
+  async releaseLease(key: string, token: string) {
+    await this.cmd(["EVAL", "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end", 1, this.k(key), token]);
   }
   async del(key: string) {
     await this.cmd(["DEL", this.k(key)]);
@@ -351,6 +364,23 @@ class PostgresStore implements Store {
        on conflict (k) do update set v = excluded.v`,
       [key, JSON.stringify(value)],
     );
+  }
+  async setIfAbsent(key: string, value: unknown) {
+    const pool = await getPool();
+    const result = await pool.query("insert into ft_kv (k, v) values ($1, $2::jsonb) on conflict do nothing returning k", [key, JSON.stringify(value)]);
+    return result.rowCount === 1;
+  }
+  async acquireLease(key: string, token: string, ttlMs: number) {
+    const pool = await getPool();
+    const now = Date.now();
+    const result = await pool.query(`insert into ft_kv (k, v, n) values ($1, $2::jsonb, $3)
+      on conflict (k) do update set v = excluded.v, n = excluded.n
+      where ft_kv.n <= $4 returning k`, [key, JSON.stringify(token), now + ttlMs, now]);
+    return result.rowCount === 1;
+  }
+  async releaseLease(key: string, token: string) {
+    const pool = await getPool();
+    await pool.query("delete from ft_kv where k = $1 and v = $2::jsonb", [key, JSON.stringify(token)]);
   }
   async del(key: string) {
     const pool = await getPool();
@@ -664,6 +694,21 @@ class MemoryStore implements Store {
   async set(key: string, value: unknown) {
     mem().kv[key] = value;
     persist();
+  }
+  async setIfAbsent(key: string, value: unknown) {
+    const d = mem();
+    if (key in d.kv) return false;
+    d.kv[key] = value; persist(); return true;
+  }
+  async acquireLease(key: string, token: string, ttlMs: number) {
+    const d = mem();
+    const current = d.kv[key] as { token: string; expires: number } | undefined;
+    if (current && current.expires > Date.now()) return false;
+    d.kv[key] = { token, expires: Date.now() + ttlMs }; persist(); return true;
+  }
+  async releaseLease(key: string, token: string) {
+    const d = mem();
+    if ((d.kv[key] as { token: string } | undefined)?.token === token) { delete d.kv[key]; persist(); }
   }
   async del(key: string) {
     const d = mem();

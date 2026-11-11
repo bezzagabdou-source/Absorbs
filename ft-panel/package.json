@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check api/admin.js && node --check lib/ai.js && node --check lib/botBridge.js && node --check lib/agentAudit.js && node --check lib/agentPrompt.js && node --check lib/agentRepo.js && node --check lib/agentSandbox.js && node --check lib/agentTools.js && node --check public/dashboard.js && node --check public/dashboard-bot.js"
+    "check": "node --check api/admin.js && node --check lib/ai.js && node --check lib/botBridge.js && node --check lib/agentAudit.js && node --check lib/agentInstructions.js && node --check lib/agentPrompt.js && node --check lib/agentRepo.js && node --check lib/agentSandbox.js && node --check lib/agentTools.js && node --check public/dashboard.js && node --check public/dashboard-bot.js"
   },
   "devDependencies": {
     "jsdom": "^26.1.0"

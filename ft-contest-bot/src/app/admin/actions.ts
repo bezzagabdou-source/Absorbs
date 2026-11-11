@@ -31,6 +31,7 @@ import { checkChannels, requiredChannelsOf } from "@/lib/bot";
 import { sendMessage, tgCall } from "@/lib/telegram";
 import type { ContestStatus } from "@/lib/types";
 import { listRecentUsers } from "@/lib/users";
+import { bannedIds } from "@/lib/rewards";
 
 function str(form: FormData, key: string, fallback = ""): string {
   const value = form.get(key);
@@ -400,16 +401,15 @@ export async function broadcastAction(form: FormData): Promise<void> {
   if (!text) go("/admin/broadcast", "err", "اكتب نص الرسالة");
   const limit = Math.min(250, int(form, "limit", 100));
   const users = await listRecentUsers(limit);
-  let sent = 0;
-  let failed = 0;
-
-  for (let i = 0; i < users.length; i += 15) {
-    const chunk = users.slice(i, i + 15);
-    const results = await Promise.all(chunk.map((u) => sendMessage(u.id, text)));
-    results.forEach((r) => (r.ok ? sent++ : failed++));
+  const banned = new Set(await bannedIds());
+  let sent = 0, failed = 0, unknown = 0, excluded = 0;
+  for (const user of users) {
+    if (banned.has(user.id)) { excluded++; continue; }
+    const result = await sendMessage(user.id, text);
+    if (result.ok) sent++; else if (result.uncertain) unknown++; else failed++;
+    await new Promise((resolve) => setTimeout(resolve, 125));
   }
-
-  go("/admin/broadcast", "ok", `تم الإرسال: ${sent} ✅ — فشل: ${failed} ⚠️`);
+  go("/admin/broadcast", "ok", `آخر ${users.length} فقط: أُرسل ${sent}، فشل ${failed}، غير مؤكد ${unknown}، محظور ${excluded}.`);
 }
 
 /* ────────────────────────────── المساعد الذكي ────────────────────────────── */

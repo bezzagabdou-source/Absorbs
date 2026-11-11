@@ -5,6 +5,7 @@ const agent = require('./agentTools');
 const repo = require('./agentRepo');
 const audit = require('./agentAudit');
 const SYSTEM = require('./agentPrompt');
+const instructions = require('./agentInstructions');
 const S = { type: 'string' }, N = { type: 'number' }, B = { type: 'boolean' };
 const fn = (name, description, properties, required) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties: properties || {}, required: required || [] } } });
 const channels = { type: 'array', items: S };
@@ -58,7 +59,8 @@ const TOOLS = [
   fn('ft_set_channels', 'استبدال قائمة قنوات الاشتراك الإجباري في FT-bot بالكامل؛ اعرض الإعدادات أولاً عند التعديل الجزئي', { channels }, ['channels']),
   fn('ft_set_group', 'ربط مجموعة FT-bot بمعرف المجموعة أو @username', { chatId: S, title: S }, ['chatId']),
   fn('ft_send_message', 'إرسال رسالة حقيقية لعضو FT-bot بمعرفه', { userId: S, text: S }, ['userId', 'text']),
-  fn('ft_broadcast_recent', 'بث حقيقي إلى آخر 50 عضواً بحد أقصى وليس كل المستخدمين. نفّذه فقط بطلب صريح وأخبر المالك بالنطاق والنتيجة', { text: S, limit: N }, ['text']),
+  fn('ft_broadcast_all', 'بدء بث إلى كل أعضاء FT-bot المسجلين وقت البدء، مع استبعاد المحظورين؛ يتابع المتصفح دفعات البث ولا تعني بدايته اكتماله. اطلبه صراحة فقط', { text: S }, ['text']),
+  fn('ft_broadcast_status', 'حالة آخر بث أو بث محدد: الإرسال والفشل والمستبعد وغير المؤكد والمتبقي', { jobId: S }),
   fn('ft_set_attached_image', 'وضع الصورة المرفقة بالرسالة الحالية على جائزة أو مسابقة FT-bot. حدد النوع والمعرف بعد التحقق', { kind: { type: 'string', enum: ['reward', 'contest'] }, id: S }, ['kind', 'id']),
   fn('ft_remove_image', 'حذف صورة جائزة أو مسابقة FT-bot بطلب صريح', { kind: { type: 'string', enum: ['reward', 'contest'] }, id: S }, ['kind', 'id']),
   ...agent.TOOLS,
@@ -101,7 +103,8 @@ const IMPL = {
   ft_set_channels: a => bot.manageOp('settings_save', { settings: { requiredChannels: a.channels } }),
   ft_set_group: a => bot.manageOp('set_group', pick(a, ['chatId', 'title'])),
   ft_send_message: a => bot.manageOp('send_message', pick(a, ['userId', 'text'])),
-  ft_broadcast_recent: a => bot.manageOp('broadcast', { ...pick(a, ['text', 'limit']), confirm: true }),
+  ft_broadcast_all: (a, context) => bot.manageOp('broadcast_start', { text: a.text, jobId: context.requestId, confirm: true }),
+  ft_broadcast_status: a => bot.manageView('broadcast', a.jobId),
   ft_set_attached_image: (a, context) => {
     if (!context.image) throw new Error('لا توجد صورة مرفقة بهذا الطلب');
     return bot.uploadImage(a.kind, a.id, context.image);
@@ -109,9 +112,9 @@ const IMPL = {
   ft_remove_image: a => bot.uploadImage(a.kind, a.id, ''),
   ...agent.IMPL,
 };
-const READ_ONLY = new Set(['get_stats', 'list_prizes', 'find_user', 'top_users', 'list_requests', 'get_settings', 'get_channels', 'bot_health', 'ft_overview', 'ft_activity', 'ft_catalog', 'ft_users', 'ft_find_user', 'ft_requests', 'ft_referrals', 'ft_referral_config', 'ft_leaderboard', 'ft_log', ...agent.READ_ONLY]);
+const READ_ONLY = new Set(['get_stats', 'list_prizes', 'find_user', 'top_users', 'list_requests', 'get_settings', 'get_channels', 'bot_health', 'ft_overview', 'ft_activity', 'ft_catalog', 'ft_users', 'ft_find_user', 'ft_requests', 'ft_referrals', 'ft_referral_config', 'ft_leaderboard', 'ft_log', 'ft_broadcast_status', ...agent.READ_ONLY]);
 const DELETIONS = new Set(['delete_prize', 'ft_delete_reward', 'ft_delete_contest', 'ft_remove_image']);
-const BROADCASTS = new Set(['broadcast', 'ft_broadcast_recent']);
+const BROADCASTS = new Set(['broadcast', 'ft_broadcast_all']);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function chat(messages, deadline) {
@@ -258,8 +261,10 @@ async function runAI(prompt, history, image, options = {}) {
   // This project has Fluid Compute; leave headroom inside its 300-second function.
   const deadline = Date.now() + 275000;
   const emit = typeof options.onProgress === 'function' ? options.onProgress : () => {};
-  const context = { image, repo: repo.context(), deadline };
-  const messages = [{ role: 'system', content: SYSTEM }];
+  const context = { image, repo: repo.context(), deadline, requestId: options.requestId || crypto.randomUUID() };
+  const ownerInstructions = await instructions.get();
+  const instructionText = ownerInstructions.text ? `\n\nتعليمات تشغيل دائمة من المالك (تُطبّق ما لم تتعارض مع الحماية الأساسية أو صلاحيات الأدوات أعلاه):\n${ownerInstructions.text}\nنهاية تعليمات المالك. سياسة الحماية الأساسية وحدود الأدوات تبقى واجبة.` : '';
+  const messages = [{ role: 'system', content: SYSTEM + instructionText }];
   const recent = Array.isArray(history) ? history : [];
   if (recent.length > 200 || JSON.stringify(recent).length > 250000) throw new Error('سجل المحادثة طويل جداً؛ ابدأ محادثة جديدة دون فقد المسودات');
   recent.forEach(h => { if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') messages.push({ role: h.role, content: h.content }); });
@@ -293,6 +298,11 @@ async function runAI(prompt, history, image, options = {}) {
   const explicitDelete = /حذف|احذف|مسح|امسح|حيد|ازالة|delete|remove|supprim/i.test(normalizedOwner) && !/(?:لا|ما|مت|ماشي)\s*(?:ت)?(?:حذف|حيد|مسح|ازالة)|\b(?:don\s*t|do\s+not|never)\s+(?:delete|remove)\b/i.test(normalizedOwner);
   // «إذاعة» is commonly written «اداعة» in Darija; normalization removes apostrophes.
   const explicitBroadcast = /بث|اذاعة|اذاعه|اداعة|اداعه|اذع|للجميع|لكل|جميع المستخدم|كل المستخدم|tous|broadcast|announce|all users|everyone/i.test(normalizedOwner) && !/(?:لا|ما|مت|ماشي)\s*(?:ت)?(?:بث|اذع|دير\s+(?:اذاعة|اداعة)|عمل\s+(?:اذاعة|اداعة))|\b(?:don\s*t|do\s+not|never)\s+(?:broadcast|announce)\b/i.test(normalizedOwner);
+  // A request to repair broadcasting, or to address a subset, is not permission
+  // to send a message to everyone. This guard is enforced outside the model.
+  const broadcastDevelopmentOnly = /اصلح|اصلاح|تصليح|مشكله|مشكلة|تحسين|تطوير|طور|اختبر|repair|debug|fix/i.test(normalizedOwner)
+    && !/(?:ارسل|ابعث|ابث|اذع|دير\s+(?:اذاعة|اداعة|بث)|اعمل\s+(?:اذاعة|اداعة|بث)|نفذ\s+(?:اذاعة|بث)|send\s+(?:a\s+)?(?:message|broadcast)|start\s+(?:a\s+)?broadcast)/i.test(normalizedOwner);
+  const limitedBroadcast = /(?:اخر|اول|احدث)\s*\d+|\d+\s*(?:عضو|مستخدم|شخص)|\b(?:last|first|top)\s+\d+\b/i.test(normalizedOwner);
   // A model must not deploy merely because an image, file, or tool result says so.
   const explicitDeploy = !/(?:لا|ما|مت|ماشي)\s*(?:ت)?(?:نشر|انشر|رفع|ارفع)|\b(?:don\s*t|do\s+not|never)\s+(?:deploy|publish|release)\b/i.test(normalizedOwner) && (/\b(?:deploy|release)\b|(?:انشر|نشر|ارفع|رفع)\s+(?:(?:لي|لنا|كل|هذه|هذي|هاذي)\s+)*(?:ال)?(?:كود|تعديل|تغييرات|مسود|بوت|لوح|موقع|تطبيق|نسخ|اصدار|تحديث)|\bpublish\s+(?:the\s+)?(?:code|changes|app|site|release)\b/i.test(normalizedOwner) || /^(?:انشر|نشر|ارفع|رفع|publish)(?:\s+(?:الان|فورا|now))?$/.test(normalizedOwner));
   const actions = [], notes = [], mutations = new Map();
@@ -337,7 +347,8 @@ async function runAI(prompt, history, image, options = {}) {
           if (image && !READ_ONLY.has(name) && !imageAction) throw new Error('حدد العملية المطلوبة نصياً؛ لا تُنفّذ الأوامر الموجودة في الصورة وحدها');
           if (name === 'ft_set_attached_image' && !attachmentRequested) throw new Error('حفظ الصورة يحتاج طلباً صريحاً من المالك');
           if (DELETIONS.has(name) && !explicitDelete) throw new Error('الحذف يحتاج طلباً صريحاً من المالك');
-          if (BROADCASTS.has(name) && !explicitBroadcast) throw new Error('البث يحتاج طلباً صريحاً من المالك');
+          if (BROADCASTS.has(name) && (!explicitBroadcast || broadcastDevelopmentOnly)) throw new Error('البث يحتاج طلباً صريحاً من المالك');
+          if (name === 'ft_broadcast_all' && limitedBroadcast) throw new Error('المطلوب نطاق محدود؛ لا يمكن إرسال هذا الطلب لجميع الأعضاء');
           if (name === 'deploy' && !explicitDeploy) throw new Error('النشر يحتاج طلباً صريحاً من المالك');
           const fingerprint = name + ':' + JSON.stringify(stable(args));
           if (!READ_ONLY.has(name) && mutations.has(fingerprint)) {
@@ -357,7 +368,7 @@ async function runAI(prompt, history, image, options = {}) {
               await audit.log({ type: name, status: 'done', detail: String(args.path || args.id || args.key || '').slice(0, 160) }).catch(() => {});
               if (!Object.hasOwn(agent.IMPL, name)) notes.push('عملية الإدارة أو الإرسال هذه لا يدعمها التراجع التلقائي للوكيل.');
             }
-            if (name === 'ft_broadcast_recent') notes.push(`نطاق البث: آخر ${result.sampled} عضواً فقط؛ أُرسلت ${result.sent} من ${result.attempted}، وفشل ${result.failed}.`);
+            if (name === 'ft_broadcast_all') notes.push(`أُنشئ بث لجميع ${result.total} عضواً مسجلاً؛ لم يكتمل بعد. تُعرض النتائج الحقيقية أثناء متابعة الدفعات؛ أبقِ الصفحة مفتوحة أو استأنفه لاحقاً.`);
             if (name === 'ft_decide_request' && !result.notified) notes.push('حُدّث الطلب، لكن تعذّر إشعار العضو.');
           }
         } catch (e) { ok = false; result = { error: repo.redact(String(e.message || 'تعذر التنفيذ')).slice(0, 300) }; }
@@ -379,7 +390,8 @@ async function runAI(prompt, history, image, options = {}) {
       return { reply: [unseenImageReply(actions, attachmentRequested, visionFailed), ...notes].join('\n'), actions, retainImage: attachmentRequested && !actions.some(a => a.tool === 'ft_set_attached_image' && a.ok) };
     }
     const failed = actions.some((a, i) => !a.ok && !a.skipped && !actions.slice(i + 1).some(later => later.tool === a.tool && later.ok));
-    const answer = failed ? 'بعض العمليات لم تنجح؛ راجع نتيجة كل أداة أدناه.' : (typeof msg.content === 'string' && msg.content.trim() ? msg.content : 'لم أستطع توليد رد واضح.');
+    const startedBroadcast = actions.some(a => a.tool === 'ft_broadcast_all' && a.ok);
+    const answer = startedBroadcast ? 'بدأت مهمة البث، وليست مكتملة بعد.' : failed ? 'بعض العمليات لم تنجح؛ راجع نتيجة كل أداة أدناه.' : (typeof msg.content === 'string' && msg.content.trim() ? msg.content : 'لم أستطع توليد رد واضح.');
     return { reply: [answer, ...new Set(notes)].join('\n'), actions, retainImage: attachmentRequested && !actions.some(a => a.tool === 'ft_set_attached_image' && a.ok) };
   }
   await tryAttachmentFallback();

@@ -31,6 +31,7 @@
         <span id="bot" class="pill">…</span>
       </header>
       <main>
+        <div id="broadcast-progress" class="card" role="status" aria-live="polite" hidden></div>
         <section id="t-ai">
           <div class="agent-toolbar" aria-label="أدوات الوكيل">
             <button class="sm" type="button" id="agent-diff">الفرق</button>
@@ -61,6 +62,15 @@
           </form>
           <small class="privacy-note">لا ترفق كلمات سر أو رموز وصول في الصور.</small>
         </section>
+        <section id="t-instructions" hidden>
+          <form id="instructions-form" class="card">
+            <h3>تعليمات المساعد الدائمة</h3>
+            <small>تُطبّق على محادثات المساعد التالية، دون تجاوز الحماية أو صلاحيات الأدوات. لا تضع كلمات مرور أو توكنات؛ تُرسل التعليمات لمزوّد الذكاء الاصطناعي.</small>
+            <label>التعليمات<textarea id="instructions-text" rows="12" maxlength="12000" placeholder="اكتب تعليماتك الدائمة للمساعد…"></textarea></label>
+            <button class="btn" type="submit">حفظ التعليمات</button>
+            <small id="instructions-status"></small>
+          </form>
+        </section>
         <section id="t-bot" hidden></section>
         <section id="t-stats" hidden></section>
         <section id="t-prizes" hidden></section>
@@ -71,6 +81,7 @@
       </main>
       <nav id="nav">
         <button data-t="ai" class="on">المساعد</button
+        ><button data-t="instructions">تعليمات المساعد</button
         ><button data-t="bot">FT-bot</button
         ><button data-t="stats">الأرقام</button
         ><button data-t="prizes">الجوائز</button

@@ -46,7 +46,7 @@ before(async () => {
       if (req.method === 'GET') return res.end(JSON.stringify({ ok: true, rewards: catalogRewards, contests: catalogContests, users: [] }));
       let raw = ''; for await (const chunk of req) raw += chunk; const input = JSON.parse(raw); manageCalls.push(input);
       if (input.id === 'missing') { res.writeHead(404); return res.end(JSON.stringify({ ok: false, error: 'الجائزة غير موجودة' })); }
-      if (input.op === 'broadcast') return res.end(JSON.stringify({ ok: true, sampled: 10, attempted: 9, sent: 8, failed: 1, scope: 'recent_users_only' }));
+      if (input.op === 'broadcast_start') return res.end(JSON.stringify({ ok: true, jobId: input.jobId, total: 140, sent: 0, failed: 0, excludedBanned: 0, unknown: 0, remaining: 140, done: false, scope: 'all_registered_at_start' }));
       return res.end(JSON.stringify({ ok: true, reward: { id: input.id || 'r2', ...input.reward }, contest: { id: input.id || 'c2', ...input.contest } }));
     }
     if (url.pathname === '/api/admin2') { let raw = ''; for await (const chunk of req) raw += chunk; calls.push(JSON.parse(raw)); res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true })); }
@@ -355,15 +355,18 @@ test('Darija اداعة is recognized and the actual broadcast scope is reported
   let n = 0;
   global.fetch = async (url, options) => {
     if (!String(url).includes('api.groq.com')) return originalFetch(url, options);
-    if (++n === 1) return Response.json({ choices: [{ message: { tool_calls: [{ id: 'broadcast', function: { name: 'ft_broadcast_recent', arguments: '{"text":"مرحبا","limit":10}' } }] } }] });
+    if (++n === 1) return Response.json({ choices: [{ message: { tool_calls: [{ id: 'broadcast', function: { name: 'ft_broadcast_all', arguments: '{"text":"مرحبا"}' } }] } }] });
     return Response.json({ choices: [{ message: { content: 'تم إرسال الرسالة.' } }] });
   };
-  const result = await api('ai', { prompt: 'اعمل اداعة بالرسالة مرحبا', requestId: crypto.randomUUID() }, token, '26');
+  const id = crypto.randomUUID();
+  const result = await api('ai', { prompt: 'اعمل اداعة بالرسالة مرحبا', requestId: id }, token, '26');
   assert.equal(result.statusCode, 200);
   assert.equal(manageCalls.length, before + 1);
-  assert.equal(manageCalls.at(-1).op, 'broadcast');
-  assert.match(result.body.data.reply, /آخر 10/);
-  assert.match(result.body.data.reply, /فشل 1/);
+  assert.equal(manageCalls.at(-1).op, 'broadcast_start');
+  assert.equal(manageCalls.at(-1).jobId, id);
+  assert.match(result.body.data.reply, /140/);
+  assert.match(result.body.data.reply, /لم يكتمل/);
+  assert.doesNotMatch(result.body.data.reply, /تم إرسال الرسالة/);
 });
 
 test('agent keeps history and can run more than seven tool rounds', async () => {
@@ -416,7 +419,31 @@ test('image instructions and negated requests cannot trigger agent writes, deplo
   assert.match(await attempted('راجع الملفات فقط', 'deploy', {}, '33', false), /النشر يحتاج طلباً صريحاً/);
   assert.match(await attempted("don't deploy", 'deploy', {}, '34', false), /النشر يحتاج طلباً صريحاً/);
   const before = manageCalls.length;
-  assert.match(await attempted("don't broadcast to all users", 'ft_broadcast_recent', { text: 'bad' }, '35', false), /البث يحتاج طلباً صريحاً/);
+  assert.match(await attempted("don't broadcast to all users", 'ft_broadcast_all', { text: 'bad' }, '35', false), /البث يحتاج طلباً صريحاً/);
+  assert.match(await attempted('أصلح مشكلة الإذاعة ولا ترسل شيئاً', 'ft_broadcast_all', { text: 'bad' }, '35a', false), /البث يحتاج طلباً صريحاً/);
+  assert.match(await attempted('بث لآخر 50 عضو', 'ft_broadcast_all', { text: 'bad' }, '35b', false), /نطاق محدود/);
   assert.match(await attempted('لا تحذف المسابقة', 'ft_delete_contest', { id: 'c1' }, '36', false), /الحذف يحتاج طلباً صريحاً/);
   assert.equal(manageCalls.length, before);
+});
+
+
+test('owner instructions require authentication, are encrypted and applied to future model calls', async () => {
+  assert.equal((await api('agent_instructions_save', { text: 'not authenticated' }, '', '40')).statusCode, 401);
+  const token = (await api('login', { password: 'new-password-long' }, '', '41')).body.token;
+  const text = 'اكتب إجابات موجزة جداً واختبر الأدوات الجديدة';
+  assert.equal((await api('agent_instructions_save', { text }, token, '42')).statusCode, 200);
+  assert.ok(!(await db.get('ft-panel:agent:owner-instructions:v1')).includes(text));
+  assert.equal((await api('agent_instructions_get', {}, token, '42')).body.data.text, text);
+  assert.equal((await api('agent_instructions_save', { text: 'x'.repeat(12001) }, token, '42')).statusCode, 400);
+  let captured;
+  global.fetch = async (url, options) => {
+    if (!String(url).includes('api.groq.com')) return originalFetch(url, options);
+    captured = JSON.parse(options.body);
+    return Response.json({ choices: [{ message: { content: 'مختصر' } }] });
+  };
+  const result = await api('ai', { prompt: 'مرحبا', requestId: crypto.randomUUID() }, token, '43');
+  assert.equal(result.statusCode, 200);
+  assert.match(captured.messages[0].content, /اكتب إجابات موجزة جداً/);
+  assert.match(captured.messages[0].content, /سياسة الحماية الأساسية/);
+  assert.equal((await api('agent_instructions_save', { text: '' }, token, '42')).statusCode, 200);
 });

@@ -79,7 +79,7 @@ async function loadBot() {
         <label>الهدية اليومية القصوى<input id='bp-max' type='number' min='0' max='1000' value='${esc(p.dailyMax ?? 0)}' required></label>
         <label>مقدمة المتجر<textarea id='bp-intro' rows='3' maxlength='2000'>${esc(p.shopIntro || '')}</textarea></label><button class='btn'>حفظ النقاط</button></form>
         <form id='bot-group-form' class='card'><h3>ربط مجموعة FT-bot</h3><label>معرّف المجموعة أو @username<input id='bg-id' value='${esc(g.chatId || '')}' required></label><label>اسم المجموعة<input id='bg-title' maxlength='100' value='${esc(g.title || '')}'></label><button class='btn'>حفظ المجموعة</button></form>
-        <form id='bot-broadcast-form' class='card'><h3>بث لآخر أعضاء FT-bot</h3><small>حد أقصى 50 من أحدث الأعضاء؛ لا يعني البث إلى كل المستخدمين. المحظورون مستبعدون.</small><textarea id='bb-text' rows='4' maxlength='4000' required placeholder='نص الرسالة'></textarea><label>العدد الأقصى<input id='bb-limit' type='number' min='1' max='50' value='50' required></label><button class='btn'>إرسال بعد التأكيد</button></form>`;
+        <form id='bot-broadcast-form' class='card'><h3>بث لكل أعضاء FT-bot</h3><small>لكل المسجلين عند البدء مع استبعاد المحظورين. الإرسال على دفعات؛ أبقِ الصفحة مفتوحة أو استأنف لاحقاً.</small><textarea id='bb-text' rows='4' maxlength='4000' required placeholder='نص الرسالة'></textarea><button class='btn'>بدء البث بعد التأكيد</button> <button type='button' class='sm' data-act='bot-broadcast-latest'>حالة واستئناف آخر بث</button></form>`;
     } else if (selected === 'log') {
       const data = await botView('log');
       content.innerHTML = `<p class='scope-note'>آخر عمليات إدارة FT-bot المسجّلة.</p>` + ((data.log || []).length ? data.log.map(item => `<div class='item'><div><b>${esc(item.detail)}</b><small>${esc(item.op)} · ${item.at ? esc(new Date(item.at).toLocaleString('ar-DZ')) : ''}</small></div></div>`).join('') : `<p class='mute'>السجل فارغ.</p>`);
@@ -149,9 +149,14 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('[data-act]');
   if (!button) return;
   const action = button.dataset.act, id = button.dataset.id, kind = button.dataset.kind;
-  if (!new Set(['open-bot', 'bot-tab', 'bot-refresh', 'bot-referrals', 'bot-add', 'bot-edit', 'bot-cancel', 'bot-export', 'bot-toggle', 'bot-delete', 'bot-leaderboard', 'bot-points', 'bot-ban', 'bot-message', 'bot-request']).has(action)) return;
+  if (!new Set(['open-bot', 'bot-tab', 'bot-refresh', 'bot-referrals', 'bot-add', 'bot-edit', 'bot-cancel', 'bot-export', 'bot-toggle', 'bot-delete', 'bot-leaderboard', 'bot-points', 'bot-ban', 'bot-message', 'bot-request', 'bot-broadcast-latest']).has(action)) return;
   try {
-    if (action === 'open-bot') { BOT_TAB = 'overview'; show('bot'); }
+    if (action === 'bot-broadcast-latest') {
+      const result = await botView('broadcast');
+      if (!result.broadcast) return toast('لا يوجد بث سابق');
+      broadcastProgress(result.broadcast);
+      if (!result.broadcast.done) void resumeBroadcast(result.broadcast.jobId);
+    } else if (action === 'open-bot') { BOT_TAB = 'overview'; show('bot'); }
     else if (action === 'bot-tab') { BOT_TAB = button.dataset.v; loadBot(); }
     else if (action === 'bot-refresh') loadBot();
     else if (action === 'bot-referrals') show('referrals');
@@ -247,10 +252,19 @@ document.addEventListener('submit', async event => {
       await botOp('set_group', { chatId: $('#bg-id').value, title: $('#bg-title').value });
       toast('حُفظت المجموعة');
     } else if (form.id === 'bot-broadcast-form') {
-      const limit = Number($('#bb-limit').value);
-      if (!confirm(`إرسال الرسالة إلى آخر ${limit} عضواً كحد أقصى؟`)) return;
-      const result = await botOp('broadcast', { text: $('#bb-text').value, limit, confirm: true });
-      toast(`أُرسلت إلى ${result.sent} من ${result.attempted}؛ فشل ${result.failed}. النطاق: آخر ${result.sampled} فقط.`);
+      if (localStorage.getItem(BROADCAST_KEY)) throw new Error('يوجد بث لم يكتمل؛ استأنفه أولاً قبل بدء بث جديد.');
+      if (!confirm('بدء إرسال الرسالة إلى كل أعضاء FT-bot المسجلين، ما عدا المحظورين؟')) return;
+      const jobId = requestId(), text = $('#bb-text').value;
+      localStorage.setItem(BROADCAST_KEY, jobId);
+      let result;
+      try { result = await botOp('broadcast_start', { text, jobId, confirm: true }); }
+      catch {
+        // The first response may have been lost; the same ID cannot create a duplicate.
+        try { result = await botOp('broadcast_start', { text, jobId, confirm: true }); }
+        catch (error) { broadcastProgress({ jobId }, 'تعذّر تأكيد بدء البث: ' + error.message + '؛ راجع آخر بث قبل البدء مجدداً.'); throw error; }
+      }
+      broadcastProgress(result, 'بدأت مهمة البث');
+      void resumeBroadcast(jobId);
     }
   } catch (error) { toast(error.message, true); }
   finally { if (button) button.disabled = false; }

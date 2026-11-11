@@ -7,6 +7,7 @@ const rate = require('../lib/rate');
 const bot = require('../lib/botBridge');
 const agentRepo = require('../lib/agentRepo');
 const agentAudit = require('../lib/agentAudit');
+const agentInstructions = require('../lib/agentInstructions');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function runAIOnce(b, token, onProgress) {
@@ -28,7 +29,7 @@ async function runAIOnce(b, token, onProgress) {
     throw e;
   }
   try {
-    const data = await runAI(b.prompt, b.history, b.image, { onProgress });
+    const data = await runAI(b.prompt, b.history, b.image, { onProgress, requestId: id });
     await redis().set(key, agentAudit.seal({ data }), 'EX', 86400);
     return data;
   } catch (e) {
@@ -92,6 +93,8 @@ async function handle(b, token) {
     case 'bot_image': return { data: await bot.uploadImage(b.kind, b.id, b.dataUrl) };
     case 'bot_view': return { data: await bot.manageView(b.view, b.id) };
     case 'bot_manage': return { data: await bot.manageOp(b.op, b.input) };
+    case 'agent_instructions_get': return { data: await agentInstructions.get() };
+    case 'agent_instructions_save': return { data: await agentInstructions.save(b.text) };
     case 'agent_history': return { data: await agentAudit.history(b.limit) };
     case 'agent_diff': return { data: await agentRepo.workspaceDiff() };
     case 'agent_deploy': return { data: await runAgentOnce(b, token, () => agentRepo.deploy({ message: b.message }, agentRepo.context())) };

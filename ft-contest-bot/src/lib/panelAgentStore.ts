@@ -6,6 +6,7 @@ import { getPool, getStore } from "./store";
 // Balances/request decisions/settings have dedicated invariant-preserving APIs.
 function validKey(value: unknown, write = false): string {
   if (typeof value !== "string" || !/^[a-zA-Z0-9:_-]{1,120}$/.test(value)) throw new Error("مفتاح البيانات غير صالح");
+  if (/^broadcast:(?:job|worker|latest)(?::|$)/i.test(value)) throw new Error("بيانات البث محمية؛ استخدم أدوات البث");
   if (/^(?:system|admin|auth)(?::|$)|(?:token|secret|password|credential|webhook|:pool|:claim)/i.test(value) || value === "settings") throw new Error("المفتاح يحتوي إعدادات حساسة؛ استخدم أدوات الإعدادات");
   if (write && /^(?:pts:|rreq:|refs:|daily:|points:config$)/i.test(value)) throw new Error("استخدم أدوات النقاط أو الطلبات أو الإعدادات للحفاظ على الترابط");
   return value;

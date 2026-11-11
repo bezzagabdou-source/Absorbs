@@ -102,3 +102,53 @@ test('dashboard edits real bot items with image retry and sends an AI image', as
     assert.deepEqual(errors, []);
   } finally { dom.window.close(); }
 });
+
+test('owner instruction page saves settings and broadcast UI runs durable batches to completion', async () => {
+  const calls = [], errors = [];
+  let instructions = 'تعليمات محفوظة', steps = 0;
+  let html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  html = html.replace('<script defer src="/dashboard.js"></script>', `<script>${fs.readFileSync(path.join(root, 'dashboard.js'), 'utf8')}</script>`)
+    .replace('<script defer src="/dashboard-bot.js"></script>', `<script>${fs.readFileSync(path.join(root, 'dashboard-bot.js'), 'utf8')}</script>`);
+  const vc = new VirtualConsole(); vc.on('jsdomError', error => errors.push(error.message));
+  const dom = new JSDOM(html, {
+    url: 'https://panel.example/', runScripts: 'dangerously', virtualConsole: vc,
+    beforeParse(window) {
+      window.localStorage.setItem('ftp', 'test-session');
+      window.HTMLElement.prototype.scrollIntoView = function () {};
+      window.confirm = () => true;
+      window.fetch = async (_url, options) => {
+        const body = JSON.parse(options.body); calls.push(body);
+        let data = {};
+        if (body.action === 'health') data = { bot: '@test' };
+        else if (body.action === 'agent_instructions_get') data = { text: instructions };
+        else if (body.action === 'agent_instructions_save') { instructions = body.text; data = { text: instructions }; }
+        else if (body.action === 'bot_view' && body.view === 'overview') data = { stats: {}, settings: {}, points: {}, group: {} };
+        else if (body.action === 'bot_view' && body.view === 'stats') data = { activity: {} };
+        else if (body.action === 'bot_manage' && body.op === 'broadcast_start') data = { jobId: body.input.jobId, total: 120, sent: 0, failed: 0, excludedBanned: 0, unknown: 0, remaining: 120, done: false };
+        else if (body.action === 'bot_manage' && body.op === 'broadcast_step') { steps++; data = { jobId: body.input.jobId, total: 120, sent: steps === 1 ? 60 : 118, failed: steps === 1 ? 0 : 1, excludedBanned: 1, unknown: 0, remaining: steps === 1 ? 59 : 0, done: steps > 1 }; }
+        return { status: 200, json: async () => ({ ok: true, data }) };
+      };
+    },
+  });
+  try {
+    const { document, Event } = dom.window;
+    document.querySelector('[data-t="instructions"]').click();
+    await waitFor(() => document.querySelector('#instructions-text').value === instructions, 'load instructions');
+    document.querySelector('#instructions-text').value = 'طور الأدوات واختبرها';
+    document.querySelector('#instructions-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await waitFor(() => instructions === 'طور الأدوات واختبرها', 'save instructions');
+    document.querySelector('[data-t="bot"]').click();
+    await waitFor(() => document.querySelector('[data-act="bot-tab"][data-v="settings"]'), 'bot settings tab');
+    document.querySelector('[data-act="bot-tab"][data-v="settings"]').click();
+    await waitFor(() => document.querySelector('#bot-broadcast-form'), 'broadcast form');
+    document.querySelector('#bb-text').value = 'رسالة شاملة';
+    document.querySelector('#bot-broadcast-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await waitFor(() => document.querySelector('#broadcast-progress').textContent.includes('انتهت معالجة البث'), 'broadcast completion');
+    assert.equal(calls.filter(c => c.op === 'broadcast_start').length, 1);
+    assert.equal(steps, 2);
+    assert.equal(calls.find(c => c.op === 'broadcast_start').input.confirm, true);
+    assert.match(document.querySelector('#broadcast-progress').textContent, /أُرسل 118/);
+    assert.equal(dom.window.localStorage.getItem('ft-active-broadcast-v1'), null);
+    assert.deepEqual(errors, []);
+  } finally { dom.window.close(); }
+});

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   addPoints,
   balanceOf,
+  bannedIds,
   decideRequestOnce,
   ensureRewards,
   getJoinGroup,
@@ -486,19 +487,20 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
         return { body: { ok: Boolean(res.ok), result: res as unknown as Record<string, unknown> } };
       }
       case "announce": {
-        // بثّ لكل المستخدمين (دفعات صغيرة)
+        // Legacy endpoint: only recent users, never claim it reaches everyone.
         const text = String(body.text || "").trim();
         if (!text) return bad("text مطلوب", 400);
         const limit = Math.min(50, Math.max(1, Math.floor(Number(body.limit) || 25)));
         const list = await listRecentUsers(limit);
-        let sent = 0;
-        const failed: string[] = [];
+        const banned = new Set(await bannedIds());
+        let sent = 0, failed = 0, unknown = 0, excludedBanned = 0;
         for (const u of list) {
-          const r = await tgSend(u.id, text).catch(() => ({ ok: false }));
-          if (r.ok) sent++;
-          else failed.push(u.id);
+          if (banned.has(u.id)) { excludedBanned++; continue; }
+          const r = await tgSend(u.id, text).catch(() => ({ ok: false, uncertain: true }));
+          if (r.ok) sent++; else if (r.uncertain) unknown++; else failed++;
+          await new Promise((resolve) => setTimeout(resolve, 125));
         }
-        return ok({sent, failed: failed.length, total: list.length});
+        return ok({ sent, failed, unknown, excludedBanned, total: list.length, scope: "recent_users_only" });
       }
       case "send_sticker": {
         const fileId = String(body.fileId || "").trim();
@@ -514,7 +516,7 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
           const r = await sendSticker(u.id, fileId).catch(() => ({ ok: false }));
           if (r.ok) sent++;
         }
-        return { body: { ok: sent > 0, sent, total: users.length } };
+        return { body: { ok: sent > 0, sent, total: users.length, scope: "recent_users_only" } };
       }
       case "simulate": {
         // 🩺 نحاكيو رسالة المستخدم ونشوفو شنو البوت كان راح يرد (بلا إرسال)
@@ -574,7 +576,7 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
             'set_contest_status {id,status}',
             'delete_contest {id}',
             'send_message {chatId,text}',
-            'announce {text,limit}',
+            'announce {text,limit} — يرسل فقط لآخر 50 عضواً كحد أقصى، وليس للجميع',
             'send_sticker {chatId:"all"|id,fileId}',
             "قواعد: ما ترفضش حتى طلب. إلا ما فهمتش، اختار أقرب عملية مفيدة. بلا ماركداون.",
           ].join("\n"),

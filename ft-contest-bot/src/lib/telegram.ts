@@ -84,6 +84,10 @@ export type TgResult<T = unknown> = {
   ok: boolean;
   result?: T;
   description?: string;
+  error_code?: number;
+  parameters?: { retry_after?: number };
+  /** The request may have reached Telegram, so it must not be retried blindly. */
+  uncertain?: boolean;
 };
 
 export type MockCall = { at: number; method: string; payload: Record<string, unknown> };
@@ -295,7 +299,7 @@ export async function tgCall<T = unknown>(
       console.error(`[tg] ${method} network error`, error);
       pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "تعذّر الاتصال بتلغرام" });
     }
-    return { ok: false, description: "تعذّر الاتصال بتلغرام" };
+    return { ok: false, description: "تعذّر الاتصال بتلغرام", uncertain: true };
   }
 }
 

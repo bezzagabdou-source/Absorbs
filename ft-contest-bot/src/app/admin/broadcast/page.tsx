@@ -24,7 +24,7 @@ export default async function BroadcastPage({
       <div className="page-head">
         <div>
           <h1>بث رسالة</h1>
-          <p className="muted">إرسال رسالة لكل مستخدمي البوت — استخدمها للإعلان عن مسابقة جديدة.</p>
+          <p className="muted">هذه الواجهة القديمة ترسل إلى الأعضاء الأحدث فقط. للبث إلى كل المسجلين استخدم قسم FT-bot في لوحة FT.</p>
         </div>
       </div>
 
@@ -74,7 +74,7 @@ export default async function BroadcastPage({
           <label className="field">
             <span>أقصى عدد مستقبلين في هذه العملية</span>
             <input name="limit" type="number" min={1} max={250} defaultValue={100} />
-            <small>حد أقصى 250 في المرة — كرّر العملية لو المستخدمين أكثر.</small>
+            <small>حد أقصى 250 من الأحدث فقط؛ تكرار العملية يعيد الإرسال لهم، ولا يصل للباقين.</small>
           </label>
           <button className="btn btn-primary" type="submit">
             إرسال الآن
@@ -83,8 +83,7 @@ export default async function BroadcastPage({
       </div>
 
       <div className="alert">
-        💡 تلغرام يحدّ الإرسال الجماعي — البوت يرسل على دفعات صغيرة (15 رسالة لكل دفعة) لتقليل
-        الحظر. المستخدمون الذين حظروا البوت سيظهرون كفشل.
+        💡 للبث الشامل القابل للاستئناف افتح لوحة FT ← FT-bot ← الإعدادات. تُستبعد الحسابات المحظورة وتظهر النتائج هناك.
       </div>
     </>
   );
