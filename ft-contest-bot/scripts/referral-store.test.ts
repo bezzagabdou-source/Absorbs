@@ -67,3 +67,47 @@ test("legacy users, self referrals, and disabled points", async () => {
   const log = await store.listRecent("referrals:log", 1);
   assert.equal(JSON.parse(log[0]).joinerId, free.id);
 });
+
+test("shop balance adjustments are atomic, clamp at zero and keep ranking in sync", async () => {
+  const id = "88801";
+  await Promise.all(Array.from({ length: 12 }, () => store.adjustBalance(id, 1, false)));
+  assert.equal(await store.get<number>(`pts:${id}`), 12);
+  assert.equal(await store.zScore("pts:top", id), 12);
+  assert.equal(await store.adjustBalance(id, -50, false), 0);
+  assert.equal(await store.zScore("pts:top", id), 0);
+  assert.equal(await store.adjustBalance(id, 7, true), 7);
+  assert.equal(await store.zScore("pts:top", id), 7);
+});
+
+test("a rejected reward request is refunded once and cannot change status afterwards", async () => {
+  const id = "request_atomic", uid = "88802";
+  const request = { id, userId: uid, userName: "test", username: "", rewardId: "r", rewardTitle: "Reward", emoji: "🎁", cost: 12, status: "pending", at: 1 };
+  await store.set(`rreq:${id}`, request);
+  await store.adjustBalance(uid, 3, true);
+  const first = await store.decideRewardRequest(id, "rejected", 10, "");
+  const second = await store.decideRewardRequest(id, "approved", 11, "");
+  assert.equal(first.changed, true);
+  assert.equal(first.request?.status, "rejected");
+  assert.equal(second.changed, false);
+  assert.equal(second.request?.status, "rejected");
+  assert.equal(await store.get<number>(`pts:${uid}`), 15);
+  assert.equal(await store.zScore("pts:top", uid), 15);
+});
+
+test("recent requests, empty reward catalog and saved settings round-trip", async () => {
+  const { listRequests, saveRewards, ensureRewards } = await import("../src/lib/rewards");
+  const { getSettings, saveSettings } = await import("../src/lib/settings");
+  const ids = Array.from({ length: 105 }, (_, i) => `recent_${i}`);
+  for (const id of ids) await store.set(`rreq:${id}`, { id, status: "pending" });
+  await store.listPush("rewards:requests", ids);
+  const recent = await listRequests(5);
+  assert.deepEqual(recent.map(r => r.id), ids.slice(-5).reverse());
+  await saveRewards([]);
+  assert.deepEqual(await ensureRewards(), [], "deleting the last reward must not restore defaults");
+  const welcome = "ترحيب خاص طويل ".repeat(12);
+  await saveSettings({ welcomeText: welcome, requiredChannels: [], requireJoin: false });
+  const saved = await getSettings();
+  assert.equal(saved.welcomeText, welcome.trim());
+  assert.deepEqual(saved.requiredChannels, []);
+  assert.equal(saved.requireJoin, false);
+});

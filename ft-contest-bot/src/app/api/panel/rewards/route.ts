@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   addPoints,
   balanceOf,
-  decideRequest,
+  decideRequestOnce,
   ensureRewards,
   getJoinGroup,
   getPointsConfig,
@@ -389,15 +389,18 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
       }
       case "decide": {
         const id = String(body.id || "");
-        const status = body.status === "approved" ? "approved" : "rejected";
-        const req = await decideRequest(id, status);
+        if (body.status !== "approved" && body.status !== "rejected") return bad("حالة الطلب غير صالحة", 400);
+        const status = body.status;
+        const decision = await decideRequestOnce(id, status);
+        const req = decision.request;
         if (!req) return bad("الطلب ماشي موجود", 404);
+        if (!decision.changed) return bad("تم البت في الطلب من قبل", 409);
         const text =
           status === "approved"
             ? `🎉 <b>مبروك!</b>\n\n${req.emoji} <b>${req.rewardTitle}</b> تمت الموافقة عليها.\nالمالك راح يتواصل معك للتسليم.`
             : `😕 طلبك على ${req.emoji} <b>${req.rewardTitle}</b> ما تمّش.\nتم إرجاع <b>${req.cost}</b> نقطة لرصيدك.`;
-        await sendMessage(req.userId, text).catch(() => undefined);
-        return ok({request: req});
+        const sent = await sendMessage(req.userId, text).catch(() => ({ ok: false }));
+        return ok({request: req, notified: Boolean(sent.ok)});
       }
       case "set_group": {
         const chatId = String(body.chatId || "").trim();

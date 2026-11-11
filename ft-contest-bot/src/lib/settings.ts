@@ -28,7 +28,7 @@ const SECRET_KEY = "system:secret";
 /** هل النص هو ترحيب قديم جداً لازم يتبدّل؟ (نحافظ على ترحيب الصورة) */
 function isOldLongWelcome(text: string): boolean {
   if (text.includes("{points}")) return false; // ترحيب النسخة القديمة (الصورة) — نحافظ عليه
-  return text.length > 90 || /هنا تربح|اختر من الأزرار/.test(text);
+  return text === "هنا تربح" || text === "اختر من الأزرار";
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -47,8 +47,7 @@ export async function getSettings(): Promise<Settings> {
         ? WELCOME_TEXT
         : savedWelcome,
     requiredChannels: (() => {
-      const list = normalizeChannels(saved.requiredChannels);
-      if (list.length) return list;
+      if (Array.isArray(saved.requiredChannels)) return normalizeChannels(saved.requiredChannels);
       const legacy = normalizeChannels(saved.channelChat);
       if (legacy.length) return legacy;
       return DEFAULT_SETTINGS.requiredChannels;

@@ -974,10 +974,15 @@ async function decideRewardRequest(
     await sendMessage(chatId, "⛔️ هذا الأمر للمالك فقط.");
     return;
   }
-  const { decideRequest } = await import("./rewards");
-  const req = await decideRequest(requestId, approve ? "approved" : "rejected");
+  const { decideRequestOnce } = await import("./rewards");
+  const decision = await decideRequestOnce(requestId, approve ? "approved" : "rejected");
+  const req = decision.request;
   if (!req) {
     await sendMessage(chatId, "⚠️ الطلب ماشي موجود.");
+    return;
+  }
+  if (!decision.changed) {
+    await sendMessage(chatId, "⚠️ تم البت في هذا الطلب من قبل.");
     return;
   }
   const text = approve

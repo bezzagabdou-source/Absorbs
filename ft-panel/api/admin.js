@@ -25,7 +25,7 @@ async function runAIOnce(b, token) {
     throw e;
   }
   try {
-    const data = await runAI(b.prompt, b.history);
+    const data = await runAI(b.prompt, b.history, b.image);
     await redis().set(key, JSON.stringify({ data }), 'EX', 86400);
     return data;
   } catch (e) {
@@ -65,6 +65,8 @@ async function handle(b, token) {
     case 'referral_photos': return { data: await bot.photos(b.ids) };
     case 'bot_media': return { data: await bot.media() };
     case 'bot_image': return { data: await bot.uploadImage(b.kind, b.id, b.dataUrl) };
+    case 'bot_view': return { data: await bot.manageView(b.view, b.id) };
+    case 'bot_manage': return { data: await bot.manageOp(b.op, b.input) };
     case 'ai': return { data: await runAIOnce(b, token) };
     default: throw new Error('أمر غير معروف');
   }

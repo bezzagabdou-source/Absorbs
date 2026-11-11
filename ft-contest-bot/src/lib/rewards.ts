@@ -164,7 +164,7 @@ const SOLD_OUT_KEY = "rewards:soldOutV1";
 export async function ensureRewards(): Promise<Reward[]> {
   const store = getStore();
   const saved = await store.get<Reward[]>(KEY.rewardList);
-  if (!Array.isArray(saved) || !saved.length) {
+  if (!Array.isArray(saved)) {
     await store.set(KEY.rewardList, DEFAULT_REWARDS);
     return DEFAULT_REWARDS;
   }
@@ -227,21 +227,14 @@ export async function balanceOf(userId: string): Promise<number> {
 }
 
 export async function addPoints(userId: string, amount: number): Promise<number> {
-  const store = getStore();
-  const next = Math.max(0, (await balanceOf(userId)) + Math.trunc(amount));
-  await store.set(KEY.points(userId), next);
-  await store.zIncr(KEY.top, userId, Math.trunc(amount));
-  return next;
+  if (!Number.isFinite(amount)) throw new Error("عدد النقاط غير صالح");
+  return getStore().adjustBalance(String(userId), Math.trunc(amount), false);
 }
 
-/** تعديل الرصيد المطلق (للوحة التحكم) */
+/** تعديل الرصيد والترتيب معاً بدون فقدان الإحالات المتزامنة. */
 export async function setBalance(userId: string, value: number): Promise<number> {
-  const store = getStore();
-  const before = await balanceOf(userId);
-  const next = Math.max(0, Math.trunc(value));
-  await store.set(KEY.points(userId), next);
-  await store.zIncr(KEY.top, userId, next - before);
-  return next;
+  if (!Number.isFinite(value)) throw new Error("عدد النقاط غير صالح");
+  return getStore().adjustBalance(String(userId), Math.trunc(value), true);
 }
 
 export async function topBalances(limit = 10): Promise<{ userId: string; points: number }[]> {
@@ -342,9 +335,18 @@ export async function createRequest(input: {
 
 export async function listRequests(limit = 100): Promise<RewardRequest[]> {
   const store = getStore();
-  const ids = await store.listAll(KEY.requests, limit * 2);
-  const items = await Promise.all(ids.slice(-limit).reverse().map((id) => store.get<RewardRequest>(KEY.req(id))));
+  // The store normalizes newest-first ordering for Redis, Postgres and memory.
+  const ids = await store.listRecent(KEY.requests, Math.max(1, Math.min(500, limit)));
+  const items = await Promise.all(ids.map((id) => store.get<RewardRequest>(KEY.req(id))));
   return items.filter((x): x is RewardRequest => Boolean(x));
+}
+
+export async function decideRequestOnce(
+  id: string,
+  status: "approved" | "rejected",
+  note = "",
+): Promise<{ request: RewardRequest | null; changed: boolean }> {
+  return getStore().decideRewardRequest(id, status, Date.now(), note);
 }
 
 export async function decideRequest(
@@ -352,13 +354,7 @@ export async function decideRequest(
   status: "approved" | "rejected",
   note = "",
 ): Promise<RewardRequest | null> {
-  const store = getStore();
-  const request = await store.get<RewardRequest>(KEY.req(id));
-  if (!request || request.status !== "pending") return request;
-  const next: RewardRequest = { ...request, status, decidedAt: Date.now(), note };
-  if (status === "rejected") await addPoints(request.userId, request.cost);
-  await store.set(KEY.req(id), next);
-  return next;
+  return (await decideRequestOnce(id, status, note)).request;
 }
 
 /* ─────────────── إضافة البوت للمجموعة تلقائياً عند /start ─────────────── */
@@ -539,14 +535,14 @@ export async function pushAdminLog(entry: AdminLogEntry): Promise<void> {
   await store.listPush(KEY.log, [JSON.stringify(entry)]);
   const len = await store.listLen(KEY.log);
   if (len > 400) {
-    const keep = (await store.listAll(KEY.log, 500)).slice(-350);
+    const keep = (await store.listRecent(KEY.log, 350)).reverse();
     await store.delList(KEY.log);
     await store.listPush(KEY.log, keep);
   }
 }
 
 export async function readAdminLog(limit = 120): Promise<AdminLogEntry[]> {
-  const raw = await getStore().listAll(KEY.log, 500);
+  const raw = await getStore().listRecent(KEY.log, Math.max(1, Math.min(limit, 500)));
   return raw
     .map((l) => {
       try {
@@ -555,7 +551,5 @@ export async function readAdminLog(limit = 120): Promise<AdminLogEntry[]> {
         return null;
       }
     })
-    .filter((x): x is AdminLogEntry => Boolean(x))
-    .slice(-limit)
-    .reverse();
+    .filter((x): x is AdminLogEntry => Boolean(x));
 }

@@ -81,10 +81,10 @@ async function setReferralConfig(value) {
   return { perJoin: result.perJoin, enabled: result.enabled };
 }
 async function media() {
-  const result = await json(await call('/api/panel/rewards'));
+  const result = await json(await call('/api/panel/manage?view=catalog'));
   return {
-    contests: (Array.isArray(result.contests) ? result.contests : []).map(c => ({ id: String(c.id), title: String(c.title || ''), hasImage: !!c.imageUrl })),
-    rewards: (Array.isArray(result.rewards) ? result.rewards : []).map(r => ({ id: String(r.id), title: String(r.title || ''), hasImage: !!r.image })),
+    contests: (Array.isArray(result.contests) ? result.contests : []).map(c => ({ id: String(c.id), title: String(c.title || ''), hasImage: !!c.hasImage })),
+    rewards: (Array.isArray(result.rewards) ? result.rewards : []).map(r => ({ id: String(r.id), title: String(r.title || ''), hasImage: !!r.hasImage })),
   };
 }
 function validImage(data) {
@@ -124,4 +124,24 @@ async function photos(ids) {
   await Promise.all(Array.from({ length: Math.min(4, unique.length) }, worker));
   return out;
 }
-module.exports = { connected, connect, referrals, referralConfig, setReferralConfig, media, uploadImage, photos, validImage };
+// The new management route has a fixed allowlist; never proxy arbitrary URLs or the bot's unrestricted AI endpoint.
+const VIEWS = new Set(['catalog', 'overview', 'stats', 'requests', 'log', 'users', 'user', 'leaderboard']);
+const OPERATIONS = new Set(['reward_save', 'reward_delete', 'contest_save', 'contest_delete', 'user_points', 'user_ban', 'request_decide', 'points_config', 'settings_save', 'set_group', 'send_message', 'broadcast']);
+async function manageView(view, id) {
+  if (!VIEWS.has(view)) throw new Error('عرض البوت غير مسموح');
+  if (['user', 'leaderboard'].includes(view) && !/^[A-Za-z0-9_-]{1,64}$/.test(String(id || ''))) throw new Error('المعرّف غير صالح');
+  const query = new URLSearchParams({ view });
+  if (id) query.set('id', String(id));
+  return json(await call(`/api/panel/manage?${query}`));
+}
+async function manageOp(op, input = {}) {
+  if (!OPERATIONS.has(op) || !input || typeof input !== 'object' || Array.isArray(input)) throw new Error('عملية البوت غير مسموحة');
+  return json(await call('/api/panel/manage', { body: { ...input, op }, timeout: op === 'broadcast' ? 45000 : 20000 }));
+}
+async function analyzeImage(image, prompt) {
+  if (!image || !validImage(image)) throw new Error('الصورة غير صالحة أو أكبر من 1.4 ميغا');
+  const result = await json(await call('/api/panel/vision', { body: { image, prompt: String(prompt || '').slice(0, 3000) }, timeout: 22000 }));
+  if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('مزوّد الصور لم يرجع وصفاً');
+  return { text: result.text.slice(0, 5000), provider: String(result.provider || '') };
+}
+module.exports = { connected, connect, referrals, referralConfig, setReferralConfig, media, uploadImage, photos, validImage, manageView, manageOp, analyzeImage };

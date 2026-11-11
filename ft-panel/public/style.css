@@ -423,3 +423,25 @@ input:focus-visible + span { outline: 2px solid var(--pitch); }
 nav { overflow-x: auto; }
 nav button { min-width: 52px; white-space: nowrap; }
 @media (max-width: 400px) { nav button { font-size: 11px; padding-inline: 1px; } }
+/* FT-bot management and image attachment */
+.scope-note, .privacy-note { color: var(--mute); font-size: 13px; }
+.scope-note { background: #e6f3eb; border-radius: 8px; padding: 10px 12px; }
+.privacy-note { display: block; padding: 0 4px; }
+.bot-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.bot-heading small { color: var(--mute); }
+.bot-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 6px; }
+.bot-tabs button { white-space: nowrap; border: 1px solid var(--line); background: #fff; border-radius: 20px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.bot-tabs button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.bot-item { flex-wrap: wrap; }
+.bot-item-main { flex: 1; min-width: 120px; }
+.bot-thumb { width: 58px; height: 58px; border-radius: 8px; object-fit: cover; flex: 0 0 58px; background: #eef3f6; }
+.bot-image-preview { width: 120px; max-height: 110px; border-radius: 8px; object-fit: contain; }
+.image-edit { margin: 8px 0; padding: 10px; background: #f7faf8; }
+#bot-dlg { width: min(94vw, 540px); max-height: 88vh; overflow-y: auto; }
+.attachment { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; padding: 8px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+.attachment img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+.attachment span { flex: 1; }
+.chat-image { display: block; max-width: min(240px, 100%); max-height: 200px; object-fit: contain; border-radius: 8px; margin-top: 8px; }
+.ai-upload { white-space: nowrap; align-self: stretch; }
+#af input#aq { min-width: 0; flex: 1; }
+@media (max-width: 440px) { .ai-upload { font-size: 12px; padding-inline: 7px; } #af .btn { padding-inline: 10px; } }

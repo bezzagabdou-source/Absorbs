@@ -34,18 +34,26 @@
         <section id="t-ai">
           <div id="chat"></div>
           <div class="chips">
-            <button data-q="كم عدد المستخدمين وكم طلب معلّق؟">الإحصائيات</button
-            ><button data-q="اعرض الجوائز">الجوائز</button
-            ><button data-q="اعرض الطلبات المعلقة">الطلبات</button>
+            <button data-q="اعرض إحصائيات FT-bot">الإحصائيات</button
+            ><button data-q="اعرض جوائز ومسابقات FT-bot">المتجر والمسابقات</button
+            ><button data-q="اعرض طلبات FT-bot المعلقة">الطلبات</button>
+          </div>
+          <div id="ai-attachment" class="attachment" hidden>
+            <img id="ai-preview" alt="الصورة المرفقة" />
+            <span>صورة للمساعد · ستُرسل لمزوّد فهم الصور</span>
+            <button class="sm" type="button" id="ai-remove">إزالة</button>
           </div>
           <form id="af" class="bar">
-            <input
-              id="aq"
-              placeholder="اكتب طلبك للبوت…"
-              autocomplete="off"
-            /><button class="btn">إرسال</button>
+            <label class="sm upload-label ai-upload" title="إرفاق صورة">
+              <input id="ai-image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+              <span>📎 صورة</span>
+            </label>
+            <input id="aq" placeholder="اكتب طلبك للبوت…" autocomplete="off" />
+            <button class="btn">إرسال</button>
           </form>
+          <small class="privacy-note">لا ترفق كلمات سر أو رموز وصول في الصور.</small>
         </section>
+        <section id="t-bot" hidden></section>
         <section id="t-stats" hidden></section>
         <section id="t-prizes" hidden></section>
         <section id="t-reqs" hidden></section>
@@ -55,6 +63,7 @@
       </main>
       <nav id="nav">
         <button data-t="ai" class="on">المساعد</button
+        ><button data-t="bot">FT-bot</button
         ><button data-t="stats">الأرقام</button
         ><button data-t="prizes">الجوائز</button
         ><button data-t="reqs">الطلبات</button
@@ -76,7 +85,9 @@
         </div>
       </form>
     </dialog>
+    <dialog id="bot-dlg"><form id="bot-df"></form></dialog>
     <div id="toast"></div>
     <script defer src="/dashboard.js"></script>
+    <script defer src="/dashboard-bot.js"></script>
   </body>
 </html>

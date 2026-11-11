@@ -367,7 +367,7 @@ export async function POST(req: NextRequest) {
       const target = list.find((r) => r.id === id);
       if (!target) return bad("الجائزة ماشي موجودة", 404);
       await saveRewards(list.map((r) => (r.id === id ? { ...r, image: dataUrl } : r)));
-      await pushAdminLog({ at: Date.now(), op: "reward_image", detail: `صورة الجائزة ${target.title}${dataUrl ? "" : " (تحيّدت)"}`, via: "panel" });
+      await pushAdminLog({ at: Date.now(), op: "reward_image", detail: `صورة الجائزة ${target.title}${dataUrl ? "" : " (تحيّدت)"}`, via: "panel" }).catch(() => undefined);
       return ok({ id, size: dataUrl.length });
     }
 
@@ -381,7 +381,7 @@ export async function POST(req: NextRequest) {
       const contest = await getContest(id);
       if (!contest) return bad("المسابقة ماشي موجودة", 404);
       const updated = await updateContest(id, { imageUrl: dataUrl || undefined });
-      await pushAdminLog({ at: Date.now(), op: "contest_image", detail: `صورة المسابقة ${contest.title}${dataUrl ? "" : " (تحيّدت)"}`, via: "panel" });
+      await pushAdminLog({ at: Date.now(), op: "contest_image", detail: `صورة المسابقة ${contest.title}${dataUrl ? "" : " (تحيّدت)"}`, via: "panel" }).catch(() => undefined);
       return ok({ contest: { id, image: Boolean(updated?.imageUrl) } });
     }
 

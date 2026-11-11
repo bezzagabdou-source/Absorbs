@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { BotUser } from "./types";
+import type { RewardRequest } from "./rewards";
 
 export type ZItem = { member: string; score: number };
 
@@ -58,6 +59,9 @@ export interface Store {
   /** ترتيب موحّد: الأحدث أولاً، مهما كان نوع التخزين. */
   listRecent(key: string, limit?: number): Promise<string[]>;
   delList(key: string): Promise<void>;
+  /** تحديث رصيد المتجر وترتيبه كعملية واحدة. */
+  adjustBalance(userId: string, value: number, absolute: boolean): Promise<number>;
+  decideRewardRequest(id: string, status: "approved" | "rejected", at: number, note: string): Promise<{ request: RewardRequest | null; changed: boolean }>;
   /** الذرّية تمنع حساب العضو أكثر من مرة، حتى مع طلبات متزامنة. */
   registerReferral(input: ReferralRegistration): Promise<boolean>;
 }
@@ -196,6 +200,43 @@ class RedisStore implements Store {
   }
   async delList(key: string) {
     await this.del(key);
+  }
+  async adjustBalance(userId: string, value: number, absolute: boolean): Promise<number> {
+    const script = `
+      local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+      if not current then return redis.error_reply('invalid points balance') end
+      local next = math.max(0, (ARGV[2] == '1' and 0 or current) + tonumber(ARGV[1]))
+      redis.call('SET', KEYS[1], next)
+      redis.call('ZADD', KEYS[2], next, ARGV[3])
+      return next`;
+    return Number(await this.cmd<number>(["EVAL", script, 2, this.k(`pts:${userId}`), this.k("pts:top"), value, absolute ? "1" : "0", userId]));
+  }
+  async decideRewardRequest(id: string, status: "approved" | "rejected", at: number, note: string) {
+    const script = `
+      local raw = redis.call('GET', KEYS[1])
+      if not raw then return {0, ''} end
+      local parsed, req = pcall(cjson.decode, raw)
+      if not parsed or type(req) ~= 'table' then return redis.error_reply('invalid request') end
+      if req.status ~= 'pending' then return {0, raw} end
+      local uid = tostring(req.userId or '')
+      local cost = tonumber(req.cost)
+      if not string.match(uid, '^%d+$') or not cost or cost < 0 then return redis.error_reply('invalid request balance') end
+      local balanceKey = KEYS[2] .. uid
+      local current = tonumber(redis.call('GET', balanceKey) or '0')
+      if not current then return redis.error_reply('invalid points balance') end
+      local rankType = redis.call('TYPE', KEYS[3]).ok
+      if rankType ~= 'none' and rankType ~= 'zset' then return redis.error_reply('invalid points ranking') end
+      req.status = ARGV[1]; req.decidedAt = tonumber(ARGV[2]); req.note = ARGV[3]
+      local next = cjson.encode(req)
+      if ARGV[1] == 'rejected' then
+        local balance = math.max(0, current) + cost
+        redis.call('SET', balanceKey, balance)
+        redis.call('ZADD', KEYS[3], balance, uid)
+      end
+      redis.call('SET', KEYS[1], next)
+      return {1, next}`;
+    const result = await this.cmd<[number, string]>(["EVAL", script, 3, this.k(`rreq:${id}`), this.k("pts:"), this.k("pts:top"), status, at, note]);
+    return { changed: Number(result[0]) === 1, request: result[1] ? JSON.parse(result[1]) as RewardRequest : null };
   }
   async registerReferral(input: ReferralRegistration): Promise<boolean> {
     const { joiner, inviter, at } = input;
@@ -446,6 +487,58 @@ class PostgresStore implements Store {
     const pool = await getPool();
     await pool.query("delete from ft_list where k = $1", [key]);
   }
+  async adjustBalance(userId: string, value: number, absolute: boolean): Promise<number> {
+    const pool = await getPool();
+    // The UPSERT locks the balance row and updates the ranking in the same statement.
+    const { rows } = await pool.query(
+      `with changed as (
+         insert into ft_kv (k, v) values ($1, to_jsonb(greatest(0, $3::numeric)))
+         on conflict (k) do update set v = to_jsonb(greatest(0,
+           case when $4::boolean then $3::numeric else coalesce((ft_kv.v #>> '{}')::numeric, 0) + $3::numeric end))
+         returning (v #>> '{}')::numeric as balance
+       ), ranked as (
+         insert into ft_zset (k, m, score) select 'pts:top', $2, balance::double precision from changed
+         on conflict (k, m) do update set score = excluded.score
+       ) select balance from changed`,
+      [`pts:${userId}`, userId, value, absolute],
+    );
+    return Number(rows[0].balance);
+  }
+  async decideRewardRequest(id: string, status: "approved" | "rejected", at: number, note: string) {
+    const pool = await getPool();
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query("select v from ft_kv where k = $1 for update", [`rreq:${id}`]);
+      const request = (result.rows[0]?.v || null) as RewardRequest | null;
+      if (!request || request.status !== "pending") {
+        await client.query("rollback");
+        return { request, changed: false };
+      }
+      const cost = Number(request.cost);
+      if (!/^\d{1,20}$/.test(String(request.userId)) || !Number.isSafeInteger(cost) || cost < 0) throw new Error("invalid request balance");
+      if (status === "rejected") {
+        await client.query(
+          `with changed as (
+             insert into ft_kv (k, v) values ($1, to_jsonb($3::numeric))
+             on conflict (k) do update set v = to_jsonb(greatest(0, coalesce((ft_kv.v #>> '{}')::numeric, 0)) + $3::numeric)
+             returning (v #>> '{}')::numeric as balance
+           ), ranked as (
+             insert into ft_zset (k, m, score) select 'pts:top', $2, balance::double precision from changed
+             on conflict (k, m) do update set score = excluded.score
+           ) select balance from changed`,
+          [`pts:${request.userId}`, request.userId, cost],
+        );
+      }
+      const next: RewardRequest = { ...request, status, decidedAt: at, note };
+      await client.query("update ft_kv set v = $2::jsonb where k = $1", [`rreq:${id}`, JSON.stringify(next)]);
+      await client.query("commit");
+      return { request: next, changed: true };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally { client.release(); }
+  }
   async registerReferral(input: ReferralRegistration): Promise<boolean> {
     const { joiner, inviter, at } = input;
     const points = Math.max(0, Math.min(100000, Math.floor(Number(input.points) || 0)));
@@ -655,6 +748,34 @@ class MemoryStore implements Store {
   async delList(key: string) {
     delete mem().lists[key];
     persist();
+  }
+  async adjustBalance(userId: string, value: number, absolute: boolean): Promise<number> {
+    const d = mem();
+    const current = Number(d.kv[`pts:${userId}`] || 0);
+    if (!Number.isFinite(current)) throw new Error("invalid points balance");
+    const next = Math.max(0, (absolute ? 0 : current) + value);
+    d.kv[`pts:${userId}`] = next;
+    (d.zsets["pts:top"] ||= {})[userId] = next;
+    persist();
+    return next;
+  }
+  async decideRewardRequest(id: string, status: "approved" | "rejected", at: number, note: string) {
+    const d = mem();
+    const request = (d.kv[`rreq:${id}`] || null) as RewardRequest | null;
+    if (!request || request.status !== "pending") return { request, changed: false };
+    const cost = Number(request.cost);
+    if (!/^\d{1,20}$/.test(String(request.userId)) || !Number.isSafeInteger(cost) || cost < 0) throw new Error("invalid request balance");
+    if (status === "rejected") {
+      const current = Number(d.kv[`pts:${request.userId}`] || 0);
+      if (!Number.isFinite(current)) throw new Error("invalid points balance");
+      const balance = Math.max(0, current) + cost;
+      d.kv[`pts:${request.userId}`] = balance;
+      (d.zsets["pts:top"] ||= {})[request.userId] = balance;
+    }
+    const next: RewardRequest = { ...request, status, decidedAt: at, note };
+    d.kv[`rreq:${id}`] = next;
+    persist();
+    return { request: next, changed: true };
   }
   async registerReferral(input: ReferralRegistration): Promise<boolean> {
     const { joiner, inviter, at } = input;
