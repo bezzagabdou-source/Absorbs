@@ -138,6 +138,58 @@ export async function GET(req: NextRequest) {
     return ok({ probe: out });
   }
 
+  // 🔑 فحص مفاتيح مرشّحة: ?what=keytest&keys=k1,k2,k3
+  if ((url.searchParams.get("what") || "") === "keytest") {
+    const raw = url.searchParams.get("keys") || "";
+    const keys = raw.split(/[,\s]+/).map((k) => k.trim()).filter((k) => k.length > 12);
+    const out: { key: string; provider: string; ok: boolean; error: string; sample: string }[] = [];
+    for (const key of keys.slice(0, 8)) {
+      const masked = `${key.slice(0, 6)}…${key.slice(-4)}`;
+      let provider = "openai-compatible";
+      let baseUrl = "https://api.openai.com/v1";
+      let model = "gpt-4o-mini";
+      if (key.startsWith("gsk_")) { provider = "groq"; baseUrl = "https://api.groq.com/openai/v1"; model = "openai/gpt-oss-20b"; }
+      else if (key.startsWith("sk-or-")) { provider = "openrouter"; model = "nvidia/nemotron-nano-9b-v2:free"; }
+      else if (key.startsWith("csk-")) { provider = "cerebras"; baseUrl = "https://api.cerebras.ai/v1"; model = "gpt-oss-120b"; }
+      else if (key.startsWith("xai-")) { provider = "xai"; baseUrl = "https://api.x.ai/v1"; model = "grok-4-fast"; }
+      else if (key.startsWith("AIza")) { provider = "gemini"; model = "gemini-3.8-flash"; }
+      try {
+        if (provider === "gemini") {
+          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "قول: ok" }] }], generationConfig: { maxOutputTokens: 10 } }),
+            signal: AbortSignal.timeout(12_000),
+          });
+          const j = (await r.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[]; error?: { message?: string } };
+          const text = (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || "").join("").trim();
+          out.push({ key: masked, provider, ok: r.ok && Boolean(text), error: j.error?.message || (r.ok ? "" : `HTTP ${r.status}`), sample: text.slice(0, 40) });
+        } else if (provider === "openrouter") {
+          const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+            body: JSON.stringify({ model, max_tokens: 20, messages: [{ role: "user", content: "قول: ok" }] }),
+            signal: AbortSignal.timeout(12_000),
+          });
+          const j = (await r.json()) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } };
+          out.push({ key: masked, provider, ok: r.ok && Boolean((j.choices?.[0]?.message?.content || "").trim()), error: j.error?.message || (r.ok ? "" : `HTTP ${r.status}`), sample: (j.choices?.[0]?.message?.content || "").slice(0, 40) });
+        } else {
+          const r = await fetch(`${baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+            body: JSON.stringify({ model, max_tokens: 20, messages: [{ role: "user", content: "قول: ok" }] }),
+            signal: AbortSignal.timeout(12_000),
+          });
+          const j = (await r.json()) as { choices?: { message?: { content?: string } }[]; error?: { message?: string } };
+          out.push({ key: masked, provider, ok: r.ok && Boolean((j.choices?.[0]?.message?.content || "").trim()), error: j.error?.message || (r.ok ? "" : `HTTP ${r.status}`), sample: (j.choices?.[0]?.message?.content || "").slice(0, 40) });
+        }
+      } catch (e) {
+        out.push({ key: masked, provider, ok: false, error: e instanceof Error ? e.message : "خطأ", sample: "" });
+      }
+    }
+    return ok({ probe: out });
+  }
+
   if ((url.searchParams.get("what") || "") === "dry") {
     const prompt = (url.searchParams.get("prompt") || "").trim();
     if (!prompt) return bad("prompt مطلوب", 400);
