@@ -198,6 +198,7 @@ export async function GET(req: NextRequest) {
         requiredChannels: settings.requiredChannels,
         requireJoin: settings.requireJoin,
         aiEnabled: settings.aiEnabled,
+        maintenanceMode: Boolean(settings.maintenanceMode),
       },
       requests,
       contests: contests.map((c) => ({ id: c.id, title: c.title, status: c.status, target: c.target })),

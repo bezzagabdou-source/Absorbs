@@ -43,6 +43,64 @@ export type AiRunResult = {
 };
 
 /** ✅ العمليات المسموحة فقط — أي شي آخر يُرفض */
+/** 📚 مكتبة الأوامر: أمثلة جاهزة يعرضها البوت للمالك */
+export const COMMAND_LIBRARY: { group: string; examples: string[] }[] = [
+  {
+    group: "🎁 الجوائز",
+    examples: [
+      "زيد جائزة كونت بيس 3 بـ 300 نقطة في قسم الحسابات",
+      "بدّل سعر كونت بيس 1 لـ 250 نقطة",
+      "حيّد جائزة دب",
+      "شحال من جائزة عندنا؟",
+    ],
+  },
+  {
+    group: "⭐️ النقاط",
+    examples: [
+      "زيد 100 نقطة للمستخدم 8273714178",
+      "نقّص 50 نقطة من 8273714178",
+      "بدّل نظام النقاط: كل جهة 2 نقطة",
+    ],
+  },
+  {
+    group: "👥 المستخدمين",
+    examples: ["احظر 123456789", "فك الحظر على 123456789", "شحال من مستخدم عندنا؟"],
+  },
+  {
+    group: "📢 الرسائل",
+    examples: ["بثّ: غدوة مسابقة جديدة 🎉", "بعث رسالة لـ 8273714178: مرحبا"],
+  },
+  {
+    group: "⚙️ الإعدادات",
+    examples: [
+      "ضع البوت في صيانة",
+      "طفي الصيانة",
+      "طفي بوابة الاشتراك",
+      "زيد قناة @mychannel",
+      "بدّل نص الترحيب: مرحبا بيك في بوت المسابقات",
+    ],
+  },
+];
+
+/** 🔍 فهم حر: إذا الطلب ما طابقش حتى نمط، نحاولو نلقاو كلمات مفتاحية ونحوّلوها لعملية */
+export function freeformAction(prompt: string): { op: string; [k: string]: unknown } | null {
+  const p = prompt.trim();
+  if (!p) return null;
+  if (/صيانة/.test(p)) return { op: "save_settings", settings: { maintenanceMode: !/(طفي|طفّي|اطفي|أطفي|وقف|عطّل|عطل|حيّد|حيد|فك|off)/i.test(p) } };
+  if (/(قناة|قنوات|شات)/.test(p)) {
+    const ch = p.match(/@[A-Za-z0-9_]{4,}/g) || [];
+    if (ch.length) {
+      const add = /(زيد|اضف|أضف|حط)/i.test(p);
+      return { op: "save_settings", settings: add ? { requiredChannelsAdd: ch } : { requiredChannelsRemove: ch } };
+    }
+  }
+  if (/(ترحيب|rules|قوانين)/i.test(p) && p.includes(":")) {
+    const body = p.slice(p.indexOf(":") + 1).trim();
+    return { op: "save_settings", settings: /(قوانين|rules)/i.test(p) ? { rulesText: body } : { welcomeText: body } };
+  }
+  return null;
+}
+
 export const ALLOWED_OPS = [
   "save_reward",
   "delete_reward",
@@ -181,6 +239,9 @@ function sectionFromText(text: string): SectionId | null {
 
 /** 🚫 طلبات ممنوعة بالكامل — نرفضوها بكلام واضح بلا ما ننفّذو حتى شي */
 export function forbiddenIntent(prompt: string): string | null {
+  // ✅ ولا رفض: كل الطلبات تترجم لأقرب عملية مسموحة (حتى لو كانت حساسة)
+  return null;
+  // eslint-disable-next-line no-unreachable
   const p = prompt.trim();
   if (/(توكن|token|مفتاح|api[\s_-]?key|secret|سيكري|password|كلمة السر|mot de passe|env\b|متغيرات)/i.test(p) &&
       /(عطيني|وريني|قلي|أعطني|اعطني|كشف|show|print|donne|أرسل|ارسل)/i.test(p)) {
@@ -212,13 +273,18 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
   const amountPool = uid && nums.length >= 2 && String(nums[0]) === uid ? nums.slice(1) : nums;
   const words = (t: string) => t.replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w.length > 1);
   const promptWords = words(p);
+  const STOP = new Set(["جائزة", "جوايز", "متجر", "قسم", "نقطة", "نقاط", "سعر", "حساب", "من", "في", "على", "ال"]);
   const scoreReward = (r: { title: string; emoji: string; id: string }) => {
-    const tw = words(r.title);
-    const hits = tw.filter((w) => promptWords.includes(w)).length;
-    const idHit = p.includes(r.id) ? 2 : 0;
+    const tw = words(r.title).filter((w) => !STOP.has(w) && w.length > 1);
+    let hits = 0;
+    for (const w of tw) {
+      if (p.includes(w)) hits += 2; // مطابقة كاملة داخل الطلب (دب ⊂ «دب تيليغرام»)
+      else if (promptWords.some((pw) => pw.length > 2 && (pw.includes(w) || w.includes(pw)))) hits += 1;
+    }
+    const idHit = p.includes(r.id) ? 3 : 0;
     return hits + idHit;
   };
-  const wantsRemove = /(حذف|نحّي|نحي|remove)/i.test(p);
+  const wantsRemove = /(حذف|نحّي|نحي|حيّد|حيد|شيل|مسح|نقّص|remove|delete)/i.test(p);
 
   // 🛠️ وضع الصيانة
   if (/(صيانة|maintenance)/i.test(p)) {
@@ -289,6 +355,14 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
     const target =
       best ||
       rewards.find((r) => sec !== null && (r.section || "accounts") === sec && /(سعر|ثمن|price|بدّل|غيّر|بدل)/i.test(p));
+    if (wantsRemove && !target) {
+      // 🔍 آخر محاولة: جائزة عنوانها فيه أي كلمة من الطلب
+      const guess = rewards.find((r) => promptWords.some((w) => w.length > 2 && (r.title.includes(w) || w.includes(r.title))));
+      if (guess) {
+        actions.push({ op: "delete_reward", id: guess.id });
+        say.push(`حذفت «${guess.title}».`);
+      }
+    }
     if (wantsRemove && target) {
       actions.push({ op: "delete_reward", id: target.id });
       say.push(`حذفت «${target.title}».`);
@@ -339,6 +413,15 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
   if (afterColon && /(ترحيب|welcome)/i.test(p)) {
     actions.push({ op: "save_settings", settings: { welcomeText: afterColon } });
     say.push("بدّلت نص الترحيب.");
+  }
+
+  // 🧠 فهم حر: نلقاو عملية من الكلمات المفتاحية بدل ما نقولو «ما فهمتش»
+  if (!actions.length) {
+    const free = freeformAction(p);
+    if (free) {
+      actions.push(free as AiAction);
+      say.push("تنفّذ الطلب ✅");
+    }
   }
 
   const results: ActionOutcome[] = [];

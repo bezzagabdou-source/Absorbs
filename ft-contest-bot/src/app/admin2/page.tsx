@@ -36,6 +36,7 @@ type Data = {
     requiredChannels: string[];
     requireJoin: boolean;
     aiEnabled: boolean;
+    maintenanceMode?: boolean;
   };
   requests: { id: string; userName: string; rewardTitle: string; cost: number; status: string; at: number }[];
   contests: { id: string; title: string; status: string; target: number }[];
@@ -55,6 +56,7 @@ const TABS = [
   { id: "message", label: "✉️ الرسائل" },
   { id: "gate", label: "🔒 القنوات" },
   { id: "texts", label: "📝 النصوص" },
+  { id: "settings", label: "⚙️ الإعدادات" },
   { id: "contests", label: "🏆 المسابقات" },
   { id: "stats", label: "📊 إحصائيات" },
   { id: "log", label: "🧾 السجل" },
@@ -206,6 +208,7 @@ export default function Panel() {
       {tab === "message" ? <MessageTab users={users} flash={flash} /> : null}
       {tab === "gate" ? <GateTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "texts" ? <TextsTab data={data} flash={flash} onDone={loadAll} /> : null}
+      {tab === "settings" ? <SettingsTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "contests" ? <ContestsTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "stats" ? <StatsTab data={data} users={users} /> : null}
       {tab === "log" ? <LogTab log={log} /> : null}
@@ -305,6 +308,22 @@ function AiTab({ flash, onDone }: { flash: (k: "ok" | "err", t: string) => void;
         ))}
         {busy ? <div className="a2-msg ai">…كنفكّر وننفّذ</div> : null}
       </div>
+      <div className="a2-muted" style={{ margin: "10px 0 6px" }}>📚 مكتبة الأوامر — اضغط على أي وحدة وتنفّذ:</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+        {LIBRARY.flatMap((g) => g.examples.map((ex) => (
+          <button
+            key={ex}
+            type="button"
+            className="btn2"
+            style={{ fontSize: 12, padding: "6px 9px" }}
+            disabled={busy}
+            onClick={() => send(ex)}
+            title={g.group}
+          >
+            {ex}
+          </button>
+        )))}
+      </div>
       <form
         className="a2-row"
         onSubmit={(e) => {
@@ -323,13 +342,21 @@ function AiTab({ flash, onDone }: { flash: (k: "ok" | "err", t: string) => void;
         </button>
       </form>
       <div className="a2-muted" style={{ marginTop: 8 }}>
-        ⚠️ إذا ظهر «فشل (200)»: معناها النموذج تعطّل/تأخّر — عاود «نفّذ» مرة أخرى، أو استعمل الأزرار فوق (الجوائز/المستخدمين) وتخدم مباشرة بلا AI.
+        ✅ FT AI يخدم دايماً: يفهم الدارجة، يجاوبك، وينفّذ حتى إذا النموذج السحابي طايح (خطة محلية). ولا رفض — كل طلب يترجم لأقرب عملية.
       </div>
     </div>
   );
 }
 
 /* ───────────────────────────── 🎁 الجوائز ───────────────────────────── */
+const LIBRARY = [
+  { group: "🎁 الجوائز", examples: ["زيد جائزة كونت بيس 3 بـ 300 نقطة في قسم الحسابات", "بدّل سعر كونت بيس 1 لـ 250 نقطة", "حيّد جائزة دب"] },
+  { group: "⭐️ النقاط", examples: ["زيد 100 نقطة للمستخدم 8273714178", "نقّص 50 نقطة من 8273714178"] },
+  { group: "👥 المستخدمين", examples: ["احظر 123456789", "فك الحظر على 123456789", "شحال من مستخدم عندنا؟"] },
+  { group: "📢 الرسائل", examples: ["بثّ: غدوة مسابقة جديدة 🎉"] },
+  { group: "⚙️ الإعدادات", examples: ["ضع البوت في صيانة", "طفي الصيانة", "زيد قناة @mychannel", "بدّل نص الترحيب: مرحبا بيك"] },
+];
+
 const blankReward = (section: string, order: number): Reward => ({
   id: "",
   emoji: "🎁",
@@ -971,6 +998,50 @@ function TextsTab({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "err"
       <button className="btn2 gold" onClick={save} disabled={busy}>
         💾 حفظ النصوص
       </button>
+      <PasswordCard flash={flash} />
+    </div>
+  );
+}
+
+/* ───────────────────────────── ⚙️ الإعدادات ───────────────────────────── */
+function SettingsTab({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "err", t: string) => void; onDone: () => void }) {
+  const [maint, setMaint] = useState(Boolean(data.settings.maintenanceMode));
+  const [busy, setBusy] = useState(false);
+
+  async function saveMaint(next: boolean) {
+    setBusy(true);
+    try {
+      await api({ action: "save_settings", settings: { maintenanceMode: next } });
+      setMaint(next);
+      flash("ok", next ? "شعّلت وضع الصيانة 🛠️" : "طفّيت وضع الصيانة — البوت رجع يخدم ✅");
+      onDone();
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="a2-card">
+      <h2>⚙️ إعدادات البوت</h2>
+      <div className="a2-item" style={{ marginBottom: 14 }}>
+        <div className="top">
+          <b>🛠️ وضع الصيانة</b>
+          <span className={`a2-pill ${maint ? "off" : "on"}`}>{maint ? "شاعل — البوت يعتذر" : "مطفي — البوت يخدم"}</span>
+        </div>
+        <div className="a2-row">
+          <button className="btn2 red" onClick={() => saveMaint(true)} disabled={busy || maint}>
+            🛠️ شعّل الصيانة
+          </button>
+          <button className="btn2 blue" onClick={() => saveMaint(false)} disabled={busy || !maint}>
+            ✅ طفي الصيانة
+          </button>
+        </div>
+        <div className="a2-muted" style={{ marginTop: 6 }}>
+          في الصيانة: الزبون يلقى رسالة اعتذار لطيفة + زر مراسلتك. أنت والأدمن تبقاو تخدمو عادي.
+        </div>
+      </div>
       <PasswordCard flash={flash} />
     </div>
   );
