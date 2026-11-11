@@ -1,6 +1,15 @@
+"use client";
+
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Heart, MessageCircleHeart, ShieldCheck, Zap } from "lucide-react";
 import { useState } from "react";
+
+const CHIPS = [
+  { icon: Heart, label: "إعجابات فورية", className: "bg-rose-500/20 text-rose-300 ring-rose-400/25" },
+  { icon: MessageCircleHeart, label: "رسائل لحظية", className: "bg-cyan-400/15 text-cyan-300 ring-cyan-300/25" },
+  { icon: Zap, label: "بث مباشر", className: "bg-violet-500/20 text-violet-300 ring-violet-400/25" },
+  { icon: ShieldCheck, label: "خصوصية محكمة", className: "bg-emerald-400/15 text-emerald-300 ring-emerald-300/25" },
+];
 
 export function AuthShell({
   title,
@@ -15,22 +24,43 @@ export function AuthShell({
 }) {
   return (
     <div className="aurora relative min-h-dvh overflow-hidden">
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.75rem,env(safe-area-inset-top))]">
-        <Link href="/welcome" className="flex w-fit items-center gap-2.5">
-          <span className="logo-mark h-10 w-10 rounded-2xl text-base">A</span>
-          <span className="text-lg font-black text-white">Absorbs</span>
-        </Link>
+      {/* cinematic glows */}
+      <div className="pointer-events-none absolute -top-24 start-1/4 h-72 w-72 rounded-full bg-violet-600/25 blur-[100px]" />
+      <div className="pointer-events-none absolute top-40 -end-20 h-64 w-64 rounded-full bg-fuchsia-600/20 blur-[90px]" />
 
-        <div className="animate-fade-up mt-10">
-          <h1 className="text-3xl font-black text-white">{title}</h1>
-          <p className="mt-2 text-sm leading-6 text-white/55">{subtitle}</p>
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.6rem,env(safe-area-inset-top))]">
+        {/* hero brand */}
+        <div className="animate-fade-up flex flex-col items-center text-center">
+          <Link href="/welcome" className="group relative" aria-label="Absorbs">
+            <span className="absolute inset-0 scale-125 rounded-[30px] bg-fuchsia-600/40 blur-2xl transition group-hover:scale-150" />
+            <span className="logo-mark relative h-[72px] w-[72px] rounded-[24px] text-[30px]">A</span>
+          </Link>
+          <p className="mt-4 text-[26px] font-black tracking-tight text-white">
+            Absorbs <span className="text-gradient">· تواصل بلا حدود</span>
+          </p>
+          <div className="no-scrollbar mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
+            {CHIPS.map((chip) => (
+              <span
+                key={chip.label}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold ring-1 backdrop-blur ${chip.className}`}
+              >
+                <chip.icon className="h-3.5 w-3.5" /> {chip.label}
+              </span>
+            ))}
+          </div>
         </div>
 
-        <div className="glass animate-fade-up mt-6 rounded-[30px] p-5" style={{ animationDelay: "0.08s" }}>
+        <div className="animate-fade-up mt-7 text-center" style={{ animationDelay: "0.05s" }}>
+          <h1 className="text-[28px] font-black text-white">{title}</h1>
+          {subtitle && <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-6 text-white/55">{subtitle}</p>}
+        </div>
+
+        <div className="glass-strong animate-fade-up mt-5 rounded-[30px] p-5 shadow-2xl" style={{ animationDelay: "0.1s" }}>
           {children}
         </div>
 
-        <div className="mt-6 text-center text-sm text-white/55">{footer}</div>
+        {footer && <div className="mt-5 text-center text-sm text-white/55">{footer}</div>}
+        <p className="mt-auto pt-6 text-center text-[10.5px] text-white/30">محمي بـ Supabase Auth + RLS · يعمل كتطبيق PWA على هاتفك</p>
       </div>
     </div>
   );
@@ -71,7 +101,7 @@ export function PasswordField({
           aria-label={visible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
           className="absolute end-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-white/45 transition hover:text-white"
         >
-          {visible ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
       </span>
     </label>
