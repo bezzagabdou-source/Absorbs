@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FT AI ⚡ — لوحة التحكم</title>
+<meta name="theme-color" content="#0a0a12">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%237c5cff'/%3E%3Ctext x='32' y='44' font-size='30' text-anchor='middle' fill='white' font-family='system-ui' font-weight='700'%3EFT%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<!-- ═══════════ الدخول ═══════════ -->
+<section id="login" class="login">
+  <div class="aurora"></div>
+  <div class="login-card">
+    <div class="brand-big"><span class="bolt">⚡</span> FT AI</div>
+    <p class="muted">لوحة تحكم بوت المسابقات · الذكاء الاصطناعي التنفيذي</p>
+    <form id="login-form" autocomplete="on">
+      <label class="lbl" for="pw">كلمة السر</label>
+      <div class="pw-wrap">
+        <input id="pw" type="password" placeholder="••••••••" required autocomplete="current-password">
+        <button type="button" id="pw-eye" class="ghost" title="إظهار">👁</button>
+      </div>
+      <button id="login-btn" class="btn primary lg" type="submit">دخول</button>
+      <p id="login-msg" class="msg"></p>
+    </form>
+    <p class="tiny muted">محمي بـ FT AI · جلسة مشفّرة 12 ساعة · كل المحاولات متسجّلة</p>
+  </div>
+</section>
+
+<!-- ═══════════ اللوحة ═══════════ -->
+<div id="app" class="app" hidden>
+  <div class="aurora"></div>
+
+  <aside class="side">
+    <div class="brand"><span class="bolt">⚡</span><span>FT AI</span></div>
+    <nav class="nav">
+      <button class="nav-item" data-tab="overview"><span>📊</span> نظرة عامة</button>
+      <button class="nav-item ai" data-tab="ai"><span>⚡</span> FT AI</button>
+      <button class="nav-item" data-tab="bot"><span>🤖</span> البوت</button>
+      <button class="nav-item" data-tab="users"><span>👥</span> الأعضاء</button>
+      <button class="nav-item" data-tab="refs"><span>🔗</span> الإحالات</button>
+      <button class="nav-item" data-tab="quiz"><span>🎯</span> الأسئلة</button>
+      <button class="nav-item" data-tab="media"><span>🖼</span> الصور</button>
+      <button class="nav-item" data-tab="settings"><span>🛡</span> الإعدادات</button>
+      <button class="nav-item" data-tab="security"><span>🔑</span> الأمان</button>
+    </nav>
+    <div class="side-foot">
+      <button id="logout" class="btn ghost sm">خروج</button>
+      <div id="storage-badge" class="pill tiny">…</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button id="menu" class="btn ghost icon only-mobile">☰</button>
+      <div class="top-title">
+        <h1 id="tab-title">نظرة عامة</h1>
+        <span id="bot-pill" class="pill tiny">…</span>
+      </div>
+      <div class="top-actions">
+        <button id="open-password" class="btn gold">🔑 تغيير كلمة السر</button>
+        <button id="refresh" class="btn ghost icon" title="تحديث">↻</button>
+      </div>
+    </header>
+
+    <!-- نظرة عامة -->
+    <section class="tab" id="tab-overview">
+      <div class="stats" id="stats-grid"></div>
+      <div class="grid2">
+        <div class="card">
+          <h3>آخر أعمال FT AI</h3>
+          <ul id="actions" class="feed"><li class="muted">—</li></ul>
+        </div>
+        <div class="card">
+          <h3>أفضل 5</h3>
+          <ol id="top5" class="top-list"></ol>
+        </div>
+      </div>
+      <div class="card">
+        <h3>أدوات سريعة</h3>
+        <div class="quick">
+          <button class="btn" data-quick="diagnose">🩺 فحص البوت</button>
+          <button class="btn" data-quick="fix_webhook">🔧 تصليح الـ webhook</button>
+          <button class="btn" data-quick="broadcast">📣 بثّ رسالة</button>
+          <button class="btn" data-quick="ask-ai">⚡ اطلب من FT AI</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- FT AI -->
+    <section class="tab" id="tab-ai" hidden>
+      <div class="ai-wrap">
+        <div class="ai-side card">
+          <h3>⚡ FT AI</h3>
+          <p class="tiny muted" id="ai-status">…</p>
+          <div class="chips" id="ai-suggest">
+            <button class="chip">عطيني إحصائيات البوت</button>
+            <button class="chip">شكون أكتر واحد عندو نقاط؟</button>
+            <button class="chip">أرسل رسالة ترحيب للأعضاء</button>
+            <button class="chip">أضف سؤال: عاصمة الجزائر؟ الجزائر / وهران / قسنطينة / عنابة</button>
+            <button class="chip">حظر العضو 123456789 بسبب سبام</button>
+            <button class="chip">بدّل مستوى الحماية لـ max</button>
+            <button class="chip">أصلح الـ webhook</button>
+          </div>
+          <button id="ai-clear" class="btn ghost sm">🗑 مسح المحادثة</button>
+        </div>
+
+        <div class="chat card">
+          <div id="chat-log" class="chat-log"></div>
+          <div id="drop" class="drop-hint">أفلت صورة هنا 📎</div>
+          <form id="composer" class="composer">
+            <div id="attach-preview" class="attach-preview"></div>
+            <textarea id="ai-input" rows="1" placeholder="اكتب أي طلب… FT AI ينفّذه (إرسال، حذف، تعديل، صور)"></textarea>
+            <label class="btn ghost icon" title="أرفق صورة">
+              📎<input id="file" type="file" accept="image/*" multiple hidden>
+            </label>
+            <button id="send" class="btn primary" type="submit">إرسال</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ═══════════ البوت: تحكّم حقيقي ═══════════ -->
+    <section class="tab" id="tab-bot" hidden>
+      <div class="card" id="bot-health-card">
+        <h3>🤖 حالة البوت المربوط</h3>
+        <div class="stats sm" id="bot-health"></div>
+        <p class="tiny muted" id="bot-health-note">…</p>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>🎁 النقاط والجوائز</h3>
+          <div class="set-grid" id="bot-points"></div>
+          <button id="bot-save-points" class="btn primary">💾 حفظ إعدادات النقاط</button>
+        </div>
+        <div class="card">
+          <h3>🚪 مجموعة الدخول</h3>
+          <p class="tiny muted" id="bot-group-state">…</p>
+          <div class="row">
+            <input id="bot-group-id" placeholder="-1001234567890" style="flex:1">
+            <button id="bot-save-group" class="btn gold">ربط</button>
+          </div>
+          <p class="tiny muted">البوت يعطي كل عضو رابط دعوة باسمه، وكل من يدخل من رابطك = نقاط في رصيدك.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>🏷️ الجوائز <span class="pill tiny" id="bot-rewards-count"></span></h3>
+        <div class="table-wrap">
+          <table id="bot-rewards-table">
+            <thead><tr><th></th><th>الاسم</th><th>الثمن</th><th>المخزون</th><th>ظاهرة</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h3 style="margin-top:14px">➕ / ✏️ جائزة</h3>
+        <div class="row wrap">
+          <input id="rw-emoji" placeholder="🎁" style="width:70px">
+          <input id="rw-title" placeholder="اسم الجائزة" style="flex:1;min-width:140px">
+          <input id="rw-cost" type="number" min="1" placeholder="الثمن" style="width:100px">
+          <input id="rw-stock" type="number" min="0" placeholder="مخزون (خالي=∞)" style="width:140px">
+          <label class="tiny"><input id="rw-active" type="checkbox" checked> ظاهرة</label>
+        </div>
+        <div class="row wrap" style="margin-top:8px">
+          <input id="rw-desc" placeholder="وصف قصير" style="flex:1;min-width:160px">
+          <input id="rw-delivery" placeholder="طريقة التسليم" style="flex:1;min-width:160px">
+          <button id="rw-save" class="btn primary">💾 حفظ الجائزة</button>
+          <button id="rw-reset" class="btn ghost">مسح</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>📨 طلبات الجوائز</h3>
+        <div class="table-wrap">
+          <table id="bot-requests">
+            <thead><tr><th>العضو</th><th>الجائزة</th><th>الثمن</th><th>الحالة</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>💰 أرصدة المستخدمين</h3>
+          <div class="table-wrap">
+            <table id="bot-balances">
+              <thead><tr><th>العضو</th><th>الرصيد</th><th>تعديل</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <input id="pt-user" placeholder="آي دي العضو" style="flex:1">
+            <input id="pt-delta" type="number" placeholder="+50 / -10" style="width:110px">
+            <button id="pt-apply" class="btn gold">طبّق</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>🏆 المسابقات</h3>
+          <div class="table-wrap">
+            <table id="bot-contests">
+              <thead><tr><th>المسابقة</th><th>الهدف</th><th>الحالة</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="row wrap" style="margin-top:10px">
+            <input id="ct-title" placeholder="عنوان المسابقة" style="flex:1;min-width:140px">
+            <input id="ct-target" type="number" min="1" placeholder="الهدف" style="width:90px">
+            <input id="ct-prize" placeholder="الجائزة" style="flex:1;min-width:120px">
+            <button id="ct-create" class="btn primary">➕ زيد</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>✉️ رسائل</h3>
+        <textarea id="msg-text" rows="3" placeholder="نص الرسالة…"></textarea>
+        <div class="row wrap" style="margin-top:8px">
+          <input id="msg-to" placeholder="آي دي عضو (خالي = بثّ للجميع)" style="flex:1;min-width:180px">
+          <button id="msg-send" class="btn primary">إرسال</button>
+          <button id="msg-ai" class="btn gold">⚡ FT AI يكتب</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>😀 إيموجي وستيكرات</h3>
+        <div class="emoji-bar" id="emoji-bar"></div>
+        <p class="tiny muted">اكتب في خانة الرسائل ثم اضغط إيموجي باش يتزاد في النص. الستيكرات ترسل كرسالة.</p>
+        <div class="row wrap" style="margin-top:8px">
+          <input id="sticker-id" placeholder="file_id تاع ستيكر (اختياري)" style="flex:1">
+          <button id="sticker-send" class="btn ghost">إرسال ستيكر</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>⚡ FT AI يتصرف في البوت</h3>
+        <p class="tiny muted">كتب طلبك بالدارجة: «زيد جائزة 30 نجمة بـ60 نقطة»، «عطي 50 نقطة لـ123456»، «صيفط رسالة لكل الأعضاء»…</p>
+        <div class="row">
+          <input id="bot-ai-input" placeholder="مثال: زيد جائزة «حساب FT مميز» بـ400 نقطة" style="flex:1">
+          <button id="bot-ai-run" class="btn primary">نفّذ</button>
+        </div>
+        <pre id="bot-ai-out" class="tiny" style="white-space:pre-wrap;margin-top:10px"></pre>
+      </div>
+    </section>
+
+    <!-- الأعضاء -->
+    <section class="tab" id="tab-users" hidden>
+      <div class="toolbar">
+        <input id="user-search" placeholder="بحث: اسم، @يوزر، ID…">
+        <select id="user-filter">
+          <option value="all">الكل</option>
+          <option value="active">نشط 24س</option>
+          <option value="blocked">محظور</option>
+          <option value="risk">خطر</option>
+          <option value="flagged">مشبوه</option>
+        </select>
+        <select id="user-sort">
+          <option value="newest">الأحدث</option>
+          <option value="points">النقاط</option>
+          <option value="referrals">الإحالات</option>
+          <option value="risk">الخطر</option>
+        </select>
+      </div>
+      <div class="table-wrap card">
+        <table id="users-table">
+          <thead><tr><th>العضو</th><th>النقاط</th><th>الإحالات</th><th>الأسئلة</th><th>الخطر</th><th>الحالة</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- الإحالات -->
+    <section class="tab" id="tab-refs" hidden>
+      <div class="stats sm" id="ref-stats"></div>
+      <div class="toolbar">
+        <select id="ref-status">
+          <option value="all">الكل</option>
+          <option value="confirmed">مؤكّدة</option>
+          <option value="pending">معلّقة</option>
+          <option value="flagged">مشبوهة</option>
+        </select>
+      </div>
+      <div class="table-wrap card">
+        <table id="refs-table">
+          <thead><tr><th>العضو الجديد</th><th>جاء عن طريق</th><th>الحالة</th><th>النقاط</th><th>التاريخ</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- الأسئلة -->
+    <section class="tab" id="tab-quiz" hidden>
+      <div class="card">
+        <h3>إضافة سؤال</h3>
+        <form id="q-form" class="q-form">
+          <input id="q-text" placeholder="نص السؤال" required>
+          <div class="q-opts">
+            <input class="q-opt" placeholder="اختيار 1" required>
+            <input class="q-opt" placeholder="اختيار 2" required>
+            <input class="q-opt" placeholder="اختيار 3">
+            <input class="q-opt" placeholder="اختيار 4">
+          </div>
+          <div class="row">
+            <select id="q-correct"><option value="0">الصحيح: 1</option><option value="1">الصحيح: 2</option><option value="2">الصحيح: 3</option><option value="3">الصحيح: 4</option></select>
+            <input id="q-cat" placeholder="التصنيف (عام)">
+            <button class="btn primary" type="submit">إضافة</button>
+          </div>
+        </form>
+      </div>
+      <div class="card"><h3>الأسئلة <span id="q-count" class="pill tiny"></span></h3><div id="q-list" class="q-list"></div></div>
+    </section>
+
+    <!-- الصور -->
+    <section class="tab" id="tab-media" hidden>
+      <div class="card">
+        <h3>رفع صورة (أي صورة — JPG/PNG/WEBP/GIF/SVG حتى 8 ميغا)</h3>
+        <div id="media-drop" class="drop-zone">اسحب وأفلت الصور هنا، ولا اختر من الجهاز
+          <input id="media-file" type="file" accept="image/*" multiple hidden>
+          <button class="btn" id="media-pick" type="button">اختر صور</button>
+        </div>
+      </div>
+      <div id="media-grid" class="media-grid"></div>
+    </section>
+
+    <!-- الإعدادات -->
+    <section class="tab" id="tab-settings" hidden>
+      <div class="card">
+        <h3>🛡 مستوى الحماية</h3>
+        <div class="levels" id="levels"></div>
+        <p class="tiny muted">max = أقصى حماية ضد الحظر والسبام (سقف إرسال، فواصل، فحص سلوك).</p>
+      </div>
+      <div class="card">
+        <h3>النقاط والمكافآت</h3>
+        <div class="set-grid" id="set-numbers"></div>
+      </div>
+      <div class="card">
+        <h3>النصوص</h3>
+        <label class="lbl">رسالة الترحيب</label>
+        <textarea id="set-welcome" rows="3"></textarea>
+        <label class="lbl">توجيهات FT AI (اختياري)</label>
+        <textarea id="set-persona" rows="2" placeholder="مثال: كلّم الأعضاء بالدارجة وكن مختصر"></textarea>
+      </div>
+      <button id="save-settings" class="btn primary lg">💾 حفظ الإعدادات</button>
+
+      <div class="card" style="margin-top:16px">
+        <h3>🤖 ربط البوت</h3>
+        <p class="tiny muted" id="token-state">…</p>
+        <div class="row" style="margin-top:10px">
+          <input id="bot-token" placeholder="توكن البوت من @BotFather (123456:ABC…)" style="flex:1">
+          <button id="save-token" class="btn gold">ربط + webhook</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- الأمان -->
+    <section class="tab" id="tab-security" hidden>
+      <div class="card hero-card">
+        <div>
+          <h3>🔑 كلمة سر اللوحة — الأهم</h3>
+          <p class="muted">بدّلها بانتظام. تغييرها يقطع كل الأجهزة الأخرى فوراً.</p>
+          <p class="tiny muted" id="pw-meta">…</p>
+        </div>
+        <button id="open-password-2" class="btn gold lg">تغيير كلمة السر الآن</button>
+      </div>
+      <div class="card"><h3>سجل الأعمال</h3><ul id="actions-2" class="feed"></ul></div>
+    </section>
+  </main>
+</div>
+
+<!-- ═══════════ نافذة كلمة السر ═══════════ -->
+<div id="pw-modal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>🔑 تغيير كلمة السر</h2>
+    <form id="pw-form">
+      <label class="lbl">كلمة السر الحالية <span class="tiny muted">(اختياري — جلسة الدخول تكفي)</span></label>
+      <input id="pw-current" type="password" placeholder="خليها خاوية إذا ما تتذكرها" autocomplete="current-password">
+      <label class="lbl">الجديدة (8 حروف + رقم)</label>
+      <input id="pw-next" type="password" required autocomplete="new-password">
+      <label class="lbl">تأكيد الجديدة</label>
+      <input id="pw-next2" type="password" required autocomplete="new-password">
+      <p id="pw-msg" class="msg"></p>
+      <div class="row end">
+        <button type="button" id="pw-cancel" class="btn ghost">إلغاء</button>
+        <button type="submit" class="btn gold">تغيير</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/app.js?v=20261111"></script>
+</body>
+</html>

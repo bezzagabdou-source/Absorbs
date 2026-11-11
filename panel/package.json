@@ -1,0 +1,13 @@
+{
+  "name": "ft-ai-panel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FT AI — لوحة تحكم بوت المسابقات + ذكاء اصطناعي تنفيذي (Vercel Serverless)",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "node scripts/dev.js",
+    "selfcheck": "node scripts/selfcheck.js"
+  }
+}
