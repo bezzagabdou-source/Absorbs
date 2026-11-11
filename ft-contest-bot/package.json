@@ -1,0 +1,28 @@
+{
+  "name": "ft-contest-bot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "simulate": "node scripts/simulate.mjs",
+    "prebuild": "node scripts/webhook-sync.mjs",
+    "sync:webhook": "node scripts/webhook-sync.mjs",
+    "verify:bot": "node scripts/verify-bot.mjs"
+  },
+  "dependencies": {
+    "next": "16.2.6",
+    "pg": "8.20.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.15",
+    "@types/pg": "8.18.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  }
+}

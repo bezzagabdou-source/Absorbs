@@ -1,0 +1,514 @@
+:root {
+  --a2-bg: #070b14;
+  --a2-card: #0d1526;
+  --a2-card2: #111c31;
+  --a2-line: rgba(148, 173, 214, 0.16);
+  --a2-text: #eaf1ff;
+  --a2-muted: #93a3bf;
+  --a2-gold: #f6c453;
+  --a2-green: #2ee6a8;
+  --a2-blue: #5aa9ff;
+  --a2-red: #ff6b6b;
+}
+
+.a2 * {
+  box-sizing: border-box;
+}
+
+.a2 {
+  min-height: 100vh;
+  padding: 18px clamp(10px, 3vw, 34px) 60px;
+}
+
+.a2-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.a2-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  background: linear-gradient(135deg, rgba(246, 196, 83, 0.25), rgba(90, 169, 255, 0.22));
+  border: 1px solid var(--a2-line);
+}
+
+.a2-head h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.a2-head small {
+  display: block;
+  color: var(--a2-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.a2-spacer {
+  flex: 1;
+}
+
+.a2-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px;
+  background: rgba(13, 21, 38, 0.85);
+  border: 1px solid var(--a2-line);
+  border-radius: 16px;
+  margin-bottom: 16px;
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  backdrop-filter: blur(12px);
+  scrollbar-width: none;
+}
+
+.a2-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.a2-tab {
+  white-space: nowrap;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--a2-muted);
+  padding: 9px 14px;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.a2-tab:hover {
+  color: var(--a2-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.a2-tab.on {
+  color: #10131b;
+  background: linear-gradient(135deg, var(--a2-gold), #ffb84d);
+  box-shadow: 0 8px 22px -12px var(--a2-gold);
+}
+
+.a2-card {
+  background: linear-gradient(180deg, var(--a2-card), var(--a2-card2));
+  border: 1px solid var(--a2-line);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.a2-card h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.a2-card h2 .a2-hint {
+  font-size: 12px;
+  color: var(--a2-muted);
+  font-weight: 500;
+}
+
+.a2-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.a2-stats {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.a2-stat {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--a2-line);
+  border-radius: 14px;
+  padding: 12px;
+  text-align: center;
+}
+
+.a2-stat b {
+  display: block;
+  font-size: 22px;
+  color: var(--a2-gold);
+}
+
+.a2-stat span {
+  font-size: 12px;
+  color: var(--a2-muted);
+}
+
+.a2 label.f {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.a2 label.f > span {
+  display: block;
+  font-size: 12px;
+  color: var(--a2-muted);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.a2 input,
+.a2 textarea,
+.a2 select {
+  width: 100%;
+  background: #060b15;
+  border: 1px solid var(--a2-line);
+  color: var(--a2-text);
+  border-radius: 11px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+
+.a2 input:focus,
+.a2 textarea:focus,
+.a2 select:focus {
+  border-color: rgba(246, 196, 83, 0.55);
+  box-shadow: 0 0 0 3px rgba(246, 196, 83, 0.1);
+}
+
+.a2 textarea {
+  min-height: 90px;
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.a2 button.btn2 {
+  border: 1px solid var(--a2-line);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--a2-text);
+  padding: 9px 14px;
+  border-radius: 11px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: 0.15s;
+}
+
+.a2 button.btn2:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.a2 button.btn2:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.a2 .gold {
+  background: linear-gradient(135deg, var(--a2-gold), #ffb84d);
+  color: #10131b;
+  border-color: transparent;
+}
+
+.a2 .green {
+  background: rgba(46, 230, 168, 0.16);
+  border-color: rgba(46, 230, 168, 0.45);
+  color: var(--a2-green);
+}
+
+.a2 .red {
+  background: rgba(255, 107, 107, 0.14);
+  border-color: rgba(255, 107, 107, 0.45);
+  color: var(--a2-red);
+}
+
+.a2 .blue {
+  background: rgba(90, 169, 255, 0.14);
+  border-color: rgba(90, 169, 255, 0.45);
+  color: var(--a2-blue);
+}
+
+.a2 .sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 9px;
+}
+
+.a2-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.a2-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.a2-item {
+  border: 1px solid var(--a2-line);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.a2-item .top {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.a2-item .top b {
+  font-size: 14px;
+}
+
+.a2-pill {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--a2-line);
+  color: var(--a2-muted);
+}
+
+.a2-pill.on {
+  color: var(--a2-green);
+  border-color: rgba(46, 230, 168, 0.45);
+  background: rgba(46, 230, 168, 0.1);
+}
+
+.a2-pill.off {
+  color: var(--a2-red);
+  border-color: rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.a2-pill.gold {
+  color: var(--a2-gold);
+  border-color: rgba(246, 196, 83, 0.4);
+  background: rgba(246, 196, 83, 0.1);
+}
+
+.a2-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.a2-msg {
+  max-width: 88%;
+  padding: 10px 13px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.a2-msg.me {
+  align-self: flex-start;
+  background: linear-gradient(135deg, rgba(246, 196, 83, 0.2), rgba(255, 184, 77, 0.12));
+  border: 1px solid rgba(246, 196, 83, 0.35);
+}
+
+.a2-msg.ai {
+  align-self: flex-end;
+  background: rgba(90, 169, 255, 0.1);
+  border: 1px solid rgba(90, 169, 255, 0.3);
+}
+
+.a2-msg .res {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--a2-muted);
+  border-top: 1px dashed var(--a2-line);
+  padding-top: 6px;
+}
+
+.a2-msg .res b {
+  color: var(--a2-green);
+}
+
+.a2-msg .res b.no {
+  color: var(--a2-red);
+}
+
+.a2-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.a2-chip {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px dashed var(--a2-line);
+  background: transparent;
+  color: var(--a2-muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.a2-chip:hover {
+  color: var(--a2-gold);
+  border-color: rgba(246, 196, 83, 0.5);
+}
+
+.a2-toast {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 18px;
+  margin-inline: auto;
+  width: fit-content;
+  max-width: 92vw;
+  padding: 11px 18px;
+  border-radius: 13px;
+  font-size: 13.5px;
+  font-weight: 700;
+  z-index: 90;
+  background: #0f1c2e;
+  border: 1px solid var(--a2-line);
+  box-shadow: 0 20px 44px -20px #000;
+}
+
+.a2-toast.ok {
+  border-color: rgba(46, 230, 168, 0.5);
+  color: var(--a2-green);
+}
+
+.a2-toast.err {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: var(--a2-red);
+}
+
+.a2-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.a2-table th {
+  text-align: right;
+  color: var(--a2-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--a2-line);
+  white-space: nowrap;
+}
+
+.a2-table td {
+  padding: 9px 6px;
+  border-bottom: 1px solid rgba(148, 173, 214, 0.07);
+  vertical-align: middle;
+}
+
+.a2-table tr:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.a2-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.a2-log {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--a2-muted);
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: 1.9;
+}
+
+.a2-log div {
+  border-bottom: 1px dashed rgba(148, 173, 214, 0.1);
+  padding: 4px 0;
+}
+
+.a2-log b {
+  color: var(--a2-gold);
+}
+
+.a2-log .ai {
+  color: var(--a2-blue);
+}
+
+.a2-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.a2-login .box {
+  width: 100%;
+  max-width: 380px;
+  background: linear-gradient(180deg, var(--a2-card), var(--a2-card2));
+  border: 1px solid var(--a2-line);
+  border-radius: 20px;
+  padding: 26px;
+  text-align: center;
+}
+
+.a2-login .box h1 {
+  font-size: 19px;
+  margin-bottom: 4px;
+}
+
+.a2-login .box p {
+  font-size: 12.5px;
+  color: var(--a2-muted);
+  margin-bottom: 18px;
+}
+
+.a2-muted {
+  color: var(--a2-muted);
+  font-size: 12.5px;
+}
+
+.a2-divider {
+  height: 1px;
+  background: var(--a2-line);
+  margin: 12px 0;
+}
+
+@media (max-width: 560px) {
+  .a2 {
+    padding: 12px 10px 70px;
+  }
+  .a2-msg {
+    max-width: 95%;
+  }
+  .a2-card {
+    padding: 13px;
+    border-radius: 15px;
+  }
+}
