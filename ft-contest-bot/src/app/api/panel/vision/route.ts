@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
     provider, url, headers: { authorization: `Bearer ${key}` },
     body: {
       model: version, temperature: 0.1, max_tokens: 1000,
+      // The current Groq Qwen vision model can otherwise spend the output budget on reasoning.
+      ...(provider === "Groq" && version.startsWith("qwen/") ? { reasoning_effort: "none" } : {}),
       messages: [
         { role: "system", content: instruction },
         { role: "user", content: [{ type: "text", text: question }, { type: "image_url", image_url: { url: dataUrl } }] },
@@ -70,9 +72,10 @@ export async function POST(request: NextRequest) {
   // Try different providers before retrying the same provider; never send image bytes to one unless the previous failed.
   if (geminiKeys[0]) candidates.push(makeGemini(geminiKeys[0], geminiModel));
   const groq = keys("GROQ_API_KEY");
-  if (groq[0]) candidates.push(makeOpenAI("Groq", "https://api.groq.com/openai/v1/chat/completions", groq[0], model("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")));
+  if (groq[0]) candidates.push(makeOpenAI("Groq", "https://api.groq.com/openai/v1/chat/completions", groq[0], model("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")));
   const router = keys("OPENROUTER_API_KEY");
-  if (router[0]) candidates.push(makeOpenAI("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", router[0], model("OPENROUTER_VISION_MODEL", "google/gemma-3-27b-it:free")));
+  // The free router selects an available image-capable model even if a specific free model is retired.
+  if (router[0]) candidates.push(makeOpenAI("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", router[0], model("OPENROUTER_VISION_MODEL", "openrouter/free")));
   const openai = keys("OPENAI_API_KEY");
   if (openai[0]) candidates.push(makeOpenAI("OpenAI", "https://api.openai.com/v1/chat/completions", openai[0], model("OPENAI_VISION_MODEL", "gpt-4o-mini")));
   if (geminiKeys[1]) candidates.push(makeGemini(geminiKeys[1], geminiModel));

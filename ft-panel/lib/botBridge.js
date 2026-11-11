@@ -144,4 +144,18 @@ async function analyzeImage(image, prompt) {
   if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('مزوّد الصور لم يرجع وصفاً');
   return { text: result.text.slice(0, 5000), provider: String(result.provider || '') };
 }
-module.exports = { connected, connect, referrals, referralConfig, setReferralConfig, media, uploadImage, photos, validImage, manageView, manageOp, analyzeImage };
+// Text-only fallback via the bot's existing Gemini/OpenRouter keys. The bot has
+// a fixed provider allowlist and cannot execute tools on the panel's behalf.
+async function chatCompletion(messages, tools, { timeout = 15000 } = {}) {
+  const result = await json(await call('/api/panel/chat', { body: { messages, tools }, timeout }));
+  const message = result.message;
+  if (!message || typeof message !== 'object' || (!String(message.content || '').trim() && !message.tool_calls?.length)) throw new Error('المساعد لم يرجع رداً');
+  return message;
+}
+// Fixed authenticated endpoint; the model cannot choose a URL or retrieve the key.
+async function agent(op, input = {}, { timeout = 20000 } = {}) {
+  if (!['db_query', 'db_update', 'db_undo', 'get_bot_info', 'set_commands', 'set_webhook', 'delete_webhook'].includes(op) || !input || typeof input !== 'object' || Array.isArray(input)) throw new Error('عملية الوكيل غير مسموحة');
+  return json(await call('/api/panel/agent', { body: { ...input, op }, timeout }));
+}
+function webhookUrl() { return botOrigin() + '/api/telegram/webhook'; }
+module.exports = { connected, connect, referrals, referralConfig, setReferralConfig, media, uploadImage, photos, validImage, manageView, manageOp, analyzeImage, chatCompletion, agent, webhookUrl };

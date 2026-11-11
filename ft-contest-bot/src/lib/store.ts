@@ -287,7 +287,8 @@ function postgresUrl(): string | null {
     .replace(/\?&/, "?");
 }
 
-async function getPool(): Promise<PgPool> {
+// Shared with the authenticated panel's transactional, versioned data tools.
+export async function getPool(): Promise<PgPool> {
   const url = postgresUrl();
   if (!url) throw new Error("Postgres URL not configured");
   if (!globalForDb.__ftPool) {

@@ -96,6 +96,7 @@ const READ_METHODS = new Set([
   "getChatAdministrators",
   "getChatMemberCount",
   "getWebhookInfo",
+  "getMyCommands",
 ]);
 
 const mockGlobal = globalThis as unknown as {
@@ -105,6 +106,8 @@ const mockGlobal = globalThis as unknown as {
   __ftMockLeft?: string[];
   /** محاكاة: قنوات تعذّر التحقق منها (البوت ماشي أدمن) */
   __ftMockBroken?: string[];
+  __ftMockCommands?: { command: string; description: string }[];
+  __ftMockWebhook?: string;
 };
 
 /** سجل آخر نداءات تيليغرام (للتشخيص فقط — TG_TRACE=1) */
@@ -178,7 +181,9 @@ export async function tgCall<T = unknown>(
 
   // Do not retain large embedded image data in diagnostic traces or mock logs.
   const inlinePhoto = method === "sendPhoto" && typeof payload.photo === "string" && payload.photo.startsWith("data:image/");
-  const loggedPayload = inlinePhoto ? { ...payload, photo: "[inline image]" } : payload;
+  const loggedPayload = method === "setWebhook" && payload.secret_token
+    ? { ...payload, secret_token: "[redacted]" }
+    : inlinePhoto ? { ...payload, photo: "[inline image]" } : payload;
   tracePush({ at: Date.now(), method, payload: loggedPayload, botId: Number(token.split(":")[0]) || 0 } as never);
 
   // 🧪 وضع التجربة: قراءة حقيقية، وكل كتابة تتسجّل بلا إرسال
@@ -203,6 +208,11 @@ export async function tgCall<T = unknown>(
         } as unknown as T,
       };
     }
+    if (method === "getMyCommands") return { ok: true, result: (mockGlobal.__ftMockCommands || []) as unknown as T };
+    if (method === "setMyCommands") { mockGlobal.__ftMockCommands = payload.commands as { command: string; description: string }[]; return { ok: true, result: true as T }; }
+    if (method === "getWebhookInfo") return { ok: true, result: { url: mockGlobal.__ftMockWebhook || "", pending_update_count: 0 } as unknown as T };
+    if (method === "setWebhook") { mockGlobal.__ftMockWebhook = String(payload.url || ""); return { ok: true, result: true as T }; }
+    if (method === "deleteWebhook") { mockGlobal.__ftMockWebhook = ""; return { ok: true, result: true as T }; }
     if (method === "getChatMember") {
       const chat = String(payload.chat_id || "").toLowerCase();
       const listed = (list?: string[]) => (list || []).some((item) => item.toLowerCase() === chat);

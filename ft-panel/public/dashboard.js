@@ -13,7 +13,14 @@ const esc = (s) =>
     .split('"')
     .join("&quot;");
 let TOKEN = localStorage.getItem("ftp") || "";
+const HISTORY_KEY = "ft-agent-history-v1";
 let HIST = [];
+try {
+  const saved = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || "[]");
+  if (Array.isArray(saved)) HIST = saved.filter(h => h && ["user", "assistant"].includes(h.role) && typeof h.content === "string");
+} catch { /* the current session starts empty if storage is unavailable */ }
+function saveHistory() { try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(HIST)); } catch { /* chat still works for this page */ } }
+function requestId() { return globalThis.crypto?.randomUUID?.() || `request_${Date.now()}_${Math.random().toString(36).slice(2)}`; }
 let PRIZES = [];
 let EDIT = null;
 let RF = "pending";
@@ -63,6 +70,9 @@ async function api(action, data) {
 }
 function logout() {
   localStorage.removeItem("ftp");
+  try { sessionStorage.removeItem(HISTORY_KEY); } catch {}
+  HIST = [];
+  $("#chat").innerHTML = "";
   TOKEN = "";
   $("#app").hidden = true;
   $("#login").hidden = false;
@@ -440,39 +450,115 @@ function bubble(role, html) {
   d.scrollIntoView({ block: "end" });
   return d;
 }
+function renderAction(a) {
+  const label = a.skipped ? "↷" : a.ok ? "✓" : "✗";
+  const details = a.diff ? `<details class='diff'><summary>عرض الفرق</summary><pre dir='ltr'>${esc(a.diff)}</pre></details>` : "";
+  return `<details class='act ${a.ok ? "ok" : "bad"}'><summary>${label} ${esc(a.tool)}</summary><pre dir='auto'>${esc(JSON.stringify(a.args || {}))}\n${esc(a.result || "")}</pre>${details}</details>`;
+}
+async function aiRequest(data, onProgress) {
+  const options = { method: "POST", headers: { "content-type": "application/json", "x-token": TOKEN, accept: "text/event-stream" }, body: JSON.stringify({ action: "ai", ...data }) };
+  let response;
+  try { response = await fetch("/api/admin", options); }
+  catch { response = await fetch("/api/admin", options); } // same id: the server never replays a write
+  if (response.status === 401) { logout(); throw new Error("انتهت الجلسة، ادخل من جديد"); }
+  const streaming = response.headers?.get?.("content-type")?.includes("text/event-stream") && response.body?.getReader;
+  if (!streaming) {
+    const json = await response.json().catch(() => ({ error: "خطأ في الشبكة" }));
+    if (!json.ok) throw new Error(json.error || "خطأ");
+    return json.data;
+  }
+  const reader = response.body.getReader(), decoder = new TextDecoder();
+  let buffer = "", result = null, failure = "";
+  const processEvent = (block) => {
+    let event = "message"; const dataLines = [];
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+    }
+    if (!dataLines.length) return;
+    let payload; try { payload = JSON.parse(dataLines.join("\n")); } catch { return; }
+    if (event === "progress") onProgress(payload);
+    else if (event === "result") result = payload.data;
+    else if (event === "error") failure = payload.error || "تعذّر تنفيذ الطلب";
+  };
+  while (true) {
+    const chunk = await reader.read();
+    buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done }).replace(/\r\n/g, "\n");
+    let boundary;
+    while ((boundary = buffer.indexOf("\n\n")) >= 0) { processEvent(buffer.slice(0, boundary)); buffer = buffer.slice(boundary + 2); }
+    if (chunk.done) break;
+  }
+  if (failure) throw new Error(failure);
+  if (!result) throw new Error("انقطع البث قبل تأكيد النتيجة؛ راجع السجل قبل إعادة الطلب");
+  return result;
+}
 async function ask(q, image = "") {
   if (AI_BUSY) return;
   AI_BUSY = true;
   bubble("me", esc(q || "صورة مرفقة") + (image ? `<img class="chat-image" src="${esc(image)}" alt="الصورة المرفقة">` : ""));
-  const w = bubble("bot", "<span class=mute>…</span>");
+  const w = bubble("bot", "<span class=mute>…</span>"), progressActions = [];
   $("#aq").disabled = true;
   $("#ai-image").disabled = true;
   try {
-    const requestId = globalThis.crypto?.randomUUID?.() || `request_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const r = await api("ai", { prompt: q, history: HIST, image: image || undefined, requestId });
+    const r = await aiRequest({ prompt: q, history: HIST, image: image || undefined, requestId: requestId() }, event => {
+      if (event.type === "heartbeat") return;
+      if (event.type === "tool_end" && event.action) progressActions.push(event.action);
+      const status = event.type === "tool_start" ? `تنفيذ ${event.tool}…` : event.message || "جارٍ العمل…";
+      w.innerHTML = `<span class='agent-progress'>${esc(status)}</span>` + progressActions.map(renderAction).join("");
+    });
     HIST.push(
       { role: "user", content: (q || "اشرح الصورة") + (image ? " [صورة مرفقة]" : "") },
       { role: "assistant", content: r.reply },
     );
-    HIST = HIST.slice(-12);
+    saveHistory();
     if (image && r.retainImage) restoreAiImage(image);
-    w.innerHTML =
-      esc(r.reply).split("\n").join("<br>") +
-      (r.actions || [])
-        .map(
-          (a) =>
-            `<details class='act ${a.ok ? "ok" : "bad"}'><summary>${a.ok ? "✓" : "✗"} ${esc(a.tool)}</summary><pre>${esc(JSON.stringify(a.args))}\n${esc(a.result)}</pre></details>`,
-        )
-        .join("");
+    w.innerHTML = esc(r.reply).split("\n").join("<br>") + (r.actions || []).map(renderAction).join("");
   } catch (err) {
     if (image) restoreAiImage(image);
-    w.innerHTML = "<span class=err>" + esc(err.message) + "</span>";
+    if (!$("#aq").value) $("#aq").value = q;
+    w.innerHTML = "<span class=err>" + esc(err.message) + "</span>" + progressActions.map(renderAction).join("");
+  } finally {
+    AI_BUSY = false;
+    $("#aq").disabled = false;
+    $("#ai-image").disabled = false;
+    $("#aq").focus();
   }
-  AI_BUSY = false;
-  $("#aq").disabled = false;
-  $("#ai-image").disabled = false;
-  $("#aq").focus();
 }
+function renderAgentResult(data) {
+  const statuses = (data.deployments || []).filter(d => d.id).map(d => `<button class='sm' type='button' data-agent-status='${esc(d.id)}'>حالة ${esc(d.project)}</button>`).join(" ");
+  return `<pre dir='auto'>${esc(JSON.stringify(data, null, 2))}</pre>${statuses}`;
+}
+async function agentButton(button, action) {
+  if (AI_BUSY || button.disabled) return;
+  if (action === "agent_deploy" && !confirm("نشر المسودات إلى GitHub وبدء بناء الإنتاج؟")) return;
+  button.disabled = true;
+  const w = bubble("bot", "<span class='agent-progress'>جارٍ التنفيذ…</span>");
+  try {
+    const data = await api(action, ["agent_deploy", "agent_undo"].includes(action) ? { requestId: requestId() } : {});
+    if (action === "agent_diff") w.innerHTML = data.files?.length ? data.files.map(f => `<details class='diff' open><summary>${esc(f.path)}</summary><pre dir='ltr'>${esc(f.diff)}</pre></details>`).join("") : "لا توجد مسودات.";
+    else if (action === "agent_history") w.innerHTML = data.length ? data.map(item => `<div class='agent-history-row'><b>${esc(item.type)}</b> · ${esc(item.status)} <small>${esc(item.detail)} · ${esc(new Date(item.at).toLocaleString("ar-DZ"))}</small></div>`).join("") : "السجل فارغ.";
+    else w.innerHTML = renderAgentResult(data);
+  } catch (error) { w.innerHTML = `<span class='err'>${esc(error.message)}</span>`; }
+  finally { button.disabled = false; }
+}
+$("#agent-diff").addEventListener("click", e => agentButton(e.currentTarget, "agent_diff"));
+$("#agent-deploy").addEventListener("click", e => agentButton(e.currentTarget, "agent_deploy"));
+$("#agent-undo").addEventListener("click", e => agentButton(e.currentTarget, "agent_undo"));
+$("#agent-history").addEventListener("click", e => agentButton(e.currentTarget, "agent_history"));
+$("#agent-clear").addEventListener("click", () => {
+  if (AI_BUSY || !confirm("بدء محادثة جديدة؟ ستبقى المسودات والنسخ محفوظة.")) return;
+  HIST = []; saveHistory(); $("#chat").innerHTML = ""; clearAiImage();
+  bubble("bot", "محادثة جديدة. المسودات والنسخ السابقة لم تُحذف.");
+});
+document.addEventListener("click", async event => {
+  const button = event.target.closest("[data-agent-status]");
+  if (!button || button.disabled) return;
+  button.disabled = true;
+  try { bubble("bot", renderAgentResult(await api("agent_deploy_status", { id: button.dataset.agentStatus }))); }
+  catch (error) { toast(error.message, true); }
+  finally { button.disabled = false; }
+});
+$("#aq").addEventListener("keydown", event => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); $("#af").requestSubmit(); } });
 $("#af").addEventListener("submit", (e) => {
   e.preventDefault();
   const q = $("#aq").value.trim();
@@ -538,10 +624,9 @@ function start() {
     .catch(() => {
       $("#bot").textContent = "—";
     });
-  if (!$("#chat").children.length)
-    bubble(
-      "bot",
-      "أهلاً! أستطيع إدارة مسابقات وجوائز وأعضاء FT-bot، ويمكنك إرفاق صورة للسؤال عنها أو إضافتها إلى جائزة أو مسابقة. أراجع نتائج الأدوات قبل تأكيد التنفيذ.",
-    );
+  if (!$("#chat").children.length) {
+    if (HIST.length) HIST.forEach(h => bubble(h.role === "user" ? "me" : "bot", esc(h.content).split("\n").join("<br>")));
+    else bubble("bot", "أهلاً! أستطيع إدارة FT-bot وتطوير كوده، مراجعة المسودات والاختبار والنشر عند تهيئة التكامل. يمكنك إرفاق صورة أو حفظها على جائزة أو مسابقة.");
+  }
 }
 if (TOKEN) start();

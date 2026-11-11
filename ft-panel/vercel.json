@@ -1,1 +1,1 @@
-{"functions":{"api/*.js":{"maxDuration":60}}}
+{"functions":{"api/admin.js":{"maxDuration":300},"api/selftest.js":{"maxDuration":60}}}

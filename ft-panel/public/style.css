@@ -443,5 +443,15 @@ nav button { min-width: 52px; white-space: nowrap; }
 .attachment span { flex: 1; }
 .chat-image { display: block; max-width: min(240px, 100%); max-height: 200px; object-fit: contain; border-radius: 8px; margin-top: 8px; }
 .ai-upload { white-space: nowrap; align-self: stretch; }
-#af input#aq { min-width: 0; flex: 1; }
-@media (max-width: 440px) { .ai-upload { font-size: 12px; padding-inline: 7px; } #af .btn { padding-inline: 10px; } }
+#af #aq { min-width: 0; flex: 1; resize: vertical; min-height: 44px; max-height: 180px; }
+.agent-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 7px; }
+.agent-toolbar .sm { margin: 0; }
+.agent-progress { color: var(--pitch); display: block; font-size: 14px; }
+.agent-progress::before { content: '● '; animation: pulse 1.2s infinite alternate; }
+@keyframes pulse { from { opacity: .35; } to { opacity: 1; } }
+.diff { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 6px; background: #f8fafb; }
+.diff summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.diff pre, .act pre, .msg pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; font: 12px/1.45 ui-monospace, monospace; }
+.agent-history-row { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.agent-history-row small { display: block; color: var(--mute); }
+@media (max-width: 440px) { .ai-upload { font-size: 12px; padding-inline: 7px; } #af .btn { padding-inline: 10px; } .agent-toolbar .sm { font-size: 12px; } }

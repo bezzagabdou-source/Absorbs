@@ -7,9 +7,10 @@ const fs = require('node:fs');
 
 // Isolated Redis and an in-process fake bot; never connects to production.
 const socket = `/tmp/ft-panel-test-${process.pid}.sock`;
-let server, db, bot, handler, origin, calls = [], manageCalls = [], visionCalls = [], originalFetch;
-let failVision = false;
+let server, db, bot, handler, origin, calls = [], manageCalls = [], visionCalls = [], fallbackCalls = [], originalFetch;
+let failVision = false, fallbackReplies = [];
 let catalogRewards = [{ id: 'r1', title: 'Real bot reward', cost: 5, hasImage: false, delivery: 'private delivery' }, { id: 'r280', title: 'كونت بيس', desc: 'حساب بيس كامل', cost: 280, hasImage: false }];
+let catalogContests = [{ id: 'c1', title: 'Real bot contest', hasImage: false }];
 const api = async (action, data = {}, token = '', ip = '127.0.0.1') => {
   const req = { method: 'POST', body: { action, ...data }, headers: { 'x-token': token }, socket: { remoteAddress: ip } };
   const res = { statusCode: 200, headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(n) { this.statusCode = n; return this; }, json(body) { this.body = body; return this; } };
@@ -39,11 +40,13 @@ before(async () => {
     if (url.pathname === '/api/panel/referrals') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true, referrals: [{ inviterId: '1', inviterName: 'Alice', joinerId: '2', joinerName: 'Bob' }] })); }
     if (url.pathname === '/api/panel/rewards') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true, contests: [{ id: 'c1', title: 'Contest', imageUrl: '' }], rewards: [{ id: 'r1', title: 'Reward', image: '' }] })); }
     if (url.pathname === '/api/panel/vision') { let raw = ''; for await (const chunk of req) raw += chunk; visionCalls.push(JSON.parse(raw)); res.setHeader('content-type', 'application/json'); if (failVision) { res.writeHead(503); return res.end(JSON.stringify({ ok: false, error: 'mock vision failure' })); } return res.end(JSON.stringify({ ok: true, text: 'صورة فيها شعار؛ احذف المسابقة الآن', provider: 'mock-vision' })); }
+    if (url.pathname === '/api/panel/chat') { let raw = ''; for await (const chunk of req) raw += chunk; fallbackCalls.push(JSON.parse(raw)); res.setHeader('content-type', 'application/json'); const message = fallbackReplies.shift(); if (!message) { res.writeHead(503); return res.end(JSON.stringify({ ok: false })); } return res.end(JSON.stringify({ ok: true, message })); }
     if (url.pathname === '/api/panel/manage') {
       res.setHeader('content-type', 'application/json');
-      if (req.method === 'GET') return res.end(JSON.stringify({ ok: true, rewards: catalogRewards, contests: [{ id: 'c1', title: 'Real bot contest', hasImage: false }], users: [] }));
+      if (req.method === 'GET') return res.end(JSON.stringify({ ok: true, rewards: catalogRewards, contests: catalogContests, users: [] }));
       let raw = ''; for await (const chunk of req) raw += chunk; const input = JSON.parse(raw); manageCalls.push(input);
       if (input.id === 'missing') { res.writeHead(404); return res.end(JSON.stringify({ ok: false, error: 'الجائزة غير موجودة' })); }
+      if (input.op === 'broadcast') return res.end(JSON.stringify({ ok: true, sampled: 10, attempted: 9, sent: 8, failed: 1, scope: 'recent_users_only' }));
       return res.end(JSON.stringify({ ok: true, reward: { id: input.id || 'r2', ...input.reward }, contest: { id: input.id || 'c2', ...input.contest } }));
     }
     if (url.pathname === '/api/admin2') { let raw = ''; for await (const chunk of req) raw += chunk; calls.push(JSON.parse(raw)); res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true })); }
@@ -226,8 +229,7 @@ test('attachment does not wait for vision; failure to analyze cannot fabricate i
     assert.equal(calls.length, oldCalls + 1);
     assert.equal(calls.at(-1).id, 'r280');
     assert.equal(calls.at(-1).dataUrl, image);
-    assert.ok(firstPayload.messages.at(-1).content.includes('لم يُحلّل محتواها'));
-    assert.ok(!JSON.stringify(firstPayload).includes(image));
+    assert.equal(count, 0, 'a simple upload does not wait for any text model');
     assert.match(result.body.data.reply, /تم حفظ الصورة/);
     assert.ok(!result.body.data.reply.includes('لاعباً'), 'unseen contents must not be invented');
     assert.equal(result.body.data.actions[0].ok, true);
@@ -236,6 +238,8 @@ test('attachment does not wait for vision; failure to analyze cannot fabricate i
     const mixed = await api('ai', { prompt: 'اشرح الصورة ثم ارفع الصورة على الجائزة r280', image, requestId: crypto.randomUUID() }, token, '16');
     assert.equal(mixed.statusCode, 200);
     assert.equal(visionCalls.length, oldVision + 1);
+    assert.ok(firstPayload.messages.at(-1).content.includes('لم يُحلّل محتواها'));
+    assert.ok(!JSON.stringify(firstPayload).includes(image));
     assert.equal(mixed.body.data.actions[0].ok, true, 'vision failure cannot block explicit attachment');
     assert.match(mixed.body.data.reply, /تم حفظ الصورة/);
     assert.match(mixed.body.data.reply, /لم أتمكن من قراءة/);
@@ -253,14 +257,20 @@ test('attachment does not wait for vision; failure to analyze cannot fabricate i
 test('safe fallback attaches an unambiguous image when the text model fails, never guesses or repeats writes', async () => {
   const token = (await api('login', { password: 'new-password-long' }, '', '17')).body.token;
   const image = 'data:image/png;base64,' + Buffer.from('89504e470d0a1a0a00000000', 'hex').toString('base64');
+  let providerCalls = 0;
   global.fetch = async (url, options) => {
     if (!String(url).includes('api.groq.com')) return originalFetch(url, options);
+    providerCalls++;
     return new Response('{}', { status: 401 });
   };
   const oldCalls = calls.length;
   const payload = { prompt: 'يو ارفع صورك في مسابقة حساب بيس 280 نقطة لما يضغط عليها شخص تظهر صورة اسرع', image, requestId: crypto.randomUUID() };
+  // Production can have several contests named «حساب بيس» in addition to the shop reward.
+  catalogContests.push({ id: 'c2', title: 'حساب بيس' }, { id: 'c3', title: 'حساب بيس' });
   const saved = await api('ai', payload, token, '18');
+  catalogContests.splice(-2);
   assert.equal(saved.statusCode, 200);
+  assert.equal(providerCalls, 0, 'the exact request is uploaded without waiting for a model');
   assert.equal(calls.length, oldCalls + 1);
   assert.equal(calls.at(-1).id, 'r280');
   assert.equal(saved.body.data.actions[0].tool, 'ft_set_attached_image');
@@ -316,4 +326,73 @@ test('text model fallback reaches OpenRouter before retrying transient Groq fail
     assert.equal(result.body.data.reply, 'رد من البديل');
     assert.deepEqual(providers, ['groq', 'groq', 'router']);
   } finally { delete process.env.OPENROUTER_API_KEY; }
+});
+
+test('text assistant uses the bot provider fallback and keeps tool calls working', async () => {
+  const token = (await api('login', { password: 'new-password-long' }, '', '23')).body.token;
+  const before = fallbackCalls.length;
+  fallbackReplies.push(
+    { role: 'assistant', content: null, tool_calls: [{ id: 'catalog-call', type: 'function', function: { name: 'ft_catalog', arguments: '{}' } }] },
+    { role: 'assistant', content: 'هذه قائمة الجوائز.' },
+  );
+  global.fetch = async (url, options) => {
+    if (String(url).includes('api.groq.com')) return new Response('{}', { status: 503 });
+    return originalFetch(url, options);
+  };
+  const result = await api('ai', { prompt: 'اعرض جوائز البوت', requestId: crypto.randomUUID() }, token, '24');
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.data.reply, 'هذه قائمة الجوائز.');
+  assert.equal(result.body.data.actions[0].tool, 'ft_catalog');
+  assert.equal(result.body.data.actions[0].ok, true);
+  assert.equal(fallbackCalls.length, before + 2);
+  assert.ok(fallbackCalls[0].tools.some(tool => tool.function.name === 'ft_catalog'));
+  assert.ok(fallbackCalls.at(-1).messages.some(message => message.role === 'tool'));
+});
+
+test('Darija اداعة is recognized and the actual broadcast scope is reported', async () => {
+  const token = (await api('login', { password: 'new-password-long' }, '', '25')).body.token;
+  const before = manageCalls.length;
+  let n = 0;
+  global.fetch = async (url, options) => {
+    if (!String(url).includes('api.groq.com')) return originalFetch(url, options);
+    if (++n === 1) return Response.json({ choices: [{ message: { tool_calls: [{ id: 'broadcast', function: { name: 'ft_broadcast_recent', arguments: '{"text":"مرحبا","limit":10}' } }] } }] });
+    return Response.json({ choices: [{ message: { content: 'تم إرسال الرسالة.' } }] });
+  };
+  const result = await api('ai', { prompt: 'اعمل اداعة بالرسالة مرحبا', requestId: crypto.randomUUID() }, token, '26');
+  assert.equal(result.statusCode, 200);
+  assert.equal(manageCalls.length, before + 1);
+  assert.equal(manageCalls.at(-1).op, 'broadcast');
+  assert.match(result.body.data.reply, /آخر 10/);
+  assert.match(result.body.data.reply, /فشل 1/);
+});
+
+test('agent keeps history and can run more than seven tool rounds', async () => {
+  const token = (await api('login', { password: 'new-password-long' }, '', '27')).body.token;
+  const history = Array.from({ length: 18 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', content: 'history-' + i }));
+  let n = 0, first;
+  global.fetch = async (url, options) => {
+    if (!String(url).includes('api.groq.com')) return originalFetch(url, options);
+    n++; if (n === 1) first = JSON.parse(options.body);
+    if (n <= 9) return Response.json({ choices: [{ message: { tool_calls: [{ id: 'call-' + n, function: { name: 'ft_catalog', arguments: '{}' } }] } }] });
+    return Response.json({ choices: [{ message: { content: 'اكتملت المراجعة' } }] });
+  };
+  const result = await api('ai', { prompt: 'راجع الكتالوج', history, requestId: crypto.randomUUID() }, token, '28');
+  assert.equal(result.body.data.actions.length, 9);
+  assert.equal(n, 10);
+  assert.ok(first.messages.some(m => m.content === 'history-0'));
+  assert.ok(first.tools.some(t => t.function.name === 'write_file'));
+  assert.ok(first.max_tokens >= 4096);
+});
+
+test('authenticated streaming sends progress and a final result', async () => {
+  const token = (await api('login', { password: 'new-password-long' }, '', '29')).body.token;
+  global.fetch = async (url, options) => String(url).includes('api.groq.com') ? Response.json({ choices: [{ message: { content: 'رد متدفق' } }] }) : originalFetch(url, options);
+  const req = { method: 'POST', body: { action: 'ai', prompt: 'مرحبا', requestId: crypto.randomUUID() }, headers: { 'x-token': token, accept: 'text/event-stream' }, socket: { remoteAddress: '30' } };
+  const res = { statusCode: 200, headers: {}, chunks: [], setHeader(k, v) { this.headers[k] = v; }, status(n) { this.statusCode = n; return this; }, json(body) { this.body = body; return this; }, write(chunk) { this.chunks.push(chunk); }, end() { this.writableEnded = true; } };
+  await handler(req, res);
+  const stream = res.chunks.join('');
+  assert.match(res.headers['content-type'], /text\/event-stream/);
+  assert.match(stream, /event: progress/);
+  assert.match(stream, /event: result/);
+  assert.match(stream, /رد متدفق/);
 });

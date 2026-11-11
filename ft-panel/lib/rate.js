@@ -21,4 +21,5 @@ async function allow(req, login) {
   if (!general.allowed || !login) return general;
   return checkLimit('login', id, 8, 15 * 60);
 }
-module.exports = { allow, checkLimit };
+async function allowAgent(req) { return checkLimit('agent', clientId(req), 20, 60); }
+module.exports = { allow, allowAgent, checkLimit };

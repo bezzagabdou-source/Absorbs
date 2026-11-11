@@ -60,7 +60,8 @@ test("Gemini failure falls back to Groq vision with the actual image", async () 
     assert.equal(data.text, "هذه صورة جائزة");
     assert.equal(calls.length, 2, "do not send image to later providers after success");
     assert.equal(calls[1].headers.get("authorization"), "Bearer working-groq");
-    assert.equal(calls[1].body.model, "meta-llama/llama-4-scout-17b-16e-instruct");
+    assert.equal(calls[1].body.model, "qwen/qwen3.8-27b");
+    assert.equal(calls[1].body.reasoning_effort, "none");
     assert.equal(calls[1].body.messages[1].content[1].image_url.url, image);
     assert.match(calls[1].body.messages[0].content, /غير موثوقة/);
     assert.ok(!JSON.stringify(data).includes("working-groq"));
@@ -84,7 +85,7 @@ test("OpenRouter free image model is tried after earlier failures", async () => 
     assert.equal(data.provider, "OpenRouter");
     assert.equal(data.text, "نجح البديل");
     assert.equal(calls.length, 3);
-    assert.equal(calls[2].body.model, "google/gemma-3-27b-it:free");
+    assert.equal(calls[2].body.model, "openrouter/free");
     assert.equal(calls[2].body.messages[1].content[1].image_url.url, image);
   });
 });
