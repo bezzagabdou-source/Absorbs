@@ -1,0 +1,1 @@
+{"name":"ft-panel","version":"1.0.0","private":true,"dependencies":{"ioredis":"^5.4.1"},"scripts":{"test":"node --test test/*.test.js","check":"node --check api/admin.js && node --check lib/ai.js && node --check public/dashboard.js"}}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>لوحة تحكم مسابقات FT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600&family=Reem+Kufi:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="login" class="login">
+      <form id="lf">
+        <h1>مسابقات FT</h1>
+        <p>لوحة التحكم</p>
+        <input
+          id="pw"
+          type="password"
+          placeholder="كلمة السر"
+          autocomplete="current-password"
+        /><button class="btn">دخول</button>
+        <div id="lerr" class="err"></div>
+      </form>
+    </div>
+    <div id="app" hidden>
+      <header>
+        <h2 id="ttl">المساعد</h2>
+        <span id="bot" class="pill">…</span>
+      </header>
+      <main>
+        <section id="t-ai">
+          <div id="chat"></div>
+          <div class="chips">
+            <button data-q="كم عدد المستخدمين وكم طلب معلّق؟">الإحصائيات</button
+            ><button data-q="اعرض الجوائز">الجوائز</button
+            ><button data-q="اعرض الطلبات المعلقة">الطلبات</button>
+          </div>
+          <form id="af" class="bar">
+            <input
+              id="aq"
+              placeholder="اكتب طلبك للبوت…"
+              autocomplete="off"
+            /><button class="btn">إرسال</button>
+          </form>
+        </section>
+        <section id="t-stats" hidden></section>
+        <section id="t-prizes" hidden></section>
+        <section id="t-reqs" hidden></section>
+        <section id="t-users" hidden></section>
+        <section id="t-referrals" hidden></section>
+        <section id="t-set" hidden></section>
+      </main>
+      <nav id="nav">
+        <button data-t="ai" class="on">المساعد</button
+        ><button data-t="stats">الأرقام</button
+        ><button data-t="prizes">الجوائز</button
+        ><button data-t="reqs">الطلبات</button
+        ><button data-t="users">الأعضاء</button
+        ><button data-t="referrals">الإحالات</button
+        ><button data-t="set">الإعدادات</button>
+      </nav>
+    </div>
+    <dialog id="dlg">
+      <form id="df">
+        <h2 id="dt">جائزة</h2>
+        <label>الاسم<input id="d_title" /></label
+        ><label>السعر بالنقاط<input id="d_cost" type="number" min="0" /></label
+        ><label>الإيموجي<input id="d_emoji" /></label
+        ><label>الوصف<textarea id="d_desc" rows="2"></textarea></label>
+        <div class="row">
+          <button class="btn">حفظ</button
+          ><button class="btn ghost" type="button" id="d_cancel">إلغاء</button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast"></div>
+    <script defer src="/dashboard.js"></script>
+  </body>
+</html>
