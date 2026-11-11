@@ -199,36 +199,16 @@ async function gateJoin(
 /* ───────────────────────────── keyboards ───────────────────────────── */
 
 function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
-  const rows: Button[][] = [];
-  const hasGroup = Boolean(linkedGroup(settings));
-
-  // 🏠 نسخة الصورة (النسخة القديمة): المسابقات / حسابي / رابط الإحالة
-  rows.push([
-    { text: "🎁 المسابقات", callback_data: "home_list" },
-    { text: "👤 حسابي", callback_data: "profile" },
-  ]);
-  rows.push([{ text: "🔗 رابط الإحالة", callback_data: "reflink" }]);
-
-  if (hasGroup) {
-    rows.push([{ text: "🏃 أسرع ضيف — أضف أعضاء واربح", callback_data: "fastest" }]);
-  }
-
-  const list = contests.filter((c) => c.status !== "ended" && c.mode !== "group").slice(0, 5);
-  list.forEach((c) => {
-    rows.push([{ text: `🎯 ${c.title} • ${c.target} جهة`, callback_data: `c:${c.id}` }]);
-  });
-
-  rows.push([
-    { text: "📊 جهاتي", callback_data: "mine" },
-    { text: "🥇 الترتيب", callback_data: "top" },
-  ]);
-  rows.push([{ text: `⭐️ نقاطي`, callback_data: "points" }]);
-  rows.push([{ text: "🎁 متجر الجوائز", callback_data: "shop" }]);
-  rows.push([{ text: "🚪 دخول المجموعة", callback_data: "join" }]);
-  rows.push([
-    { text: "📜 الشروط", callback_data: "rules" },
-    { text: `👑 المالك ${ownerHandle(settings)}`, callback_data: "owner" },
-  ]);
+  // 🏠 أزرار فقط: المسابقات / حسابي / رابط الإحالة — بلا أي زر زايد
+  const rows: Button[][] = [
+    [
+      { text: "🎁 المسابقات", callback_data: "home_list" },
+      { text: "👤 حسابي", callback_data: "profile" },
+    ],
+    [{ text: "🔗 رابط الإحالة", callback_data: "reflink" }],
+  ];
+  void settings;
+  void contests;
   return keyboard(rows);
 }
 
