@@ -92,7 +92,7 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
   return (
     <div className="aurora relative flex min-h-dvh items-center justify-center px-5">
       <form onSubmit={submit} className="glass animate-fade-up relative z-10 w-full max-w-sm rounded-[30px] p-6">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-teal-200">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-violet-200">
           <Wand2 className="h-6 w-6" />
         </span>
         <h1 className="mt-4 text-xl font-black text-white">خطوة أخيرة: اختر هويتك</h1>

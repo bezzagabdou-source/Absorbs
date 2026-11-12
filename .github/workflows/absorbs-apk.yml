@@ -89,8 +89,8 @@ jobs:
       - name: Publish to GitHub Release (direct download link)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: dz-connect-v1.3.0
-          name: "Dz connect Android v1.3.0"
+          tag_name: dz-connect-v1.4.0
+          name: "Dz connect Android v1.4.0"
           body: |
             📱 **تطبيق Dz connect للأندرويد** — حمّل ملف `DZConnect.apk` وثبّته مباشرة.
             عند التثبيت فعّل «السماح من هذا المصدر» (APK تجريبي موقّع بمفتاح Debug).

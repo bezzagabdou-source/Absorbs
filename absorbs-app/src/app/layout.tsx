@@ -35,13 +35,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#070713",
+  themeColor: "#0B0F1D",
   colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
+      <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('dz-theme')==='light')document.documentElement.classList.add('theme-light')}catch(e){}" }} />
       <body>
         <AuthProvider>
           <ToastProvider>

@@ -96,9 +96,9 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
       </Link>
 
       <section className="glass relative overflow-hidden rounded-[28px] p-5">
-        <div className="pointer-events-none absolute -top-14 end-0 h-40 w-40 rounded-full bg-emerald-400/20 blur-[60px]" />
+        <div className="pointer-events-none absolute -top-14 end-0 h-40 w-40 rounded-full bg-indigo-400/20 blur-[60px]" />
         <div className="relative flex items-start gap-3.5">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-emerald-400/30 to-cyan-500/25 text-4xl ring-1 ring-white/15">
+          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-indigo-400/30 to-cyan-500/25 text-4xl ring-1 ring-white/15">
             {group.emoji}
           </span>
           <div className="min-w-0 flex-1">

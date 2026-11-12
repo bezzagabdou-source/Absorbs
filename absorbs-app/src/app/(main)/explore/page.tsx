@@ -72,7 +72,7 @@ export default function ExplorePage() {
     <div className="space-y-4">
       <div className="animate-fade-up px-1 pt-1">
         <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-          <Compass className="h-6 w-6 text-teal-200" /> اكتشف
+          <Compass className="h-6 w-6 text-violet-200" /> اكتشف
         </h1>
         <p className="mt-1 text-sm text-white/50">ابحث عن أي شخص باسم المستخدم وابدأ محادثة خاصة فورًا.</p>
       </div>
@@ -89,7 +89,7 @@ export default function ExplorePage() {
           className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-white outline-none placeholder:text-white/35"
           aria-label="بحث عن مستخدمين"
         />
-        {searching && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-teal-200" />}
+        {searching && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-violet-200" />}
         {query && (
           <button onClick={() => setQuery("")} className="shrink-0 rounded-full bg-white/[0.07] px-3 py-1.5 text-xs font-bold text-white/70 transition hover:bg-white/10">
             مسح

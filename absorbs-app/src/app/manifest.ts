@@ -12,8 +12,8 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: "portrait",
     dir: "rtl",
     lang: "ar",
-    background_color: "#05060f",
-    theme_color: "#070713",
+    background_color: "#070B16",
+    theme_color: "#0B0F1D",
     categories: ["social", "entertainment", "communication"],
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

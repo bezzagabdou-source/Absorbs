@@ -87,7 +87,7 @@ export default function ReelsPage() {
     <div className="animate-fade-up">
       <div className="mb-3 flex items-center justify-between px-1">
         <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-          <Clapperboard className="h-6 w-6 text-emerald-300" /> ريلز Dz connect
+          <Clapperboard className="h-6 w-6 text-indigo-300" /> ريلز Dz connect
         </h1>
         <button
           onClick={() => setMuted((m) => !m)}

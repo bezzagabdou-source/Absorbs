@@ -60,8 +60,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.parseColor("#070713"));
-        getWindow().setNavigationBarColor(Color.parseColor("#070713"));
+        getWindow().setStatusBarColor(Color.parseColor("#070B16"));
+        getWindow().setNavigationBarColor(Color.parseColor("#070B16"));
 
         FrameLayout root = new FrameLayout(this);
         webView = new WebView(this);

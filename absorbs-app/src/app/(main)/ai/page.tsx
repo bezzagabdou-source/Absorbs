@@ -84,11 +84,11 @@ export default function AiPage() {
       {/* header */}
       <div className="glass relative overflow-hidden rounded-[26px] p-4">
         <div className="pointer-events-none absolute -top-10 end-0 h-32 w-32 rounded-full bg-cyan-400/20 blur-[50px]" />
-        <div className="pointer-events-none absolute -bottom-12 start-6 h-32 w-32 rounded-full bg-emerald-400/20 blur-[50px]" />
+        <div className="pointer-events-none absolute -bottom-12 start-6 h-32 w-32 rounded-full bg-indigo-400/20 blur-[50px]" />
         <div className="relative flex items-center gap-3">
-          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 text-white shadow-[0_10px_28px_rgba(20,184,166,0.4)]">
+          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-400 via-violet-500 to-cyan-500 text-white shadow-[0_10px_28px_rgba(20,184,166,0.4)]">
             <Sparkles className="h-6 w-6" />
-            <span className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full bg-emerald-300 ring-2 ring-[#0b1512]" />
+            <span className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full bg-indigo-300 ring-2 ring-[#0b1512]" />
           </span>
           <div className="min-w-0">
             <h1 className="text-lg font-black text-white" dir="ltr" style={{ textAlign: "start" }}>
@@ -116,7 +116,7 @@ export default function AiPage() {
             <span
               className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white",
-                msg.role === "user" ? "bg-white/[0.08] text-white/70" : "bg-gradient-to-br from-emerald-400 to-cyan-600",
+                msg.role === "user" ? "bg-white/[0.08] text-white/70" : "bg-gradient-to-br from-indigo-400 to-cyan-600",
               )}
             >
               {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
@@ -125,7 +125,7 @@ export default function AiPage() {
               className={cn(
                 "group max-w-[80%] rounded-[22px] px-3.5 py-2.5 text-[14.5px] leading-7 shadow-lg",
                 msg.role === "user"
-                  ? "rounded-ee-md bg-gradient-to-l from-emerald-500 to-teal-600 text-white"
+                  ? "rounded-ee-md bg-gradient-to-l from-indigo-500 to-violet-600 text-white"
                   : "glass rounded-es-md text-white/90",
               )}
             >
@@ -133,7 +133,7 @@ export default function AiPage() {
               {msg.role === "assistant" && i > 0 && (
                 <button
                   onClick={() => void copyText(msg.content.replace(/\*\*/g, ""))}
-                  className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-teal-300/80 transition hover:text-teal-200"
+                  className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-violet-300/80 transition hover:text-violet-200"
                 >
                   <Copy className="h-3 w-3" /> نسخ / استخدام كمنشور
                 </button>
@@ -143,13 +143,13 @@ export default function AiPage() {
         ))}
         {busy && (
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-cyan-600 text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-cyan-600 text-white">
               <Bot className="h-4 w-4" />
             </span>
             <span className="glass flex items-center gap-1 rounded-[22px] rounded-es-md px-3.5 py-3.5">
-              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-teal-300" />
-              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-teal-300" />
-              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-teal-300" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
+              <span className="typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
             </span>
           </div>
         )}
@@ -163,7 +163,7 @@ export default function AiPage() {
             key={chip.label}
             onClick={() => void send(chip.prompt)}
             disabled={busy}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-2 text-xs font-bold text-teal-200 ring-1 ring-teal-300/20 transition hover:bg-teal-400/10 active:scale-95 disabled:opacity-40"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-2 text-xs font-bold text-violet-200 ring-1 ring-violet-300/20 transition hover:bg-violet-400/10 active:scale-95 disabled:opacity-40"
           >
             {chip.icon} {chip.label}
           </button>
@@ -194,7 +194,7 @@ export default function AiPage() {
           type="submit"
           disabled={!draft.trim() || busy}
           aria-label="إرسال إلى Dz connect ai"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-[0_10px_26px_rgba(20,184,166,0.45)] transition active:scale-90 disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 via-violet-500 to-cyan-600 text-white shadow-[0_10px_26px_rgba(20,184,166,0.45)] transition active:scale-90 disabled:opacity-40"
         >
           <SendHorizonal className="h-5 w-5 -scale-x-100" />
         </button>

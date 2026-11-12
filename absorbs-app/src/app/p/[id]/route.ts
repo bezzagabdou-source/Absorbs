@@ -31,7 +31,7 @@ ${imgTag}
 <meta http-equiv="refresh" content="0; url=${target}" />
 <script>location.replace(${JSON.stringify(target)});</script>
 </head>
-<body style="background:#040a08;color:#e7fff4;font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0">
+<body style="background:#0B0F1D;color:#e7fff4;font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0">
 <p>جارٍ فتح المنشور في <b>Dz connect</b>… <a href="${target}" style="color:#34d399">اضغط هنا</a></p>
 </body>
 </html>`;

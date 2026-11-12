@@ -97,7 +97,7 @@ export default function GroupsPage() {
       <div className="flex items-start justify-between gap-3 px-1">
         <div>
           <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-            <UsersRound className="h-6 w-6 text-emerald-300" /> مجتمعات Dz connect
+            <UsersRound className="h-6 w-6 text-indigo-300" /> مجتمعات Dz connect
           </h1>
           <p className="mt-1 text-sm text-white/50">ولايات واهتمامات تجمع الجزائريين — انضم وانشر داخل مجتمعك.</p>
         </div>
@@ -123,7 +123,7 @@ export default function GroupsPage() {
       <div className="stagger space-y-2.5">
         {groups.map((group) => (
           <article key={group.id} className="glass flex items-center gap-3 rounded-[24px] p-3.5">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-emerald-400/25 to-cyan-500/20 text-2xl ring-1 ring-white/10">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-400/25 to-cyan-500/20 text-2xl ring-1 ring-white/10">
               {group.emoji}
             </span>
             <Link href={`/groups/${group.id}`} className="min-w-0 flex-1">

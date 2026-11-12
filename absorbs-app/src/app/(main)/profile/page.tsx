@@ -106,7 +106,7 @@ function SettingsCard() {
   return (
     <section className="glass animate-fade-up rounded-[28px] p-4">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 text-start" aria-expanded={open}>
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/18 text-teal-200">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/18 text-violet-200">
           <Settings2 className="h-5 w-5" />
         </span>
         <span className="flex-1">

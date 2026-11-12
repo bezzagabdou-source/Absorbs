@@ -215,7 +215,7 @@ export function PostCard({
         <span
           key={i}
           role="link"
-          className="cursor-pointer font-bold text-teal-300 hover:underline"
+          className="cursor-pointer font-bold text-violet-300 hover:underline"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();

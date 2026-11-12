@@ -115,7 +115,7 @@ export function UserRow({ person, subtitle }: { person: Profile; subtitle?: stri
 export function VerifiedBadge({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <span className="relative inline-flex shrink-0 items-center justify-center" title="حساب موثّق">
-      <BadgeCheck className={`${className} fill-sky-400 text-[#040a08]`} />
+      <BadgeCheck className={`${className} fill-sky-400 text-[#0B0F1D]`} />
     </span>
   );
 }

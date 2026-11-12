@@ -115,7 +115,7 @@ export function SecurityCenter() {
   return (
     <section className="glass animate-fade-up rounded-[28px] p-4">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 text-start" aria-expanded={open}>
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/15 text-emerald-300">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-400/15 text-indigo-300">
           <ShieldCheck className="h-5 w-5" />
         </span>
         <span className="flex-1">
@@ -130,7 +130,7 @@ export function SecurityCenter() {
           {/* password */}
           <div>
             <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-              <KeyRound className="h-4 w-4 text-emerald-300" /> تغيير كلمة المرور
+              <KeyRound className="h-4 w-4 text-indigo-300" /> تغيير كلمة المرور
             </h3>
             <div className="mt-2 flex gap-2">
               <input
@@ -152,15 +152,15 @@ export function SecurityCenter() {
           {/* MFA */}
           <div>
             <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-              <ShieldPlus className="h-4 w-4 text-emerald-300" /> التحقق بخطوتين (2FA)
+              <ShieldPlus className="h-4 w-4 text-indigo-300" /> التحقق بخطوتين (2FA)
             </h3>
             {mfaLoading ? (
               <p className="mt-2 flex items-center gap-2 text-xs text-white/40">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> جارٍ التحقق…
               </p>
             ) : factor?.status === "verified" ? (
-              <div className="mt-2 flex items-center justify-between rounded-2xl bg-emerald-400/10 px-3.5 py-3 ring-1 ring-emerald-300/25">
-                <span className="flex items-center gap-2 text-sm font-bold text-emerald-200">
+              <div className="mt-2 flex items-center justify-between rounded-2xl bg-indigo-400/10 px-3.5 py-3 ring-1 ring-indigo-300/25">
+                <span className="flex items-center gap-2 text-sm font-bold text-indigo-200">
                   <CheckCircle2 className="h-4 w-4" /> مفعّل — حسابك محمي
                 </span>
                 <button onClick={() => void disableMfa()} className="flex items-center gap-1 text-xs font-bold text-red-300">
@@ -198,7 +198,7 @@ export function SecurityCenter() {
           {/* sessions */}
           <div>
             <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-              <MonitorSmartphone className="h-4 w-4 text-emerald-300" /> الجلسات والأجهزة
+              <MonitorSmartphone className="h-4 w-4 text-indigo-300" /> الجلسات والأجهزة
             </h3>
             <p className="mt-1.5 text-xs leading-5 text-white/45">
               مسجّل كـ <span dir="ltr" className="text-white/70">{user.email}</span>
@@ -217,7 +217,7 @@ export function SecurityCenter() {
           {blocksAvailable && (
             <div>
               <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-                <Ban className="h-4 w-4 text-emerald-300" /> المستخدمون المحظورون
+                <Ban className="h-4 w-4 text-indigo-300" /> المستخدمون المحظورون
               </h3>
               {blocked.length === 0 ? (
                 <p className="mt-1.5 text-xs text-white/40">لا أحد محظور — يمكنك حظر أي مستخدم من صفحته الشخصية.</p>
@@ -227,7 +227,7 @@ export function SecurityCenter() {
                     <li key={b.id} className="flex items-center gap-2.5 rounded-2xl bg-white/[0.04] px-3 py-2">
                       <Avatar profile={b} size="xs" />
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{b.display_name}</span>
-                      <button onClick={() => void unblock(b)} className="text-xs font-bold text-emerald-300">
+                      <button onClick={() => void unblock(b)} className="text-xs font-bold text-indigo-300">
                         إلغاء الحظر
                       </button>
                     </li>

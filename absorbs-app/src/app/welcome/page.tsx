@@ -22,7 +22,7 @@ export default function WelcomePage() {
   return (
     <div className="aurora relative min-h-dvh overflow-hidden">
       {/* cinematic mesh glows */}
-      <div className="pointer-events-none absolute -top-32 start-1/3 h-96 w-96 rounded-full bg-emerald-600/25 blur-[110px]" />
+      <div className="pointer-events-none absolute -top-32 start-1/3 h-96 w-96 rounded-full bg-indigo-600/25 blur-[110px]" />
       <div className="pointer-events-none absolute top-1/2 -start-32 h-80 w-80 rounded-full bg-cyan-500/20 blur-[100px]" />
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.4rem,env(safe-area-inset-top))]">
@@ -38,7 +38,7 @@ export default function WelcomePage() {
 
         {/* ── Hero ── */}
         <div className="stagger mt-9 text-center">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-[11px] font-bold text-teal-100 ring-1 ring-teal-300/25">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/15 px-3.5 py-1.5 text-[11px] font-bold text-violet-100 ring-1 ring-violet-300/25">
             <Sparkles className="h-3.5 w-3.5" /> الشبكة الاجتماعية التي تُشبهك
           </p>
           <h1 className="mt-5 text-[44px] font-black leading-[1.15] text-white">
@@ -60,8 +60,8 @@ export default function WelcomePage() {
 
         {/* ── Floating phone mockup ── */}
         <div className="relative mx-auto mt-9 w-[270px] shrink-0" aria-hidden>
-          <div className="absolute inset-0 -z-10 scale-90 rounded-[48px] bg-gradient-to-b from-emerald-600/50 via-emerald-600/30 to-cyan-500/40 blur-2xl" />
-          <div className="animate-float overflow-hidden rounded-[42px] bg-[#0a0b1e] shadow-[0_40px_90px_rgba(0,0,0,0.65)] ring-1 ring-white/15">
+          <div className="absolute inset-0 -z-10 scale-90 rounded-[48px] bg-gradient-to-b from-indigo-600/50 via-indigo-600/30 to-cyan-500/40 blur-2xl" />
+          <div className="animate-float overflow-hidden rounded-[42px] bg-[#0B1020] shadow-[0_40px_90px_rgba(0,0,0,0.65)] ring-1 ring-white/15">
             {/* mock status bar */}
             <div className="flex items-center justify-between px-5 pt-3 text-[8px] font-bold text-white/60">
               <span>9:41</span>
@@ -80,9 +80,9 @@ export default function WelcomePage() {
             <div className="mt-3 flex gap-2.5 px-4">
               {["oran", "art", "dz", "food"].map((seed, i) => (
                 <span key={seed} className="flex flex-col items-center gap-1">
-                  <span className="rounded-full bg-gradient-to-tr from-emerald-500 via-emerald-500 to-cyan-400 p-[1.5px]">
+                  <span className="rounded-full bg-gradient-to-tr from-indigo-500 via-indigo-500 to-cyan-400 p-[1.5px]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`https://picsum.photos/seed/dzconnect-avatar-${seed}/80/80`} alt="" className="h-9 w-9 rounded-full object-cover ring-2 ring-[#0a0b1e]" />
+                    <img src={`https://picsum.photos/seed/dzconnect-avatar-${seed}/80/80`} alt="" className="h-9 w-9 rounded-full object-cover ring-2 ring-[#0B1020]" />
                   </span>
                   <span className="h-1 w-6 rounded-full bg-white/25" />
                   {i === -1}
@@ -96,7 +96,7 @@ export default function WelcomePage() {
                 <img src="https://picsum.photos/seed/dzconnect-avatar-oran/80/80" alt="" className="h-7 w-7 rounded-full object-cover" />
                 <span>
                   <span className="flex items-center gap-1 text-[10px] font-bold text-white">
-                    أمين بن يوسف <BadgeCheck className="h-3 w-3 fill-cyan-400 text-[#0a0b1e]" />
+                    أمين بن يوسف <BadgeCheck className="h-3 w-3 fill-cyan-400 text-[#0B1020]" />
                   </span>
                   <span className="block text-[8px] text-white/40">@amine.dz · قبل ساعتين</span>
                 </span>
@@ -141,7 +141,7 @@ export default function WelcomePage() {
         <div className="stagger mt-10 grid grid-cols-2 gap-3">
           {FEATURES.map((f) => (
             <div key={f.title} className="glass rounded-[24px] p-4">
-              <f.icon className="h-6 w-6 text-teal-200" />
+              <f.icon className="h-6 w-6 text-violet-200" />
               <h2 className="mt-2.5 text-sm font-bold text-white">{f.title}</h2>
               <p className="mt-1 text-[11.5px] leading-5 text-white/50">{f.text}</p>
             </div>
@@ -152,8 +152,8 @@ export default function WelcomePage() {
         <div className="mt-8 space-y-3 pb-2 pt-2">
           <InstallButton />
           <a
-            href="https://github.com/bezzagabdou-source/Absorbs/releases/download/dz-connect-v1.3.0/DZConnect.apk"
-            className="glass flex items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-emerald-200 transition hover:bg-white/[0.07] active:scale-[0.98]"
+            href="https://github.com/bezzagabdou-source/Absorbs/releases/download/dz-connect-v1.4.0/DZConnect.apk"
+            className="glass flex items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-indigo-200 transition hover:bg-white/[0.07] active:scale-[0.98]"
           >
             📱 حمّل تطبيق Android مباشرة (APK)
           </a>

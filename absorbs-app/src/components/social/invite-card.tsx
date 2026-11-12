@@ -66,7 +66,7 @@ export function InviteCard({ compact = false }: { compact?: boolean }) {
         </p>
         {!compact && (
           <div className="mt-3 flex items-center gap-2 rounded-2xl bg-black/30 px-3 py-2 ring-1 ring-white/[0.07]" dir="ltr">
-            <span className="min-w-0 flex-1 truncate text-left text-xs text-teal-200">{link}</span>
+            <span className="min-w-0 flex-1 truncate text-left text-xs text-violet-200">{link}</span>
             <button onClick={() => void copy()} aria-label="نسخ رابط الدعوة" className="shrink-0 rounded-full bg-white/[0.07] p-2 text-white/80 transition hover:bg-white/15">
               <Copy className="h-4 w-4" />
             </button>

@@ -112,7 +112,7 @@ export default function NotificationsPage() {
         <MessageCircle className="h-4 w-4" />
       </span>
     ) : (
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-400/12 text-emerald-300 ring-1 ring-emerald-300/25">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-400/12 text-indigo-300 ring-1 ring-indigo-300/25">
         <UserPlus className="h-4 w-4" />
       </span>
     );
@@ -124,7 +124,7 @@ export default function NotificationsPage() {
     <div className="space-y-4">
       <div className="animate-fade-up px-1 pt-1">
         <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-          <BellRing className="h-6 w-6 text-emerald-300" /> الإشعارات
+          <BellRing className="h-6 w-6 text-indigo-300" /> الإشعارات
         </h1>
         <p className="mt-1 text-sm text-white/50">كل تفاعلات أصدقائك معك — إعجابات وتعاليق ومتابعون جدد.</p>
       </div>

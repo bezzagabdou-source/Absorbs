@@ -565,14 +565,14 @@ function CallOverlay(props: {
           : formatCallDuration(seconds);
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-[#020806]" role="dialog" aria-label="مكالمة">
+    <div className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-[#060A14]" role="dialog" aria-label="مكالمة">
       {/* remote video / avatar backdrop */}
       {showVideos ? (
         <video ref={props.registerRemoteVideo} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-emerald-950 via-[#04120d] to-black" />
-          <div className="absolute -top-24 start-1/4 h-72 w-72 rounded-full bg-emerald-500/20 blur-[100px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-indigo-950 via-[#04120d] to-black" />
+          <div className="absolute -top-24 start-1/4 h-72 w-72 rounded-full bg-indigo-500/20 blur-[100px]" />
           <div className="absolute bottom-0 end-0 h-64 w-64 rounded-full bg-cyan-500/15 blur-[90px]" />
         </div>
       )}
@@ -596,18 +596,18 @@ function CallOverlay(props: {
           <span className="relative">
             {(status === "incoming" || status === "outgoing") && (
               <>
-                <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400/25" />
-                <span className="absolute -inset-4 animate-pulse rounded-full bg-emerald-400/10" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-indigo-400/25" />
+                <span className="absolute -inset-4 animate-pulse rounded-full bg-indigo-400/10" />
               </>
             )}
             <Avatar profile={peer} size="2xl" ring className="relative" />
           </span>
         )}
         <h2 className={cn("font-black text-white drop-shadow", showVideos ? "mt-2 text-xl" : "mt-5 text-[26px]")}>{peer.display_name}</h2>
-        <p className="mt-1 text-sm font-semibold text-emerald-200/90" dir="ltr">
+        <p className="mt-1 text-sm font-semibold text-indigo-200/90" dir="ltr">
           @{peer.username}
         </p>
-        <p className={cn("mt-2 font-bold tabular-nums", status === "active" ? "text-emerald-300" : "animate-pulse text-white/70")}>{statusText}</p>
+        <p className={cn("mt-2 font-bold tabular-nums", status === "active" ? "text-indigo-300" : "animate-pulse text-white/70")}>{statusText}</p>
         {status === "active" && <p className="mt-1 text-[11px] text-white/45">مكالمة مشفرة عبر الإنترنت · Dz connect</p>}
       </div>
 

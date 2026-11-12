@@ -175,7 +175,7 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
         <button onClick={() => fileRef.current?.click()} className="flex w-[68px] shrink-0 flex-col items-center gap-1.5 text-center">
           <span className="relative">
             <Avatar profile={me} size="lg" />
-            <span className="btn-primary absolute -bottom-0.5 -end-0.5 flex h-5 w-5 items-center justify-center rounded-full text-white ring-2 ring-[#040a08]">
+            <span className="btn-primary absolute -bottom-0.5 -end-0.5 flex h-5 w-5 items-center justify-center rounded-full text-white ring-2 ring-[#0B0F1D]">
               <Plus className="h-3.5 w-3.5" strokeWidth={3} />
             </span>
           </span>
@@ -199,10 +199,10 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
               <span
                 className={cn(
                   "rounded-full p-[2.5px]",
-                  group.allViewed ? "bg-white/20" : "bg-gradient-to-tr from-emerald-400 via-teal-400 to-cyan-500",
+                  group.allViewed ? "bg-white/20" : "ring-conic",
                 )}
               >
-                <span className="block rounded-full bg-[#040a08] p-[2px]">
+                <span className="block rounded-full bg-[#0B0F1D] p-[2px]">
                   <Avatar profile={group.author} size="lg" />
                 </span>
               </span>
@@ -217,10 +217,10 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
 
       {/* ── publish preview ── */}
       {preview && (
-        <div className="fixed inset-0 z-[95] flex flex-col bg-black/95 backdrop-blur">
+        <div className="keep-dark fixed inset-0 z-[95] flex flex-col bg-black/95 backdrop-blur">
           <div className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <h3 className="flex items-center gap-2 font-black text-white">
-              <Camera className="h-5 w-5 text-emerald-300" /> قصة جديدة
+              <Camera className="h-5 w-5 text-indigo-300" /> قصة جديدة
             </h3>
             <button
               onClick={() => {
@@ -258,7 +258,7 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
 
       {/* ── fullscreen viewer ── */}
       {viewer && current && (
-        <div className="fixed inset-0 z-[96] flex flex-col bg-black" role="dialog" aria-label="عارض القصص">
+        <div className="keep-dark fixed inset-0 z-[96] flex flex-col bg-black" role="dialog" aria-label="عارض القصص">
           {/* progress */}
           <div className="flex gap-1.5 px-3 pt-[max(0.8rem,env(safe-area-inset-top))]">
             {groups[viewer.group].stories.map((s, i) => (

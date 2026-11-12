@@ -220,14 +220,14 @@ export function Composer({ onPosted, groupId = null }: { onPosted: (post: Post) 
               />
               <button
                 onClick={() => videoRef.current?.click()}
-                className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-white/10 active:scale-95"
+                className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-indigo-200 transition hover:bg-white/10 active:scale-95"
               >
                 <Clapperboard className="h-4 w-4" /> فيديو
               </button>
               <button
                 onClick={() => void improveWithAi()}
                 disabled={aiBusy || !content.trim()}
-                className="flex items-center gap-1.5 rounded-full bg-gradient-to-l from-emerald-400/25 to-cyan-400/20 px-3 py-1.5 text-xs font-bold text-teal-200 ring-1 ring-teal-300/25 transition hover:from-emerald-400/35 hover:to-cyan-400/30 active:scale-95 disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-full bg-gradient-to-l from-indigo-400/25 to-cyan-400/20 px-3 py-1.5 text-xs font-bold text-violet-200 ring-1 ring-violet-300/25 transition hover:from-indigo-400/35 hover:to-cyan-400/30 active:scale-95 disabled:opacity-40"
                 title="حسّن منشورك بـ Dz connect ai"
               >
                 {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Dz connect ai

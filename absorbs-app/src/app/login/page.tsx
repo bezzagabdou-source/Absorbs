@@ -85,7 +85,7 @@ export default function LoginPage() {
       footer={
         <>
           ليس لديك حساب؟{" "}
-          <Link href="/signup" className="font-bold text-teal-200 hover:underline">
+          <Link href="/signup" className="font-bold text-violet-200 hover:underline">
             أنشئ حسابًا مجانيًا
           </Link>
         </>

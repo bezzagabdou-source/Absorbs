@@ -246,7 +246,7 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
               <span className="block truncate text-[15px] font-bold leading-5 text-white">{other.display_name}</span>
               <span className="block truncate text-[11px]" dir="ltr" style={{ textAlign: "start" }}>
                 {peerTyping ? (
-                  <span className="text-teal-300">يكتب الآن…</span>
+                  <span className="text-violet-300">يكتب الآن…</span>
                 ) : onlineUsers.has(other.id) ? (
                   <span className="text-emerald-300">نشط الآن</span>
                 ) : (
@@ -263,7 +263,7 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
             <button
               onClick={() => void startCall(other, "audio", threadId)}
               aria-label="مكالمة صوتية"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400/12 text-emerald-300 ring-1 ring-emerald-300/25 transition hover:bg-emerald-400/20 active:scale-90"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-400/12 text-indigo-300 ring-1 ring-indigo-300/25 transition hover:bg-indigo-400/20 active:scale-90"
             >
               <Phone className="h-[18px] w-[18px]" />
             </button>
@@ -276,10 +276,10 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
             </button>
           </span>
         )}
-        <span className="me-1.5 flex items-center gap-1.5 text-[10px] font-bold text-emerald-300">
+        <span className="me-1.5 flex items-center gap-1.5 text-[10px] font-bold text-indigo-300">
           <span className="relative flex h-2 w-2">
-            <span className="absolute h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="absolute h-full w-full animate-ping rounded-full bg-indigo-400 opacity-60" />
+            <span className="relative h-2 w-2 rounded-full bg-indigo-400" />
           </span>
           مباشر
         </span>
@@ -311,7 +311,7 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
                       className={cn(
                         "animate-bubble-in max-w-[78%] px-3.5 py-2.5 text-[14.5px] leading-6 shadow-lg",
                         mine
-                          ? "rounded-[22px] rounded-es-md bg-gradient-to-br from-emerald-600 via-emerald-600 to-emerald-500 text-white"
+                          ? "rounded-[22px] rounded-es-md bg-gradient-to-br from-indigo-600 via-indigo-600 to-indigo-500 text-white"
                           : "glass rounded-[22px] rounded-ss-md text-white/92",
                         msg.id.startsWith("temp-") && "opacity-60",
                       )}

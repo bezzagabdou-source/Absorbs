@@ -114,7 +114,7 @@ export default function FeedPage() {
       {/* quick discovery tiles */}
       <div className="animate-fade-up grid grid-cols-3 gap-2">
         {[
-          { href: "/reels", emoji: "🎬", label: "ريلز", tint: "from-emerald-400/20 to-teal-500/10 text-emerald-200 ring-emerald-300/20" },
+          { href: "/reels", emoji: "🎬", label: "ريلز", tint: "from-indigo-400/20 to-violet-500/10 text-indigo-200 ring-indigo-300/20" },
           { href: "/groups", emoji: "👥", label: "مجتمعات", tint: "from-cyan-400/20 to-sky-500/10 text-cyan-200 ring-cyan-300/20" },
           { href: "/rewards", emoji: "🏆", label: "تحديات", tint: "from-amber-400/20 to-orange-500/10 text-amber-200 ring-amber-300/20" },
         ].map((tile) => (
@@ -136,10 +136,10 @@ export default function FeedPage() {
         <Flame className="h-4 w-4 text-orange-300" />
         <h2 className="text-sm font-black text-white">أحدث المنشورات</h2>
         <span className="h-px flex-1 bg-white/[0.06]" />
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-300">
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-300">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-400" />
           </span>
           مباشر
         </span>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, Compass, Home, MessageCircle, Plus, Sparkles, UserRound } from "lucide-react";
+import { Bell, Compass, Home, MessageCircle, Moon, Plus, Sparkles, Sun, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchTotalUnread } from "@/lib/queries";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -23,6 +23,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { profile, user } = useAuth();
   const [unread, setUnread] = useState(0);
   const [notifCount, setNotifCount] = useState(0);
+  const [lightMode, setLightMode] = useState(false);
+  useEffect(() => {
+    try {
+      setLightMode(localStorage.getItem("dz-theme") === "light");
+    } catch {}
+  }, []);
+  const toggleTheme = () => {
+    const next = !lightMode;
+    setLightMode(next);
+    document.documentElement.classList.toggle("theme-light", next);
+    try {
+      localStorage.setItem("dz-theme", next ? "light" : "dark");
+    } catch {}
+  };
   const inChatRoom = /^\/messages\/.+/.test(pathname);
   const inPostDetail = pathname.startsWith("/post/");
 
@@ -100,17 +114,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* phone column */}
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[480px] flex-col border-white/[0.06] bg-[#070713]/60 shadow-[0_0_80px_rgba(0,0,0,0.6)] backdrop-blur-sm sm:border-x">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[480px] flex-col border-white/[0.07] bg-[#0A0F1E]/55 shadow-[0_0_90px_rgba(2,6,18,0.65)] backdrop-blur-sm sm:border-x">
         {/* top glass bar */}
         <header className="sticky top-0 z-40">
           <div className="glass-nav mx-3 mt-[max(0.6rem,env(safe-area-inset-top))] flex items-center justify-between rounded-[22px] px-3.5 py-2.5">
             <Link href="/feed" className="flex items-center gap-2.5">
-              <span className="logo-mark h-9 w-9 rounded-xl text-sm">A</span>
-              <span className="text-[17px] font-black tracking-tight text-white">
-                Dz connect <Sparkles className="mb-0.5 inline h-3.5 w-3.5 text-teal-200" />
+              <span className="logo-mark font-brand h-9 w-9 rounded-xl text-[15px]">D</span>
+              <span className="font-brand text-[17px] font-bold tracking-tight text-white">
+                Dz connect <Sparkles className="mb-0.5 inline h-3.5 w-3.5 text-violet-200" />
               </span>
             </Link>
             <div className="flex items-center gap-2">
+              <button
+                onClick={toggleTheme}
+                aria-label={lightMode ? "الوضع الليلي" : "الوضع الفاتح"}
+                title={lightMode ? "الوضع الليلي" : "الوضع الفاتح (تجريبي)"}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05] text-white/80 transition hover:bg-white/10 active:scale-95"
+              >
+                {lightMode ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+              </button>
               <Link
                 href="/notifications"
                 className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05] text-white/80 transition hover:bg-white/10 active:scale-95"
@@ -118,7 +140,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Bell className="h-5 w-5" />
                 {notifCount > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 px-1 text-[10px] font-bold text-white shadow-lg">
+                  <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-600 px-1 text-[10px] font-bold text-white shadow-lg">
                     {notifCount > 9 ? "+9" : notifCount}
                   </span>
                 )}
@@ -130,7 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <MessageCircle className="h-5 w-5" />
                 {unread > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-emerald-600 px-1 text-[10px] font-bold text-white shadow-lg">
+                  <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-indigo-600 px-1 text-[10px] font-bold text-white shadow-lg">
                     {unread > 9 ? "+9" : unread}
                   </span>
                 )}
@@ -149,9 +171,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/ai"
             aria-label="Dz connect ai — المساعد الذكي"
-            className="group fixed bottom-[calc(6.4rem+env(safe-area-inset-bottom))] start-4 z-40 flex items-center rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 p-[13px] text-white shadow-[0_16px_40px_rgba(20,184,166,0.5)] ring-1 ring-white/30 transition active:scale-90"
+            className="group fixed bottom-[calc(6.4rem+env(safe-area-inset-bottom))] start-4 z-40 flex items-center rounded-full bg-gradient-to-br from-indigo-400 via-violet-500 to-cyan-600 p-[13px] text-white shadow-[0_16px_40px_rgba(20,184,166,0.5)] ring-1 ring-white/30 transition active:scale-90"
           >
-            <span className="absolute inset-0 animate-ping rounded-full bg-teal-400/25" />
+            <span className="absolute inset-0 animate-ping rounded-full bg-violet-400/25" />
             <Sparkles className="relative h-6 w-6" />
           </Link>
         )}
@@ -210,9 +232,9 @@ function NavItem({
         active ? "text-white" : "text-white/45 hover:text-white/75",
       )}
     >
-      {active && <span className="absolute inset-0 rounded-2xl bg-gradient-to-b from-emerald-500/25 to-emerald-500/10 ring-1 ring-white/10" />}
+      {active && <span className="absolute inset-0 rounded-2xl bg-gradient-to-b from-indigo-500/25 to-indigo-500/10 ring-1 ring-white/10" />}
       <span className="relative">
-        <Icon className={cn("h-[22px] w-[22px]", active && "text-teal-200")} strokeWidth={active ? 2.4 : 2} />
+        <Icon className={cn("h-[22px] w-[22px]", active && "text-violet-200")} strokeWidth={active ? 2.4 : 2} />
         {badge > 0 && (
           <span className="absolute -top-1.5 -end-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
             {badge > 9 ? "+9" : badge}

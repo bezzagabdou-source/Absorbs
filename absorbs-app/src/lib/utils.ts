@@ -44,12 +44,12 @@ export function compactNumber(n: number): string {
 
 /** Deterministic gradient (for avatar fallbacks) from any string. */
 const GRADIENTS = [
-  "from-emerald-500 to-teal-600",
+  "from-indigo-500 to-violet-600",
   "from-cyan-400 to-blue-600",
   "from-amber-400 to-orange-600",
-  "from-teal-400 to-emerald-600",
+  "from-violet-400 to-indigo-600",
   "from-sky-400 to-indigo-600",
-  "from-lime-400 to-emerald-600",
+  "from-lime-400 to-indigo-600",
 ];
 
 export function gradientFor(seed: string) {

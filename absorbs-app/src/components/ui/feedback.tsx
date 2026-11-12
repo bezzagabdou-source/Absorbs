@@ -32,7 +32,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={t.id}
             className={cn(
               "glass-strong animate-toast-in flex max-w-sm items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium shadow-2xl",
-              t.tone === "error" ? "text-red-200" : "text-emerald-200",
+              t.tone === "error" ? "text-red-200" : "text-indigo-200",
             )}
             role="status"
           >

@@ -80,7 +80,7 @@ export default function SignupPage() {
     return (
       <AuthShell title="حسابك على وشك الجاهزية 🎉" subtitle="" footer={null}>
         <div className="flex flex-col items-center py-4 text-center">
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-300/30">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-400/15 text-indigo-300 ring-1 ring-indigo-300/30">
             <PartyPopper className="h-8 w-8" />
           </span>
           <h2 className="mt-4 text-lg font-black text-white">فعّل حسابك من بريدك الإلكتروني</h2>
@@ -88,7 +88,7 @@ export default function SignupPage() {
             أرسلنا رابط تأكيد إلى <span className="font-bold text-white" dir="ltr">{email}</span>
             <br />
             اضغط الرابط وستدخل مباشرة إلى عالم Dz connect باسم{" "}
-            <span className="font-bold text-teal-200" dir="ltr">@{username}</span>
+            <span className="font-bold text-violet-200" dir="ltr">@{username}</span>
           </p>
           <Link href="/login" className="btn-primary mt-6 rounded-full px-6 py-3 text-sm font-bold text-white">
             الذهاب لتسجيل الدخول
@@ -108,7 +108,7 @@ export default function SignupPage() {
       footer={
         <>
           لديك حساب مسبقًا؟{" "}
-          <Link href="/login" className="font-bold text-teal-200 hover:underline">
+          <Link href="/login" className="font-bold text-violet-200 hover:underline">
             تسجيل الدخول
           </Link>
         </>
@@ -146,14 +146,14 @@ export default function SignupPage() {
             />
             <span className="absolute end-3 top-1/2 -translate-y-1/2">
               {usernameState === "checking" && <Loader2 className="h-4.5 w-4.5 animate-spin text-white/40" />}
-              {usernameState === "free" && <CheckCircle2 className="h-4.5 w-4.5 text-emerald-300" />}
+              {usernameState === "free" && <CheckCircle2 className="h-4.5 w-4.5 text-indigo-300" />}
               {(usernameState === "taken" || usernameState === "invalid") && <XCircle className="h-4.5 w-4.5 text-red-300" />}
             </span>
           </span>
           <span
             className={cn(
               "mt-1.5 block text-[11.5px]",
-              usernameState === "free" && "text-emerald-300",
+              usernameState === "free" && "text-indigo-300",
               usernameState === "taken" && "text-red-300",
               usernameState === "invalid" && "text-red-300",
               (usernameState === "idle" || usernameState === "checking") && "text-white/35",

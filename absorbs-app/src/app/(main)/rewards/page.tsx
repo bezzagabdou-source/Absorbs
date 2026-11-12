@@ -91,7 +91,7 @@ export default function RewardsPage() {
       {/* challenges */}
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 px-1 text-sm font-black text-white">
-          <Swords className="h-4 w-4 text-teal-300" /> تحديات نشطة
+          <Swords className="h-4 w-4 text-violet-300" /> تحديات نشطة
         </h2>
         {unavailable ? (
           <EmptyState icon={<Swords className="h-6 w-6" />} title="التحديات تُفعَّل قريبًا" description="نفّذ upgrade-v3.sql في Supabase لتفعيل التحديات والمجموعات والدعوات." />
@@ -104,10 +104,10 @@ export default function RewardsPage() {
             return (
               <article key={challenge.id} className="glass overflow-hidden rounded-[28px]">
                 <div className="relative p-4">
-                  <div className="pointer-events-none absolute -top-10 end-0 h-28 w-28 rounded-full bg-teal-400/15 blur-[45px]" />
+                  <div className="pointer-events-none absolute -top-10 end-0 h-28 w-28 rounded-full bg-violet-400/15 blur-[45px]" />
                   <div className="relative">
                     <div className="flex items-center gap-2">
-                      <span className="rounded-full bg-teal-400/15 px-2.5 py-1 text-[11px] font-black text-teal-300 ring-1 ring-teal-300/25" dir="ltr">
+                      <span className="rounded-full bg-violet-400/15 px-2.5 py-1 text-[11px] font-black text-violet-300 ring-1 ring-violet-300/25" dir="ltr">
                         #{challenge.hashtag}
                       </span>
                       <span className="text-[11px] font-bold text-white/40">متبقّي {daysLeft} {daysLeft === 1 ? "يوم" : "أيام"}</span>
@@ -154,7 +154,7 @@ export default function RewardsPage() {
                 <Avatar profile={leader} size="sm" />
                 <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">
                   {leader.display_name}
-                  {leader.id === me?.id && <span className="ms-1.5 rounded-full bg-teal-400/15 px-2 py-0.5 text-[10px] font-black text-teal-300">أنت</span>}
+                  {leader.id === me?.id && <span className="ms-1.5 rounded-full bg-violet-400/15 px-2 py-0.5 text-[10px] font-black text-violet-300">أنت</span>}
                 </span>
                 <span className="text-sm font-black tabular-nums text-amber-300">{leader.points ?? 0} ⭐</span>
               </Link>

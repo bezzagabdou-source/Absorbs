@@ -70,11 +70,11 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
             // eslint-disable-next-line @next/next/no-img-element
             <img src={profile.cover_url} alt="" className="h-full w-full object-cover" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0b1e]/85 via-transparent to-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0B1020]/85 via-transparent to-black/10" />
         </div>
         <div className="relative px-4 pb-4">
           <div className="-mt-10 flex items-end justify-between gap-3">
-            <Avatar profile={profile} size="2xl" ring className="ring-4 ring-[#0d0e22]" />
+            <Avatar profile={profile} size="2xl" ring className="ring-4 ring-[#0C1428]" />
             {!isMine && (
               <div className="flex items-center gap-2 pb-1">
                 <button
@@ -197,7 +197,7 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
     <button
       onClick={onClick}
       className={`flex-1 rounded-full py-2.5 text-sm font-bold transition ${
-        active ? "bg-gradient-to-l from-emerald-500/80 to-emerald-500/80 text-white shadow-lg" : "text-white/50 hover:text-white"
+        active ? "bg-gradient-to-l from-indigo-500/80 to-indigo-500/80 text-white shadow-lg" : "text-white/50 hover:text-white"
       }`}
     >
       {label}
