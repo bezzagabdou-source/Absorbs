@@ -25,3 +25,12 @@ PRO-CODES-V*.txt
 .v11-build/
 .v13-build/
 .v14-build/
+
+# Android signing keys - NEVER commit
+*.p12
+*.jks
+*.keystore
+KEY-PASSWORD.txt
+DZ_KEYSTORE_BASE64.txt
+.pylibs/
+.fixbak/

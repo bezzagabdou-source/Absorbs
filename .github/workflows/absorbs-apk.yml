@@ -90,6 +90,7 @@ jobs:
 
       - name: Verify signature & collect outputs
         run: |
+          set -o pipefail
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           if [ "${{ steps.sig.outputs.signed }}" = "true" ]; then
             cp absorbs-android/app/build/outputs/apk/release/app-release.apk ./DZConnect.apk
@@ -99,7 +100,7 @@ jobs:
             # Permanent-key signed APK deposited in transport/ — it is the
             # authoritative downloadable build until CI secrets exist.
             cp absorbs-android/transport/DZConnect.apk ./DZConnect.apk
-            "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt || true
+            "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt
           else
             cp absorbs-android/app/build/outputs/apk/release/app-release-unsigned.apk ./DZConnect.apk
             echo "UNSIGNED RELEASE BUILD — awaiting permanent-key signed APK in transport/" > signature.txt
@@ -131,6 +132,7 @@ jobs:
         run: |
           { echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}";
             echo; echo '```'; grep -E "^e: |error:|FAILURE|What went wrong" -A2 gradle-build.log | head -80 || true;
+            echo; echo '--- signature.txt ---'; cat signature.txt 2>/dev/null || true;
             echo; echo '--- tail ---'; tail -c 1800 gradle-build.log || true; echo '```';
           } > issue-body.md
           gh issue create --title "Native APK build failure — diagnostics" --body-file issue-body.md || true
