@@ -137,7 +137,7 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
               >
                 <ImagePlus className="h-4 w-4" /> صورة
               </button>
-              <span className={content.length >= MAX_CHARS ? "text-xs font-bold text-rose-300" : "text-xs text-white/30"}>
+              <span className={content.length >= MAX_CHARS ? "text-xs font-bold text-red-300" : "text-xs text-white/30"}>
                 {content.length}/{MAX_CHARS}
               </span>
             </div>

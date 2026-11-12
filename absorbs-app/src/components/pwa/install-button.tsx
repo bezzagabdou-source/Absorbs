@@ -50,7 +50,7 @@ export function InstallButton({ variant = "card" }: { variant?: "card" | "row" }
         onClick={install}
         className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start text-sm text-white/85 transition hover:bg-white/[0.05]"
       >
-        <Download className="h-5 w-5 text-violet-300" />
+        <Download className="h-5 w-5 text-teal-200" />
         تثبيت التطبيق على الجهاز
       </button>
     );
@@ -58,14 +58,14 @@ export function InstallButton({ variant = "card" }: { variant?: "card" | "row" }
 
   return (
     <div className="glass relative overflow-hidden rounded-[28px] p-4">
-      <div className="pointer-events-none absolute -top-10 -start-10 h-32 w-32 rounded-full bg-violet-500/30 blur-3xl" />
+      <div className="pointer-events-none absolute -top-10 -start-10 h-32 w-32 rounded-full bg-emerald-500/30 blur-3xl" />
       <button onClick={() => setDismissed(true)} aria-label="إغلاق" className="absolute end-3 top-3 text-white/40 transition hover:text-white">
         <X className="h-4 w-4" />
       </button>
       <div className="relative flex items-center gap-3">
         <span className="logo-mark h-12 w-12 shrink-0 rounded-2xl text-lg">A</span>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-white">ثبّت تطبيق Absorbs</p>
+          <p className="font-bold text-white">ثبّت تطبيق DZ CONNECT</p>
           <p className="text-xs leading-5 text-white/55">
             {isIOS && !deferred
               ? "من متصفح سفاري: زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»"
@@ -77,7 +77,7 @@ export function InstallButton({ variant = "card" }: { variant?: "card" | "row" }
             تثبيت
           </button>
         ) : (
-          <Share className="h-5 w-5 shrink-0 text-violet-300" />
+          <Share className="h-5 w-5 shrink-0 text-teal-200" />
         )}
       </div>
     </div>

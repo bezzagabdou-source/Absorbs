@@ -1,5 +1,5 @@
-/* Absorbs Service Worker — offline shell + smart caching (no external deps) */
-const VERSION = "absorbs-v1";
+/* DZ CONNECT Service Worker — offline shell + smart caching (no external deps) */
+const VERSION = "dz-connect-v2.0.0";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 

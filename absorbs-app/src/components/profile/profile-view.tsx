@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarDays, Link2, Loader2, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { fetchFollowStats, fetchLikedPosts, fetchUserPosts } from "@/lib/queries";
+import { fetchFollowStats, fetchLikedPosts, fetchSavedPosts, fetchUserPosts } from "@/lib/queries";
 import { useAuth } from "@/components/providers/auth-provider";
 import { PostCard } from "@/components/feed/post-card";
-import { FollowButton, useStartChat } from "@/components/social/user-actions";
+import { BlockButton, FollowButton, VerifiedBadge, useStartChat } from "@/components/social/user-actions";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState, PostSkeleton } from "@/components/ui/feedback";
 import { compactNumber, gradientFor } from "@/lib/utils";
@@ -23,7 +23,8 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [likedPosts, setLikedPosts] = useState<Post[]>([]);
-  const [tab, setTab] = useState<"posts" | "liked">("posts");
+  const [tab, setTab] = useState<"posts" | "liked" | "saved">("posts");
+  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ followers: 0, following: 0, is_following: false });
 
@@ -45,7 +46,10 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
         if (cancelled) return;
         setPosts(mine);
         setStats(statsResult);
-        if (isMine) setLikedPosts(await fetchLikedPosts(supabase, user.id).catch(() => []));
+        if (isMine) {
+          setLikedPosts(await fetchLikedPosts(supabase, user.id).catch(() => []));
+          setSavedPosts(await fetchSavedPosts(supabase, user.id).catch(() => []));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -81,6 +85,7 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
                 >
                   {busyId === profile.id ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <MessageCircle className="h-5 w-5" />}
                 </button>
+                <BlockButton target={profile} />
                 <FollowButton
                   targetId={profile.id}
                   initialFollowing={stats.is_following}
@@ -93,7 +98,7 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
             )}
           </div>
 
-          <h1 className="mt-3 text-[21px] font-black leading-7 text-white">{profile.display_name}</h1>
+          <h1 className="mt-3 flex items-center gap-1.5 text-[21px] font-black leading-7 text-white">{profile.display_name}{profile.is_verified && <VerifiedBadge className="h-5 w-5" />}</h1>
           <p className="text-sm text-white/45" dir="ltr" style={{ textAlign: "start" }}>
             @{profile.username}
           </p>
@@ -130,6 +135,7 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
       <div className="glass flex rounded-full p-1">
         <TabButton active={tab === "posts"} onClick={() => setTab("posts")} label={isMine ? "منشوراتي" : "المنشورات"} />
         {isMine && <TabButton active={tab === "liked"} onClick={() => setTab("liked")} label="أعجبني" />}
+        {isMine && <TabButton active={tab === "saved"} onClick={() => setTab("saved")} label="المحفوظة 🔖" />}
       </div>
 
       {loading ? (
@@ -151,6 +157,16 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
           <div className="space-y-4">
             {posts.map((post) => (
               <PostCard key={post.id} post={post} onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))} />
+            ))}
+          </div>
+        )
+      ) : tab === "saved" ? (
+        savedPosts.length === 0 ? (
+          <EmptyState icon={<span className="text-xl">🔖</span>} title="لا منشورات محفوظة بعد" description="اضغط أيقونة 🔖 في أي منشور لحفظه هنا في مجموعتك الخاصة." />
+        ) : (
+          <div className="space-y-4">
+            {savedPosts.map((post) => (
+              <PostCard key={post.id} post={post} />
             ))}
           </div>
         )
@@ -181,7 +197,7 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
     <button
       onClick={onClick}
       className={`flex-1 rounded-full py-2.5 text-sm font-bold transition ${
-        active ? "bg-gradient-to-l from-violet-500/80 to-fuchsia-500/80 text-white shadow-lg" : "text-white/50 hover:text-white"
+        active ? "bg-gradient-to-l from-emerald-500/80 to-emerald-500/80 text-white shadow-lg" : "text-white/50 hover:text-white"
       }`}
     >
       {label}

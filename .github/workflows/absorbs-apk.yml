@@ -1,4 +1,4 @@
-name: Build Absorbs Android APK
+name: Build DZ CONNECT Android APK
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build-apk:
-    name: Build & publish Absorbs.apk
+    name: Build & publish DZConnect.apk
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -76,24 +76,24 @@ jobs:
 
       - name: Prepare Absorbs.apk
         run: |
-          cp absorbs-android/app/build/outputs/apk/debug/app-debug.apk ./Absorbs.apk
-          ls -lh ./Absorbs.apk
+          cp absorbs-android/app/build/outputs/apk/debug/app-debug.apk ./DZConnect.apk
+          ls -lh ./DZConnect.apk
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Absorbs-apk
-          path: ./Absorbs.apk
+          name: DZConnect-apk
+          path: ./DZConnect.apk
           if-no-files-found: error
 
       - name: Publish to GitHub Release (direct download link)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: absorbs-v1.0.0
-          name: "Absorbs Android v1.0.0"
+          tag_name: dz-connect-v1.1.0
+          name: "DZ CONNECT Android v1.1.0"
           body: |
-            📱 **تطبيق Absorbs للأندرويد** — حمّل ملف `Absorbs.apk` وثبّته مباشرة.
+            📱 **تطبيق DZ CONNECT للأندرويد** — حمّل ملف `DZConnect.apk` وثبّته مباشرة.
             عند التثبيت فعّل «السماح من هذا المصدر» (APK تجريبي موقّع بمفتاح Debug).
-            يفتح التطبيق النسخة الحية: https://absorbs-app-abdoubita986-gif.vercel.app
-          files: ./Absorbs.apk
+            يفتح التطبيق النسخة الحية من DZ CONNECT: https://absorbs-app-abdoubita986-gif.vercel.app
+          files: ./DZConnect.apk
           fail_on_unmatched_files: true

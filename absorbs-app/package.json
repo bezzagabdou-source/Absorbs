@@ -1,6 +1,6 @@
 {
-  "name": "absorbs-app",
-  "version": "1.0.0",
+  "name": "dz-connect",
+  "version": "2.0.0",
   "private": true,
   "description": "Absorbs — Luxury dark-glass social app (Supabase + Next.js PWA)",
   "scripts": {

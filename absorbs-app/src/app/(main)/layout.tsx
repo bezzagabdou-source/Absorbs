@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { KeyRound, Loader2, Wand2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { AppShell } from "@/components/layout/app-shell";
+import { CallProvider } from "@/components/calls/call-provider";
 import { useToast } from "@/components/ui/feedback";
 import { createClient } from "@/lib/supabase/client";
 import { isValidUsername, normalizeUsername } from "@/lib/utils";
@@ -40,7 +41,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     return <ClaimUsername onDone={refreshProfile} />;
   }
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <CallProvider>
+      <AppShell>{children}</AppShell>
+    </CallProvider>
+  );
 }
 
 /** Self-healing screen: lets a signed-in user without a profile row claim a username. */
@@ -69,14 +74,14 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
       toast(error.message.includes("duplicate") ? "الاسم محجوز، اختر غيره" : "تعذّر الحفظ — تأكد من تنفيذ schema.sql", "error");
       return;
     }
-    toast("أهلًا بك في Absorbs 🎉");
+    toast("أهلًا بك في DZ CONNECT 🎉");
     await onDone();
   };
 
   return (
     <div className="aurora relative flex min-h-dvh items-center justify-center px-5">
       <form onSubmit={submit} className="glass animate-fade-up relative z-10 w-full max-w-sm rounded-[30px] p-6">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/20 text-violet-300">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-teal-200">
           <Wand2 className="h-6 w-6" />
         </span>
         <h1 className="mt-4 text-xl font-black text-white">خطوة أخيرة: اختر هويتك</h1>

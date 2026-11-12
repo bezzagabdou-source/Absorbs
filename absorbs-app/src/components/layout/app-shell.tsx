@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Compass, Home, MessageCircle, Plus, Sparkles, UserRound } from "lucide-react";
+import { Bell, Compass, Home, MessageCircle, Plus, Sparkles, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchTotalUnread } from "@/lib/queries";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -22,6 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { profile, user } = useAuth();
   const [unread, setUnread] = useState(0);
+  const [notifCount, setNotifCount] = useState(0);
   const inChatRoom = /^\/messages\/.+/.test(pathname);
   const inPostDetail = pathname.startsWith("/post/");
 
@@ -45,6 +46,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [user, pathname]);
 
+  /* activity (notifications) badge: likes/comments/follows newer than last seen */
+  useEffect(() => {
+    if (!user) return;
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      let seen = "";
+      try {
+        seen = localStorage.getItem("dzconnect-notif-seen") ?? "";
+      } catch {}
+      const since = seen || new Date(0).toISOString();
+      const { data: myPosts } = await supabase.from("posts").select("id").eq("author_id", user.id).limit(200);
+      const ids = ((myPosts ?? []) as { id: string }[]).map((p) => p.id);
+      const [likes, comments, follows] = await Promise.all([
+        ids.length
+          ? supabase.from("likes").select("*", { count: "exact", head: true }).in("post_id", ids).neq("user_id", user.id).gt("created_at", since)
+          : Promise.resolve({ count: 0 }),
+        ids.length
+          ? supabase.from("comments").select("*", { count: "exact", head: true }).in("post_id", ids).neq("author_id", user.id).gt("created_at", since)
+          : Promise.resolve({ count: 0 }),
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", user.id).gt("created_at", since),
+      ]);
+      if (!cancelled) setNotifCount(Math.min(99, (likes.count ?? 0) + (comments.count ?? 0) + (follows.count ?? 0)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, pathname]);
+
   const goCompose = () => {
     if (pathname !== "/feed") router.push("/feed?compose=1");
     else window.scrollTo({ top: 0, behavior: "smooth" });
@@ -56,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="pointer-events-none fixed top-0 z-0 hidden h-full w-[calc(50%-290px)] flex-col justify-center ps-14 pe-6 min-[1100px]:flex">
         <span className="logo-mark h-16 w-16 rounded-[22px] text-2xl">A</span>
         <h1 className="mt-6 text-5xl font-black leading-[1.15] text-white">
-          Absorbs
+          DZ CONNECT
           <span className="text-gradient block">تواصل… بلا حدود</span>
         </h1>
         <p className="mt-4 max-w-sm text-base leading-8 text-white/55">
@@ -77,10 +107,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/feed" className="flex items-center gap-2.5">
               <span className="logo-mark h-9 w-9 rounded-xl text-sm">A</span>
               <span className="text-[17px] font-black tracking-tight text-white">
-                Absorbs <Sparkles className="mb-0.5 inline h-3.5 w-3.5 text-fuchsia-300" />
+                DZ CONNECT <Sparkles className="mb-0.5 inline h-3.5 w-3.5 text-teal-200" />
               </span>
             </Link>
             <div className="flex items-center gap-2">
+              <Link
+                href="/notifications"
+                className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05] text-white/80 transition hover:bg-white/10 active:scale-95"
+                aria-label="الإشعارات"
+              >
+                <Bell className="h-5 w-5" />
+                {notifCount > 0 && (
+                  <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 px-1 text-[10px] font-bold text-white shadow-lg">
+                    {notifCount > 9 ? "+9" : notifCount}
+                  </span>
+                )}
+              </Link>
               <Link
                 href="/messages"
                 className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05] text-white/80 transition hover:bg-white/10 active:scale-95"
@@ -88,7 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <MessageCircle className="h-5 w-5" />
                 {unread > 0 && (
-                  <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-fuchsia-600 px-1 text-[10px] font-bold text-white shadow-lg">
+                  <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-emerald-600 px-1 text-[10px] font-bold text-white shadow-lg">
                     {unread > 9 ? "+9" : unread}
                   </span>
                 )}
@@ -156,11 +198,11 @@ function NavItem({
         active ? "text-white" : "text-white/45 hover:text-white/75",
       )}
     >
-      {active && <span className="absolute inset-0 rounded-2xl bg-gradient-to-b from-violet-500/25 to-fuchsia-500/10 ring-1 ring-white/10" />}
+      {active && <span className="absolute inset-0 rounded-2xl bg-gradient-to-b from-emerald-500/25 to-emerald-500/10 ring-1 ring-white/10" />}
       <span className="relative">
-        <Icon className={cn("h-[22px] w-[22px]", active && "text-violet-300")} strokeWidth={active ? 2.4 : 2} />
+        <Icon className={cn("h-[22px] w-[22px]", active && "text-teal-200")} strokeWidth={active ? 2.4 : 2} />
         {badge > 0 && (
-          <span className="absolute -top-1.5 -end-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+          <span className="absolute -top-1.5 -end-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
             {badge > 9 ? "+9" : badge}
           </span>
         )}

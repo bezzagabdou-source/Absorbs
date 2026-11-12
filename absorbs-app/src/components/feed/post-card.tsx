@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { VerifiedBadge } from "@/components/social/user-actions";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, MoreHorizontal, SendHorizonal, Share2, Trash2, X } from "lucide-react";
+import { Bookmark, Heart, MessageCircle, MoreHorizontal, SendHorizonal, Share2, Trash2, X } from "lucide-react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { fetchComments, fetchPostCounts } from "@/lib/queries";
@@ -28,6 +30,7 @@ export function PostCard({
   defaultCommentsOpen?: boolean;
 }) {
   const { user, profile: me } = useAuth();
+  const router = useRouter();
   const { toast } = useToast();
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
@@ -38,6 +41,7 @@ export function PostCard({
   const [likeBusy, setLikeBusy] = useState(false);
   const [burst, setBurst] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [saved, setSaved] = useState(Boolean(post.saved_by_me));
 
   const [commentsOpen, setCommentsOpen] = useState(defaultCommentsOpen);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -170,10 +174,28 @@ export function PostCard({
     onDeleted?.(post.id);
   };
 
+  const toggleSave = async () => {
+    if (!user) return;
+    const next = !saved;
+    setSaved(next);
+    const { error } = next
+      ? await supabase.from("saves").insert({ user_id: user.id, post_id: post.id })
+      : await supabase.from("saves").delete().eq("user_id", user.id).eq("post_id", post.id);
+    if (error) {
+      setSaved(!next);
+      toast(
+        (error as { code?: string }).code === "42P01" || (error as { code?: string }).code === "PGRST205"
+          ? "لتفعيل الحفظ: نفّذ upgrade-v2.sql في Supabase"
+          : "تعذّر تحديث الحفظ",
+        "error",
+      );
+    } else if (next) toast("تم الحفظ في مجموعتك 🔖");
+  };
+
   const sharePost = async () => {
     const url = `${window.location.origin}/post/${post.id}`;
     try {
-      if (navigator.share) await navigator.share({ title: "Absorbs", text: post.content ?? "منشور على Absorbs", url });
+      if (navigator.share) await navigator.share({ title: "DZ CONNECT", text: post.content ?? "منشور على DZ CONNECT", url });
       else {
         await navigator.clipboard.writeText(url);
         toast("تم نسخ رابط المنشور");
@@ -185,6 +207,27 @@ export function PostCard({
 
   const isMine = user?.id === post.author_id;
 
+  function renderRichText(text: string) {
+    return text.split(/(#[\p{L}\p{N}_]+)/gu).map((part, i) =>
+      part.startsWith("#") ? (
+        <span
+          key={i}
+          role="link"
+          className="cursor-pointer font-bold text-teal-300 hover:underline"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            router.push(`/explore?q=${encodeURIComponent(part.slice(1))}`);
+          }}
+        >
+          {part}
+        </span>
+      ) : (
+        <span key={i}>{part}</span>
+      ),
+    );
+  }
+
   return (
     <article className="glass animate-fade-up overflow-hidden rounded-[28px]">
       {/* header */}
@@ -194,7 +237,7 @@ export function PostCard({
         </Link>
         <div className="min-w-0 flex-1">
           <Link href={post.author ? `/u/${post.author.username}` : "#"} className="block truncate text-[15px] font-bold text-white hover:underline">
-            {post.author?.display_name ?? "مستخدم Absorbs"}
+            <span className="inline-flex items-center gap-1">{post.author?.display_name ?? "مستخدم DZ CONNECT"}{post.author?.is_verified && <VerifiedBadge className="h-3.5 w-3.5" />}</span>
           </Link>
           <p className="truncate text-xs text-white/45" dir="ltr" style={{ textAlign: "start" }}>
             @{post.author?.username ?? "user"} · {timeAgoAr(post.created_at)}
@@ -221,7 +264,7 @@ export function PostCard({
                 {isMine && (
                   <button
                     onClick={deletePost}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-rose-300 transition hover:bg-rose-500/10"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-red-300 transition hover:bg-red-500/10"
                   >
                     <Trash2 className="h-4 w-4" /> حذف المنشور
                   </button>
@@ -235,7 +278,7 @@ export function PostCard({
       {/* body */}
       {post.content && (
         <Link href={`/post/${post.id}`} className="block px-4 pt-3">
-          <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-white/90">{post.content}</p>
+          <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-white/90">{renderRichText(post.content)}</p>
         </Link>
       )}
 
@@ -245,7 +288,7 @@ export function PostCard({
           <img src={post.image_url} alt={post.content ?? "صورة منشور"} className="max-h-[430px] w-full object-cover" loading="lazy" />
           {burst && (
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <Heart className="heart-burst h-24 w-24 fill-rose-500 text-rose-400 drop-shadow-[0_10px_30px_rgba(244,63,94,0.6)]" />
+              <Heart className="heart-burst h-24 w-24 fill-red-500 text-red-400 drop-shadow-[0_10px_30px_rgba(244,63,94,0.6)]" />
             </span>
           )}
         </div>
@@ -259,10 +302,10 @@ export function PostCard({
           aria-pressed={liked}
           className={cn(
             "flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold transition active:scale-90",
-            liked ? "text-rose-400" : "text-white/60 hover:bg-white/[0.05] hover:text-white",
+            liked ? "text-red-400" : "text-white/60 hover:bg-white/[0.05] hover:text-white",
           )}
         >
-          <Heart key={String(liked)} className={cn("h-[22px] w-[22px]", liked && "animate-heart-pop fill-rose-500 text-rose-500")} />
+          <Heart key={String(liked)} className={cn("h-[22px] w-[22px]", liked && "animate-heart-pop fill-red-500 text-red-500")} />
           <span className="min-w-5 text-center tabular-nums">{compactNumber(likeCount)}</span>
         </button>
 
@@ -279,13 +322,25 @@ export function PostCard({
           <span className="hidden text-xs font-semibold xs:inline sm:inline">تعليق</span>
         </button>
 
-        <button
-          onClick={sharePost}
-          aria-label="مشاركة"
-          className="ms-auto flex h-10 w-10 items-center justify-center rounded-full text-white/60 transition hover:bg-white/[0.05] hover:text-white active:scale-90"
-        >
-          <Share2 className="h-5 w-5" />
-        </button>
+        <span className="ms-auto flex items-center">
+          <button
+            onClick={() => void toggleSave()}
+            aria-label={saved ? "إلغاء الحفظ" : "حفظ المنشور"}
+            aria-pressed={saved}
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition active:scale-90 ${
+              saved ? "text-amber-300" : "text-white/60 hover:bg-white/[0.05] hover:text-white"
+            }`}
+          >
+            <Bookmark className={`h-5 w-5 ${saved ? "fill-amber-300" : ""}`} />
+          </button>
+          <button
+            onClick={sharePost}
+            aria-label="مشاركة"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/60 transition hover:bg-white/[0.05] hover:text-white active:scale-90"
+          >
+            <Share2 className="h-5 w-5" />
+          </button>
+        </span>
       </div>
 
       {/* live comments */}
@@ -304,7 +359,7 @@ export function PostCard({
                   </Link>
                   <div className="min-w-0 flex-1 rounded-2xl rounded-ts-sm bg-white/[0.045] px-3 py-2 ring-1 ring-white/[0.05]">
                     <p className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-[13px] font-bold text-white">{comment.author?.display_name ?? "مستخدم"}</span>
+                      <span className="inline-flex items-center gap-1 text-[13px] font-bold text-white">{comment.author?.display_name ?? "مستخدم"}{comment.author?.is_verified && <VerifiedBadge className="h-3 w-3" />}</span>
                       <span className="text-[10px] text-white/35">{timeAgoAr(comment.created_at)}</span>
                     </p>
                     <p className="whitespace-pre-wrap break-words text-sm leading-6 text-white/85">{comment.content}</p>
@@ -319,7 +374,7 @@ export function PostCard({
                           setCommentCount((c) => Math.max(0, c - 1));
                         }
                       }}
-                      className="mt-1.5 text-white/30 transition hover:text-rose-300"
+                      className="mt-1.5 text-white/30 transition hover:text-red-300"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>

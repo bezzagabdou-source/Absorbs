@@ -12,9 +12,14 @@ import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import android.content.pm.PackageManager;
+import android.Manifest;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.PermissionRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
@@ -26,7 +31,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 /**
- * Absorbs for Android — a fast native WebView shell around the Absorbs PWA.
+ * DZ CONNECT for Android — a fast native WebView shell around the DZ CONNECT PWA.
  * Keeps logins (cookies/localStorage), supports in-app image uploads
  * (post composer + avatar picker), external links, downloads and back key.
  */
@@ -77,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " AbsorbsAndroid/1.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " DZConnect/1.1");
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -119,6 +124,21 @@ public class MainActivity extends AppCompatActivity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                runOnUiThread(() -> {
+                    boolean needsMic = false, needsCam = false;
+                    for (String res : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(res)) needsMic = true;
+                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(res)) needsCam = true;
+                    }
+                    java.util.List<String> perms = new java.util.ArrayList<>();
+                    if (needsMic && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) perms.add(Manifest.permission.RECORD_AUDIO);
+                    if (needsCam && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) perms.add(Manifest.permission.CAMERA);
+                    if (!perms.isEmpty()) ActivityCompat.requestPermissions(MainActivity.this, perms.toArray(new String[0]), 701);
+                    request.grant(request.getResources());
+                });
+            }
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
                 progressBar.setProgress(newProgress);
@@ -183,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
                 + ".l{width:72px;height:72px;margin:0 auto 16px;border-radius:22px;display:flex;align-items:center;"
                 + "justify-content:center;font-size:30px;font-weight:900;background:linear-gradient(140deg,#8b5cf6,#d946ef 52%,#0891b2)}"
                 + "</style></head><body><div class='c'><div class='l'>A</div><h1>انقطع الاتصال</h1>"
-                + "<p>تحقق من الإنترنت ثم حاول مجددًا — عالمك في Absorbs بانتظارك.</p>"
+                + "<p>تحقق من الإنترنت ثم حاول مجددًا — عالمك في DZ CONNECT بانتظارك.</p>"
                 + "<a href='" + APP_URL + "'>إعادة المحاولة</a></div></body></html>";
     }
 }

@@ -1,4 +1,4 @@
-# Absorbs — تواصل بلا حدود 💜
+# DZ CONNECT — تواصل بلا حدود 💜
 
 تطبيق تواصل اجتماعي كامل بتصميم **Dark Glassmorphism** فاخر وتجربة هاتف ناتيفية (Mobile-First)، يعمل كـ **PWA** قابل للتثبيت، ومبني على **Next.js 15 + Supabase** (Auth + Postgres + Storage + Realtime) وجاهز للنشر الفوري على **Vercel**.
 
@@ -30,7 +30,7 @@
 بعد `schema.sql`، نفّذ [`supabase/seed.sql`](./supabase/seed.sql) بنفس الطريقة وسيُملأ التطبيق فورًا:
 6 حسابات تجريبية جزائرية (صور ونبذ تعريفية) + 12 منشورًا + إعجابات وتعاليق ومتابعات ومحادثة خاصة.
 
-- الدخول لأي حساب تجريبي: البريد مثل `amine@absorbs.dz` وكلمة المرور للجميع `Absorbs@2026`
+- الدخول لأي حساب تجريبي: البريد مثل `amine@absorbs.dz` وكلمة المرور للجميع `DZ CONNECT@2026`
 - حذف كل المحتوى التجريبي قبل الإطلاق الحقيقي بسطر واحد موجود في نهاية ملف الـ Seed.
 
 ### 2) المتغيرات (مضبّطة مسبقًا ✅)
@@ -112,5 +112,17 @@ absorbs-app/
 
 - **الموقع الحي (Vercel):** يُنشر هذا المجلد كمشروع Vercel مستقل (Root Directory = `absorbs-app`) مع المتغيرين العامين مضبوطين في إعدادات المشروع. بعد أول نشر أضف نطاقك في Supabase → Authentication → URL Configuration (`Site URL` + `Redirect URLs`) حتى تعمل روابط تأكيد البريد، وأضف `NEXT_PUBLIC_SITE_URL` بنفس النطاق ثم أعد النشر.
 - **تطبيق أندرويد (APK):** مجلد `absorbs-android/` في جذر المستودع يحتوي غلاف WebView أصليًا، وworkflow ‏GitHub Actions (`.github/workflows/absorbs-apk.yml`) يبنيه تلقائيًا ويرفعه إلى **Releases** — رابط التحميل المباشر:
-  `https://github.com/bezzagabdou-source/Absorbs/releases/download/absorbs-v1.0.0/Absorbs.apk`
+  `https://github.com/bezzagabdou-source/DZ CONNECT/releases/download/absorbs-v1.0.0/DZ CONNECT.apk`
   على الهاتف: افتح الرابط، ثبّت، وفعّل «التثبيت من هذا المصدر» عند الطلب (APK موقّع بمفتاح Debug للتجربة).
+
+
+---
+
+## 🆕 تحديث DZ CONNECT v2 — ما الجديد وكيف تفعّله
+
+ميزات v2: إعادة تسمية كاملة إلى **DZ CONNECT** بهوية زمردية فاخرة (بدون أي لون وردي)، مكالمات صوت وفيديو عبر الإنترنت (WebRTC)، قصص 24 ساعة، حفظ المنشورات، إشعارات، حضور "متصل الآن"، رسائل صوتية وصور داخل المحادثات، سجل مكالمات، شارات توثيق، مركز حماية (كلمة المرور + تحقق بخطوتين MFA + جلسات + حظر/إبلاغ).
+
+### خطوة واحدة فقط في Supabase
+افتح SQL Editor والصق محتوى **`supabase/upgrade-v2.sql`** ثم Run (ينشئ جداول stories/story_views/saves/blocks وعمود is_verified — آمن وإيدمبوتنت، لا يمس بياناتك الحالية).
+
+> ملاحظة المكالمات: تعمل مباشرة بين المتصفحات/التطبيق عبر WebRTC + Supabase Realtime للإشارات. للحصول على أفضل جودة عبر شبكات المشغّلين يُفضّل لاحقًا إضافة خادم TURN خاص.

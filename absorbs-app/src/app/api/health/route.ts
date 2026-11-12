@@ -9,7 +9,7 @@ import { isAdminConfigured } from "@/lib/supabase/admin";
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    app: "absorbs",
+    app: "dz-connect",
     version: "1.0.0",
     supabase: {
       url: SUPABASE_URL,

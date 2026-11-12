@@ -10,18 +10,20 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { Composer } from "@/components/feed/composer";
 import { PostCard } from "@/components/feed/post-card";
 import { SetupNotice } from "@/components/feed/setup-notice";
+import { StoriesRow } from "@/components/feed/stories";
 import { InstallButton } from "@/components/pwa/install-button";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState, FullPageLoader, PostSkeleton } from "@/components/ui/feedback";
 import { isSchemaMissing } from "@/lib/utils";
-import type { Post, Profile } from "@/lib/types";
+import type { Post } from "@/lib/types";
 
 export default function FeedPage() {
   const { user, profile } = useAuth();
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
   const [posts, setPosts] = useState<Post[]>([]);
-  const [people, setPeople] = useState<Profile[]>([]);
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
+  const blockedRef = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,7 +32,7 @@ export default function FeedPage() {
     if (!user) return;
     try {
       const feed = await fetchFeed(supabase, user.id);
-      setPosts(feed);
+      setPosts(feed.filter((p) => !blockedRef.current.has(p.author_id)));
       setSchemaMissing(false);
     } catch (err) {
       if (isSchemaMissing(err as { code?: string; message?: string })) setSchemaMissing(true);
@@ -44,12 +46,14 @@ export default function FeedPage() {
     load();
     if (!user) return;
     supabase
-      .from("profiles")
-      .select("*")
-      .neq("id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(10)
-      .then(({ data }: { data: Profile[] | null }) => setPeople(data ?? []));
+      .from("blocks")
+      .select("blocked_id")
+      .eq("blocker_id", user.id)
+      .then(({ data }: { data: { blocked_id: string }[] | null }) => {
+        const set = new Set((data ?? []).map((b) => b.blocked_id));
+        blockedRef.current = set;
+        setBlockedIds(set);
+      });
 
     /* Realtime: brand-new posts from anyone appear at the top instantly */
     const channel = supabase
@@ -57,6 +61,7 @@ export default function FeedPage() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, async (payload: RealtimePostgresChangesPayload<{ id: string; author_id: string }>) => {
         const row = payload.new as { id: string; author_id: string };
         if (row.author_id === user.id) return; // mine was added optimistically by Composer
+        if (blockedRef.current.has(row.author_id)) return; // blocked author
         const fresh = await fetchFeed(supabase, user.id, 1).catch(() => []);
         // fetchFeed(1) returns newest overall; refetch precise single post instead if needed
         if (fresh[0]?.id === row.id) {
@@ -104,23 +109,7 @@ export default function FeedPage() {
       {schemaMissing && <SetupNotice />}
       <InstallButton />
 
-      {/* people strip (real members — entry point to profiles & DMs) */}
-      {people.length > 0 && (
-        <section className="animate-fade-up">
-          <div className="no-scrollbar -mx-3.5 flex gap-4 overflow-x-auto px-4 pb-1 pt-1">
-            {people.map((person) => (
-              <Link key={person.id} href={`/u/${person.username}`} className="flex w-16 shrink-0 flex-col items-center gap-1.5 text-center">
-                <span className="rounded-full bg-gradient-to-tr from-violet-500 via-fuchsia-500 to-cyan-400 p-[2.5px]">
-                  <span className="block rounded-full bg-[#0a0b1e] p-[2px]">
-                    <Avatar profile={person} size="lg" />
-                  </span>
-                </span>
-                <span className="w-full truncate text-[11px] font-semibold text-white/70">{person.display_name.split(" ")[0]}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      <StoriesRow blockedIds={blockedIds} />
 
       <Composer
         onPosted={(post) => {

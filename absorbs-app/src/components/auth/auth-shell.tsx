@@ -5,9 +5,9 @@ import { Eye, EyeOff, Heart, MessageCircleHeart, ShieldCheck, Zap } from "lucide
 import { useState } from "react";
 
 const CHIPS = [
-  { icon: Heart, label: "إعجابات فورية", className: "bg-rose-500/20 text-rose-300 ring-rose-400/25" },
+  { icon: Heart, label: "إعجابات فورية", className: "bg-red-500/20 text-red-300 ring-red-400/25" },
   { icon: MessageCircleHeart, label: "رسائل لحظية", className: "bg-cyan-400/15 text-cyan-300 ring-cyan-300/25" },
-  { icon: Zap, label: "بث مباشر", className: "bg-violet-500/20 text-violet-300 ring-violet-400/25" },
+  { icon: Zap, label: "بث مباشر", className: "bg-emerald-500/20 text-teal-200 ring-teal-300/25" },
   { icon: ShieldCheck, label: "خصوصية محكمة", className: "bg-emerald-400/15 text-emerald-300 ring-emerald-300/25" },
 ];
 
@@ -25,18 +25,18 @@ export function AuthShell({
   return (
     <div className="aurora relative min-h-dvh overflow-hidden">
       {/* cinematic glows */}
-      <div className="pointer-events-none absolute -top-24 start-1/4 h-72 w-72 rounded-full bg-violet-600/25 blur-[100px]" />
-      <div className="pointer-events-none absolute top-40 -end-20 h-64 w-64 rounded-full bg-fuchsia-600/20 blur-[90px]" />
+      <div className="pointer-events-none absolute -top-24 start-1/4 h-72 w-72 rounded-full bg-emerald-600/25 blur-[100px]" />
+      <div className="pointer-events-none absolute top-40 -end-20 h-64 w-64 rounded-full bg-emerald-600/20 blur-[90px]" />
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.6rem,env(safe-area-inset-top))]">
         {/* hero brand */}
         <div className="animate-fade-up flex flex-col items-center text-center">
-          <Link href="/welcome" className="group relative" aria-label="Absorbs">
-            <span className="absolute inset-0 scale-125 rounded-[30px] bg-fuchsia-600/40 blur-2xl transition group-hover:scale-150" />
+          <Link href="/welcome" className="group relative" aria-label="DZ CONNECT">
+            <span className="absolute inset-0 scale-125 rounded-[30px] bg-emerald-600/40 blur-2xl transition group-hover:scale-150" />
             <span className="logo-mark relative h-[72px] w-[72px] rounded-[24px] text-[30px]">A</span>
           </Link>
           <p className="mt-4 text-[26px] font-black tracking-tight text-white">
-            Absorbs <span className="text-gradient">· تواصل بلا حدود</span>
+            DZ CONNECT <span className="text-gradient">· تواصل بلا حدود</span>
           </p>
           <div className="no-scrollbar mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
             {CHIPS.map((chip) => (
@@ -116,7 +116,7 @@ export function strengthOf(password: string): { score: number; label: string; co
   if (/\d/.test(password)) score++;
   if (/[^a-zA-Z0-9]/.test(password)) score++;
   const levels = [
-    { label: "ضعيفة", color: "bg-rose-500" },
+    { label: "ضعيفة", color: "bg-red-500" },
     { label: "مقبولة", color: "bg-amber-400" },
     { label: "جيدة", color: "bg-yellow-300" },
     { label: "قوية", color: "bg-emerald-400" },

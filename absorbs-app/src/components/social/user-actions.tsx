@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Check, Loader2, MessageCircle, UserPlus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BadgeCheck, Ban, Check, Flag, Loader2, MessageCircle, UserPlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useToast } from "@/components/ui/feedback";
@@ -91,7 +91,7 @@ export function UserRow({ person, subtitle }: { person: Profile; subtitle?: stri
       <Link href={`/u/${person.username}`} className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar profile={person} size="md" />
         <span className="min-w-0">
-          <span className="block truncate text-[15px] font-bold text-white">{person.display_name}</span>
+          <span className="flex items-center gap-1 truncate text-[15px] font-bold text-white">{person.display_name}{person.is_verified && <VerifiedBadge className="h-3.5 w-3.5" />}</span>
           <span className="block truncate text-xs text-white/45" dir="ltr" style={{ textAlign: "start" }}>
             {subtitle ?? `@${person.username}`}
           </span>
@@ -107,5 +107,77 @@ export function UserRow({ person, subtitle }: { person: Profile; subtitle?: stri
         مراسلة
       </button>
     </div>
+  );
+}
+
+
+/** Sky verified badge shown next to verified display names. */
+export function VerifiedBadge({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <span className="relative inline-flex shrink-0 items-center justify-center" title="حساب موثّق">
+      <BadgeCheck className={`${className} fill-sky-400 text-[#040a08]`} />
+    </span>
+  );
+}
+
+/** Block / unblock a user + report shortcut (uses the v2 `blocks` table). */
+export function BlockButton({ target, onChanged }: { target: Profile; onChanged?: () => void }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
+  const [blocked, setBlocked] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user || user.id === target.id) return;
+    supabase
+      .from("blocks")
+      .select("blocked_id")
+      .eq("blocker_id", user.id)
+      .eq("blocked_id", target.id)
+      .maybeSingle()
+      .then(({ data }: { data: unknown }) => setBlocked(Boolean(data)));
+  }, [supabase, user, target.id]);
+
+  if (!user || user.id === target.id) return null;
+
+  const toggle = async () => {
+    setBusy(true);
+    const { error } = blocked
+      ? await supabase.from("blocks").delete().eq("blocker_id", user.id).eq("blocked_id", target.id)
+      : await supabase.from("blocks").insert({ blocker_id: user.id, blocked_id: target.id });
+    setBusy(false);
+    if (error) {
+      toast((error as { code?: string }).code === "42P01" ? "لتفعيل الحظر: نفّذ upgrade-v2.sql في Supabase" : "تعذّر تنفيذ الإجراء", "error");
+      return;
+    }
+    setBlocked(!blocked);
+    toast(blocked ? `تم إلغاء حظر ${target.display_name}` : `تم حظر ${target.display_name} — لن ترى محتواه`);
+    onChanged?.();
+  };
+
+  return (
+    <span className="flex flex-wrap gap-2">
+      <button
+        onClick={() => void toggle()}
+        disabled={busy}
+        className={
+          blocked
+            ? "flex items-center gap-1.5 rounded-full bg-white/[0.07] px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 transition active:scale-95"
+            : "flex items-center gap-1.5 rounded-full bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-200 ring-1 ring-red-400/25 transition hover:bg-red-500/20 active:scale-95"
+        }
+      >
+        <Ban className="h-4 w-4" /> {blocked ? "إلغاء الحظر" : "حظر"}
+      </button>
+      {!blocked && (
+        <a
+          href={`mailto:safety@dzconnect.app?subject=${encodeURIComponent(`إبلاغ عن @${target.username}`)}&body=${encodeURIComponent(`أريد الإبلاغ عن الحساب @${target.username} بسبب: `)}`}
+          className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/70 ring-1 ring-white/10 transition hover:bg-white/10 active:scale-95"
+        >
+          <Flag className="h-4 w-4" /> إبلاغ
+        </a>
+      )}
+    </span>
   );
 }

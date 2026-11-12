@@ -12,27 +12,31 @@
   --animate-float: float 7s ease-in-out infinite;
 }
 
+@keyframes storybar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 @keyframes float {
   0%, 100% { transform: translateY(0) rotate(-0.5deg); }
   50% { transform: translateY(-12px) rotate(0.5deg); }
 }
 
 html {
-  background: #05060f;
+  background: #040a08;
   color-scheme: dark;
   -webkit-tap-highlight-color: transparent;
 }
 
 body {
   font-family: var(--font-sans);
-  background: #05060f;
+  background: #040a08;
   color: #f4f4fa;
   overscroll-behavior-y: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
-::selection { background: rgba(167, 139, 250, 0.45); }
+::selection { background: rgba(16, 185, 129, 0.45); }
 
 /* slim elegant scrollbars */
 * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
@@ -67,7 +71,7 @@ body {
 }
 
 .text-gradient {
-  background: linear-gradient(90deg, #c4b5fd, #f0abfc 45%, #67e8f9);
+  background: linear-gradient(90deg, #6ee7b7, #2dd4bf 45%, #67e8f9);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -80,8 +84,8 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #8b5cf6, #d946ef 55%, #06b6d4 130%);
-  box-shadow: 0 10px 30px rgba(168, 85, 247, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #059669, #0d9488 55%, #0284c7 130%);
+  box-shadow: 0 10px 30px rgba(5, 150, 105, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 .btn-primary:hover { filter: brightness(1.08); }
@@ -96,16 +100,16 @@ body {
 .input-glass::placeholder { color: rgba(255, 255, 255, 0.32); }
 .input-glass:focus {
   outline: none;
-  border-color: rgba(167, 139, 250, 0.65);
+  border-color: rgba(45, 212, 191, 0.65);
   background: rgba(255, 255, 255, 0.06);
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.16);
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.18);
 }
 
 .logo-mark {
   background:
     radial-gradient(120% 120% at 15% 10%, rgba(255, 255, 255, 0.5), transparent 45%),
-    linear-gradient(140deg, #8b5cf6, #d946ef 52%, #0891b2);
-  box-shadow: 0 12px 34px rgba(168, 85, 247, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    linear-gradient(140deg, #059669, #14b8a6 52%, #0284c7);
+  box-shadow: 0 12px 34px rgba(5, 150, 105, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
   display: inline-flex; align-items: center; justify-content: center;
   color: white; font-weight: 800; letter-spacing: -0.02em;
 }
@@ -118,7 +122,7 @@ body {
 }
 .aurora::before {
   width: 520px; height: 520px; top: -160px; inset-inline-start: -120px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.55), transparent 65%);
+  background: radial-gradient(circle, rgba(5, 150, 105, 0.55), transparent 65%);
   animation: drift 16s ease-in-out infinite alternate;
 }
 .aurora::after {

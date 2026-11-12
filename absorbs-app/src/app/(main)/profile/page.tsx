@@ -5,6 +5,7 @@ import { Camera, Check, Globe, Loader2, LogOut, Settings2, Trash2, UserRoundPen 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ProfileView } from "@/components/profile/profile-view";
+import { SecurityCenter } from "@/components/profile/security-center";
 import { InstallButton } from "@/components/pwa/install-button";
 import { useToast } from "@/components/ui/feedback";
 import { Avatar } from "@/components/ui/avatar";
@@ -15,6 +16,7 @@ export default function MyProfilePage() {
   if (!profile) return null;
   return (
     <ProfileView profile={profile}>
+      <SecurityCenter />
       <SettingsCard />
     </ProfileView>
   );
@@ -102,7 +104,7 @@ function SettingsCard() {
   return (
     <section className="glass animate-fade-up rounded-[28px] p-4">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 text-start" aria-expanded={open}>
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/18 text-violet-300">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/18 text-teal-200">
           <Settings2 className="h-5 w-5" />
         </span>
         <span className="flex-1">
@@ -169,12 +171,12 @@ function SettingsCard() {
           </button>
 
           {/* danger zone */}
-          <div className="rounded-3xl bg-rose-500/[0.07] p-3.5 ring-1 ring-rose-400/20">
-            <p className="text-sm font-bold text-rose-200">منطقة الخطر</p>
-            <p className="mt-1 text-xs leading-5 text-rose-200/60">حذف الحساب نهائي ولا يمكن التراجع عنه (يُحذف المستخدم من Supabase Auth عبر المفتاح السري في الخادم فقط).</p>
+          <div className="rounded-3xl bg-red-500/[0.07] p-3.5 ring-1 ring-red-400/20">
+            <p className="text-sm font-bold text-red-200">منطقة الخطر</p>
+            <p className="mt-1 text-xs leading-5 text-red-200/60">حذف الحساب نهائي ولا يمكن التراجع عنه (يُحذف المستخدم من Supabase Auth عبر المفتاح السري في الخادم فقط).</p>
             {confirmDelete ? (
               <div className="mt-3 flex gap-2">
-                <button onClick={() => void deleteAccount()} disabled={deleting} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-rose-500 py-2.5 text-sm font-black text-white transition active:scale-95 disabled:opacity-50">
+                <button onClick={() => void deleteAccount()} disabled={deleting} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-red-500 py-2.5 text-sm font-black text-white transition active:scale-95 disabled:opacity-50">
                   {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} نعم، احذف حسابي
                 </button>
                 <button onClick={() => setConfirmDelete(false)} className="rounded-full bg-white/[0.07] px-5 py-2.5 text-sm font-bold text-white">
@@ -182,14 +184,14 @@ function SettingsCard() {
                 </button>
               </div>
             ) : (
-              <button onClick={() => setConfirmDelete(true)} className="mt-3 flex items-center gap-2 rounded-full bg-rose-500/15 px-4 py-2 text-sm font-bold text-rose-200 ring-1 ring-rose-400/30 transition hover:bg-rose-500/25">
+              <button onClick={() => setConfirmDelete(true)} className="mt-3 flex items-center gap-2 rounded-full bg-red-500/15 px-4 py-2 text-sm font-bold text-red-200 ring-1 ring-red-400/30 transition hover:bg-red-500/25">
                 <Trash2 className="h-4 w-4" /> حذف الحساب نهائيًا
               </button>
             )}
           </div>
 
           <p className="text-center text-[11px] text-white/30" dir="ltr">
-            {user.email} · Absorbs v1.0
+            {user.email} · DZ CONNECT v1.0
           </p>
         </div>
       )}

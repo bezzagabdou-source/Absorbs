@@ -10,7 +10,9 @@ import { SetupNotice } from "@/components/feed/setup-notice";
 import { UserRow } from "@/components/social/user-actions";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/feedback";
+import { useOnlineUsers } from "@/components/social/use-presence";
 import { cn, isSchemaMissing, messageTimeAr, normalizeUsername } from "@/lib/utils";
+import { messagePreview } from "@/lib/message-format";
 import type { DmThread, Profile } from "@/lib/types";
 
 export default function MessagesPage() {
@@ -22,6 +24,7 @@ export default function MessagesPage() {
   const [schemaMissing, setSchemaMissing] = useState(false);
 
   const [query, setQuery] = useState("");
+  const onlineUsers = useOnlineUsers();
   const [results, setResults] = useState<Profile[]>([]);
   const [searching, setSearching] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,7 +80,7 @@ export default function MessagesPage() {
     <div className="space-y-4">
       <div className="animate-fade-up px-1 pt-1">
         <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-          <MessageCircleHeart className="h-6 w-6 text-fuchsia-300" /> الرسائل الخاصة
+          <MessageCircleHeart className="h-6 w-6 text-teal-200" /> الرسائل الخاصة
         </h1>
         <p className="mt-1 text-sm text-white/50">محادثات فورية تصل في نفس اللحظة — ابحث باسم المستخدم وابدأ.</p>
       </div>
@@ -95,7 +98,7 @@ export default function MessagesPage() {
           aria-label="بحث لبدء محادثة"
         />
         {searching ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-violet-300" />
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-teal-200" />
         ) : query ? (
           <button onClick={() => setQuery("")} aria-label="مسح البحث" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-white/70">
             <X className="h-4 w-4" />
@@ -143,6 +146,9 @@ export default function MessagesPage() {
                 >
                   <span className="relative shrink-0">
                     <Avatar profile={other} size="lg" />
+                        {other && onlineUsers.has(other.id) && (
+                          <span className="absolute bottom-0.5 end-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-[#0a0f0d]" aria-label="متصل الآن" />
+                        )}
                     {thread.unread_count > 0 && (
                       <span className="absolute -top-0.5 -end-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-[#0a0b1e]" />
                     )}
@@ -154,10 +160,10 @@ export default function MessagesPage() {
                     </span>
                     <span className="mt-0.5 flex items-center justify-between gap-2">
                       <span className={cn("truncate text-[13px]", thread.unread_count > 0 ? "font-bold text-white" : "text-white/50")}>
-                        {last ? `${mine ? "أنت: " : ""}${last.content}` : "ابدأ المحادثة 👋"}
+                        {last ? `${mine ? "أنت: " : ""}${messagePreview(last.content)}` : "ابدأ المحادثة 👋"}
                       </span>
                       {thread.unread_count > 0 && (
-                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-fuchsia-600 px-1.5 text-[10px] font-black text-white">
+                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-emerald-600 px-1.5 text-[10px] font-black text-white">
                           {thread.unread_count}
                         </span>
                       )}

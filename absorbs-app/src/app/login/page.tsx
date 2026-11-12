@@ -60,7 +60,7 @@ function LoginForm() {
       <PasswordField value={password} onChange={setPassword} autoComplete="current-password" />
 
       {error && (
-        <p role="alert" className="animate-fade-up rounded-2xl bg-rose-500/12 px-4 py-3 text-sm leading-6 text-rose-200 ring-1 ring-rose-400/25">
+        <p role="alert" className="animate-fade-up rounded-2xl bg-red-500/12 px-4 py-3 text-sm leading-6 text-red-200 ring-1 ring-red-400/25">
           {error}
         </p>
       )}
@@ -85,7 +85,7 @@ export default function LoginPage() {
       footer={
         <>
           ليس لديك حساب؟{" "}
-          <Link href="/signup" className="font-bold text-violet-300 hover:underline">
+          <Link href="/signup" className="font-bold text-teal-200 hover:underline">
             أنشئ حسابًا مجانيًا
           </Link>
         </>

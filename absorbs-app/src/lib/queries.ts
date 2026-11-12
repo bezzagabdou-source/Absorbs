@@ -27,13 +27,47 @@ async function myLikedPostIds(supabase: SupabaseClient, userId: string): Promise
   return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
 }
 
+export async function mySavedPostIds(supabase: SupabaseClient, userId: string): Promise<Set<string>> {
+  const { data } = await supabase.from("saves").select("post_id").eq("user_id", userId);
+  return new Set(((data ?? []) as { post_id: string }[]).map((r) => r.post_id));
+}
+
+export async function fetchSavedPosts(supabase: SupabaseClient, userId: string): Promise<Post[]> {
+  const { data: rows, error } = await supabase
+    .from("saves")
+    .select("post_id, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  const ids = ((rows ?? []) as { post_id: string }[]).map((r) => r.post_id);
+  if (ids.length === 0) return [];
+  const myLikes = await myLikedPostIds(supabase, userId);
+  const savedSet = new Set(ids);
+  const { data, error: postsError } = await supabase.from("posts").select(POST_SELECT).in("id", ids);
+  if (postsError) throw postsError;
+  const byId = new Map(
+    ((data ?? []) as unknown as PostRow[]).map((r) => {
+      const p = mapPost(r, myLikes);
+      p.saved_by_me = savedSet.has(r.id);
+      return [r.id, p] as const;
+    }),
+  );
+  return ids.map((id) => byId.get(id)).filter((p): p is Post => Boolean(p));
+}
+
 export async function fetchFeed(supabase: SupabaseClient, userId: string, limit = 30): Promise<Post[]> {
-  const [{ data, error }, myLikes] = await Promise.all([
+  const [{ data, error }, myLikes, mySaved] = await Promise.all([
     supabase.from("posts").select(POST_SELECT).order("created_at", { ascending: false }).limit(limit),
     myLikedPostIds(supabase, userId),
+    mySavedPostIds(supabase, userId).catch(() => new Set<string>()),
   ]);
   if (error) throw error;
-  return ((data ?? []) as unknown as PostRow[]).map((r) => mapPost(r, myLikes));
+  return ((data ?? []) as unknown as PostRow[]).map((r) => {
+    const p = mapPost(r, myLikes);
+    p.saved_by_me = mySaved.has(r.id);
+    return p;
+  });
 }
 
 export async function fetchUserPosts(

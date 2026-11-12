@@ -6,6 +6,7 @@ export interface Profile {
   avatar_url: string | null;
   cover_url: string | null;
   website: string | null;
+  is_verified?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -21,6 +22,19 @@ export interface Post {
   like_count: number;
   comment_count: number;
   liked_by_me: boolean;
+  saved_by_me?: boolean;
+}
+
+export interface Story {
+  id: string;
+  author_id: string;
+  image_url: string;
+  caption: string | null;
+  created_at: string;
+  expires_at: string;
+  author?: Profile;
+  viewed_by_me?: boolean;
+  view_count?: number;
 }
 
 export interface PostComment {

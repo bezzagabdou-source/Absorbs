@@ -80,8 +80,8 @@ export default function SignupPage() {
           <p className="mt-2 text-sm leading-7 text-white/60">
             أرسلنا رابط تأكيد إلى <span className="font-bold text-white" dir="ltr">{email}</span>
             <br />
-            اضغط الرابط وستدخل مباشرة إلى عالم Absorbs باسم{" "}
-            <span className="font-bold text-violet-300" dir="ltr">@{username}</span>
+            اضغط الرابط وستدخل مباشرة إلى عالم DZ CONNECT باسم{" "}
+            <span className="font-bold text-teal-200" dir="ltr">@{username}</span>
           </p>
           <Link href="/login" className="btn-primary mt-6 rounded-full px-6 py-3 text-sm font-bold text-white">
             الذهاب لتسجيل الدخول
@@ -96,12 +96,12 @@ export default function SignupPage() {
 
   return (
     <AuthShell
-      title="انضم إلى Absorbs ✨"
+      title="انضم إلى DZ CONNECT ✨"
       subtitle="حساب واحد يفتح لك المنشورات الحيّة والرسائل الخاصة لحظة بلحظة."
       footer={
         <>
           لديك حساب مسبقًا؟{" "}
-          <Link href="/login" className="font-bold text-violet-300 hover:underline">
+          <Link href="/login" className="font-bold text-teal-200 hover:underline">
             تسجيل الدخول
           </Link>
         </>
@@ -140,15 +140,15 @@ export default function SignupPage() {
             <span className="absolute end-3 top-1/2 -translate-y-1/2">
               {usernameState === "checking" && <Loader2 className="h-4.5 w-4.5 animate-spin text-white/40" />}
               {usernameState === "free" && <CheckCircle2 className="h-4.5 w-4.5 text-emerald-300" />}
-              {(usernameState === "taken" || usernameState === "invalid") && <XCircle className="h-4.5 w-4.5 text-rose-300" />}
+              {(usernameState === "taken" || usernameState === "invalid") && <XCircle className="h-4.5 w-4.5 text-red-300" />}
             </span>
           </span>
           <span
             className={cn(
               "mt-1.5 block text-[11.5px]",
               usernameState === "free" && "text-emerald-300",
-              usernameState === "taken" && "text-rose-300",
-              usernameState === "invalid" && "text-rose-300",
+              usernameState === "taken" && "text-red-300",
+              usernameState === "invalid" && "text-red-300",
               (usernameState === "idle" || usernameState === "checking") && "text-white/35",
             )}
           >
@@ -191,7 +191,7 @@ export default function SignupPage() {
         </div>
 
         {error && (
-          <p role="alert" className="animate-fade-up rounded-2xl bg-rose-500/12 px-4 py-3 text-sm leading-6 text-rose-200 ring-1 ring-rose-400/25">
+          <p role="alert" className="animate-fade-up rounded-2xl bg-red-500/12 px-4 py-3 text-sm leading-6 text-red-200 ring-1 ring-red-400/25">
             {error}
           </p>
         )}
