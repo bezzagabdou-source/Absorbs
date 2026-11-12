@@ -1,0 +1,68 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// Release signing comes ONLY from CI secrets / environment variables —
+// the upload keystore never lives in this repository.
+//   DZ_KEYSTORE_FILE, DZ_KEYSTORE_PASSWORD, DZ_KEY_ALIAS, DZ_KEY_PASSWORD
+def dzKeystoreFile = System.getenv("DZ_KEYSTORE_FILE")
+def dzReleaseSigning = dzKeystoreFile != null && new File(dzKeystoreFile).exists()
+
+android {
+    namespace 'dz.absorbs.app'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'dz.absorbs.app'
+        minSdk 24
+        // Google Play requires targetSdk 36 (Android 16) for new apps/updates. Never lower.
+        targetSdk 36
+        versionCode 20
+        versionName '2.0.0'
+    }
+
+    signingConfigs {
+        if (dzReleaseSigning) {
+            release {
+                storeFile file(dzKeystoreFile)
+                storePassword System.getenv("DZ_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("DZ_KEY_ALIAS")
+                keyPassword System.getenv("DZ_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Debug-signed APKs get blocked by Google Play Protect — never ship them as release.
+            if (dzReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+}
+
+// Fix "Duplicate class kotlin.streams.jdk8..." dex errors (legacy split artifacts).
+configurations.configureEach {
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24'
+    }
+}

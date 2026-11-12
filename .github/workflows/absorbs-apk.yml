@@ -1,0 +1,120 @@
+name: Build Dz connect Android (Native)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "absorbs-android/**"
+      - ".github/workflows/absorbs-apk.yml"
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    name: Native APK + AAB (release-signed when secrets exist)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate Gradle wrapper
+        working-directory: absorbs-android
+        run: gradle wrapper --gradle-version 8.11.1 --distribution-type bin
+
+      - name: Check signing secrets
+        id: sig
+        env:
+          KS: ${{ secrets.DZ_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then echo "signed=true" >> "$GITHUB_OUTPUT"; else echo "signed=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Decode upload keystore (from secrets)
+        if: steps.sig.outputs.signed == 'true'
+        env:
+          KS: ${{ secrets.DZ_KEYSTORE_BASE64 }}
+        run: echo "$KS" | base64 -d > "$RUNNER_TEMP/dz-upload.p12"
+
+      - name: Build signed Release APK + AAB
+        if: steps.sig.outputs.signed == 'true'
+        working-directory: absorbs-android
+        env:
+          DZ_KEYSTORE_FILE: ${{ runner.temp }}/dz-upload.p12
+          DZ_KEYSTORE_PASSWORD: ${{ secrets.DZ_KEYSTORE_PASSWORD }}
+          DZ_KEY_ALIAS: ${{ secrets.DZ_KEY_ALIAS }}
+          DZ_KEY_PASSWORD: ${{ secrets.DZ_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease bundleRelease --stacktrace 2>&1 | tee ../gradle-build.log
+
+      - name: Build fallback APK (no secrets yet — clearly labelled debug)
+        if: steps.sig.outputs.signed != 'true'
+        working-directory: absorbs-android
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../gradle-build.log
+
+      - name: Verify signature & collect outputs
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          if [ "${{ steps.sig.outputs.signed }}" = "true" ]; then
+            cp absorbs-android/app/build/outputs/apk/release/app-release.apk ./DZConnect.apk
+            cp absorbs-android/app/build/outputs/bundle/release/app-release.aab ./DZConnect.aab
+            "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt
+          else
+            cp absorbs-android/app/build/outputs/apk/debug/app-debug.apk ./DZConnect.apk
+            echo "DEBUG BUILD — add DZ_KEYSTORE_* secrets for the store-signed build" > signature.txt
+          fi
+          ls -lh DZConnect*
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DZConnect-native
+          path: |
+            ./DZConnect.apk
+            ./DZConnect.aab
+            ./signature.txt
+          if-no-files-found: ignore
+
+      - name: Upload Gradle build log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: gradle-build.log
+          if-no-files-found: ignore
+
+      - name: Report failure as issue (diagnostics)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}";
+            echo; echo '```'; tail -c 5000 gradle-build.log || true; echo '```';
+          } > issue-body.md
+          gh issue create --title "Native APK build failure — diagnostics" --body-file issue-body.md || true
+
+      - name: Publish to GitHub Release (direct download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dz-connect-v2.0.0
+          name: "Dz connect Android v2.0.0 — Native"
+          body: |
+            📱 **Dz connect — تطبيق Android أصلي (Native)** ماشي WebView: واجهات زجاجية بيضاء، تسجيل دخول أصلي، خلاصة/رسائل/Dz connect ai من التطبيق.
+            حمّل `DZConnect.apk` وثبّته. إذا عندك النسخة القديمة احذفها أولًا (اختلاف التوقيع).
+            ملف `DZConnect.aab` مخصّص للرفع على Google Play Console.
+          files: |
+            ./DZConnect.apk
+            ./DZConnect.aab
+          fail_on_unmatched_files: false
