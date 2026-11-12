@@ -28,11 +28,16 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.14.3"
+          gradle-version: "9.1.0"
+
+      - name: Install Android SDK platform 37 (for compileSdk 37)
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-37" || true
 
       - name: Generate Gradle wrapper
         working-directory: absorbs-android
-        run: gradle wrapper --gradle-version 8.14.3 --distribution-type bin
+        run: gradle wrapper --gradle-version 9.1.0 --distribution-type bin
 
       - name: Check signing secrets
         id: sig

@@ -12,7 +12,8 @@ def dzReleaseSigning = dzKeystoreFile != null && new File(dzKeystoreFile).exists
 
 android {
     namespace 'dz.absorbs.app'
-    compileSdk 36
+    // compileSdk 37 (required by Compose 1.12 / AGP 9.1); targetSdk stays 36 for Play.
+    compileSdk 37
 
     defaultConfig {
         applicationId 'dz.absorbs.app'
