@@ -144,7 +144,11 @@ fun ProfileScreen(
                 } else {
                     Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
-                            Modifier.background(if (vm.isFollowing) MaterialTheme.colorScheme.surfaceVariant else Dz.primaryBrush(), RoundedCornerShape(999.dp))
+                            Modifier
+                                .then(
+                                    if (vm.isFollowing) Modifier.background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(999.dp))
+                                    else Modifier.background(Dz.primaryBrush(), RoundedCornerShape(999.dp)),
+                                )
                                 .clickable { vm.toggleFollow(targetId) }
                                 .padding(horizontal = 18.dp, vertical = 9.dp),
                         ) {

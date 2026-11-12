@@ -352,7 +352,8 @@ private fun MainShell(
                         )
                         1 -> ReelsScreen(
                             app = app,
-                            onOpenComments = { post -> onNav(nav.copy(comments = uid)) },
+                            onOpenComments = { post -> onNav(nav.copy(commentsPost = post)) },
+                            onOpenProfile = { uid -> onNav(nav.copy(profileUserId = uid)) },
                         )
                         2 -> ExploreScreen(
                             onOpenProfile = { uid -> onNav(nav.copy(profileUserId = uid)) },
@@ -424,13 +425,6 @@ private fun MainShell(
                             .background(MaterialTheme.colorScheme.surface, CircleShape)
                             .clickable { aiOpen = false },
                         contentAlignment = Alignment.Center,
-                    ) { DzIcon(R.drawable.ic_lucide_x, tint = MaterialTheme.colorScheme.onSurface, size = 19.dp) }
-                }
-            }
-        }
-    }
-}
-= Alignment.Center,
                     ) { DzIcon(R.drawable.ic_lucide_x, tint = MaterialTheme.colorScheme.onSurface, size = 19.dp) }
                 }
             }
