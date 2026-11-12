@@ -110,7 +110,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           { echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}";
-            echo; echo '```'; tail -c 5000 gradle-build.log || true; echo '```';
+            echo; echo '```'; grep -E "^e: |error:|FAILURE|What went wrong" -A2 gradle-build.log | head -80 || true;
+            echo; echo '--- tail ---'; tail -c 1800 gradle-build.log || true; echo '```';
           } > issue-body.md
           gh issue create --title "Native APK build failure — diagnostics" --body-file issue-body.md || true
 
