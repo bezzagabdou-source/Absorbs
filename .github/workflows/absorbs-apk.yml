@@ -66,12 +66,12 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease bundleRelease --stacktrace 2>&1 | tee ../gradle-build.log
 
-      - name: Build fallback APK (no secrets yet — clearly labelled debug)
+      - name: Build fallback APK (no secrets yet — unsigned RELEASE, signed before distribution)
         if: steps.sig.outputs.signed != 'true'
         working-directory: absorbs-android
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../gradle-build.log
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee ../gradle-build.log
 
       - name: Verify signature & collect outputs
         run: |
@@ -81,8 +81,8 @@ jobs:
             cp absorbs-android/app/build/outputs/bundle/release/app-release.aab ./DZConnect.aab
             "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt
           else
-            cp absorbs-android/app/build/outputs/apk/debug/app-debug.apk ./DZConnect.apk
-            echo "DEBUG BUILD — add DZ_KEYSTORE_* secrets for the store-signed build" > signature.txt
+            cp absorbs-android/app/build/outputs/apk/release/app-release-unsigned.apk ./DZConnect.apk
+            echo "UNSIGNED RELEASE BUILD — signed with the permanent upload key before distribution; add DZ_KEYSTORE_* secrets to sign in CI" > signature.txt
           fi
           ls -lh DZConnect*
 
