@@ -45,6 +45,16 @@ jobs:
           path: gradle-build.log
           if-no-files-found: ignore
 
+      - name: Publish build error log to repo (on failure)
+        if: failure()
+        run: |
+          tail -c 60000 gradle-build.log > absorbs-android/build-error.log || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add absorbs-android/build-error.log
+          git commit -m "ci: apk build error log [skip ci]" || exit 0
+          git push origin HEAD:${{ github.ref_name }}
+
       - name: Prepare Absorbs.apk
         run: |
           cp absorbs-android/app/build/outputs/apk/debug/app-debug.apk ./Absorbs.apk
