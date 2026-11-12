@@ -7,8 +7,8 @@ spec-compliant v2 signing block:
 
   signer = lp(signed_data) + lp(signatures) + lp(public_key)
   signed_data = lp(digests) + lp(certificates) + lp(attributes)
-  signature = RSASSA-PKCS1-v1.5/SHA-256 over lp(signed_data)   (length prefix
-              included, exactly as AOSP apksig computes it)
+  signature = RSASSA-PKCS1-v1.5/SHA-256 over the signed_data content,
+              byte-for-byte as AOSP apksig (V2SchemeSigner) computes it
 
 Usage:
   python3 sign_apk.py --in app-unsigned.apk --out DZConnect.apk \
@@ -83,9 +83,12 @@ def main() -> int:
 
     # --- signed data / signature / signer ---
     # Each sub-sequence inside signed_data = lp( concat of lp(record) ).
+    # Trailing lp(b'') twice mirrors apksig exactly (empty additional
+    # attributes element + trailing empty element in the sequence).
     digest_record = struct.pack('<I', SIG_ALG_RSA_PKCS1_SHA256) + lp(digest)
-    signed_data = lp(lp(digest_record)) + lp(lp(cert_der)) + lp(b'')
-    sig = key.sign(lp(signed_data), padding.PKCS1v15(), hashes.SHA256())
+    signed_data = lp(lp(digest_record)) + lp(lp(cert_der)) + lp(b'') + lp(b'')
+    # apksig signs the signed_data CONTENT (no outer length prefix).
+    sig = key.sign(signed_data, padding.PKCS1v15(), hashes.SHA256())
     sigs_seq = lp(struct.pack('<I', SIG_ALG_RSA_PKCS1_SHA256) + lp(sig))
     signer = lp(signed_data) + lp(sigs_seq) + lp(spki_der)
     signers_seq = lp(signer)

@@ -95,12 +95,12 @@ jobs:
           if [ "${{ steps.sig.outputs.signed }}" = "true" ]; then
             cp absorbs-android/app/build/outputs/apk/release/app-release.apk ./DZConnect.apk
             cp absorbs-android/app/build/outputs/bundle/release/app-release.aab ./DZConnect.aab
-            "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt
+            "$APKSIGNER" verify --print-certs ./DZConnect.apk 2>&1 | tee signature.txt
           elif [ -f absorbs-android/transport/DZConnect.apk ]; then
             # Permanent-key signed APK deposited in transport/ — it is the
             # authoritative downloadable build until CI secrets exist.
             cp absorbs-android/transport/DZConnect.apk ./DZConnect.apk
-            "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt
+            "$APKSIGNER" verify --print-certs ./DZConnect.apk 2>&1 | tee signature.txt
           else
             cp absorbs-android/app/build/outputs/apk/release/app-release-unsigned.apk ./DZConnect.apk
             echo "UNSIGNED RELEASE BUILD — awaiting permanent-key signed APK in transport/" > signature.txt

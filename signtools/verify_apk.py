@@ -77,7 +77,10 @@ sd = R(signed_data)
 digests_blob = sd.lp()
 certs_blob = sd.lp()
 attrs_blob = sd.lp()
-assert sd.done(), 'FAIL: signed_data has trailing bytes'
+# apksig appends one trailing empty element to signed_data and its verifier
+# ignores it; allow exactly that (or nothing) after the three sequences.
+trailing = signed_data[sd.o:]
+assert trailing in (b'', b'\x00\x00\x00\x00'), 'FAIL: unexpected trailing bytes in signed_data'
 
 dr = R(digests_blob); digests = []
 while not dr.done():
