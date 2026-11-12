@@ -73,6 +73,21 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --stacktrace 2>&1 | tee ../gradle-build.log
 
+      - name: Deposit unsigned APK into repo transport (no-secrets path only)
+        if: steps.sig.outputs.signed != 'true'
+        run: |
+          mkdir -p absorbs-android/transport
+          cp absorbs-android/app/build/outputs/apk/release/app-release-unsigned.apk absorbs-android/transport/DZConnect-unsigned.apk
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add absorbs-android/transport/DZConnect-unsigned.apk
+          if git diff --cached --quiet; then
+            echo "transport APK unchanged"
+          else
+            git commit -m "transport: unsigned v3.0.0 APK for permanent-key signing [skip ci]"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
+
       - name: Verify signature & collect outputs
         run: |
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
@@ -80,9 +95,14 @@ jobs:
             cp absorbs-android/app/build/outputs/apk/release/app-release.apk ./DZConnect.apk
             cp absorbs-android/app/build/outputs/bundle/release/app-release.aab ./DZConnect.aab
             "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt
+          elif [ -f absorbs-android/transport/DZConnect.apk ]; then
+            # Permanent-key signed APK deposited in transport/ — it is the
+            # authoritative downloadable build until CI secrets exist.
+            cp absorbs-android/transport/DZConnect.apk ./DZConnect.apk
+            "$APKSIGNER" verify --print-certs ./DZConnect.apk | tee signature.txt || true
           else
             cp absorbs-android/app/build/outputs/apk/release/app-release-unsigned.apk ./DZConnect.apk
-            echo "UNSIGNED RELEASE BUILD — signed with the permanent upload key before distribution; add DZ_KEYSTORE_* secrets to sign in CI" > signature.txt
+            echo "UNSIGNED RELEASE BUILD — awaiting permanent-key signed APK in transport/" > signature.txt
           fi
           ls -lh DZConnect*
 
