@@ -236,27 +236,27 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
     <div className="flex h-[calc(100dvh-92px)] flex-col">
       {/* chat header */}
       <div className="glass-strong animate-fade-up flex items-center gap-2.5 rounded-[24px] px-2.5 py-2">
-        <Link href="/messages" aria-label="رجوع" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/75 transition hover:bg-white/[0.06] active:scale-90">
+        <Link href="/messages" aria-label="رجوع" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-900/70 transition hover:bg-slate-900/[0.05] active:scale-90">
           <ArrowRight className="h-5 w-5" />
         </Link>
         {other ? (
           <Link href={`/u/${other.username}`} className="flex min-w-0 flex-1 items-center gap-2.5">
             <Avatar profile={other} size="sm" />
             <span className="min-w-0">
-              <span className="block truncate text-[15px] font-bold leading-5 text-white">{other.display_name}</span>
+              <span className="block truncate text-[15px] font-bold leading-5 text-slate-900">{other.display_name}</span>
               <span className="block truncate text-[11px]" dir="ltr" style={{ textAlign: "start" }}>
                 {peerTyping ? (
                   <span className="text-violet-300">يكتب الآن…</span>
                 ) : onlineUsers.has(other.id) ? (
                   <span className="text-emerald-300">نشط الآن</span>
                 ) : (
-                  <span className="text-white/45">@{other.username}</span>
+                  <span className="text-slate-900/45">@{other.username}</span>
                 )}
               </span>
             </span>
           </Link>
         ) : (
-          <span className="flex-1 text-sm text-white/50">{loading ? "جارٍ فتح المحادثة…" : "محادثة خاصة"}</span>
+          <span className="flex-1 text-sm text-slate-900/50">{loading ? "جارٍ فتح المحادثة…" : "محادثة خاصة"}</span>
         )}
         {other && (
           <span className="flex items-center gap-1">
@@ -288,14 +288,14 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
       {/* messages */}
       <div ref={scrollRef} className="mt-3 flex-1 overflow-y-auto px-1 pb-2" aria-live="polite">
         {loading ? (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-white/45">
+          <div className="flex h-full items-center justify-center gap-2 text-sm text-slate-900/45">
             <Loader2 className="h-4 w-4 animate-spin" /> جارٍ تحميل الرسائل…
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <Avatar profile={other} size="xl" ring />
-            <p className="mt-1 font-bold text-white">{other?.display_name}</p>
-            <p className="max-w-[240px] text-xs leading-5 text-white/45">هذه بداية محادثتكما الخاصة على Dz connect. قل مرحبًا 👋</p>
+            <p className="mt-1 font-bold text-slate-900">{other?.display_name}</p>
+            <p className="max-w-[240px] text-xs leading-5 text-slate-900/45">هذه بداية محادثتكما الخاصة على Dz connect — قل مرحبًا!</p>
           </div>
         ) : (
           <ul className="space-y-1.5 pt-2">
@@ -305,7 +305,7 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
               const showTime = !prev || new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() > 5 * 60 * 1000;
               return (
                 <li key={msg.id}>
-                  {showTime && <p className="py-2 text-center text-[10px] font-medium text-white/30">{messageTimeAr(msg.created_at)}</p>}
+                  {showTime && <p className="py-2 text-center text-[10px] font-medium text-slate-900/35">{messageTimeAr(msg.created_at)}</p>}
                   <div className={cn("flex", mine ? "justify-start flex-row-reverse" : "justify-start")}>
                     <div
                       className={cn(
@@ -412,7 +412,7 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
           }}
           rows={1}
           placeholder={other ? `راسل ${other.display_name.split(" ")[0]}…` : "اكتب رسالتك…"}
-          className="max-h-28 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-white/35"
+          className="max-h-28 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-slate-900 outline-none placeholder:text-slate-900/35"
           aria-label="نص الرسالة"
         />
         {recording ? (

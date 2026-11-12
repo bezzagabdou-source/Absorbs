@@ -28,11 +28,11 @@ export function messagePreview(content: string): string {
   const parsed = parseMessage(content);
   switch (parsed.kind) {
     case "image":
-      return "📷 صورة";
+      return "صورة";
     case "voice":
-      return "🎤 رسالة صوتية";
+      return "رسالة صوتية";
     case "call":
-      return parsed.callKind === "video" ? "📹 مكالمة فيديو" : "📞 مكالمة صوتية";
+      return parsed.callKind === "video" ? "مكالمة فيديو" : "مكالمة صوتية";
     default:
       return parsed.text;
   }

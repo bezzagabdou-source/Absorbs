@@ -215,7 +215,7 @@ export function PostCard({
         <span
           key={i}
           role="link"
-          className="cursor-pointer font-bold text-violet-300 hover:underline"
+          className="cursor-pointer font-bold text-violet-600 hover:underline"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -238,10 +238,10 @@ export function PostCard({
           <Avatar profile={post.author} size="md" />
         </Link>
         <div className="min-w-0 flex-1">
-          <Link href={post.author ? `/u/${post.author.username}` : "#"} className="block truncate text-[15px] font-bold text-white hover:underline">
+          <Link href={post.author ? `/u/${post.author.username}` : "#"} className="block truncate text-[15px] font-bold text-slate-900 hover:underline">
             <span className="inline-flex items-center gap-1">{post.author?.display_name ?? "مستخدم Dz connect"}{post.author?.is_verified && <VerifiedBadge className="h-3.5 w-3.5" />}</span>
           </Link>
-          <p className="truncate text-xs text-white/45" dir="ltr" style={{ textAlign: "start" }}>
+          <p className="truncate text-xs text-slate-900/45" dir="ltr" style={{ textAlign: "start" }}>
             @{post.author?.username ?? "user"} · {timeAgoAr(post.created_at)}
           </p>
         </div>
@@ -249,7 +249,7 @@ export function PostCard({
           <button
             onClick={() => setMenuOpen((v) => !v)}
             aria-label="خيارات المنشور"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-white/60 transition hover:bg-white/[0.06] hover:text-white active:scale-90"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-900/60 transition hover:bg-slate-900/[0.06] hover:text-slate-900 active:scale-90"
           >
             <MoreHorizontal className="h-5 w-5" />
           </button>
@@ -259,14 +259,14 @@ export function PostCard({
               <div className="glass-strong absolute end-0 top-10 z-20 w-44 animate-bubble-in overflow-hidden rounded-2xl p-1.5">
                 <button
                   onClick={sharePost}
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-white/85 transition hover:bg-white/[0.06]"
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-slate-900/85 transition hover:bg-slate-900/[0.06]"
                 >
                   <Share2 className="h-4 w-4" /> مشاركة المنشور
                 </button>
                 {isMine && (
                   <button
                     onClick={deletePost}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-red-300 transition hover:bg-red-500/10"
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-red-600 transition hover:bg-red-500/10"
                   >
                     <Trash2 className="h-4 w-4" /> حذف المنشور
                   </button>
@@ -280,7 +280,7 @@ export function PostCard({
       {/* body */}
       {post.content && (
         <Link href={`/post/${post.id}`} className="block px-4 pt-3">
-          <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-white/90">{renderRichText(post.content)}</p>
+          <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-slate-900/90">{renderRichText(post.content)}</p>
         </Link>
       )}
 
@@ -288,7 +288,7 @@ export function PostCard({
         <div className="relative mt-3 select-none" onClick={onImageTap} role="presentation">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {post.media_type === "video" ? (
-            <video src={post.image_url} controls playsInline preload="metadata" className="max-h-[480px] w-full bg-black object-contain" />
+            <video src={post.image_url} controls playsInline preload="metadata" className="max-h-[480px] w-full media-stage object-contain" />
           ) : (
             <img src={post.image_url} alt={post.content ?? "صورة منشور"} className="max-h-[430px] w-full object-cover" loading="lazy" />
           )}
@@ -300,49 +300,49 @@ export function PostCard({
         </div>
       )}
 
-      {/* actions */}
-      <div className="flex items-center gap-1 px-3 py-2.5">
+      {/* actions — colored glass pills */}
+      <div className="flex items-center gap-2 px-3 py-3">
         <button
           onClick={() => void toggleLike()}
           aria-label={liked ? "إلغاء الإعجاب" : "إعجاب"}
           aria-pressed={liked}
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold transition active:scale-90",
-            liked ? "text-red-400" : "text-white/60 hover:bg-white/[0.05] hover:text-white",
+            "chip px-3.5 py-2 text-sm font-black",
+            liked
+              ? "bg-gradient-to-l from-rose-500 to-red-500 !text-white shadow-[0_10px_24px_rgba(244,63,94,0.4)] ring-1 ring-white/60"
+              : "chip-rose",
           )}
         >
-          <Heart key={String(liked)} className={cn("h-[22px] w-[22px]", liked && "animate-heart-pop fill-red-500 text-red-500")} />
+          <Heart key={String(liked)} className={cn("h-5 w-5", liked && "animate-heart-pop fill-white")} />
           <span className="min-w-5 text-center tabular-nums">{compactNumber(likeCount)}</span>
         </button>
 
         <button
           onClick={toggleComments}
           aria-expanded={commentsOpen}
-          className={cn(
-            "flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold transition active:scale-90",
-            commentsOpen ? "text-cyan-300" : "text-white/60 hover:bg-white/[0.05] hover:text-white",
-          )}
+          className={cn("chip chip-sky px-3.5 py-2 text-sm font-black", commentsOpen && "ring-2 ring-sky-300")}
         >
-          <MessageCircle className="h-[21px] w-[21px]" />
+          <MessageCircle className="h-5 w-5" />
           <span className="min-w-5 text-center tabular-nums">{compactNumber(commentCount)}</span>
-          <span className="hidden text-xs font-semibold xs:inline sm:inline">تعليق</span>
+          <span className="hidden text-xs font-bold sm:inline">تعليق</span>
         </button>
 
-        <span className="ms-auto flex items-center">
+        <span className="ms-auto flex items-center gap-2">
           <button
             onClick={() => void toggleSave()}
             aria-label={saved ? "إلغاء الحفظ" : "حفظ المنشور"}
             aria-pressed={saved}
-            className={`flex h-10 w-10 items-center justify-center rounded-full transition active:scale-90 ${
-              saved ? "text-amber-300" : "text-white/60 hover:bg-white/[0.05] hover:text-white"
-            }`}
+            className={cn(
+              "chip flex h-10 w-10 items-center justify-center !px-0",
+              saved ? "bg-gradient-to-br from-amber-400 to-orange-500 !text-white shadow-[0_10px_24px_rgba(245,158,11,0.4)] ring-1 ring-white/60" : "chip-amber",
+            )}
           >
-            <Bookmark className={`h-5 w-5 ${saved ? "fill-amber-300" : ""}`} />
+            <Bookmark className={cn("h-5 w-5", saved && "fill-white")} />
           </button>
           <button
             onClick={sharePost}
             aria-label="مشاركة"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/60 transition hover:bg-white/[0.05] hover:text-white active:scale-90"
+            className="chip chip-violet flex h-10 w-10 items-center justify-center !px-0"
           >
             <Share2 className="h-5 w-5" />
           </button>
@@ -351,11 +351,11 @@ export function PostCard({
 
       {/* live comments */}
       {commentsOpen && (
-        <div className="animate-fade-up border-t border-white/[0.06] px-4 pb-4 pt-3">
+        <div className="animate-fade-up border-t border-slate-900/[0.06] px-4 pb-4 pt-3">
           {!commentsLoaded ? (
-            <p className="py-3 text-center text-xs text-white/40">جارٍ تحميل التعليقات…</p>
+            <p className="py-3 text-center text-xs text-slate-900/40">جارٍ تحميل التعليقات…</p>
           ) : comments.length === 0 ? (
-            <p className="py-3 text-center text-xs text-white/40">كن أول من يعلّق على هذا المنشور 💬</p>
+            <p className="py-3 text-center text-xs text-slate-900/40">كن أول من يعلّق على هذا المنشور</p>
           ) : (
             <ul className="space-y-3">
               {comments.map((comment) => (
@@ -363,12 +363,12 @@ export function PostCard({
                   <Link href={comment.author ? `/u/${comment.author.username}` : "#"} className="mt-0.5 shrink-0">
                     <Avatar profile={comment.author} size="xs" />
                   </Link>
-                  <div className="min-w-0 flex-1 rounded-2xl rounded-ts-sm bg-white/[0.045] px-3 py-2 ring-1 ring-white/[0.05]">
+                  <div className="min-w-0 flex-1 rounded-2xl rounded-ts-sm bg-slate-900/[0.045] px-3 py-2 ring-1 ring-slate-900/[0.05]">
                     <p className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="inline-flex items-center gap-1 text-[13px] font-bold text-white">{comment.author?.display_name ?? "مستخدم"}{comment.author?.is_verified && <VerifiedBadge className="h-3 w-3" />}</span>
-                      <span className="text-[10px] text-white/35">{timeAgoAr(comment.created_at)}</span>
+                      <span className="inline-flex items-center gap-1 text-[13px] font-bold text-slate-900">{comment.author?.display_name ?? "مستخدم"}{comment.author?.is_verified && <VerifiedBadge className="h-3 w-3" />}</span>
+                      <span className="text-[10px] text-slate-900/35">{timeAgoAr(comment.created_at)}</span>
                     </p>
-                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-white/85">{comment.content}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-900/85">{comment.content}</p>
                   </div>
                   {(user?.id === comment.author_id || isMine) && (
                     <button
@@ -380,7 +380,7 @@ export function PostCard({
                           setCommentCount((c) => Math.max(0, c - 1));
                         }
                       }}
-                      className="mt-1.5 text-white/30 transition hover:text-red-300"
+                      className="mt-1.5 text-slate-900/30 transition hover:text-red-600"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -398,13 +398,13 @@ export function PostCard({
               onChange={(e) => setDraft(e.target.value.slice(0, 300))}
               onKeyDown={(e) => e.key === "Enter" && void sendComment()}
               placeholder="اكتب تعليقًا جميلًا…"
-              className="input-glass min-w-0 flex-1 rounded-full px-4 py-2.5 text-sm text-white"
+              className="input-glass min-w-0 flex-1 rounded-full px-4 py-2.5 text-sm text-slate-900"
               aria-label="كتابة تعليق"
             />
             <button
               onClick={() => void sendComment()}
               disabled={!draft.trim() || sending}
-              className="btn-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white disabled:opacity-40"
+              className="btn-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-900 disabled:opacity-40"
               aria-label="إرسال التعليق"
             >
               <SendHorizonal className="h-4 w-4 -scale-x-100" />

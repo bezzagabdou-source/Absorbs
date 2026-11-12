@@ -43,7 +43,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   if (!profile) {
     return (
       <EmptyState icon={<UserRoundX className="h-6 w-6" />} title="هذا المستخدم غير موجود" description="ربما غيّر اسم المستخدم أو حذف حسابه.">
-        <Link href="/explore" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-white">
+        <Link href="/explore" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-slate-900">
           العودة للاكتشاف
         </Link>
       </EmptyState>

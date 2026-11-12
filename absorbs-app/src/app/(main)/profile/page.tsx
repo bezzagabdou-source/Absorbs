@@ -106,25 +106,25 @@ function SettingsCard() {
   return (
     <section className="glass animate-fade-up rounded-[28px] p-4">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 text-start" aria-expanded={open}>
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/18 text-violet-200">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/18 text-violet-600">
           <Settings2 className="h-5 w-5" />
         </span>
         <span className="flex-1">
-          <span className="block font-bold text-white">إعدادات الحساب</span>
-          <span className="block text-xs text-white/45">الاسم، اسم المستخدم، النبذة، الصورة الشخصية</span>
+          <span className="block font-bold text-slate-900">إعدادات الحساب</span>
+          <span className="block text-xs text-slate-900/45">الاسم، اسم المستخدم، النبذة، الصورة الشخصية</span>
         </span>
-        <span className={`text-white/40 transition-transform duration-300 ${open ? "rotate-180" : ""}`}>▾</span>
+        <span className={`text-slate-900/40 transition-transform duration-300 ${open ? "rotate-180" : ""}`}>▾</span>
       </button>
 
       {open && (
-        <div className="animate-fade-up mt-4 space-y-4 border-t border-white/[0.07] pt-4">
+        <div className="animate-fade-up mt-4 space-y-4 border-t border-slate-900/[0.07] pt-4">
           {/* avatar */}
           <div className="flex items-center gap-3">
             <span className="relative">
               <Avatar profile={profile} size="lg" />
               {uploading && (
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/55">
-                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-[#171038]/55">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-900" />
                 </span>
               )}
             </span>
@@ -132,11 +132,11 @@ function SettingsCard() {
               <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={(e) => void uploadAvatar(e.target.files?.[0])} />
               <button
                 onClick={() => avatarRef.current?.click()}
-                className="flex items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2 text-sm font-bold text-white ring-1 ring-white/10 transition hover:bg-white/10 active:scale-95"
+                className="flex items-center gap-1.5 rounded-full bg-slate-900/[0.06] px-4 py-2 text-sm font-bold text-slate-900 ring-1 ring-slate-900/10 transition hover:bg-slate-900/10 active:scale-95"
               >
-                <Camera className="h-4 w-4 text-cyan-300" /> تغيير الصورة
+                <Camera className="h-4 w-4 text-cyan-600" /> تغيير الصورة
               </button>
-              <p className="mt-1.5 text-[11px] text-white/35">تُضغط تلقائيًا وتُرفع إلى Supabase Storage</p>
+              <p className="mt-1.5 text-[11px] text-slate-900/35">تُضغط تلقائيًا وتُرفع إلى Supabase Storage</p>
             </div>
           </div>
 
@@ -150,49 +150,49 @@ function SettingsCard() {
             icon={<UserRoundPen className="h-3.5 w-3.5" />}
           />
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-semibold text-white/70">نبذة تعريفية</span>
+            <span className="mb-1.5 block text-[13px] font-semibold text-slate-900/70">نبذة تعريفية</span>
             <textarea
               value={bio}
               onChange={(e) => setBio(e.target.value.slice(0, 160))}
               rows={3}
               placeholder="عرّف بنفسك في سطرين… ✨"
-              className="input-glass w-full resize-none rounded-2xl px-4 py-3 text-[15px] text-white"
+              className="input-glass w-full resize-none rounded-2xl px-4 py-3 text-[15px] text-slate-900"
             />
-            <span className="mt-1 block text-[11px] text-white/30">{bio.length}/160</span>
+            <span className="mt-1 block text-[11px] text-slate-900/30">{bio.length}/160</span>
           </label>
           <Field label="موقعك الإلكتروني" value={website} onChange={setWebsite} placeholder="example.com" ltr icon={<Globe className="h-3.5 w-3.5" />} />
 
-          <button onClick={() => void save()} disabled={saving} className="btn-primary flex w-full items-center justify-center gap-2 rounded-full py-3 font-black text-white">
+          <button onClick={() => void save()} disabled={saving} className="btn-primary flex w-full items-center justify-center gap-2 rounded-full py-3 font-black text-slate-900">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} حفظ التغييرات
           </button>
 
           <InstallButton variant="row" />
 
-          <button onClick={() => void signOut()} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start text-sm font-semibold text-white/85 transition hover:bg-white/[0.05]">
-            <LogOut className="h-5 w-5 text-amber-300" /> تسجيل الخروج
+          <button onClick={() => void signOut()} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-start text-sm font-semibold text-slate-900/85 transition hover:bg-slate-900/[0.05]">
+            <LogOut className="h-5 w-5 text-amber-600" /> تسجيل الخروج
           </button>
 
           {/* danger zone */}
           <div className="rounded-3xl bg-red-500/[0.07] p-3.5 ring-1 ring-red-400/20">
-            <p className="text-sm font-bold text-red-200">منطقة الخطر</p>
-            <p className="mt-1 text-xs leading-5 text-red-200/60">حذف الحساب نهائي ولا يمكن التراجع عنه (يُحذف المستخدم من Supabase Auth عبر المفتاح السري في الخادم فقط).</p>
+            <p className="text-sm font-bold text-red-600">منطقة الخطر</p>
+            <p className="mt-1 text-xs leading-5 text-red-600/60">حذف الحساب نهائي ولا يمكن التراجع عنه (يُحذف المستخدم من Supabase Auth عبر المفتاح السري في الخادم فقط).</p>
             {confirmDelete ? (
               <div className="mt-3 flex gap-2">
-                <button onClick={() => void deleteAccount()} disabled={deleting} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-red-500 py-2.5 text-sm font-black text-white transition active:scale-95 disabled:opacity-50">
+                <button onClick={() => void deleteAccount()} disabled={deleting} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-red-500 py-2.5 text-sm font-black text-slate-900 transition active:scale-95 disabled:opacity-50">
                   {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} نعم، احذف حسابي
                 </button>
-                <button onClick={() => setConfirmDelete(false)} className="rounded-full bg-white/[0.07] px-5 py-2.5 text-sm font-bold text-white">
+                <button onClick={() => setConfirmDelete(false)} className="rounded-full bg-slate-900/[0.07] px-5 py-2.5 text-sm font-bold text-slate-900">
                   إلغاء
                 </button>
               </div>
             ) : (
-              <button onClick={() => setConfirmDelete(true)} className="mt-3 flex items-center gap-2 rounded-full bg-red-500/15 px-4 py-2 text-sm font-bold text-red-200 ring-1 ring-red-400/30 transition hover:bg-red-500/25">
+              <button onClick={() => setConfirmDelete(true)} className="mt-3 flex items-center gap-2 rounded-full bg-red-500/15 px-4 py-2 text-sm font-bold text-red-600 ring-1 ring-red-400/30 transition hover:bg-red-500/25">
                 <Trash2 className="h-4 w-4" /> حذف الحساب نهائيًا
               </button>
             )}
           </div>
 
-          <p className="text-center text-[11px] text-white/30" dir="ltr">
+          <p className="text-center text-[11px] text-slate-900/30" dir="ltr">
             {user.email} · Dz connect v1.0
           </p>
         </div>
@@ -218,7 +218,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-white/70">
+      <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-slate-900/70">
         {icon} {label}
       </span>
       <input
@@ -227,7 +227,7 @@ function Field({
         placeholder={placeholder}
         dir={ltr ? "ltr" : undefined}
         style={ltr ? { textAlign: "left" } : undefined}
-        className="input-glass w-full rounded-2xl px-4 py-3 text-[15px] text-white"
+        className="input-glass w-full rounded-2xl px-4 py-3 text-[15px] text-slate-900"
       />
     </label>
   );

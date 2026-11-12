@@ -35,14 +35,14 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0B0F1D",
+  themeColor: "#6366F1",
   colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('dz-theme')==='light')document.documentElement.classList.add('theme-light')}catch(e){}" }} />
+      <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('dz-theme')==='dark')document.documentElement.classList.add('theme-dark')}catch(e){}" }} />
       <body>
         <AuthProvider>
           <ToastProvider>

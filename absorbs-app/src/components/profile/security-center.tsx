@@ -115,22 +115,22 @@ export function SecurityCenter() {
   return (
     <section className="glass animate-fade-up rounded-[28px] p-4">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-3 text-start" aria-expanded={open}>
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-400/15 text-indigo-300">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-400/15 text-indigo-600">
           <ShieldCheck className="h-5 w-5" />
         </span>
         <span className="flex-1">
-          <span className="block font-bold text-white">الحماية والأمان</span>
-          <span className="block text-xs text-white/45">كلمة المرور · التحقق بخطوتين · الجلسات · الحظر</span>
+          <span className="block font-bold text-slate-900">الحماية والأمان</span>
+          <span className="block text-xs text-slate-900/45">كلمة المرور · التحقق بخطوتين · الجلسات · الحظر</span>
         </span>
-        <span className={`text-white/40 transition-transform duration-300 ${open ? "rotate-180" : ""}`}>▾</span>
+        <span className={`text-slate-900/40 transition-transform duration-300 ${open ? "rotate-180" : ""}`}>▾</span>
       </button>
 
       {open && (
-        <div className="animate-fade-up mt-4 space-y-5 border-t border-white/[0.07] pt-4">
+        <div className="animate-fade-up mt-4 space-y-5 border-t border-slate-900/[0.07] pt-4">
           {/* password */}
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-              <KeyRound className="h-4 w-4 text-indigo-300" /> تغيير كلمة المرور
+            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <KeyRound className="h-4 w-4 text-indigo-600" /> تغيير كلمة المرور
             </h3>
             <div className="mt-2 flex gap-2">
               <input
@@ -141,9 +141,9 @@ export function SecurityCenter() {
                 autoComplete="new-password"
                 dir="ltr"
                 style={{ textAlign: "left" }}
-                className="input-glass min-w-0 flex-1 rounded-2xl px-4 py-2.5 text-sm text-white"
+                className="input-glass min-w-0 flex-1 rounded-2xl px-4 py-2.5 text-sm text-slate-900"
               />
-              <button onClick={() => void changePassword()} disabled={savingPassword || newPassword.length < 8} className="btn-primary shrink-0 rounded-full px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+              <button onClick={() => void changePassword()} disabled={savingPassword || newPassword.length < 8} className="btn-primary shrink-0 rounded-full px-4 py-2.5 text-sm font-bold text-slate-900 disabled:opacity-40">
                 {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "حفظ"}
               </button>
             </div>
@@ -151,28 +151,28 @@ export function SecurityCenter() {
 
           {/* MFA */}
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-              <ShieldPlus className="h-4 w-4 text-indigo-300" /> التحقق بخطوتين (2FA)
+            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <ShieldPlus className="h-4 w-4 text-indigo-600" /> التحقق بخطوتين (2FA)
             </h3>
             {mfaLoading ? (
-              <p className="mt-2 flex items-center gap-2 text-xs text-white/40">
+              <p className="mt-2 flex items-center gap-2 text-xs text-slate-900/40">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> جارٍ التحقق…
               </p>
             ) : factor?.status === "verified" ? (
               <div className="mt-2 flex items-center justify-between rounded-2xl bg-indigo-400/10 px-3.5 py-3 ring-1 ring-indigo-300/25">
-                <span className="flex items-center gap-2 text-sm font-bold text-indigo-200">
+                <span className="flex items-center gap-2 text-sm font-bold text-indigo-600">
                   <CheckCircle2 className="h-4 w-4" /> مفعّل — حسابك محمي
                 </span>
-                <button onClick={() => void disableMfa()} className="flex items-center gap-1 text-xs font-bold text-red-300">
+                <button onClick={() => void disableMfa()} className="flex items-center gap-1 text-xs font-bold text-red-600">
                   <ShieldX className="h-3.5 w-3.5" /> إيقاف
                 </button>
               </div>
             ) : enroll ? (
-              <div className="mt-2 space-y-3 rounded-2xl bg-white/[0.04] p-3.5 ring-1 ring-white/[0.07]">
-                <p className="text-xs leading-5 text-white/60">امسح الرمز بتطبيق مصادقة (Google Authenticator / Authy) ثم أدخل الكود:</p>
+              <div className="mt-2 space-y-3 rounded-2xl bg-slate-900/[0.04] p-3.5 ring-1 ring-slate-900/[0.07]">
+                <p className="text-xs leading-5 text-slate-900/60">امسح الرمز بتطبيق مصادقة (Google Authenticator / Authy) ثم أدخل الكود:</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={enroll.qr} alt="QR التحقق بخطوتين" className="mx-auto h-40 w-40 rounded-2xl bg-white p-2" />
-                <p className="break-all text-center text-[10px] text-white/35" dir="ltr">{enroll.secret}</p>
+                <img src={enroll.qr} alt="QR التحقق بخطوتين" className="mx-auto h-40 w-40 rounded-2xl bg-slate-900 p-2" />
+                <p className="break-all text-center text-[10px] text-slate-900/35" dir="ltr">{enroll.secret}</p>
                 <div className="flex gap-2">
                   <input
                     value={code}
@@ -181,15 +181,15 @@ export function SecurityCenter() {
                     inputMode="numeric"
                     dir="ltr"
                     style={{ textAlign: "center", letterSpacing: "0.4em" }}
-                    className="input-glass min-w-0 flex-1 rounded-2xl px-4 py-2.5 text-sm font-bold text-white"
+                    className="input-glass min-w-0 flex-1 rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-900"
                   />
-                  <button onClick={() => void verifyEnroll()} disabled={verifying || code.length < 6} className="btn-primary shrink-0 rounded-full px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+                  <button onClick={() => void verifyEnroll()} disabled={verifying || code.length < 6} className="btn-primary shrink-0 rounded-full px-4 py-2.5 text-sm font-bold text-slate-900 disabled:opacity-40">
                     {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "تفعيل"}
                   </button>
                 </div>
               </div>
             ) : (
-              <button onClick={() => void startEnroll()} className="mt-2 rounded-full bg-white/[0.06] px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 transition hover:bg-white/10">
+              <button onClick={() => void startEnroll()} className="mt-2 rounded-full bg-slate-900/[0.06] px-4 py-2.5 text-sm font-bold text-slate-900 ring-1 ring-slate-900/10 transition hover:bg-slate-900/10">
                 تفعيل التحقق بخطوتين
               </button>
             )}
@@ -197,17 +197,17 @@ export function SecurityCenter() {
 
           {/* sessions */}
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-              <MonitorSmartphone className="h-4 w-4 text-indigo-300" /> الجلسات والأجهزة
+            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <MonitorSmartphone className="h-4 w-4 text-indigo-600" /> الجلسات والأجهزة
             </h3>
-            <p className="mt-1.5 text-xs leading-5 text-white/45">
-              مسجّل كـ <span dir="ltr" className="text-white/70">{user.email}</span>
+            <p className="mt-1.5 text-xs leading-5 text-slate-900/45">
+              مسجّل كـ <span dir="ltr" className="text-slate-900/70">{user.email}</span>
               {user.last_sign_in_at && <> · آخر دخول {new Date(user.last_sign_in_at).toLocaleString("ar-DZ")}</>}
             </p>
             <button
               onClick={() => void signOutAll()}
               disabled={signingOutAll}
-              className="mt-2 rounded-full bg-red-500/12 px-4 py-2.5 text-sm font-bold text-red-200 ring-1 ring-red-400/25 transition hover:bg-red-500/20"
+              className="mt-2 rounded-full bg-red-500/12 px-4 py-2.5 text-sm font-bold text-red-600 ring-1 ring-red-400/25 transition hover:bg-red-500/20"
             >
               {signingOutAll ? "جارٍ الخروج…" : "تسجيل الخروج من كل الأجهزة"}
             </button>
@@ -216,18 +216,18 @@ export function SecurityCenter() {
           {/* blocked users */}
           {blocksAvailable && (
             <div>
-              <h3 className="flex items-center gap-2 text-sm font-bold text-white">
-                <Ban className="h-4 w-4 text-indigo-300" /> المستخدمون المحظورون
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                <Ban className="h-4 w-4 text-indigo-600" /> المستخدمون المحظورون
               </h3>
               {blocked.length === 0 ? (
-                <p className="mt-1.5 text-xs text-white/40">لا أحد محظور — يمكنك حظر أي مستخدم من صفحته الشخصية.</p>
+                <p className="mt-1.5 text-xs text-slate-900/40">لا أحد محظور — يمكنك حظر أي مستخدم من صفحته الشخصية.</p>
               ) : (
                 <ul className="mt-2 space-y-2">
                   {blocked.map((b) => (
-                    <li key={b.id} className="flex items-center gap-2.5 rounded-2xl bg-white/[0.04] px-3 py-2">
+                    <li key={b.id} className="flex items-center gap-2.5 rounded-2xl bg-slate-900/[0.04] px-3 py-2">
                       <Avatar profile={b} size="xs" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{b.display_name}</span>
-                      <button onClick={() => void unblock(b)} className="text-xs font-bold text-indigo-300">
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{b.display_name}</span>
+                      <button onClick={() => void unblock(b)} className="text-xs font-bold text-indigo-600">
                         إلغاء الحظر
                       </button>
                     </li>

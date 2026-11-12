@@ -80,20 +80,20 @@ export default function SignupPage() {
     return (
       <AuthShell title="حسابك على وشك الجاهزية 🎉" subtitle="" footer={null}>
         <div className="flex flex-col items-center py-4 text-center">
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-400/15 text-indigo-300 ring-1 ring-indigo-300/30">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-400/15 text-indigo-600 ring-1 ring-indigo-300/30">
             <PartyPopper className="h-8 w-8" />
           </span>
-          <h2 className="mt-4 text-lg font-black text-white">فعّل حسابك من بريدك الإلكتروني</h2>
-          <p className="mt-2 text-sm leading-7 text-white/60">
-            أرسلنا رابط تأكيد إلى <span className="font-bold text-white" dir="ltr">{email}</span>
+          <h2 className="mt-4 text-lg font-black text-slate-900">فعّل حسابك من بريدك الإلكتروني</h2>
+          <p className="mt-2 text-sm leading-7 text-slate-900/60">
+            أرسلنا رابط تأكيد إلى <span className="font-bold text-slate-900" dir="ltr">{email}</span>
             <br />
             اضغط الرابط وستدخل مباشرة إلى عالم Dz connect باسم{" "}
-            <span className="font-bold text-violet-200" dir="ltr">@{username}</span>
+            <span className="font-bold text-violet-600" dir="ltr">@{username}</span>
           </p>
-          <Link href="/login" className="btn-primary mt-6 rounded-full px-6 py-3 text-sm font-bold text-white">
+          <Link href="/login" className="btn-primary mt-6 rounded-full px-6 py-3 text-sm font-bold text-slate-900">
             الذهاب لتسجيل الدخول
           </Link>
-          <p className="mt-4 text-[11px] leading-5 text-white/35">
+          <p className="mt-4 text-[11px] leading-5 text-slate-900/35">
             لم يصلك البريد؟ تحقق من مجلد الرسائل غير المرغوب فيها (Spam)، أو عطّل «Confirm email» من إعدادات Supabase Auth للتجربة الفورية.
           </p>
         </div>
@@ -108,7 +108,7 @@ export default function SignupPage() {
       footer={
         <>
           لديك حساب مسبقًا؟{" "}
-          <Link href="/login" className="font-bold text-violet-200 hover:underline">
+          <Link href="/login" className="font-bold text-violet-600 hover:underline">
             تسجيل الدخول
           </Link>
         </>
@@ -116,24 +116,24 @@ export default function SignupPage() {
     >
       <form onSubmit={submit} className="space-y-4">
         <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-white/70">الاسم الظاهر</span>
+          <span className="mb-1.5 block text-[13px] font-semibold text-slate-900/70">الاسم الظاهر</span>
           <span className="relative block">
-            <UserRound className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-white/35" />
+            <UserRound className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-900/35" />
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value.slice(0, 40))}
               autoComplete="name"
               placeholder="مثال: أمين بن يوسف"
-              className="input-glass w-full rounded-2xl py-3 ps-11 pe-4 text-[15px] text-white"
+              className="input-glass w-full rounded-2xl py-3 ps-11 pe-4 text-[15px] text-slate-900"
               required
             />
           </span>
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-white/70">اسم المستخدم (للرسائل والبحث)</span>
+          <span className="mb-1.5 block text-[13px] font-semibold text-slate-900/70">اسم المستخدم (للرسائل والبحث)</span>
           <span className="relative block">
-            <AtSign className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-white/35" />
+            <AtSign className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-900/35" />
             <input
               value={username}
               onChange={(e) => setUsername(normalizeUsername(e.target.value))}
@@ -141,22 +141,22 @@ export default function SignupPage() {
               placeholder="username"
               dir="ltr"
               style={{ textAlign: "left" }}
-              className="input-glass w-full rounded-2xl py-3 ps-11 pe-11 text-[15px] text-white"
+              className="input-glass w-full rounded-2xl py-3 ps-11 pe-11 text-[15px] text-slate-900"
               required
             />
             <span className="absolute end-3 top-1/2 -translate-y-1/2">
-              {usernameState === "checking" && <Loader2 className="h-4.5 w-4.5 animate-spin text-white/40" />}
-              {usernameState === "free" && <CheckCircle2 className="h-4.5 w-4.5 text-indigo-300" />}
-              {(usernameState === "taken" || usernameState === "invalid") && <XCircle className="h-4.5 w-4.5 text-red-300" />}
+              {usernameState === "checking" && <Loader2 className="h-4.5 w-4.5 animate-spin text-slate-900/40" />}
+              {usernameState === "free" && <CheckCircle2 className="h-4.5 w-4.5 text-indigo-600" />}
+              {(usernameState === "taken" || usernameState === "invalid") && <XCircle className="h-4.5 w-4.5 text-red-600" />}
             </span>
           </span>
           <span
             className={cn(
               "mt-1.5 block text-[11.5px]",
-              usernameState === "free" && "text-indigo-300",
-              usernameState === "taken" && "text-red-300",
-              usernameState === "invalid" && "text-red-300",
-              (usernameState === "idle" || usernameState === "checking") && "text-white/35",
+              usernameState === "free" && "text-indigo-600",
+              usernameState === "taken" && "text-red-600",
+              usernameState === "invalid" && "text-red-600",
+              (usernameState === "idle" || usernameState === "checking") && "text-slate-900/35",
             )}
           >
             {usernameState === "free" && "اسم متاح — رائع!"}
@@ -167,9 +167,9 @@ export default function SignupPage() {
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-white/70">البريد الإلكتروني</span>
+          <span className="mb-1.5 block text-[13px] font-semibold text-slate-900/70">البريد الإلكتروني</span>
           <span className="relative block">
-            <Mail className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-white/35" />
+            <Mail className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-900/35" />
             <input
               type="email"
               value={email}
@@ -179,7 +179,7 @@ export default function SignupPage() {
               placeholder="you@example.com"
               dir="ltr"
               style={{ textAlign: "left" }}
-              className="input-glass w-full rounded-2xl py-3 ps-11 pe-4 text-[15px] text-white"
+              className="input-glass w-full rounded-2xl py-3 ps-11 pe-4 text-[15px] text-slate-900"
               required
             />
           </span>
@@ -189,21 +189,21 @@ export default function SignupPage() {
           <PasswordField value={password} onChange={setPassword} autoComplete="new-password" label="كلمة المرور (8+ أحرف)" />
           {password.length > 0 && (
             <div className="mt-2 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-900/10">
                 <div className={cn("h-full rounded-full transition-all duration-500", strength.color)} style={{ width: `${((strength.score + 1) / 6) * 100}%` }} />
               </div>
-              <span className="text-[11px] font-semibold text-white/50">{strength.label}</span>
+              <span className="text-[11px] font-semibold text-slate-900/50">{strength.label}</span>
             </div>
           )}
         </div>
 
         {error && (
-          <p role="alert" className="animate-fade-up rounded-2xl bg-red-500/12 px-4 py-3 text-sm leading-6 text-red-200 ring-1 ring-red-400/25">
+          <p role="alert" className="animate-fade-up rounded-2xl bg-red-500/12 px-4 py-3 text-sm leading-6 text-red-600 ring-1 ring-red-400/25">
             {error}
           </p>
         )}
 
-        <button type="submit" disabled={busy || usernameState === "taken"} className="btn-primary flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-white">
+        <button type="submit" disabled={busy || usernameState === "taken"} className="btn-primary flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-slate-900">
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : "إنشاء حسابي مجانًا"}
         </button>
       </form>

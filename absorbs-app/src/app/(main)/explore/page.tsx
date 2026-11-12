@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Compass, Loader2, Search, TrendingUp, UsersRound } from "lucide-react";
+import { Clapperboard, Compass, Loader2, Search, Sparkles, TrendingUp, Trophy, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchFeed } from "@/lib/queries";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -71,27 +71,47 @@ export default function ExplorePage() {
   return (
     <div className="space-y-4">
       <div className="animate-fade-up px-1 pt-1">
-        <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-          <Compass className="h-6 w-6 text-violet-200" /> اكتشف
+        <h1 className="flex items-center gap-2 text-[22px] font-black text-slate-900">
+          <Compass className="h-6 w-6 text-violet-600" /> اكتشف
         </h1>
-        <p className="mt-1 text-sm text-white/50">ابحث عن أي شخص باسم المستخدم وابدأ محادثة خاصة فورًا.</p>
+        <p className="mt-1 text-sm text-slate-900/50">ابحث عن أي شخص باسم المستخدم وابدأ محادثة خاصة فورًا.</p>
       </div>
 
       {schemaMissing && <SetupNotice />}
 
+      {/* feature universe — icon tiles */}
+      <div className="animate-fade-up grid grid-cols-2 gap-2.5">
+        {[
+          { href: "/reels", title: "ريلز", desc: "فيديوهات قصيرة رائجة", tile: "tile-violet", Icon: Clapperboard },
+          { href: "/groups", title: "مجتمعات", desc: "ولايات واهتمامات", tile: "tile-sky", Icon: UsersRound },
+          { href: "/rewards", title: "تحديات ومكافآت", desc: "نقاط ولوحة شرف", tile: "tile-amber", Icon: Trophy },
+          { href: "/ai", title: "Dz connect ai", desc: "مساعدك الذكي", tile: "tile-indigo", Icon: Sparkles },
+        ].map(({ href, title, desc, tile, Icon }) => (
+          <a key={href} href={href} className="glass lift flex items-center gap-3 rounded-[24px] p-3.5">
+            <span className={`icon-tile ${tile} h-11 w-11 shrink-0 rounded-[15px]`}>
+              <Icon className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black text-slate-900">{title}</span>
+              <span className="block truncate text-[11px] font-semibold text-slate-900/45">{desc}</span>
+            </span>
+          </a>
+        ))}
+      </div>
+
       {/* search */}
       <div className="glass animate-fade-up flex items-center gap-2 rounded-full py-1 pe-1.5 ps-4">
-        <Search className="h-5 w-5 shrink-0 text-white/40" />
+        <Search className="h-5 w-5 shrink-0 text-slate-900/40" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="ابحث بالاسم أو @username…"
-          className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-white outline-none placeholder:text-white/35"
+          className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-slate-900 outline-none placeholder:text-slate-900/35"
           aria-label="بحث عن مستخدمين"
         />
-        {searching && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-violet-200" />}
+        {searching && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-violet-600" />}
         {query && (
-          <button onClick={() => setQuery("")} className="shrink-0 rounded-full bg-white/[0.07] px-3 py-1.5 text-xs font-bold text-white/70 transition hover:bg-white/10">
+          <button onClick={() => setQuery("")} className="shrink-0 rounded-full bg-slate-900/[0.07] px-3 py-1.5 text-xs font-bold text-slate-900/70 transition hover:bg-slate-900/10">
             مسح
           </button>
         )}
@@ -99,8 +119,8 @@ export default function ExplorePage() {
 
       {isSearchingMode ? (
         <section className="space-y-2.5">
-          <h2 className="flex items-center gap-2 px-1 text-sm font-black text-white">
-            <UsersRound className="h-4 w-4 text-cyan-300" /> نتائج البحث {results.length > 0 && `(${results.length})`}
+          <h2 className="flex items-center gap-2 px-1 text-sm font-black text-slate-900">
+            <UsersRound className="h-4 w-4 text-cyan-600" /> نتائج البحث {results.length > 0 && `(${results.length})`}
           </h2>
           {!searching && results.length === 0 ? (
             <EmptyState
@@ -120,8 +140,8 @@ export default function ExplorePage() {
         <>
           {suggested.length > 0 && (
             <section className="space-y-2.5">
-              <h2 className="flex items-center gap-2 px-1 text-sm font-black text-white">
-                <UsersRound className="h-4 w-4 text-cyan-300" /> أشخاص قد تعرفهم
+              <h2 className="flex items-center gap-2 px-1 text-sm font-black text-slate-900">
+                <UsersRound className="h-4 w-4 text-cyan-600" /> أشخاص قد تعرفهم
               </h2>
               <div className="stagger space-y-2.5">
                 {suggested.map((person) => (
@@ -132,7 +152,7 @@ export default function ExplorePage() {
           )}
 
           <section className="space-y-3">
-            <h2 className="flex items-center gap-2 px-1 pt-2 text-sm font-black text-white">
+            <h2 className="flex items-center gap-2 px-1 pt-2 text-sm font-black text-slate-900">
               <TrendingUp className="h-4 w-4 text-orange-300" /> المنشورات الرائجة
             </h2>
             {loading ? (

@@ -39,9 +39,9 @@ function LoginForm() {
   return (
     <form onSubmit={submit} className="space-y-4">
       <label className="block">
-        <span className="mb-1.5 block text-[13px] font-semibold text-white/70">البريد الإلكتروني</span>
+        <span className="mb-1.5 block text-[13px] font-semibold text-slate-900/70">البريد الإلكتروني</span>
         <span className="relative block">
-          <Mail className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-white/35" />
+          <Mail className="pointer-events-none absolute start-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-900/35" />
           <input
             type="email"
             value={email}
@@ -51,7 +51,7 @@ function LoginForm() {
             placeholder="you@example.com"
             dir="ltr"
             style={{ textAlign: "left" }}
-            className="input-glass w-full rounded-2xl py-3 ps-11 pe-4 text-[15px] text-white"
+            className="input-glass w-full rounded-2xl py-3 ps-11 pe-4 text-[15px] text-slate-900"
             required
           />
         </span>
@@ -60,17 +60,17 @@ function LoginForm() {
       <PasswordField value={password} onChange={setPassword} autoComplete="current-password" />
 
       {error && (
-        <p role="alert" className="animate-fade-up rounded-2xl bg-red-500/12 px-4 py-3 text-sm leading-6 text-red-200 ring-1 ring-red-400/25">
+        <p role="alert" className="animate-fade-up rounded-2xl bg-red-500/12 px-4 py-3 text-sm leading-6 text-red-600 ring-1 ring-red-400/25">
           {error}
         </p>
       )}
 
-      <button type="submit" disabled={busy} className="btn-primary flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-white">
+      <button type="submit" disabled={busy} className="btn-primary flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-slate-900">
         {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogIn className="h-5 w-5" />}
         تسجيل الدخول
       </button>
 
-      <p className="text-center text-xs leading-5 text-white/40">
+      <p className="text-center text-xs leading-5 text-slate-900/40">
         نسيت كلمة المرور؟ من صفحة الدخول في Supabase يمكنك تفعيل إعادة التعيين عبر البريد — أو أنشئ حسابًا جديدًا أدناه.
       </p>
     </form>
@@ -85,7 +85,7 @@ export default function LoginPage() {
       footer={
         <>
           ليس لديك حساب؟{" "}
-          <Link href="/signup" className="font-bold text-violet-200 hover:underline">
+          <Link href="/signup" className="font-bold text-violet-600 hover:underline">
             أنشئ حسابًا مجانيًا
           </Link>
         </>

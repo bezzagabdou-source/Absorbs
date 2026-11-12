@@ -75,7 +75,7 @@ export function FollowButton({
       className={cn(
         "flex shrink-0 items-center gap-1.5 rounded-full font-bold transition active:scale-95",
         size === "sm" ? "px-3.5 py-2 text-xs" : "px-5 py-2.5 text-sm",
-        following ? "bg-white/[0.07] text-white ring-1 ring-white/15" : "btn-primary text-white",
+        following ? "bg-slate-900/[0.07] text-slate-900 ring-1 ring-slate-900/15" : "btn-primary text-slate-900",
       )}
     >
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : following ? <Check className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
@@ -91,8 +91,8 @@ export function UserRow({ person, subtitle }: { person: Profile; subtitle?: stri
       <Link href={`/u/${person.username}`} className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar profile={person} size="md" />
         <span className="min-w-0">
-          <span className="flex items-center gap-1 truncate text-[15px] font-bold text-white">{person.display_name}{person.is_verified && <VerifiedBadge className="h-3.5 w-3.5" />}</span>
-          <span className="block truncate text-xs text-white/45" dir="ltr" style={{ textAlign: "start" }}>
+          <span className="flex items-center gap-1 truncate text-[15px] font-bold text-slate-900">{person.display_name}{person.is_verified && <VerifiedBadge className="h-3.5 w-3.5" />}</span>
+          <span className="block truncate text-xs text-slate-900/45" dir="ltr" style={{ textAlign: "start" }}>
             {subtitle ?? `@${person.username}`}
           </span>
         </span>
@@ -100,7 +100,7 @@ export function UserRow({ person, subtitle }: { person: Profile; subtitle?: stri
       <button
         onClick={() => void startChat(person)}
         disabled={busyId === person.id}
-        className="btn-primary flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-white"
+        className="btn-primary flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold text-slate-900"
         aria-label={`مراسلة ${person.display_name}`}
       >
         {busyId === person.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
@@ -164,8 +164,8 @@ export function BlockButton({ target, onChanged }: { target: Profile; onChanged?
         disabled={busy}
         className={
           blocked
-            ? "flex items-center gap-1.5 rounded-full bg-white/[0.07] px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 transition active:scale-95"
-            : "flex items-center gap-1.5 rounded-full bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-200 ring-1 ring-red-400/25 transition hover:bg-red-500/20 active:scale-95"
+            ? "flex items-center gap-1.5 rounded-full bg-slate-900/[0.07] px-4 py-2.5 text-sm font-bold text-slate-900 ring-1 ring-slate-900/10 transition active:scale-95"
+            : "flex items-center gap-1.5 rounded-full bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-600 ring-1 ring-red-400/25 transition hover:bg-red-500/20 active:scale-95"
         }
       >
         <Ban className="h-4 w-4" /> {blocked ? "إلغاء الحظر" : "حظر"}
@@ -173,7 +173,7 @@ export function BlockButton({ target, onChanged }: { target: Profile; onChanged?
       {!blocked && (
         <a
           href={`mailto:safety@dzconnect.app?subject=${encodeURIComponent(`إبلاغ عن @${target.username}`)}&body=${encodeURIComponent(`أريد الإبلاغ عن الحساب @${target.username} بسبب: `)}`}
-          className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-4 py-2.5 text-sm font-bold text-white/70 ring-1 ring-white/10 transition hover:bg-white/10 active:scale-95"
+          className="flex items-center gap-1.5 rounded-full bg-slate-900/[0.05] px-4 py-2.5 text-sm font-bold text-slate-900/70 ring-1 ring-slate-900/10 transition hover:bg-slate-900/10 active:scale-95"
         >
           <Flag className="h-4 w-4" /> إبلاغ
         </a>

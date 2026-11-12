@@ -79,28 +79,28 @@ export default function MessagesPage() {
   return (
     <div className="space-y-4">
       <div className="animate-fade-up px-1 pt-1">
-        <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-          <MessageCircleHeart className="h-6 w-6 text-violet-200" /> الرسائل الخاصة
+        <h1 className="flex items-center gap-2 text-[22px] font-black text-slate-900">
+          <MessageCircleHeart className="h-6 w-6 text-violet-600" /> الرسائل الخاصة
         </h1>
-        <p className="mt-1 text-sm text-white/50">محادثات فورية تصل في نفس اللحظة — ابحث باسم المستخدم وابدأ.</p>
+        <p className="mt-1 text-sm text-slate-900/50">محادثات فورية تصل في نفس اللحظة — ابحث باسم المستخدم وابدأ.</p>
       </div>
 
       {schemaMissing && <SetupNotice />}
 
       {/* start a new chat */}
       <div className="glass animate-fade-up flex items-center gap-2 rounded-full py-1 pe-1.5 ps-4">
-        <Search className="h-5 w-5 shrink-0 text-white/40" />
+        <Search className="h-5 w-5 shrink-0 text-slate-900/40" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="مراسلة جديدة: ابحث بـ @username…"
-          className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-white outline-none placeholder:text-white/35"
+          className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-slate-900 outline-none placeholder:text-slate-900/35"
           aria-label="بحث لبدء محادثة"
         />
         {searching ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-violet-200" />
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-violet-600" />
         ) : query ? (
-          <button onClick={() => setQuery("")} aria-label="مسح البحث" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.07] text-white/70">
+          <button onClick={() => setQuery("")} aria-label="مسح البحث" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900/[0.07] text-slate-900/70">
             <X className="h-4 w-4" />
           </button>
         ) : null}
@@ -118,10 +118,10 @@ export default function MessagesPage() {
         <div className="space-y-2.5">
           {[1, 2, 3].map((i) => (
             <div key={i} className="glass flex animate-pulse items-center gap-3 rounded-[24px] p-3">
-              <div className="h-11 w-11 rounded-full bg-white/10" />
+              <div className="h-11 w-11 rounded-full bg-slate-900/10" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-1/3 rounded-full bg-white/10" />
-                <div className="h-2.5 w-2/3 rounded-full bg-white/[0.06]" />
+                <div className="h-3 w-1/3 rounded-full bg-slate-900/10" />
+                <div className="h-2.5 w-2/3 rounded-full bg-slate-900/[0.06]" />
               </div>
             </div>
           ))}
@@ -142,7 +142,7 @@ export default function MessagesPage() {
               <li key={thread.id}>
                 <Link
                   href={`/messages/${thread.id}?u=${encodeURIComponent(other?.username ?? "")}`}
-                  className="glass flex items-center gap-3 rounded-[24px] p-3 transition hover:bg-white/[0.05] active:scale-[0.99]"
+                  className="glass flex items-center gap-3 rounded-[24px] p-3 transition hover:bg-slate-900/[0.05] active:scale-[0.99]"
                 >
                   <span className="relative shrink-0">
                     <Avatar profile={other} size="lg" />
@@ -155,15 +155,15 @@ export default function MessagesPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-[15px] font-bold text-white">{other?.display_name ?? "مستخدم"}</span>
-                      {last && <span className="shrink-0 text-[10.5px] text-white/40">{messageTimeAr(last.created_at)}</span>}
+                      <span className="truncate text-[15px] font-bold text-slate-900">{other?.display_name ?? "مستخدم"}</span>
+                      {last && <span className="shrink-0 text-[10.5px] text-slate-900/40">{messageTimeAr(last.created_at)}</span>}
                     </span>
                     <span className="mt-0.5 flex items-center justify-between gap-2">
-                      <span className={cn("truncate text-[13px]", thread.unread_count > 0 ? "font-bold text-white" : "text-white/50")}>
+                      <span className={cn("truncate text-[13px]", thread.unread_count > 0 ? "font-bold text-slate-900" : "text-slate-900/50")}>
                         {last ? `${mine ? "أنت: " : ""}${messagePreview(last.content)}` : "ابدأ المحادثة 👋"}
                       </span>
                       {thread.unread_count > 0 && (
-                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-indigo-600 px-1.5 text-[10px] font-black text-white">
+                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-indigo-600 px-1.5 text-[10px] font-black text-slate-900">
                           {thread.unread_count}
                         </span>
                       )}

@@ -80,7 +80,7 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
                 <button
                   onClick={() => void startChat(profile)}
                   disabled={busyId === profile.id}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.07] text-white ring-1 ring-white/15 transition hover:bg-white/[0.12] active:scale-90"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/[0.07] text-slate-900 ring-1 ring-slate-900/15 transition hover:bg-slate-900/[0.12] active:scale-90"
                   aria-label={`مراسلة ${profile.display_name}`}
                 >
                   {busyId === profile.id ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <MessageCircle className="h-5 w-5" />}
@@ -98,13 +98,13 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
             )}
           </div>
 
-          <h1 className="mt-3 flex items-center gap-1.5 text-[21px] font-black leading-7 text-white">{profile.display_name}{profile.is_verified && <VerifiedBadge className="h-5 w-5" />}</h1>
-          <p className="text-sm text-white/45" dir="ltr" style={{ textAlign: "start" }}>
+          <h1 className="mt-3 flex items-center gap-1.5 text-[21px] font-black leading-7 text-slate-900">{profile.display_name}{profile.is_verified && <VerifiedBadge className="h-5 w-5" />}</h1>
+          <p className="text-sm text-slate-900/45" dir="ltr" style={{ textAlign: "start" }}>
             @{profile.username}
           </p>
-          {profile.bio && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">{profile.bio}</p>}
+          {profile.bio && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-900/75">{profile.bio}</p>}
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-white/45">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-900/45">
             <span className="flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" /> انضم في {joined}
             </span>
@@ -113,7 +113,7 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
                 href={profile.website.startsWith("http") ? profile.website : `https://${profile.website}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1.5 font-semibold text-cyan-300 hover:underline"
+                className="flex items-center gap-1.5 font-semibold text-cyan-600 hover:underline"
                 dir="ltr"
               >
                 <Link2 className="h-3.5 w-3.5" /> {profile.website.replace(/^https?:\/\//, "")}
@@ -121,7 +121,7 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
             )}
           </div>
 
-          <div className="mt-4 grid grid-cols-3 divide-x divide-x-reverse divide-white/[0.07] rounded-3xl bg-white/[0.03] py-3 ring-1 ring-white/[0.05]">
+          <div className="mt-4 grid grid-cols-3 divide-x divide-x-reverse divide-slate-900/[0.07] rounded-3xl bg-slate-900/[0.03] py-3 ring-1 ring-slate-900/[0.05]">
             <Stat label="منشور" value={posts.length} />
             <Stat label="متابِع" value={stats.followers} />
             <Stat label="أتابعه" value={stats.following} />
@@ -148,7 +148,7 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
             description={isMine ? "منشوراتك ستظهر هنا وتُبث مباشرة في خلاصات أصدقائك." : "عندما ينشر هذا المستخدم شيئًا سيظهر هنا."}
           >
             {isMine && (
-              <Link href="/feed" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-white">
+              <Link href="/feed" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-slate-900">
                 إنشاء منشور
               </Link>
             )}
@@ -186,8 +186,8 @@ export function ProfileView({ profile, children }: { profile: Profile; children?
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="text-center">
-      <p className="text-lg font-black tabular-nums text-white">{compactNumber(value)}</p>
-      <p className="text-[11px] font-medium text-white/45">{label}</p>
+      <p className="text-lg font-black tabular-nums text-slate-900">{compactNumber(value)}</p>
+      <p className="text-[11px] font-medium text-slate-900/45">{label}</p>
     </div>
   );
 }
@@ -197,7 +197,7 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
     <button
       onClick={onClick}
       className={`flex-1 rounded-full py-2.5 text-sm font-bold transition ${
-        active ? "bg-gradient-to-l from-indigo-500/80 to-indigo-500/80 text-white shadow-lg" : "text-white/50 hover:text-white"
+        active ? "bg-gradient-to-l from-indigo-500/80 to-indigo-500/80 text-slate-900 shadow-lg" : "text-slate-900/50 hover:text-slate-900"
       }`}
     >
       {label}

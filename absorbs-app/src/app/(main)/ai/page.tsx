@@ -86,22 +86,22 @@ export default function AiPage() {
         <div className="pointer-events-none absolute -top-10 end-0 h-32 w-32 rounded-full bg-cyan-400/20 blur-[50px]" />
         <div className="pointer-events-none absolute -bottom-12 start-6 h-32 w-32 rounded-full bg-indigo-400/20 blur-[50px]" />
         <div className="relative flex items-center gap-3">
-          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-400 via-violet-500 to-cyan-500 text-white shadow-[0_10px_28px_rgba(20,184,166,0.4)]">
+          <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-400 via-violet-500 to-cyan-500 text-slate-900 shadow-[0_10px_28px_rgba(20,184,166,0.4)]">
             <Sparkles className="h-6 w-6" />
             <span className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full bg-indigo-300 ring-2 ring-[#0b1512]" />
           </span>
           <div className="min-w-0">
-            <h1 className="text-lg font-black text-white" dir="ltr" style={{ textAlign: "start" }}>
+            <h1 className="text-lg font-black text-slate-900" dir="ltr" style={{ textAlign: "start" }}>
               Dz connect ai
             </h1>
-            <p className="text-xs text-white/50">
+            <p className="text-xs text-slate-900/50">
               {available === null ? "جارٍ الاتصال…" : available ? "متصل — اسألني أي شيء، أنا هنا ✨" : "غير متاح حاليًا — سنعود قريبًا"}
             </p>
           </div>
           {messages.length > 1 && (
             <button
               onClick={() => setMessages([WELCOME])}
-              className="ms-auto flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-xs font-bold text-white/60 ring-1 ring-white/10 transition hover:bg-white/10"
+              className="ms-auto flex items-center gap-1.5 rounded-full bg-slate-900/[0.06] px-3 py-1.5 text-xs font-bold text-slate-900/60 ring-1 ring-slate-900/10 transition hover:bg-slate-900/10"
             >
               <Eraser className="h-3.5 w-3.5" /> محادثة جديدة
             </button>
@@ -115,8 +115,8 @@ export default function AiPage() {
           <div key={i} className={cn("flex items-end gap-2", msg.role === "user" ? "justify-start flex-row-reverse" : "justify-start")}>
             <span
               className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white",
-                msg.role === "user" ? "bg-white/[0.08] text-white/70" : "bg-gradient-to-br from-indigo-400 to-cyan-600",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-900",
+                msg.role === "user" ? "bg-slate-900/[0.08] text-slate-900/70" : "bg-gradient-to-br from-indigo-400 to-cyan-600",
               )}
             >
               {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
@@ -125,15 +125,15 @@ export default function AiPage() {
               className={cn(
                 "group max-w-[80%] rounded-[22px] px-3.5 py-2.5 text-[14.5px] leading-7 shadow-lg",
                 msg.role === "user"
-                  ? "rounded-ee-md bg-gradient-to-l from-indigo-500 to-violet-600 text-white"
-                  : "glass rounded-es-md text-white/90",
+                  ? "rounded-ee-md bg-gradient-to-l from-indigo-500 to-violet-600 text-slate-900"
+                  : "glass rounded-es-md text-slate-900/90",
               )}
             >
               <p className="whitespace-pre-wrap break-words">{msg.content.replace(/\*\*/g, "")}</p>
               {msg.role === "assistant" && i > 0 && (
                 <button
                   onClick={() => void copyText(msg.content.replace(/\*\*/g, ""))}
-                  className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-violet-300/80 transition hover:text-violet-200"
+                  className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-violet-600/80 transition hover:text-violet-600"
                 >
                   <Copy className="h-3 w-3" /> نسخ / استخدام كمنشور
                 </button>
@@ -143,7 +143,7 @@ export default function AiPage() {
         ))}
         {busy && (
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-cyan-600 text-white">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-cyan-600 text-slate-900">
               <Bot className="h-4 w-4" />
             </span>
             <span className="glass flex items-center gap-1 rounded-[22px] rounded-es-md px-3.5 py-3.5">
@@ -163,7 +163,7 @@ export default function AiPage() {
             key={chip.label}
             onClick={() => void send(chip.prompt)}
             disabled={busy}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-2 text-xs font-bold text-violet-200 ring-1 ring-violet-300/20 transition hover:bg-violet-400/10 active:scale-95 disabled:opacity-40"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-slate-900/[0.05] px-3 py-2 text-xs font-bold text-violet-600 ring-1 ring-violet-300/20 transition hover:bg-violet-400/10 active:scale-95 disabled:opacity-40"
           >
             {chip.icon} {chip.label}
           </button>
@@ -187,14 +187,14 @@ export default function AiPage() {
           }}
           rows={1}
           placeholder={profile ? `اسأل Dz connect ai يا ${profile.display_name.split(" ")[0]}…` : "اسأل Dz connect ai…"}
-          className="max-h-28 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-white outline-none placeholder:text-white/35"
+          className="max-h-28 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 text-slate-900 outline-none placeholder:text-slate-900/35"
           aria-label="رسالتك إلى Dz connect ai"
         />
         <button
           type="submit"
           disabled={!draft.trim() || busy}
           aria-label="إرسال إلى Dz connect ai"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 via-violet-500 to-cyan-600 text-white shadow-[0_10px_26px_rgba(20,184,166,0.45)] transition active:scale-90 disabled:opacity-40"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 via-violet-500 to-cyan-600 text-slate-900 shadow-[0_10px_26px_rgba(20,184,166,0.45)] transition active:scale-90 disabled:opacity-40"
         >
           <SendHorizonal className="h-5 w-5 -scale-x-100" />
         </button>

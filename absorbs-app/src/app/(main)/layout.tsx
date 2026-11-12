@@ -28,7 +28,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4">
         <span className="logo-mark h-16 w-16 animate-pulse rounded-[24px] text-2xl">A</span>
-        <p className="flex items-center gap-2 text-sm text-white/50">
+        <p className="flex items-center gap-2 text-sm text-slate-900/50">
           <Loader2 className="h-4 w-4 animate-spin" /> جارٍ تجهيز عالمك…
         </p>
       </div>
@@ -79,9 +79,9 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
       if (ref) {
         await supabase.rpc("award_referral", { p_code: ref });
         localStorage.removeItem("dz-ref");
-        toast("أهلًا بك في Dz connect 🎉 حصلت على 10 نقاط ترحيبية!");
+        toast("أهلًا بك في Dz connect — حصلت على 10 نقاط ترحيبية!");
       } else {
-        toast("أهلًا بك في Dz connect 🎉");
+        toast("أهلًا بك في Dz connect");
       }
     } catch {
       toast("أهلًا بك في Dz connect 🎉");
@@ -92,17 +92,17 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
   return (
     <div className="aurora relative flex min-h-dvh items-center justify-center px-5">
       <form onSubmit={submit} className="glass animate-fade-up relative z-10 w-full max-w-sm rounded-[30px] p-6">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-violet-200">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-violet-600">
           <Wand2 className="h-6 w-6" />
         </span>
-        <h1 className="mt-4 text-xl font-black text-white">خطوة أخيرة: اختر هويتك</h1>
-        <p className="mt-1.5 text-sm leading-6 text-white/55">حسابك موجود، لكن ملفك الشخصي لم يُنشأ بعد. اختر اسم مستخدم ليتمكن أصدقاؤك من مراسلتك.</p>
+        <h1 className="mt-4 text-xl font-black text-slate-900">خطوة أخيرة: اختر هويتك</h1>
+        <p className="mt-1.5 text-sm leading-6 text-slate-900/55">حسابك موجود، لكن ملفك الشخصي لم يُنشأ بعد. اختر اسم مستخدم ليتمكن أصدقاؤك من مراسلتك.</p>
         <label className="mt-5 block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-white/70">الاسم الظاهر</span>
-          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="input-glass w-full rounded-2xl px-4 py-3 text-[15px] text-white" placeholder="اسمك الكريم" />
+          <span className="mb-1.5 block text-[13px] font-semibold text-slate-900/70">الاسم الظاهر</span>
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="input-glass w-full rounded-2xl px-4 py-3 text-[15px] text-slate-900" placeholder="اسمك الكريم" />
         </label>
         <label className="mt-3 block">
-          <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-white/70">
+          <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-slate-900/70">
             <KeyRound className="h-3.5 w-3.5" /> اسم المستخدم
           </span>
           <input
@@ -110,12 +110,12 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
             onChange={(e) => setUsername(normalizeUsername(e.target.value))}
             dir="ltr"
             style={{ textAlign: "left" }}
-            className="input-glass w-full rounded-2xl px-4 py-3 text-[15px] text-white"
+            className="input-glass w-full rounded-2xl px-4 py-3 text-[15px] text-slate-900"
             placeholder="username"
             required
           />
         </label>
-        <button disabled={busy} className="btn-primary mt-5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 font-black text-white">
+        <button disabled={busy} className="btn-primary mt-5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 font-black text-slate-900">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} حفظ ودخول
         </button>
 

@@ -26,9 +26,9 @@ export function Avatar({
   return (
     <span
       className={cn(
-        "relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-bold text-white",
+        "relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-bold text-slate-900",
         !profile?.avatar_url && `bg-gradient-to-br ${gradientFor(profile?.username ?? name)}`,
-        ring && "ring-2 ring-white/25 ring-offset-2 ring-offset-[#070713]",
+        ring && "ring-2 ring-slate-900/25 ring-offset-2 ring-offset-[#070713]",
         SIZES[size],
         className,
       )}

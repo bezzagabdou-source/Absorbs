@@ -32,7 +32,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={t.id}
             className={cn(
               "glass-strong animate-toast-in flex max-w-sm items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium shadow-2xl",
-              t.tone === "error" ? "text-red-200" : "text-indigo-200",
+              t.tone === "error" ? "text-red-600" : "text-indigo-600",
             )}
             role="status"
           >
@@ -52,7 +52,7 @@ export function Spinner({ className }: { className?: string }) {
 
 export function FullPageLoader({ label = "جارٍ التحميل…" }: { label?: string }) {
   return (
-    <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4 text-white/60">
+    <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4 text-slate-900/60">
       <span className="logo-mark h-14 w-14 animate-pulse rounded-[20px]" />
       <p className="flex items-center gap-2 text-sm">
         <Spinner className="h-4 w-4" /> {label}
@@ -65,17 +65,17 @@ export function PostSkeleton() {
   return (
     <div className="glass animate-pulse rounded-[28px] p-4">
       <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-full bg-white/10" />
+        <div className="h-11 w-11 rounded-full bg-slate-900/10" />
         <div className="flex-1 space-y-2">
-          <div className="h-3 w-2/5 rounded-full bg-white/10" />
-          <div className="h-2.5 w-1/4 rounded-full bg-white/[0.07]" />
+          <div className="h-3 w-2/5 rounded-full bg-slate-900/10" />
+          <div className="h-2.5 w-1/4 rounded-full bg-slate-900/[0.07]" />
         </div>
       </div>
       <div className="mt-4 space-y-2">
-        <div className="h-3 w-full rounded-full bg-white/[0.07]" />
-        <div className="h-3 w-4/5 rounded-full bg-white/[0.07]" />
+        <div className="h-3 w-full rounded-full bg-slate-900/[0.07]" />
+        <div className="h-3 w-4/5 rounded-full bg-slate-900/[0.07]" />
       </div>
-      <div className="mt-4 h-44 rounded-3xl bg-white/[0.05]" />
+      <div className="mt-4 h-44 rounded-3xl bg-slate-900/[0.05]" />
     </div>
   );
 }
@@ -93,9 +93,9 @@ export function EmptyState({
 }) {
   return (
     <div className="glass flex flex-col items-center gap-2 rounded-[28px] px-6 py-10 text-center">
-      <span className="glass-strong mb-1 flex h-14 w-14 items-center justify-center rounded-full text-white/70">{icon}</span>
-      <h3 className="text-base font-bold text-white">{title}</h3>
-      {description && <p className="max-w-xs text-sm leading-6 text-white/55">{description}</p>}
+      <span className="glass-strong mb-1 flex h-14 w-14 items-center justify-center rounded-full text-slate-900/70">{icon}</span>
+      <h3 className="text-base font-bold text-slate-900">{title}</h3>
+      {description && <p className="max-w-xs text-sm leading-6 text-slate-900/55">{description}</p>}
       {children}
     </div>
   );

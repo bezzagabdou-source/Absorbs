@@ -86,7 +86,7 @@ export default function ReelsPage() {
   return (
     <div className="animate-fade-up">
       <div className="mb-3 flex items-center justify-between px-1">
-        <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
+        <h1 className="flex items-center gap-2 text-[22px] font-black text-slate-900">
           <Clapperboard className="h-6 w-6 text-indigo-300" /> ريلز Dz connect
         </h1>
         <button
@@ -99,7 +99,7 @@ export default function ReelsPage() {
 
       <div className="-mx-3.5 h-[calc(100dvh-13.5rem)] snap-y snap-mandatory overflow-y-auto">
         {videos.map((post) => (
-          <article key={post.id} className="relative h-full snap-start snap-always overflow-hidden bg-black">
+          <article key={post.id} className="relative h-full snap-start snap-always overflow-hidden media-stage">
             <video
               ref={(el) => {
                 if (el) videoRefs.current.set(post.id, el);
@@ -120,7 +120,7 @@ export default function ReelsPage() {
             />
             {activeId !== post.id && (
               <span className="pointer-events-none absolute inset-0 grid place-items-center">
-                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#171038]/45 text-white backdrop-blur">
                   <Play className="h-7 w-7 fill-white" />
                 </span>
               </span>

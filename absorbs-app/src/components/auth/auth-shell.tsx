@@ -5,10 +5,10 @@ import { Eye, EyeOff, Heart, MessageCircleHeart, ShieldCheck, Zap } from "lucide
 import { useState } from "react";
 
 const CHIPS = [
-  { icon: Heart, label: "إعجابات فورية", className: "bg-red-500/20 text-red-300 ring-red-400/25" },
-  { icon: MessageCircleHeart, label: "رسائل لحظية", className: "bg-cyan-400/15 text-cyan-300 ring-cyan-300/25" },
-  { icon: Zap, label: "بث مباشر", className: "bg-indigo-500/20 text-violet-200 ring-violet-300/25" },
-  { icon: ShieldCheck, label: "خصوصية محكمة", className: "bg-indigo-400/15 text-indigo-300 ring-indigo-300/25" },
+  { icon: Heart, label: "إعجابات فورية", className: "bg-red-500/20 text-red-600 ring-red-400/25" },
+  { icon: MessageCircleHeart, label: "رسائل لحظية", className: "bg-cyan-400/15 text-cyan-600 ring-cyan-300/25" },
+  { icon: Zap, label: "بث مباشر", className: "bg-indigo-500/20 text-violet-600 ring-violet-300/25" },
+  { icon: ShieldCheck, label: "خصوصية محكمة", className: "bg-indigo-400/15 text-indigo-600 ring-indigo-300/25" },
 ];
 
 export function AuthShell({
@@ -35,7 +35,7 @@ export function AuthShell({
             <span className="absolute inset-0 scale-125 rounded-[30px] bg-indigo-600/40 blur-2xl transition group-hover:scale-150" />
             <span className="logo-mark relative h-[72px] w-[72px] rounded-[24px] text-[30px]">A</span>
           </Link>
-          <p className="mt-4 text-[26px] font-black tracking-tight text-white">
+          <p className="mt-4 text-[26px] font-black tracking-tight text-slate-900">
             Dz connect <span className="text-gradient">· تواصل بلا حدود</span>
           </p>
           <div className="no-scrollbar mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
@@ -51,16 +51,16 @@ export function AuthShell({
         </div>
 
         <div className="animate-fade-up mt-7 text-center" style={{ animationDelay: "0.05s" }}>
-          <h1 className="text-[28px] font-black text-white">{title}</h1>
-          {subtitle && <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-6 text-white/55">{subtitle}</p>}
+          <h1 className="text-[28px] font-black text-slate-900">{title}</h1>
+          {subtitle && <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-6 text-slate-900/55">{subtitle}</p>}
         </div>
 
         <div className="glass-strong animate-fade-up mt-5 rounded-[30px] p-5 shadow-2xl" style={{ animationDelay: "0.1s" }}>
           {children}
         </div>
 
-        {footer && <div className="mt-5 text-center text-sm text-white/55">{footer}</div>}
-        <p className="mt-auto pt-6 text-center text-[10.5px] text-white/30">محمي بـ Supabase Auth + RLS · يعمل كتطبيق PWA على هاتفك</p>
+        {footer && <div className="mt-5 text-center text-sm text-slate-900/55">{footer}</div>}
+        <p className="mt-auto pt-6 text-center text-[10.5px] text-slate-900/30">محمي بـ Supabase Auth + RLS · يعمل كتطبيق PWA على هاتفك</p>
       </div>
     </div>
   );
@@ -82,7 +82,7 @@ export function PasswordField({
   const [visible, setVisible] = useState(false);
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13px] font-semibold text-white/70">{label}</span>
+      <span className="mb-1.5 block text-[13px] font-semibold text-slate-900/70">{label}</span>
       <span className="relative block">
         <input
           type={visible ? "text" : "password"}
@@ -92,14 +92,14 @@ export function PasswordField({
           placeholder={placeholder}
           dir="ltr"
           style={{ textAlign: "left" }}
-          className="input-glass w-full rounded-2xl py-3 pe-11 ps-4 text-[15px] text-white"
+          className="input-glass w-full rounded-2xl py-3 pe-11 ps-4 text-[15px] text-slate-900"
           required
         />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
-          className="absolute end-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-white/45 transition hover:text-white"
+          className="absolute end-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-900/45 transition hover:text-slate-900"
         >
           {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>

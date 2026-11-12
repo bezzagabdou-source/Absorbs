@@ -9,6 +9,7 @@ import { fetchFeed } from "@/lib/queries";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Composer } from "@/components/feed/composer";
 import { PostCard } from "@/components/feed/post-card";
+import { Clapperboard, Sparkles, Trophy, UsersRound } from "lucide-react";
 import { SetupNotice } from "@/components/feed/setup-notice";
 import { StoriesRow } from "@/components/feed/stories";
 import { InstallButton } from "@/components/pwa/install-button";
@@ -92,15 +93,15 @@ export default function FeedPage() {
       {/* greeting */}
       <div className="animate-fade-up flex items-end justify-between px-1 pt-1">
         <div>
-          <p className="text-xs font-semibold text-white/45">{greeting()}،</p>
-          <h1 className="mt-0.5 text-[22px] font-black text-white">{profile?.display_name ?? "صديقي"} ✨</h1>
+          <p className="text-xs font-semibold text-slate-900/45">{greeting()}،</p>
+          <h1 className="mt-0.5 text-[22px] font-black text-slate-900">{profile?.display_name ?? "صديقي"} ✨</h1>
         </div>
         <button
           onClick={() => {
             setRefreshing(true);
             load();
           }}
-          className="glass rounded-full px-3.5 py-2 text-xs font-bold text-white/75 transition hover:bg-white/10 active:scale-95"
+          className="glass rounded-full px-3.5 py-2 text-xs font-bold text-slate-900/75 transition hover:bg-slate-900/10 active:scale-95"
         >
           {refreshing ? "جارٍ التحديث…" : "تحديث ↻"}
         </button>
@@ -111,17 +112,40 @@ export default function FeedPage() {
 
       <StoriesRow blockedIds={blockedIds} />
 
-      {/* quick discovery tiles */}
-      <div className="animate-fade-up grid grid-cols-3 gap-2">
+      {/* greeting hero */}
+      <section className="keep-dark relative overflow-hidden rounded-[28px] bg-gradient-to-l from-indigo-600 via-violet-600 to-indigo-700 p-4 text-white shadow-[0_20px_44px_rgba(99,102,241,0.35)]">
+        <div className="pointer-events-none absolute -top-16 end-6 h-40 w-40 rounded-full bg-white/20 blur-[50px]" />
+        <div className="pointer-events-none absolute -bottom-20 start-10 h-36 w-36 rounded-full bg-cyan-300/25 blur-[45px]" />
+        <div className="relative flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-white/70">{new Date().getHours() < 12 ? "صباح الخير" : new Date().getHours() < 18 ? "نهارك سعيد" : "مساء الخير"}{profile ? `، ${profile.display_name.split(" ")[0]}` : ""}</p>
+            <h2 className="mt-0.5 text-lg font-black leading-7">وش رايك تشارك لحظة من يومك اليوم؟</h2>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/18 px-3 py-1.5 text-xs font-black text-white ring-1 ring-white/25 backdrop-blur">
+                <Sparkles className="h-3.5 w-3.5" /> Dz connect ai جاهز يساعدك
+              </span>
+              <Link href="/rewards" className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-black text-indigo-700 shadow-lg transition active:scale-95">
+                <Trophy className="h-3.5 w-3.5" /> {profile?.points ?? 0} نقطة — ادعُ واربح
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* feature tiles — gradient icon tiles, no emoji */}
+      <div className="animate-fade-up grid grid-cols-3 gap-2.5">
         {[
-          { href: "/reels", emoji: "🎬", label: "ريلز", tint: "from-indigo-400/20 to-violet-500/10 text-indigo-200 ring-indigo-300/20" },
-          { href: "/groups", emoji: "👥", label: "مجتمعات", tint: "from-cyan-400/20 to-sky-500/10 text-cyan-200 ring-cyan-300/20" },
-          { href: "/rewards", emoji: "🏆", label: "تحديات", tint: "from-amber-400/20 to-orange-500/10 text-amber-200 ring-amber-300/20" },
-        ].map((tile) => (
-          <a key={tile.href} href={tile.href} className={`flex flex-col items-center gap-1 rounded-[20px] bg-gradient-to-b px-2 py-3 ring-1 backdrop-blur transition hover:brightness-125 active:scale-95 ${tile.tint}`}>
-            <span className="text-xl">{tile.emoji}</span>
-            <span className="text-xs font-black">{tile.label}</span>
-          </a>
+          { href: "/reels", label: "ريلز", sub: "فيديوهات قصيرة", tile: "tile-violet", Icon: Clapperboard },
+          { href: "/groups", label: "مجتمعات", sub: "ولايات واهتمامات", tile: "tile-sky", Icon: UsersRound },
+          { href: "/rewards", label: "تحديات", sub: "نقاط وجوائز", tile: "tile-amber", Icon: Trophy },
+        ].map(({ href, label, sub, tile, Icon }) => (
+          <Link key={href} href={href} className="glass lift flex flex-col items-center gap-1.5 rounded-[24px] px-2 py-3.5 text-center">
+            <span className={`icon-tile ${tile} h-11 w-11 rounded-[15px]`}>
+              <Icon className="h-5 w-5" />
+            </span>
+            <span className="text-[13px] font-black text-slate-900">{label}</span>
+            <span className="text-[10.5px] font-semibold text-slate-900/45">{sub}</span>
+          </Link>
         ))}
       </div>
 
@@ -134,9 +158,9 @@ export default function FeedPage() {
 
       <div className="flex items-center gap-2 px-1 pt-1">
         <Flame className="h-4 w-4 text-orange-300" />
-        <h2 className="text-sm font-black text-white">أحدث المنشورات</h2>
-        <span className="h-px flex-1 bg-white/[0.06]" />
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-300">
+        <h2 className="text-sm font-black text-slate-900">أحدث المنشورات</h2>
+        <span className="h-px flex-1 bg-slate-900/[0.06]" />
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-600">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-400" />
@@ -156,7 +180,7 @@ export default function FeedPage() {
           title="الـ Feed هادئ الآن… كن أول من ينشر!"
           description="انشر أول منشور لك من الأعلى، أو ادعُ أصدقاءك بالاسم لتبدأ المحادثات والمنشورات الحيّة."
         >
-          <Link href="/explore" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-white">
+          <Link href="/explore" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-slate-900">
             اكتشف الأشخاص
           </Link>
         </EmptyState>
@@ -165,7 +189,7 @@ export default function FeedPage() {
           {posts.map((post) => (
             <PostCard key={post.id} post={post} onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))} />
           ))}
-          <p className="py-4 text-center text-xs text-white/30">وصلت إلى نهاية الخلاصة — عد قريبًا للمزيد 🌙</p>
+          <p className="py-4 text-center text-xs text-slate-900/30">وصلت إلى نهاية الخلاصة — عد قريبًا للمزيد 🌙</p>
         </div>
       )}
 

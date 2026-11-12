@@ -164,36 +164,36 @@ export function Composer({ onPosted, groupId = null }: { onPosted: (post: Post) 
             onChange={(e) => setContent(e.target.value.slice(0, MAX_CHARS))}
             rows={2}
             placeholder={profile ? `بما تفكر يا ${profile.display_name.split(" ")[0]}؟ شاركنا…` : "بما تفكر؟"}
-            className="w-full resize-none bg-transparent text-[15px] leading-7 text-white outline-none placeholder:text-white/35"
+            className="w-full resize-none bg-transparent text-[15px] leading-7 text-slate-900 outline-none placeholder:text-slate-900/35"
             aria-label="نص المنشور"
           />
           {imagePreview && (
-            <div className="relative mt-2 overflow-hidden rounded-3xl ring-1 ring-white/10">
+            <div className="relative mt-2 overflow-hidden rounded-3xl ring-1 ring-slate-900/10">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={imagePreview} alt="معاينة الصورة" className="max-h-64 w-full object-cover" />
               <button
                 onClick={clearImage}
                 aria-label="إزالة الصورة"
-                className="glass-strong absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full text-white transition active:scale-90"
+                className="glass-strong absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full text-slate-900 transition active:scale-90"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           )}
           {videoPreview && (
-            <div className="relative mb-2 overflow-hidden rounded-3xl ring-1 ring-white/10">
-              <video src={videoPreview} controls playsInline className="max-h-64 w-full bg-black object-contain" />
+            <div className="relative mb-2 overflow-hidden rounded-3xl ring-1 ring-slate-900/10">
+              <video src={videoPreview} controls playsInline className="max-h-64 w-full media-stage object-contain" />
               <button
                 onClick={clearVideo}
                 aria-label="إزالة الفيديو"
-                className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
+                className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#171038]/60 text-slate-900 backdrop-blur"
               >
                 <X className="h-4 w-4" />
               </button>
-              <span className="absolute start-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold text-white">🎬 سيظهر في الريلز</span>
+              <span className="absolute start-2 top-2 rounded-full bg-[#171038]/60 px-2.5 py-1 text-[10px] font-bold text-slate-900">🎬 سيظهر في الريلز</span>
             </div>
           )}
-          <div className="mt-2 flex items-center justify-between border-t border-white/[0.06] pt-3">
+          <div className="mt-2 flex items-center justify-between border-t border-slate-900/[0.06] pt-3">
             <div className="flex items-center gap-1.5">
               <input
                 ref={fileRef}
@@ -204,7 +204,7 @@ export function Composer({ onPosted, groupId = null }: { onPosted: (post: Post) 
               />
               <button
                 onClick={() => fileRef.current?.click()}
-                className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-white/10 active:scale-95"
+                className="flex items-center gap-1.5 rounded-full bg-slate-900/[0.05] px-3 py-1.5 text-xs font-semibold text-cyan-600 transition hover:bg-slate-900/10 active:scale-95"
               >
                 <ImagePlus className="h-4 w-4" /> صورة
               </button>
@@ -220,26 +220,26 @@ export function Composer({ onPosted, groupId = null }: { onPosted: (post: Post) 
               />
               <button
                 onClick={() => videoRef.current?.click()}
-                className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-indigo-200 transition hover:bg-white/10 active:scale-95"
+                className="flex items-center gap-1.5 rounded-full bg-slate-900/[0.05] px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-slate-900/10 active:scale-95"
               >
                 <Clapperboard className="h-4 w-4" /> فيديو
               </button>
               <button
                 onClick={() => void improveWithAi()}
                 disabled={aiBusy || !content.trim()}
-                className="flex items-center gap-1.5 rounded-full bg-gradient-to-l from-indigo-400/25 to-cyan-400/20 px-3 py-1.5 text-xs font-bold text-violet-200 ring-1 ring-violet-300/25 transition hover:from-indigo-400/35 hover:to-cyan-400/30 active:scale-95 disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-full bg-gradient-to-l from-indigo-400/25 to-cyan-400/20 px-3 py-1.5 text-xs font-bold text-violet-600 ring-1 ring-violet-300/25 transition hover:from-indigo-400/35 hover:to-cyan-400/30 active:scale-95 disabled:opacity-40"
                 title="حسّن منشورك بـ Dz connect ai"
               >
                 {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Dz connect ai
               </button>
-              <span className={content.length >= MAX_CHARS ? "text-xs font-bold text-red-300" : "text-xs text-white/30"}>
+              <span className={content.length >= MAX_CHARS ? "text-xs font-bold text-red-600" : "text-xs text-slate-900/30"}>
                 {content.length}/{MAX_CHARS}
               </span>
             </div>
             <button
               onClick={submit}
               disabled={posting || (!content.trim() && !imageFile && !videoFile)}
-              className="btn-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold text-white disabled:opacity-40"
+              className="btn-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold text-slate-900 disabled:opacity-40"
             >
               {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4 -scale-x-100" />}
               نشر

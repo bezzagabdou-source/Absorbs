@@ -10,7 +10,7 @@ import { fetchGroupPosts } from "@/lib/queries";
 import { Composer } from "@/components/feed/composer";
 import { PostCard } from "@/components/feed/post-card";
 import { EmptyState, FullPageLoader, PostSkeleton } from "@/components/ui/feedback";
-import { cn, isSchemaMissing } from "@/lib/utils";
+import { cn, gradientFor, isSchemaMissing } from "@/lib/utils";
 import type { Group, Post } from "@/lib/types";
 
 /** Group room: members + dedicated post stream (posts with group_id). */
@@ -77,42 +77,42 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
   if (unavailable) {
     return (
       <EmptyState icon={<UsersRound className="h-6 w-6" />} title="المجتمعات غير مفعّلة بعد" description="نفّذ upgrade-v3.sql في Supabase لتفعيلها.">
-        <Link href="/groups" className="btn-primary rounded-full px-5 py-2.5 text-sm font-bold text-white">كل المجتمعات</Link>
+        <Link href="/groups" className="btn-primary rounded-full px-5 py-2.5 text-sm font-bold text-slate-900">كل المجتمعات</Link>
       </EmptyState>
     );
   }
   if (!group) {
     return (
       <EmptyState icon={<span className="text-2xl">🔍</span>} title="المجموعة غير موجودة" description="ربما حُذفت أو الرابط غير صحيح.">
-        <Link href="/groups" className="btn-primary rounded-full px-5 py-2.5 text-sm font-bold text-white">تصفح المجتمعات</Link>
+        <Link href="/groups" className="btn-primary rounded-full px-5 py-2.5 text-sm font-bold text-slate-900">تصفح المجتمعات</Link>
       </EmptyState>
     );
   }
 
   return (
     <div className="animate-fade-up space-y-4">
-      <Link href="/groups" className="flex items-center gap-1.5 text-sm font-bold text-white/60 transition hover:text-white">
+      <Link href="/groups" className="flex items-center gap-1.5 text-sm font-bold text-slate-900/60 transition hover:text-slate-900">
         <ArrowRight className="h-4 w-4" /> كل المجتمعات
       </Link>
 
       <section className="glass relative overflow-hidden rounded-[28px] p-5">
         <div className="pointer-events-none absolute -top-14 end-0 h-40 w-40 rounded-full bg-indigo-400/20 blur-[60px]" />
         <div className="relative flex items-start gap-3.5">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br from-indigo-400/30 to-cyan-500/25 text-4xl ring-1 ring-white/15">
-            {group.emoji}
+          <span className={`icon-tile bg-gradient-to-br ${gradientFor(group.name)} h-16 w-16 shrink-0 rounded-[22px] text-3xl font-black`}>
+            {group.name.trim().charAt(0)}
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-black text-white">{group.name}</h1>
-            <p className="mt-0.5 text-xs text-white/50">
+            <h1 className="text-xl font-black text-slate-900">{group.name}</h1>
+            <p className="mt-0.5 text-xs text-slate-900/50">
               {group.member_count ?? 0} عضو{group.wilaya ? ` · ولاية ${group.wilaya}` : ""}
             </p>
-            {group.description && <p className="mt-2 text-sm leading-6 text-white/70">{group.description}</p>}
+            {group.description && <p className="mt-2 text-sm leading-6 text-slate-900/70">{group.description}</p>}
           </div>
           <button
             onClick={() => void toggleJoin()}
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold transition active:scale-95",
-              group.joined ? "bg-white/[0.07] text-white/75 ring-1 ring-white/10" : "btn-primary text-white",
+              group.joined ? "bg-slate-900/[0.07] text-slate-900/75 ring-1 ring-slate-900/10" : "btn-primary text-slate-900",
             )}
           >
             {group.joined ? <LogOut className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
@@ -124,7 +124,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
       {group.joined ? (
         <Composer groupId={group.id} onPosted={(post) => setPosts((prev) => [post, ...prev])} />
       ) : (
-        <p className="glass rounded-[22px] px-4 py-3.5 text-center text-sm text-white/60">انضم إلى المجموعة لتتمكن من النشر فيها ✍️</p>
+        <p className="glass rounded-[22px] px-4 py-3.5 text-center text-sm text-slate-900/60">انضم إلى المجموعة لتتمكن من النشر فيها ✍️</p>
       )}
 
       {posts.length === 0 ? (

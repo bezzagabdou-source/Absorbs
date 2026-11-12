@@ -179,7 +179,7 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
               <Plus className="h-3.5 w-3.5" strokeWidth={3} />
             </span>
           </span>
-          <span className="w-full truncate text-[11px] font-semibold text-white/70">قصتك</span>
+          <span className="w-full truncate text-[11px] font-bold text-slate-600">قصتك</span>
         </button>
         <input
           ref={fileRef}
@@ -202,11 +202,11 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
                   group.allViewed ? "bg-white/20" : "ring-conic",
                 )}
               >
-                <span className="block rounded-full bg-[#0B0F1D] p-[2px]">
+                <span className="block rounded-full bg-white p-[2px] shadow-sm">
                   <Avatar profile={group.author} size="lg" />
                 </span>
               </span>
-              <span className="w-full truncate text-[11px] font-semibold text-white/70">{group.author.display_name.split(" ")[0]}</span>
+              <span className="w-full truncate text-[11px] font-bold text-slate-600">{group.author.display_name.split(" ")[0]}</span>
             </button>
           ),
         )}
@@ -217,7 +217,7 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
 
       {/* ── publish preview ── */}
       {preview && (
-        <div className="keep-dark fixed inset-0 z-[95] flex flex-col bg-black/95 backdrop-blur">
+        <div className="keep-dark fixed inset-0 z-[95] flex flex-col media-stage backdrop-blur">
           <div className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <h3 className="flex items-center gap-2 font-black text-white">
               <Camera className="h-5 w-5 text-indigo-300" /> قصة جديدة
@@ -237,7 +237,7 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={preview.url} alt="معاينة القصة" className="h-full w-full object-cover" />
             {preview.caption && (
-              <p className="absolute inset-x-3 bottom-3 rounded-2xl bg-black/55 px-3 py-2 text-center text-sm font-bold text-white backdrop-blur">
+              <p className="absolute inset-x-3 bottom-3 rounded-2xl bg-[#171038]/55 px-3 py-2 text-center text-sm font-bold text-white backdrop-blur">
                 {preview.caption}
               </p>
             )}
@@ -258,7 +258,7 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
 
       {/* ── fullscreen viewer ── */}
       {viewer && current && (
-        <div className="keep-dark fixed inset-0 z-[96] flex flex-col bg-black" role="dialog" aria-label="عارض القصص">
+        <div className="keep-dark fixed inset-0 z-[96] flex flex-col media-stage" role="dialog" aria-label="عارض القصص">
           {/* progress */}
           <div className="flex gap-1.5 px-3 pt-[max(0.8rem,env(safe-area-inset-top))]">
             {groups[viewer.group].stories.map((s, i) => (
@@ -304,7 +304,7 @@ export function StoriesRow({ blockedIds }: { blockedIds?: Set<string> }) {
               <ChevronLeft className="h-8 w-8" />
             </button>
             {current.caption && (
-              <p className="absolute inset-x-4 bottom-5 rounded-3xl bg-black/55 px-4 py-3 text-center text-[15px] font-bold leading-7 text-white backdrop-blur">
+              <p className="absolute inset-x-4 bottom-5 rounded-3xl bg-[#171038]/55 px-4 py-3 text-center text-[15px] font-bold leading-7 text-white backdrop-blur">
                 {current.caption}
               </p>
             )}

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useToast } from "@/components/ui/feedback";
 import { EmptyState, FullPageLoader } from "@/components/ui/feedback";
-import { cn, isSchemaMissing } from "@/lib/utils";
+import { cn, gradientFor, isSchemaMissing } from "@/lib/utils";
 import type { Group } from "@/lib/types";
 
 /** Communities hub: discover groups, join/leave, create your own. */
@@ -87,7 +87,7 @@ export default function GroupsPage() {
   if (unavailable) {
     return (
       <EmptyState icon={<UsersRound className="h-6 w-6" />} title="المجتمعات تُفعَّل قريبًا" description="نفّذ upgrade-v3.sql في Supabase SQL Editor لتفعيل المجموعات والريلز والدعوات.">
-        <Link href="/feed" className="btn-primary rounded-full px-5 py-2.5 text-sm font-bold text-white">عودة للخلاصة</Link>
+        <Link href="/feed" className="btn-primary rounded-full px-5 py-2.5 text-sm font-bold text-slate-900">عودة للخلاصة</Link>
       </EmptyState>
     );
   }
@@ -96,12 +96,12 @@ export default function GroupsPage() {
     <div className="animate-fade-up space-y-4">
       <div className="flex items-start justify-between gap-3 px-1">
         <div>
-          <h1 className="flex items-center gap-2 text-[22px] font-black text-white">
-            <UsersRound className="h-6 w-6 text-indigo-300" /> مجتمعات Dz connect
+          <h1 className="flex items-center gap-2 text-[22px] font-black text-slate-900">
+            <UsersRound className="h-6 w-6 text-indigo-600" /> مجتمعات Dz connect
           </h1>
-          <p className="mt-1 text-sm text-white/50">ولايات واهتمامات تجمع الجزائريين — انضم وانشر داخل مجتمعك.</p>
+          <p className="mt-1 text-sm text-slate-900/50">ولايات واهتمامات تجمع الجزائريين — انضم وانشر داخل مجتمعك.</p>
         </div>
-        <button onClick={() => setCreating((c) => !c)} className="btn-primary flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold text-white">
+        <button onClick={() => setCreating((c) => !c)} className="btn-primary flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-bold text-slate-900">
           <Plus className="h-4 w-4" /> مجموعة
         </button>
       </div>
@@ -110,11 +110,11 @@ export default function GroupsPage() {
         <section className="glass animate-fade-up space-y-2.5 rounded-[26px] p-4">
           <div className="flex gap-2">
             <input value={form.emoji} onChange={(e) => setForm({ ...form, emoji: e.target.value.slice(0, 4) })} className="input-glass w-16 rounded-2xl px-3 py-2.5 text-center text-lg" aria-label="إيموجي المجموعة" />
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value.slice(0, 50) })} placeholder="اسم المجموعة *" className="input-glass min-w-0 flex-1 rounded-2xl px-3.5 py-2.5 text-sm text-white" />
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value.slice(0, 50) })} placeholder="اسم المجموعة *" className="input-glass min-w-0 flex-1 rounded-2xl px-3.5 py-2.5 text-sm text-slate-900" />
           </div>
-          <input value={form.wilaya} onChange={(e) => setForm({ ...form, wilaya: e.target.value.slice(0, 30) })} placeholder="الولاية (اختياري)" className="input-glass w-full rounded-2xl px-3.5 py-2.5 text-sm text-white" />
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value.slice(0, 160) })} placeholder="وصف قصير للمجموعة…" rows={2} className="input-glass w-full resize-none rounded-2xl px-3.5 py-2.5 text-sm text-white" />
-          <button onClick={() => void createGroup()} disabled={!form.name.trim() || busyId === "new"} className="btn-primary w-full rounded-full py-2.5 text-sm font-bold text-white disabled:opacity-40">
+          <input value={form.wilaya} onChange={(e) => setForm({ ...form, wilaya: e.target.value.slice(0, 30) })} placeholder="الولاية (اختياري)" className="input-glass w-full rounded-2xl px-3.5 py-2.5 text-sm text-slate-900" />
+          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value.slice(0, 160) })} placeholder="وصف قصير للمجموعة…" rows={2} className="input-glass w-full resize-none rounded-2xl px-3.5 py-2.5 text-sm text-slate-900" />
+          <button onClick={() => void createGroup()} disabled={!form.name.trim() || busyId === "new"} className="btn-primary w-full rounded-full py-2.5 text-sm font-bold text-slate-900 disabled:opacity-40">
             {busyId === "new" ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "إنشاء المجموعة"}
           </button>
         </section>
@@ -123,12 +123,12 @@ export default function GroupsPage() {
       <div className="stagger space-y-2.5">
         {groups.map((group) => (
           <article key={group.id} className="glass flex items-center gap-3 rounded-[24px] p-3.5">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-400/25 to-cyan-500/20 text-2xl ring-1 ring-white/10">
-              {group.emoji}
+            <span className={`icon-tile bg-gradient-to-br ${gradientFor(group.name)} h-12 w-12 shrink-0 rounded-[18px] text-xl font-black`}>
+              {group.name.trim().charAt(0)}
             </span>
             <Link href={`/groups/${group.id}`} className="min-w-0 flex-1">
-              <span className="block truncate font-bold text-white">{group.name}</span>
-              <span className="mt-0.5 block truncate text-xs text-white/45">
+              <span className="block truncate font-bold text-slate-900">{group.name}</span>
+              <span className="mt-0.5 block truncate text-xs text-slate-900/45">
                 {group.member_count ?? 0} عضو{group.wilaya ? ` · ${group.wilaya}` : ""}
                 {group.description ? ` · ${group.description}` : ""}
               </span>
@@ -138,7 +138,7 @@ export default function GroupsPage() {
               disabled={busyId === group.id}
               className={cn(
                 "shrink-0 rounded-full px-4 py-2 text-[13px] font-bold transition active:scale-95 disabled:opacity-50",
-                group.joined ? "bg-white/[0.07] text-white/70 ring-1 ring-white/10" : "btn-primary text-white",
+                group.joined ? "bg-slate-900/[0.07] text-slate-900/70 ring-1 ring-slate-900/10" : "btn-primary text-slate-900",
               )}
             >
               {busyId === group.id ? <Loader2 className="h-4 w-4 animate-spin" /> : group.joined ? "انضممت ✓" : "انضم"}

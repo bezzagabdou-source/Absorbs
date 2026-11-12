@@ -38,9 +38,9 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     <div className="space-y-4">
       <button
         onClick={() => router.back()}
-        className="glass flex items-center gap-2 rounded-full py-2 pe-4 ps-2 text-sm font-bold text-white/80 transition hover:bg-white/[0.07] active:scale-95"
+        className="glass flex items-center gap-2 rounded-full py-2 pe-4 ps-2 text-sm font-bold text-slate-900/80 transition hover:bg-slate-900/[0.07] active:scale-95"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06]">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/[0.06]">
           <ArrowRight className="h-4 w-4" />
         </span>
         رجوع
@@ -50,7 +50,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         <FullPageLoader label="جارٍ تحميل المنشور…" />
       ) : !post ? (
         <EmptyState icon={<FileQuestion className="h-6 w-6" />} title="المنشور غير موجود" description="ربما حُذف من صاحبه أو أن الرابط غير صحيح.">
-          <Link href="/feed" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-white">
+          <Link href="/feed" className="btn-primary mt-2 rounded-full px-5 py-2.5 text-sm font-bold text-slate-900">
             العودة للخلاصة
           </Link>
         </EmptyState>
