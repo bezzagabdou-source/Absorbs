@@ -74,7 +74,7 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
       toast(error.message.includes("duplicate") ? "الاسم محجوز، اختر غيره" : "تعذّر الحفظ — تأكد من تنفيذ schema.sql", "error");
       return;
     }
-    toast("أهلًا بك في DZ CONNECT 🎉");
+    toast("أهلًا بك في Dz connect 🎉");
     await onDone();
   };
 

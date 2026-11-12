@@ -29,7 +29,7 @@ export default function WelcomePage() {
         <header className="flex items-center justify-between">
           <span className="flex items-center gap-2.5">
             <span className="logo-mark h-10 w-10 rounded-2xl text-base">A</span>
-            <span className="text-lg font-black tracking-tight text-white">DZ CONNECT</span>
+            <span className="text-lg font-black tracking-tight text-white">Dz connect</span>
           </span>
           <Link href="/login" className="glass rounded-full px-4 py-2 text-sm font-bold text-white transition hover:bg-white/10 active:scale-95">
             تسجيل الدخول
@@ -72,7 +72,7 @@ export default function WelcomePage() {
             <div className="flex items-center justify-between px-4 pt-2.5">
               <span className="flex items-center gap-1.5">
                 <span className="logo-mark h-6 w-6 rounded-lg text-[10px]">A</span>
-                <span className="text-[11px] font-black text-white">DZ CONNECT</span>
+                <span className="text-[11px] font-black text-white">Dz connect</span>
               </span>
               <MessageCircle className="h-4 w-4 text-white/70" />
             </div>

@@ -70,7 +70,7 @@ export function SecurityCenter() {
 
   const startEnroll = async () => {
     setMfaLoading(true);
-    const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "DZ CONNECT" });
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Dz connect" });
     setMfaLoading(false);
     if (error || !data) return toast("تعذّر بدء تفعيل التحقق بخطوتين", "error");
     setEnroll({ id: data.id, qr: data.totp.qr_code, secret: data.totp.secret });

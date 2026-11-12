@@ -1,4 +1,4 @@
-# DZ CONNECT — تواصل بلا حدود 💜
+# Dz connect — تواصل بلا حدود 💜
 
 تطبيق تواصل اجتماعي كامل بتصميم **Dark Glassmorphism** فاخر وتجربة هاتف ناتيفية (Mobile-First)، يعمل كـ **PWA** قابل للتثبيت، ومبني على **Next.js 15 + Supabase** (Auth + Postgres + Storage + Realtime) وجاهز للنشر الفوري على **Vercel**.
 
@@ -30,7 +30,7 @@
 بعد `schema.sql`، نفّذ [`supabase/seed.sql`](./supabase/seed.sql) بنفس الطريقة وسيُملأ التطبيق فورًا:
 6 حسابات تجريبية جزائرية (صور ونبذ تعريفية) + 12 منشورًا + إعجابات وتعاليق ومتابعات ومحادثة خاصة.
 
-- الدخول لأي حساب تجريبي: البريد مثل `amine@absorbs.dz` وكلمة المرور للجميع `DZ CONNECT@2026`
+- الدخول لأي حساب تجريبي: البريد مثل `amine@absorbs.dz` وكلمة المرور للجميع `Dz connect@2026`
 - حذف كل المحتوى التجريبي قبل الإطلاق الحقيقي بسطر واحد موجود في نهاية ملف الـ Seed.
 
 ### 2) المتغيرات (مضبّطة مسبقًا ✅)
@@ -112,17 +112,31 @@ absorbs-app/
 
 - **الموقع الحي (Vercel):** يُنشر هذا المجلد كمشروع Vercel مستقل (Root Directory = `absorbs-app`) مع المتغيرين العامين مضبوطين في إعدادات المشروع. بعد أول نشر أضف نطاقك في Supabase → Authentication → URL Configuration (`Site URL` + `Redirect URLs`) حتى تعمل روابط تأكيد البريد، وأضف `NEXT_PUBLIC_SITE_URL` بنفس النطاق ثم أعد النشر.
 - **تطبيق أندرويد (APK):** مجلد `absorbs-android/` في جذر المستودع يحتوي غلاف WebView أصليًا، وworkflow ‏GitHub Actions (`.github/workflows/absorbs-apk.yml`) يبنيه تلقائيًا ويرفعه إلى **Releases** — رابط التحميل المباشر:
-  `https://github.com/bezzagabdou-source/DZ CONNECT/releases/download/absorbs-v1.0.0/DZ CONNECT.apk`
+  `https://github.com/bezzagabdou-source/Dz connect/releases/download/absorbs-v1.0.0/Dz connect.apk`
   على الهاتف: افتح الرابط، ثبّت، وفعّل «التثبيت من هذا المصدر» عند الطلب (APK موقّع بمفتاح Debug للتجربة).
 
 
 ---
 
-## 🆕 تحديث DZ CONNECT v2 — ما الجديد وكيف تفعّله
+## 🆕 تحديث Dz connect v2 — ما الجديد وكيف تفعّله
 
-ميزات v2: إعادة تسمية كاملة إلى **DZ CONNECT** بهوية زمردية فاخرة (بدون أي لون وردي)، مكالمات صوت وفيديو عبر الإنترنت (WebRTC)، قصص 24 ساعة، حفظ المنشورات، إشعارات، حضور "متصل الآن"، رسائل صوتية وصور داخل المحادثات، سجل مكالمات، شارات توثيق، مركز حماية (كلمة المرور + تحقق بخطوتين MFA + جلسات + حظر/إبلاغ).
+ميزات v2: إعادة تسمية كاملة إلى **Dz connect** بهوية زمردية فاخرة (بدون أي لون وردي)، مكالمات صوت وفيديو عبر الإنترنت (WebRTC)، قصص 24 ساعة، حفظ المنشورات، إشعارات، حضور "متصل الآن"، رسائل صوتية وصور داخل المحادثات، سجل مكالمات، شارات توثيق، مركز حماية (كلمة المرور + تحقق بخطوتين MFA + جلسات + حظر/إبلاغ).
 
 ### خطوة واحدة فقط في Supabase
 افتح SQL Editor والصق محتوى **`supabase/upgrade-v2.sql`** ثم Run (ينشئ جداول stories/story_views/saves/blocks وعمود is_verified — آمن وإيدمبوتنت، لا يمس بياناتك الحالية).
 
 > ملاحظة المكالمات: تعمل مباشرة بين المتصفحات/التطبيق عبر WebRTC + Supabase Realtime للإشارات. للحصول على أفضل جودة عبر شبكات المشغّلين يُفضّل لاحقًا إضافة خادم TURN خاص.
+
+---
+
+## 🤖 Dz connect ai — المساعد الذكي (هندسة v3)
+
+- **الخادم فقط:** `src/lib/ai/provider.ts` يقرأ `AI_API_KEY` من بيئة الخادم (Vercel Env / `.env.local`) ويدعم Gemini (افتراضي، النموذج gemini-2.5-flash) وGroq وOpenRouter بمجرد تغيير المتغيرات — المفتاح القديم من مشروع Nexus مربوط كـ `AI_API_KEY` مشفّرًا في Vercel.
+- **النقاط:** `POST /api/ai/chat` (محادثة + أفعال: improve-post / post-ideas / smart-replies) محمي بجلسة Supabase وحدّ معدّل 20 طلبًا/دقيقة لكل مستخدم. `GET /api/ai/status` فحص صحي يعرض booleans فقط.
+- **الواجهة:** زر عائم ✨ في كل التطبيق يفتح `/ai` (محادثة على طراز Meta AI + اقتراحات سريعة + نسخ كمنشور)، وزر **Dz connect ai** داخل مؤلّف المنشورات لتحسين المسودة قبل النشر.
+- **الأمن السيبراني:** رؤوس CSP/HSTS/X-Frame-Options/Permissions-Policy من `next.config.ts`، وRLS صارم على كل الجداول في Supabase، و2FA/MFA وحظر وإبلاغ من مركز الحماية.
+
+### خطوات فحص الذكاء بعد النشر
+1. افتح `/api/ai/status` — يجب أن ترى `"configured": true, "reachable": true`.
+2. سجّل دخولك واضغط الزر العائم ✨ وجرّب «اكتب لي منشورًا».
+3. لاستبدال المفتاح مستقبلًا: عدّل `AI_API_KEY` في Vercel ← Project ← Settings ← Environment Variables ثم أعد النشر (لا حاجة لتغيير أي كود).

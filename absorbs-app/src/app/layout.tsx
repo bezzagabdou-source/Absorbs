@@ -9,11 +9,11 @@ import { ToastProvider } from "@/components/ui/feedback";
 import { RegisterSW } from "@/components/pwa/register-sw";
 
 export const metadata: Metadata = {
-  title: { default: "DZ CONNECT — تواصل بلا حدود", template: "%s · DZ CONNECT" },
+  title: { default: "Dz connect — تواصل بلا حدود", template: "%s · Dz connect" },
   description: "منشورات حيّة، إعجابات فورية، ورسائل خاصة لحظية — تجربة تواصل اجتماعي فاخرة تعمل كتطبيق حقيقي على هاتفك.",
-  applicationName: "DZ CONNECT",
+  applicationName: "Dz connect",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "DZ CONNECT" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Dz connect" },
   formatDetection: { telephone: false },
   icons: {
     icon: [
@@ -25,8 +25,8 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "ar_DZ",
-    siteName: "DZ CONNECT",
-    title: "DZ CONNECT — تواصل بلا حدود",
+    siteName: "Dz connect",
+    title: "Dz connect — تواصل بلا حدود",
     description: "منشورات حيّة، إعجابات فورية، ورسائل خاصة لحظية.",
   },
 };

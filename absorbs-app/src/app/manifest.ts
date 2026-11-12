@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "DZ CONNECT — تواصل بلا حدود",
-    short_name: "DZ CONNECT",
+    name: "Dz connect — تواصل بلا حدود",
+    short_name: "Dz connect",
     description: "منشورات حيّة، إعجابات فورية، ورسائل خاصة لحظية.",
     id: "/",
     start_url: "/feed",

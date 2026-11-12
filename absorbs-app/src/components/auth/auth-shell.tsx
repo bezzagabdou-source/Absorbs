@@ -31,12 +31,12 @@ export function AuthShell({
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.6rem,env(safe-area-inset-top))]">
         {/* hero brand */}
         <div className="animate-fade-up flex flex-col items-center text-center">
-          <Link href="/welcome" className="group relative" aria-label="DZ CONNECT">
+          <Link href="/welcome" className="group relative" aria-label="Dz connect">
             <span className="absolute inset-0 scale-125 rounded-[30px] bg-emerald-600/40 blur-2xl transition group-hover:scale-150" />
             <span className="logo-mark relative h-[72px] w-[72px] rounded-[24px] text-[30px]">A</span>
           </Link>
           <p className="mt-4 text-[26px] font-black tracking-tight text-white">
-            DZ CONNECT <span className="text-gradient">· تواصل بلا حدود</span>
+            Dz connect <span className="text-gradient">· تواصل بلا حدود</span>
           </p>
           <div className="no-scrollbar mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
             {CHIPS.map((chip) => (

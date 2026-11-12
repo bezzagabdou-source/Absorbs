@@ -191,7 +191,7 @@ function SettingsCard() {
           </div>
 
           <p className="text-center text-[11px] text-white/30" dir="ltr">
-            {user.email} · DZ CONNECT v1.0
+            {user.email} · Dz connect v1.0
           </p>
         </div>
       )}

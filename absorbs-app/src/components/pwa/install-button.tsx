@@ -65,7 +65,7 @@ export function InstallButton({ variant = "card" }: { variant?: "card" | "row" }
       <div className="relative flex items-center gap-3">
         <span className="logo-mark h-12 w-12 shrink-0 rounded-2xl text-lg">A</span>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-white">ثبّت تطبيق DZ CONNECT</p>
+          <p className="font-bold text-white">ثبّت تطبيق Dz connect</p>
           <p className="text-xs leading-5 text-white/55">
             {isIOS && !deferred
               ? "من متصفح سفاري: زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»"

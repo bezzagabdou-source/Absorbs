@@ -295,7 +295,7 @@ export default function ChatRoomPage({ params }: { params: Promise<{ id: string 
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <Avatar profile={other} size="xl" ring />
             <p className="mt-1 font-bold text-white">{other?.display_name}</p>
-            <p className="max-w-[240px] text-xs leading-5 text-white/45">هذه بداية محادثتكما الخاصة على DZ CONNECT. قل مرحبًا 👋</p>
+            <p className="max-w-[240px] text-xs leading-5 text-white/45">هذه بداية محادثتكما الخاصة على Dz connect. قل مرحبًا 👋</p>
           </div>
         ) : (
           <ul className="space-y-1.5 pt-2">

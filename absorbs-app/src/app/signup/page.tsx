@@ -80,7 +80,7 @@ export default function SignupPage() {
           <p className="mt-2 text-sm leading-7 text-white/60">
             أرسلنا رابط تأكيد إلى <span className="font-bold text-white" dir="ltr">{email}</span>
             <br />
-            اضغط الرابط وستدخل مباشرة إلى عالم DZ CONNECT باسم{" "}
+            اضغط الرابط وستدخل مباشرة إلى عالم Dz connect باسم{" "}
             <span className="font-bold text-teal-200" dir="ltr">@{username}</span>
           </p>
           <Link href="/login" className="btn-primary mt-6 rounded-full px-6 py-3 text-sm font-bold text-white">
@@ -96,7 +96,7 @@ export default function SignupPage() {
 
   return (
     <AuthShell
-      title="انضم إلى DZ CONNECT ✨"
+      title="انضم إلى Dz connect ✨"
       subtitle="حساب واحد يفتح لك المنشورات الحيّة والرسائل الخاصة لحظة بلحظة."
       footer={
         <>

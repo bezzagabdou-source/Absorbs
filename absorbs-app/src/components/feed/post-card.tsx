@@ -195,7 +195,7 @@ export function PostCard({
   const sharePost = async () => {
     const url = `${window.location.origin}/post/${post.id}`;
     try {
-      if (navigator.share) await navigator.share({ title: "DZ CONNECT", text: post.content ?? "منشور على DZ CONNECT", url });
+      if (navigator.share) await navigator.share({ title: "Dz connect", text: post.content ?? "منشور على Dz connect", url });
       else {
         await navigator.clipboard.writeText(url);
         toast("تم نسخ رابط المنشور");
@@ -237,7 +237,7 @@ export function PostCard({
         </Link>
         <div className="min-w-0 flex-1">
           <Link href={post.author ? `/u/${post.author.username}` : "#"} className="block truncate text-[15px] font-bold text-white hover:underline">
-            <span className="inline-flex items-center gap-1">{post.author?.display_name ?? "مستخدم DZ CONNECT"}{post.author?.is_verified && <VerifiedBadge className="h-3.5 w-3.5" />}</span>
+            <span className="inline-flex items-center gap-1">{post.author?.display_name ?? "مستخدم Dz connect"}{post.author?.is_verified && <VerifiedBadge className="h-3.5 w-3.5" />}</span>
           </Link>
           <p className="truncate text-xs text-white/45" dir="ltr" style={{ textAlign: "start" }}>
             @{post.author?.username ?? "user"} · {timeAgoAr(post.created_at)}

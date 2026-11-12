@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="pointer-events-none fixed top-0 z-0 hidden h-full w-[calc(50%-290px)] flex-col justify-center ps-14 pe-6 min-[1100px]:flex">
         <span className="logo-mark h-16 w-16 rounded-[22px] text-2xl">A</span>
         <h1 className="mt-6 text-5xl font-black leading-[1.15] text-white">
-          DZ CONNECT
+          Dz connect
           <span className="text-gradient block">تواصل… بلا حدود</span>
         </h1>
         <p className="mt-4 max-w-sm text-base leading-8 text-white/55">
@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/feed" className="flex items-center gap-2.5">
               <span className="logo-mark h-9 w-9 rounded-xl text-sm">A</span>
               <span className="text-[17px] font-black tracking-tight text-white">
-                DZ CONNECT <Sparkles className="mb-0.5 inline h-3.5 w-3.5 text-teal-200" />
+                Dz connect <Sparkles className="mb-0.5 inline h-3.5 w-3.5 text-teal-200" />
               </span>
             </Link>
             <div className="flex items-center gap-2">
@@ -143,6 +143,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className={cn("flex-1 px-3.5 pt-4", inChatRoom ? "pb-3" : "pb-32")}>{children}</main>
+
+        {/* floating Dz connect ai orb (Meta AI style) */}
+        {!pathname.startsWith("/ai") && !inChatRoom && (
+          <Link
+            href="/ai"
+            aria-label="Dz connect ai — المساعد الذكي"
+            className="group fixed bottom-[calc(6.4rem+env(safe-area-inset-bottom))] start-4 z-40 flex items-center rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 p-[13px] text-white shadow-[0_16px_40px_rgba(20,184,166,0.5)] ring-1 ring-white/30 transition active:scale-90"
+          >
+            <span className="absolute inset-0 animate-ping rounded-full bg-teal-400/25" />
+            <Sparkles className="relative h-6 w-6" />
+          </Link>
+        )}
 
         {/* floating glass bottom navigation (hidden inside a chat room for a native feel) */}
         {!inChatRoom && !inPostDetail && (

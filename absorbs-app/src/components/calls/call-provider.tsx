@@ -281,7 +281,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     async (target: Profile, callKind: CallKind, threadId?: string) => {
       if (!user || !me || statusRef.current !== "idle") return;
       if (!navigator.mediaDevices?.getUserMedia) {
-        toast("المكالمات تحتاج متصفحًا حديثًا أو تطبيق DZ CONNECT", "error");
+        toast("المكالمات تحتاج متصفحًا حديثًا أو تطبيق Dz connect", "error");
         return;
       }
       setPeer(peerOf(target));
@@ -608,7 +608,7 @@ function CallOverlay(props: {
           @{peer.username}
         </p>
         <p className={cn("mt-2 font-bold tabular-nums", status === "active" ? "text-emerald-300" : "animate-pulse text-white/70")}>{statusText}</p>
-        {status === "active" && <p className="mt-1 text-[11px] text-white/45">مكالمة مشفرة عبر الإنترنت · DZ CONNECT</p>}
+        {status === "active" && <p className="mt-1 text-[11px] text-white/45">مكالمة مشفرة عبر الإنترنت · Dz connect</p>}
       </div>
 
       {/* controls */}

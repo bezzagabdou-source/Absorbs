@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════
---  DZ CONNECT — Upgrade v2 (run ONCE after FULL-SETUP.sql, same SQL Editor)
+--  Dz connect — Upgrade v2 (run ONCE after FULL-SETUP.sql, same SQL Editor)
 --  Adds: Stories (24h) · Saved posts · Blocks · Verified badges
 --  Calls / presence / voice+photo messages need NO migration (Realtime+Storage).
 --  Idempotent: safe to paste & Run again.
