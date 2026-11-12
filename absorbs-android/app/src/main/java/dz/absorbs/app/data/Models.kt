@@ -61,6 +61,26 @@ data class Comment(
     }
 }
 
+data class StoryItem(
+    val id: String,
+    val authorId: String,
+    val imageUrl: String,
+    val caption: String?,
+    val createdAt: String,
+    var author: Profile? = null,
+    var viewedByMe: Boolean = false,
+) {
+    companion object {
+        fun from(o: JSONObject) = StoryItem(
+            id = o.optString("id"),
+            authorId = o.optString("author_id"),
+            imageUrl = o.optString("image_url"),
+            caption = o.optString("caption").ifBlank { null },
+            createdAt = o.optString("created_at"),
+        )
+    }
+}
+
 data class ThreadItem(
     val id: String,
     val other: Profile?,

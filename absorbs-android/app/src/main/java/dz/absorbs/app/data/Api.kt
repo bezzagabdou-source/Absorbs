@@ -101,7 +101,7 @@ object Api {
     fun signUp(email: String, password: String, username: String, displayName: String, cb: (String?) -> Unit) {
         val body = JSONObject().put("email", email).put("password", password).toString().toRequestBody(JSON)
         val req = Request.Builder()
-            .url("${Config.SUPABASE_URL}/auth/v1/signup")
+            .url("${Config.SUPABASE_URL}/auth/v1/signup?redirect_to=${Config.SITE_URL}/auth/confirm")
             .addHeader("apikey", Config.SUPABASE_KEY)
             .post(body).build()
         enqueue(req) { b, code ->
@@ -357,6 +357,73 @@ object Api {
         val b = JSONObject().put("reporter_id", Session.userId).put("target_type", targetType)
             .put("target_id", targetId).put("reason", reason)
         restRaw("POST", "reports", b) { _, code -> cb(code in 200..299) }
+    }
+
+    /** Resend the signup confirmation email (lands on /auth/confirm). */
+    fun resendConfirmation(email: String, cb: (String?) -> Unit) {
+        val body = JSONObject().put("type", "signup").put("email", email).toString().toRequestBody(JSON)
+        val req = Request.Builder()
+            .url("${Config.SUPABASE_URL}/auth/v1/resend?redirect_to=${Config.SITE_URL}/auth/confirm")
+            .addHeader("apikey", Config.SUPABASE_KEY)
+            .post(body).build()
+        enqueue(req) { b, code ->
+            if (code in 200..299) cb(null) else cb(errMsg(b, "تعذّر إعادة الإرسال — حاول بعد دقيقة"))
+        }
+    }
+
+    // ── Stories (24h) ───────────────────────────────────────────────────────
+    fun fetchStories(cb: (List<StoryItem>?, String?) -> Unit) {
+        val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(java.util.Date())
+        rest("GET", "stories?select=*&expires_at=gt.$now&order=created_at.desc&limit=60") { arr, err ->
+            if (arr == null) return@rest cb(null, err)
+            val stories = (0 until arr.length()).map { StoryItem.from(arr.getJSONObject(it)) }
+            if (stories.isEmpty()) return@rest cb(emptyList(), null)
+            val ids = stories.joinToString(",") { it.authorId }
+            val storyIds = stories.joinToString(",") { it.id }
+            rest("GET", "profiles?select=*&id=in.($ids)") { parr, _ ->
+                val byId = mutableMapOf<String, Profile>()
+                if (parr != null) for (i in 0 until parr.length()) {
+                    val p = Profile.from(parr.getJSONObject(i)); byId[p.id] = p
+                }
+                stories.forEach { it.author = byId[it.authorId] }
+                rest("GET", "story_views?select=story_id&viewer_id=eq.${Session.userId}&story_id=in.($storyIds)") { varr, _ ->
+                    if (varr != null) {
+                        val seen = mutableSetOf<String>()
+                        for (i in 0 until varr.length()) seen.add(varr.getJSONObject(i).optString("story_id"))
+                        stories.forEach { it.viewedByMe = seen.contains(it.id) }
+                    }
+                    // Unviewed first (server order = newest first inside each group).
+                    cb(stories.sortedBy { it.viewedByMe }, null)
+                }
+            }
+        }
+    }
+
+    fun markStoryViewed(storyId: String) {
+        val b = JSONObject().put("story_id", storyId).put("viewer_id", Session.userId)
+        restRaw("POST", "story_views", b) { _, _ -> }
+    }
+
+    fun createStory(imageBytes: ByteArray, mime: String, caption: String, cb: (String?) -> Unit) {
+        uploadImage(imageBytes, mime) { url, err ->
+            if (url == null) return@uploadImage cb(err)
+            val b = JSONObject().put("author_id", Session.userId).put("image_url", url)
+            if (caption.isNotBlank()) b.put("caption", caption)
+            restRaw("POST", "stories", b) { body, code ->
+                if (code in 200..299) cb(null) else cb(errMsg(body, "تعذّر نشر القصة"))
+            }
+        }
+    }
+
+    // ── Search people ───────────────────────────────────────────────────────
+    fun searchProfiles(query: String, cb: (List<Profile>?, String?) -> Unit) {
+        val q = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+        rest("GET", "profiles?select=*&or=(username.ilike.*$q*,display_name.ilike.*$q*)&limit=25") { arr, err ->
+            if (arr == null) cb(null, err)
+            else cb((0 until arr.length()).map { Profile.from(arr.getJSONObject(it)) }, null)
+        }
     }
 
     // ── Dz connect ai (site API, Bearer = Supabase access token) ────────────

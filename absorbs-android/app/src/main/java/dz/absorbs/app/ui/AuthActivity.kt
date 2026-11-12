@@ -1,5 +1,7 @@
 package dz.absorbs.app.ui
 
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -16,9 +18,10 @@ import dz.absorbs.app.data.Api
 import dz.absorbs.app.data.Config
 import dz.absorbs.app.data.Session
 
-/** Native glass auth — white pearl glass, emerald/teal/sky. No WebView. */
+/** Native animated glass auth — floating aurora blobs, Lottie mascot, email-activation flow. */
 class AuthActivity : AppCompatActivity() {
     private var signupMode = false
+    private var lastEmail = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,7 +33,10 @@ class AuthActivity : AppCompatActivity() {
         }
         setContentView(R.layout.activity_auth)
 
+        animateAmbience()
+
         val groupSignup = findViewById<LinearLayout>(R.id.groupSignup)
+        val groupActivate = findViewById<LinearLayout>(R.id.groupActivate)
         val etDisplay = findViewById<EditText>(R.id.etDisplay)
         val etUsername = findViewById<EditText>(R.id.etUsername)
         val etEmail = findViewById<EditText>(R.id.etEmail)
@@ -39,6 +45,17 @@ class AuthActivity : AppCompatActivity() {
         val btnAuth = findViewById<Button>(R.id.btnAuth)
         val tabLogin = findViewById<TextView>(R.id.btnTabLogin)
         val tabSignup = findViewById<TextView>(R.id.btnTabSignup)
+
+        // Entrance: card rises into place.
+        val card = findViewById<View>(R.id.authCard)
+        card.translationY = 70f; card.alpha = 0f
+        card.animate().translationY(0f).alpha(1f).setDuration(650).setStartDelay(150).start()
+
+        fun showActivate(email: String) {
+            lastEmail = email
+            groupActivate.visibility = View.VISIBLE
+            tvError.visibility = View.GONE
+        }
 
         fun setMode(signup: Boolean) {
             signupMode = signup
@@ -50,6 +67,23 @@ class AuthActivity : AppCompatActivity() {
         }
         tabLogin.setOnClickListener { setMode(false) }
         tabSignup.setOnClickListener { setMode(true) }
+
+        findViewById<TextView>(R.id.btnResend).setOnClickListener {
+            val email = etEmail.text.toString().trim().ifBlank { lastEmail }
+            if (!email.contains("@")) {
+                Toast.makeText(this, "أدخل بريدك أولًا", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            Api.resendConfirmation(email) { err ->
+                runOnUiThread {
+                    Toast.makeText(
+                        this,
+                        if (err == null) "أُرسل رابط تفعيل جديد — افحص بريدك (والرسائل غير المرغوبة)" else err,
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
 
         findViewById<TextView>(R.id.tvPrivacy).setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${Config.SITE_URL}/privacy")))
@@ -80,18 +114,60 @@ class AuthActivity : AppCompatActivity() {
                 if (display.isBlank()) return@setOnClickListener fail("أدخل اسمك الكامل")
                 Api.signUp(email, pass, username, display) { err ->
                     runOnUiThread {
-                        if (err == null) goMain()
-                        else if (err.startsWith("تم إنشاء")) {
-                            Toast.makeText(this, err, Toast.LENGTH_LONG).show()
-                            setMode(false); btnAuth.isEnabled = true; btnAuth.text = "دخول"
-                        } else fail(err)
+                        btnAuth.isEnabled = true
+                        btnAuth.text = "إنشاء حسابي"
+                        when {
+                            err == null -> goMain()
+                            err.contains("فعّل بريدك") || err.contains("confirm", true) -> showActivate(email)
+                            else -> fail(err)
+                        }
                     }
                 }
             } else {
                 Api.signIn(email, pass) { err ->
-                    runOnUiThread { if (err == null) goMain() else fail(err) }
+                    runOnUiThread {
+                        btnAuth.isEnabled = true
+                        btnAuth.text = "دخول"
+                        when {
+                            err == null -> goMain()
+                            err.contains("not confirmed", true) || err.contains("تفعيل") -> showActivate(email)
+                            else -> fail(err)
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    private fun animateAmbience() {
+        fun floatView(id: Int, dist: Float, dur: Long, delay: Long) {
+            val v = findViewById<View>(id)
+            ObjectAnimator.ofPropertyValuesHolder(
+                v,
+                PropertyValuesHolder.ofFloat(View.TRANSLATION_Y, 0f, dist),
+                PropertyValuesHolder.ofFloat(View.TRANSLATION_X, 0f, dist * 0.4f),
+            ).apply {
+                duration = dur
+                startDelay = delay
+                repeatCount = ObjectAnimator.INFINITE
+                repeatMode = ObjectAnimator.REVERSE
+                start()
+            }
+        }
+        floatView(R.id.blobSky, 26f, 5200, 0)
+        floatView(R.id.blobMint, -20f, 4600, 400)
+        floatView(R.id.blobGold, 16f, 3900, 800)
+        val halo = findViewById<View>(R.id.authHalo)
+        ObjectAnimator.ofPropertyValuesHolder(
+            halo,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.14f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.14f),
+            PropertyValuesHolder.ofFloat(View.ALPHA, 0.85f, 0.4f),
+        ).apply {
+            duration = 1300
+            repeatCount = ObjectAnimator.INFINITE
+            repeatMode = ObjectAnimator.REVERSE
+            start()
         }
     }
 

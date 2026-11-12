@@ -8,29 +8,37 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.bumptech.glide.Glide
+import com.facebook.shimmer.ShimmerFrameLayout
 import dz.absorbs.app.R
 import dz.absorbs.app.data.Api
 import dz.absorbs.app.data.Post
+import dz.absorbs.app.data.StoryItem
 import dz.absorbs.app.data.TimeAr
 
 class FeedFragment : Fragment() {
     private lateinit var adapter: PostsAdapter
-    private var pb: ProgressBar? = null
+    private lateinit var storiesAdapter: StoriesAdapter
+    private var swipe: SwipeRefreshLayout? = null
+    private var shimmer: ShimmerFrameLayout? = null
     private var tvEmpty: TextView? = null
+    private var rvStories: RecyclerView? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val v = inflater.inflate(R.layout.fragment_feed, container, false)
-        val rv = v.findViewById<RecyclerView>(R.id.rvPosts)
-        pb = v.findViewById(R.id.pbFeed)
+        swipe = v.findViewById(R.id.swipeFeed)
+        shimmer = v.findViewById(R.id.shimmerFeed)
         tvEmpty = v.findViewById(R.id.tvEmpty)
+        rvStories = v.findViewById(R.id.rvStories)
+
+        val rv = v.findViewById<RecyclerView>(R.id.rvPosts)
         adapter = PostsAdapter(
             onLike = { post -> Api.toggleLike(post) { ok -> activity?.runOnUiThread { if (ok) adapter.notifyDataSetChanged() } } },
             onComment = { post ->
@@ -42,27 +50,67 @@ class FeedFragment : Fragment() {
             onReport = { post -> showReport(post) },
         )
         rv.layoutManager = LinearLayoutManager(requireContext())
+        rv.layoutAnimation = android.view.animation.AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_fall)
         rv.adapter = adapter
-        v.findViewById<TextView>(R.id.btnRefresh).setOnClickListener { load() }
+
+        storiesAdapter = StoriesAdapter(
+            onAdd = {
+                val i = Intent(requireContext(), ComposerActivity::class.java)
+                i.putExtra("mode", "story")
+                startActivity(i)
+            },
+            onOpen = { story ->
+                Api.markStoryViewed(story.id)
+                story.viewedByMe = true
+                storiesAdapter.notifyDataSetChanged()
+                val i = Intent(requireContext(), StoryViewActivity::class.java)
+                i.putExtra("image", story.imageUrl)
+                i.putExtra("caption", story.caption ?: "")
+                i.putExtra("author", story.author?.displayName ?: "")
+                i.putExtra("avatar", story.author?.avatarUrl ?: "")
+                i.putExtra("time", story.createdAt)
+                startActivity(i)
+            },
+        )
+        rvStories?.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        rvStories?.adapter = storiesAdapter
+
+        swipe?.setColorSchemeColors(Color.parseColor("#059669"), Color.parseColor("#0284C7"))
+        swipe?.setOnRefreshListener { loadAll() }
+        v.findViewById<TextView>(R.id.btnRefresh).setOnClickListener { loadAll() }
+        v.findViewById<TextView>(R.id.btnSearch).setOnClickListener {
+            startActivity(Intent(requireContext(), SearchActivity::class.java))
+        }
         Api.fetchMyProfile { profile, _ ->
             activity?.runOnUiThread {
                 if (profile != null) v.findViewById<TextView>(R.id.tvHello).text = "أهلًا، ${profile.displayName}"
             }
         }
-        load()
+        loadAll()
         return v
     }
 
     override fun onResume() {
         super.onResume()
-        if (::adapter.isInitialized && adapter.itemCount > 0) load()
+        if (::adapter.isInitialized && adapter.itemCount > 0) loadAll()
     }
 
-    private fun load() {
-        pb?.visibility = View.VISIBLE
+    private fun loadAll() {
+        shimmer?.visibility = View.VISIBLE
+        shimmer?.startShimmer()
+        Api.fetchStories { stories, _ ->
+            activity?.runOnUiThread {
+                if (!stories.isNullOrEmpty()) {
+                    rvStories?.visibility = View.VISIBLE
+                    storiesAdapter.submit(stories)
+                } else rvStories?.visibility = View.GONE
+            }
+        }
         Api.fetchFeed { posts, err ->
             activity?.runOnUiThread {
-                pb?.visibility = View.GONE
+                shimmer?.stopShimmer()
+                shimmer?.visibility = View.GONE
+                swipe?.isRefreshing = false
                 if (posts != null) {
                     adapter.submit(posts)
                     tvEmpty?.visibility = if (posts.isEmpty()) View.VISIBLE else View.GONE
@@ -86,6 +134,57 @@ class FeedFragment : Fragment() {
             }
             .setNegativeButton("إلغاء", null)
             .show()
+    }
+}
+
+/** Stories rail: "your story" add-tile first, then unviewed (gradient ring) → viewed (grey ring). */
+class StoriesAdapter(
+    private val onAdd: () -> Unit,
+    private val onOpen: (StoryItem) -> Unit,
+) : RecyclerView.Adapter<StoriesAdapter.VH>() {
+    private val items = mutableListOf<StoryItem>()
+
+    fun submit(list: List<StoryItem>) {
+        items.clear(); items.addAll(list); notifyDataSetChanged()
+    }
+
+    override fun getItemCount() = items.size + 1
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_story, parent, false)
+        return VH(v)
+    }
+
+    override fun onBindViewHolder(h: VH, pos: Int) {
+        val ctx = h.itemView.context
+        if (pos == 0) {
+            h.ring.setBackgroundResource(R.drawable.bg_ring_seen)
+            h.avatar.setImageResource(R.drawable.ic_plus)
+            h.avatar.setColorFilter(Color.parseColor("#059669"))
+            h.avatar.setPadding(16, 16, 16, 16)
+            h.name.text = "قصتك"
+            h.itemView.setOnClickListener { onAdd() }
+            return
+        }
+        val story = items[pos - 1]
+        h.ring.setBackgroundResource(if (story.viewedByMe) R.drawable.bg_ring_seen else R.drawable.bg_ring_new)
+        h.name.text = story.author?.displayName ?: "مستخدم"
+        val avatar = story.author?.avatarUrl
+        if (!avatar.isNullOrBlank()) {
+            Glide.with(ctx).load(avatar).circleCrop().into(h.avatar)
+            h.avatar.setPadding(0, 0, 0, 0)
+            h.avatar.clearColorFilter()
+        } else {
+            h.avatar.setImageResource(R.drawable.ic_user)
+            h.avatar.setPadding(18, 18, 18, 18)
+        }
+        h.itemView.setOnClickListener { onOpen(story) }
+    }
+
+    class VH(v: View) : RecyclerView.ViewHolder(v) {
+        val ring: View = v.findViewById(R.id.storyRing)
+        val avatar: ImageView = v.findViewById(R.id.ivStoryAvatar)
+        val name: TextView = v.findViewById(R.id.tvStoryName)
     }
 }
 
@@ -146,7 +245,11 @@ class PostsAdapter(
         h.tvLikeCount.text = post.likeCount.toString()
         h.tvCommentCount.text = post.commentCount.toString()
         h.ivLike.setColorFilter(Color.parseColor(if (post.likedByMe) "#059669" else "#3D5750"))
-        h.btnLike.setOnClickListener { onLike(post) }
+        h.btnLike.setOnClickListener {
+            h.btnLike.animate().scaleX(1.25f).scaleY(1.25f).setDuration(110)
+                .withEndAction { h.btnLike.animate().scaleX(1f).scaleY(1f).setDuration(160).start() }.start()
+            onLike(post)
+        }
         h.btnComment.setOnClickListener { onComment(post) }
         h.btnReport.setOnClickListener { onReport(post) }
     }

@@ -17,18 +17,21 @@
         android:theme="@style/Theme.DZConnect">
 
         <activity
-            android:name=".ui.AuthActivity"
+            android:name=".ui.SplashActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:theme="@style/Theme.DZConnect">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
+        <activity android:name=".ui.AuthActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.MainActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.ComposerActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.ChatActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.PostDetailActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.SearchActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.StoryViewActivity" android:exported="false" />
     </application>
 </manifest>

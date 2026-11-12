@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/bg_app_gradient">
+    <View android:layout_width="220dp" android:layout_height="220dp" android:layout_gravity="top|end"
+        android:layout_marginTop="-70dp" android:layout_marginEnd="-70dp" android:background="@drawable/bg_circle_sky" android:alpha="0.20" />
+    <View android:layout_width="160dp" android:layout_height="160dp" android:layout_gravity="bottom|start"
+        android:layout_marginBottom="-50dp" android:layout_marginStart="-50dp" android:background="@drawable/bg_circle_emerald" android:alpha="0.18" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_gravity="center" android:gravity="center" android:orientation="vertical" android:padding="24dp">
+        <FrameLayout android:layout_width="150dp" android:layout_height="150dp">
+            <View android:id="@+id/splashHalo" android:layout_width="150dp" android:layout_height="150dp" android:background="@drawable/bg_halo" />
+            <TextView android:id="@+id/splashLogo" android:layout_width="104dp" android:layout_height="104dp"
+                android:layout_gravity="center" android:background="@drawable/bg_bubble_me" android:elevation="10dp"
+                android:gravity="center" android:text="D" android:textColor="@color/white" android:textSize="52sp" android:textStyle="bold" />
+        </FrameLayout>
+        <TextView android:id="@+id/splashName" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:text="Dz connect" android:textColor="@color/ink" android:textSize="34sp" android:textStyle="bold" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="حيث تلتقي الجزائر" android:textColor="@color/ink_soft" android:textSize="15sp" />
+        <com.airbnb.lottie.LottieAnimationView android:id="@+id/splashLottie"
+            android:layout_width="120dp" android:layout_height="120dp" android:layout_marginTop="14dp"
+            app:lottie_fileName="Lottie Logo 1.json" app:lottie_autoPlay="true" app:lottie_loop="true" />
+    </LinearLayout>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal" android:layout_marginBottom="28dp"
+        android:text="صُنع بحب في الجزائر" android:textColor="@color/ink_soft" android:textSize="12sp" />
+</FrameLayout>

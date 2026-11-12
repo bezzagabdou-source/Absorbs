@@ -26,9 +26,16 @@ class ComposerActivity : AppCompatActivity() {
         }
     }
 
+    private var storyMode = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_composer)
+        storyMode = intent.getStringExtra("mode") == "story"
+        if (storyMode) {
+            findViewById<TextView>(R.id.tvComposerTitle).text = "قصة جديدة — تختفي بعد 24 ساعة"
+            findViewById<TextView>(R.id.btnPublish).text = "نشر القصة"
+        }
         val et = findViewById<EditText>(R.id.etPost)
         findViewById<TextView>(R.id.btnCancelPost).setOnClickListener { finish() }
         findViewById<TextView>(R.id.btnPickImage).setOnClickListener { picker.launch("image/*") }
@@ -42,6 +49,14 @@ class ComposerActivity : AppCompatActivity() {
             publishing = true
             Toast.makeText(this, "جارٍ النشر…", Toast.LENGTH_SHORT).show()
             val uri = imageUri
+            if (storyMode) {
+                if (uri == null) { done("القصة تحتاج صورة أولًا"); return@setOnClickListener }
+                val sBytes = contentResolver.openInputStream(uri)?.readBytes()
+                val sMime = contentResolver.getType(uri) ?: "image/jpeg"
+                if (sBytes == null) { done("تعذّر قراءة الصورة"); return@setOnClickListener }
+                Api.createStory(sBytes, sMime, content) { err -> done(err) }
+                return@setOnClickListener
+            }
             if (uri == null) {
                 Api.createPost(content, null, "image") { err -> done(err) }
             } else {

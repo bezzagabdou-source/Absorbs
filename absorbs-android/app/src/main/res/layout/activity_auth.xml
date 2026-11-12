@@ -1,61 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:background="@drawable/bg_app_gradient" android:fillViewport="true">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:padding="24dp">
-        <View android:layout_width="120dp" android:layout_height="120dp" android:layout_gravity="end"
-            android:layout_marginTop="-40dp" android:layout_marginEnd="-40dp" android:background="@drawable/bg_circle_sky" android:alpha="0.25" />
-        <TextView android:layout_width="76dp" android:layout_height="76dp" android:layout_gravity="center_horizontal"
-            android:background="@drawable/bg_bubble_me" android:gravity="center" android:text="D"
-            android:textColor="@color/white" android:textSize="38sp" android:textStyle="bold" />
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal" android:layout_marginTop="14dp"
-            android:text="Dz connect" android:textColor="@color/ink" android:textSize="30sp" android:textStyle="bold" />
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal" android:layout_marginTop="4dp"
-            android:text="منصّة الجزائر الاجتماعية — ناس، قصص، وأفكار" android:textColor="@color/ink_soft" android:textSize="14sp" />
+    android:background="@drawable/bg_app_gradient">
+    <View android:id="@+id/blobSky" android:layout_width="230dp" android:layout_height="230dp" android:layout_gravity="top|end"
+        android:layout_marginTop="-80dp" android:layout_marginEnd="-80dp" android:background="@drawable/bg_circle_sky" android:alpha="0.22" />
+    <View android:id="@+id/blobMint" android:layout_width="190dp" android:layout_height="190dp" android:layout_gravity="top|start"
+        android:layout_marginTop="120dp" android:layout_marginStart="-90dp" android:background="@drawable/bg_circle_emerald" android:alpha="0.20" />
+    <View android:id="@+id/blobGold" android:layout_width="120dp" android:layout_height="120dp" android:layout_gravity="bottom|end"
+        android:layout_marginBottom="-40dp" android:layout_marginEnd="-30dp" android:background="@drawable/bg_circle_gold" android:alpha="0.20" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="26dp" android:background="@drawable/bg_glass_card"
-            android:elevation="8dp" android:orientation="vertical" android:padding="20dp">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                <TextView android:id="@+id/btnTabLogin" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                    android:gravity="center" android:padding="10dp" android:text="تسجيل الدخول" android:textStyle="bold" android:textColor="@color/emerald" android:textSize="15sp" />
-                <TextView android:id="@+id/btnTabSignup" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                    android:gravity="center" android:padding="10dp" android:text="حساب جديد" android:textStyle="bold" android:textColor="@color/ink_soft" android:textSize="15sp" />
+            android:orientation="vertical" android:padding="24dp">
+            <FrameLayout android:layout_width="128dp" android:layout_height="128dp" android:layout_gravity="center_horizontal" android:layout_marginTop="18dp">
+                <View android:id="@+id/authHalo" android:layout_width="128dp" android:layout_height="128dp" android:background="@drawable/bg_halo" />
+                <com.airbnb.lottie.LottieAnimationView android:id="@+id/lottieAuth"
+                    android:layout_width="118dp" android:layout_height="118dp" android:layout_gravity="center"
+                    app:lottie_fileName="AndroidWave.json" app:lottie_autoPlay="true" app:lottie_loop="true" />
+            </FrameLayout>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal" android:layout_marginTop="6dp"
+                android:text="Dz connect" android:textColor="@color/ink" android:textSize="32sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal" android:layout_marginTop="2dp"
+                android:text="منصّة الجزائر الاجتماعية — ناس، قصص، وأفكار" android:textColor="@color/ink_soft" android:textSize="14sp" />
+            <LinearLayout android:id="@+id/authCard" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="22dp" android:background="@drawable/bg_glass_card"
+                android:elevation="10dp" android:orientation="vertical" android:padding="20dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                    <TextView android:id="@+id/btnTabLogin" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:gravity="center" android:padding="10dp" android:text="تسجيل الدخول" android:textStyle="bold" android:textColor="@color/emerald" android:textSize="15sp" />
+                    <TextView android:id="@+id/btnTabSignup" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:gravity="center" android:padding="10dp" android:text="حساب جديد" android:textStyle="bold" android:textColor="@color/ink_soft" android:textSize="15sp" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/groupSignup" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:visibility="gone">
+                    <EditText android:id="@+id/etDisplay" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp" android:background="@drawable/bg_input" android:hint="الاسم الكامل"
+                        android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="textPersonName" />
+                    <EditText android:id="@+id/etUsername" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:background="@drawable/bg_input" android:hint="اسم المستخدم (username)"
+                        android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="text" />
+                </LinearLayout>
+                <EditText android:id="@+id/etEmail" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:background="@drawable/bg_input" android:hint="البريد الإلكتروني"
+                    android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="textEmailAddress" />
+                <EditText android:id="@+id/etPassword" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:background="@drawable/bg_input" android:hint="كلمة المرور"
+                    android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="textPassword" />
+                <TextView android:id="@+id/tvAuthError" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp" android:textColor="#DC2626" android:textSize="13sp" android:visibility="gone" />
+                <Button android:id="@+id/btnAuth" android:layout_width="match_parent" android:layout_height="56dp"
+                    android:layout_marginTop="16dp" android:background="@drawable/btn_primary_bg"
+                    android:text="دخول" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold" />
+                <LinearLayout android:id="@+id/groupActivate" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp" android:background="@drawable/bg_glass_soft" android:orientation="vertical"
+                    android:padding="14dp" android:visibility="gone">
+                    <TextView android:id="@+id/tvActivateMsg" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="أرسلنا رابط تفعيل إلى بريدك. افتح بريدك واضغط الرابط، ثم سجّل الدخول هنا." android:textColor="@color/ink" android:textSize="13sp" />
+                    <TextView android:id="@+id/btnResend" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp" android:text="إعادة إرسال رابط التفعيل" android:textColor="@color/sky" android:textSize="14sp" android:textStyle="bold" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp" android:gravity="center" android:orientation="horizontal">
+                    <TextView android:id="@+id/tvPrivacy" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="سياسة الخصوصية" android:textColor="@color/sky" android:textSize="13sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp" android:layout_marginEnd="8dp" android:text="·" android:textColor="@color/ink_soft" />
+                    <TextView android:id="@+id/tvTerms" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="شروط الاستخدام" android:textColor="@color/sky" android:textSize="13sp" />
+                </LinearLayout>
             </LinearLayout>
-            <LinearLayout android:id="@+id/groupSignup" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:orientation="vertical" android:visibility="gone">
-                <EditText android:id="@+id/etDisplay" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp" android:background="@drawable/bg_input" android:hint="الاسم الكامل"
-                    android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="textPersonName" />
-                <EditText android:id="@+id/etUsername" android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp" android:background="@drawable/bg_input" android:hint="اسم المستخدم (username)"
-                    android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="text" />
-            </LinearLayout>
-            <EditText android:id="@+id/etEmail" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="12dp" android:background="@drawable/bg_input" android:hint="البريد الإلكتروني"
-                android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="textEmailAddress" />
-            <EditText android:id="@+id/etPassword" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="10dp" android:background="@drawable/bg_input" android:hint="كلمة المرور"
-                android:padding="14dp" android:textColor="@color/ink" android:textColorHint="@color/ink_soft" android:inputType="textPassword" />
-            <TextView android:id="@+id/tvAuthError" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="10dp" android:textColor="#DC2626" android:textSize="13sp" android:visibility="gone" />
-            <Button android:id="@+id/btnAuth" android:layout_width="match_parent" android:layout_height="56dp"
-                android:layout_marginTop="16dp" android:background="@drawable/btn_primary_bg"
-                android:text="دخول" android:textColor="@color/white" android:textSize="16sp" android:textStyle="bold" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="14dp" android:gravity="center" android:orientation="horizontal">
-                <TextView android:id="@+id/tvPrivacy" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="سياسة الخصوصية" android:textColor="@color/sky" android:textSize="13sp" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp" android:layout_marginEnd="8dp" android:text="·" android:textColor="@color/ink_soft" />
-                <TextView android:id="@+id/tvTerms" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="شروط الاستخدام" android:textColor="@color/sky" android:textSize="13sp" />
-            </LinearLayout>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal" android:layout_marginTop="16dp"
+                android:text="بالمتابعة أنت توافق على شروط الاستخدام وسياسة الخصوصية" android:textColor="@color/ink_soft" android:textSize="12sp" />
         </LinearLayout>
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal" android:layout_marginTop="18dp"
-            android:text="بالمتابعة أنت توافق على شروط الاستخدام وسياسة الخصوصية" android:textColor="@color/ink_soft" android:textSize="12sp" />
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</FrameLayout>
