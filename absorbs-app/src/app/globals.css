@@ -185,3 +185,47 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+
+/* ── Dz connect luxury aurora background ── */
+.aurora-app {
+  position: relative;
+  isolation: isolate;
+}
+.aurora-app::before,
+.aurora-app::after {
+  content: "";
+  position: fixed;
+  border-radius: 9999px;
+  filter: blur(90px);
+  z-index: -1;
+  pointer-events: none;
+}
+.aurora-app::before {
+  width: 340px; height: 340px;
+  top: -120px; inset-inline-start: -80px;
+  background: radial-gradient(circle, rgba(16,185,129,0.22), transparent 65%);
+  animation: aurora-drift 14s ease-in-out infinite alternate;
+}
+.aurora-app::after {
+  width: 300px; height: 300px;
+  bottom: -100px; inset-inline-end: -60px;
+  background: radial-gradient(circle, rgba(34,211,238,0.16), transparent 65%);
+  animation: aurora-drift 18s ease-in-out infinite alternate-reverse;
+}
+@keyframes aurora-drift {
+  from { transform: translate3d(0,0,0) scale(1); }
+  to { transform: translate3d(40px,30px,0) scale(1.15); }
+}
+.brand-gradient {
+  background: linear-gradient(100deg, #6ee7b7, #2dd4bf 45%, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.glass-deep {
+  background: linear-gradient(160deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.09);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+  backdrop-filter: blur(22px);
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Wand2, Loader2, SendHorizonal, X } from "lucide-react";
+import { Clapperboard, ImagePlus, Wand2, Loader2, SendHorizonal, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useToast } from "@/components/ui/feedback";
@@ -11,11 +11,14 @@ import type { Post } from "@/lib/types";
 
 const MAX_CHARS = 500;
 
-export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
+export function Composer({ onPosted, groupId = null }: { onPosted: (post: Post) => void; groupId?: string | null }) {
   const { profile, user } = useAuth();
   const { toast } = useToast();
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -26,6 +29,14 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
     if (new URLSearchParams(window.location.search).get("compose") === "1") {
       areaRef.current?.focus();
     }
+    try {
+      const draft = localStorage.getItem("dz-draft");
+      if (draft) {
+        setContent((c) => c || draft);
+        localStorage.removeItem("dz-draft");
+        areaRef.current?.focus();
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -70,15 +81,38 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
     }
   };
 
+  const pickVideo = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 30 * 1024 * 1024) return toast("الفيديو كبير — الحد الأقصى 30MB", "error");
+    clearImage();
+    setVideoFile(file);
+    setVideoPreview(URL.createObjectURL(file));
+  };
+
+  const clearVideo = () => {
+    setVideoFile(null);
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
+    setVideoPreview(null);
+  };
+
   const submit = async () => {
     if (!user || !profile || posting) return;
     const text = content.trim();
-    if (!text && !imageFile) return;
+    if (!text && !imageFile && !videoFile) return;
     setPosting(true);
     const supabase = createClient();
     try {
       let imageUrl: string | null = null;
-      if (imageFile) {
+      let mediaType: "image" | "video" = "image";
+      if (videoFile) {
+        mediaType = "video";
+        const path = `${user.id}/${crypto.randomUUID()}.mp4`;
+        const { error: uploadError } = await supabase.storage
+          .from("post-images")
+          .upload(path, videoFile, { contentType: videoFile.type || "video/mp4", upsert: false });
+        if (uploadError) throw uploadError;
+        imageUrl = supabase.storage.from("post-images").getPublicUrl(path).data.publicUrl;
+      } else if (imageFile) {
         const blob = await compressImage(imageFile);
         const path = `${user.id}/${crypto.randomUUID()}.jpg`;
         const { error: uploadError } = await supabase.storage
@@ -90,7 +124,7 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
 
       const { data, error } = await supabase
         .from("posts")
-        .insert({ author_id: user.id, content: text || null, image_url: imageUrl })
+        .insert({ author_id: user.id, content: text || null, image_url: imageUrl, media_type: mediaType, group_id: groupId })
         .select("id, created_at")
         .single();
       if (error) throw error;
@@ -100,6 +134,8 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
         author_id: user.id,
         content: text || null,
         image_url: imageUrl,
+        media_type: mediaType,
+        group_id: groupId,
         created_at: data.created_at,
         author: profile,
         like_count: 0,
@@ -108,6 +144,7 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
       });
       setContent("");
       clearImage();
+      clearVideo();
       toast("تم نشر منشورك ✨");
     } catch (err) {
       toast(friendlyError(err as { message?: string }, "تعذّر النشر — تأكد من تنفيذ schema.sql (يشمل Storage)"), "error");
@@ -143,6 +180,19 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
               </button>
             </div>
           )}
+          {videoPreview && (
+            <div className="relative mb-2 overflow-hidden rounded-3xl ring-1 ring-white/10">
+              <video src={videoPreview} controls playsInline className="max-h-64 w-full bg-black object-contain" />
+              <button
+                onClick={clearVideo}
+                aria-label="إزالة الفيديو"
+                className="absolute end-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <span className="absolute start-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold text-white">🎬 سيظهر في الريلز</span>
+            </div>
+          )}
           <div className="mt-2 flex items-center justify-between border-t border-white/[0.06] pt-3">
             <div className="flex items-center gap-1.5">
               <input
@@ -158,6 +208,22 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
               >
                 <ImagePlus className="h-4 w-4" /> صورة
               </button>
+              <input
+                ref={videoRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  pickVideo(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => videoRef.current?.click()}
+                className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-white/10 active:scale-95"
+              >
+                <Clapperboard className="h-4 w-4" /> فيديو
+              </button>
               <button
                 onClick={() => void improveWithAi()}
                 disabled={aiBusy || !content.trim()}
@@ -172,7 +238,7 @@ export function Composer({ onPosted }: { onPosted: (post: Post) => void }) {
             </div>
             <button
               onClick={submit}
-              disabled={posting || (!content.trim() && !imageFile)}
+              disabled={posting || (!content.trim() && !imageFile && !videoFile)}
               className="btn-primary flex items-center gap-2 rounded-full px-5 py-2 text-sm font-bold text-white disabled:opacity-40"
             >
               {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonal className="h-4 w-4 -scale-x-100" />}

@@ -74,7 +74,18 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
       toast(error.message.includes("duplicate") ? "الاسم محجوز، اختر غيره" : "تعذّر الحفظ — تأكد من تنفيذ schema.sql", "error");
       return;
     }
-    toast("أهلًا بك في Dz connect 🎉");
+    try {
+      const ref = localStorage.getItem("dz-ref");
+      if (ref) {
+        await supabase.rpc("award_referral", { p_code: ref });
+        localStorage.removeItem("dz-ref");
+        toast("أهلًا بك في Dz connect 🎉 حصلت على 10 نقاط ترحيبية!");
+      } else {
+        toast("أهلًا بك في Dz connect 🎉");
+      }
+    } catch {
+      toast("أهلًا بك في Dz connect 🎉");
+    }
     await onDone();
   };
 

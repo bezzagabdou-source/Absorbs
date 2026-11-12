@@ -193,7 +193,9 @@ export function PostCard({
   };
 
   const sharePost = async () => {
-    const url = `${window.location.origin}/post/${post.id}`;
+    const excerpt = encodeURIComponent((post.content ?? "منشور على Dz connect").slice(0, 110));
+    const img = post.image_url && post.media_type !== "video" ? `&img=${encodeURIComponent(post.image_url)}` : "";
+    const url = `${window.location.origin}/p/${post.id}?t=${excerpt}${img}`;
     try {
       if (navigator.share) await navigator.share({ title: "Dz connect", text: post.content ?? "منشور على Dz connect", url });
       else {
@@ -285,7 +287,11 @@ export function PostCard({
       {post.image_url && (
         <div className="relative mt-3 select-none" onClick={onImageTap} role="presentation">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={post.image_url} alt={post.content ?? "صورة منشور"} className="max-h-[430px] w-full object-cover" loading="lazy" />
+          {post.media_type === "video" ? (
+            <video src={post.image_url} controls playsInline preload="metadata" className="max-h-[480px] w-full bg-black object-contain" />
+          ) : (
+            <img src={post.image_url} alt={post.content ?? "صورة منشور"} className="max-h-[430px] w-full object-cover" loading="lazy" />
+          )}
           {burst && (
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <Heart className="heart-burst h-24 w-24 fill-red-500 text-red-400 drop-shadow-[0_10px_30px_rgba(244,63,94,0.6)]" />

@@ -12,6 +12,13 @@ import { cn, friendlyError, isValidUsername, normalizeUsername } from "@/lib/uti
 type UsernameState = "idle" | "checking" | "free" | "taken" | "invalid";
 
 export default function SignupPage() {
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref) localStorage.setItem("dz-ref", ref);
+    } catch {}
+  }, []);
+
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");

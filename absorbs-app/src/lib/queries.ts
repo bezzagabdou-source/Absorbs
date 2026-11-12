@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DmThread, Message, Post, PostComment, PostRow, Profile } from "./types";
 
 const POST_SELECT = `
-  id, author_id, content, image_url, created_at,
-  author:profiles!posts_author_id_fkey ( id, username, display_name, bio, avatar_url, cover_url, website, created_at, updated_at ),
+  id, author_id, content, image_url, media_type, group_id, created_at,
+  author:profiles!posts_author_id_fkey ( id, username, display_name, bio, avatar_url, cover_url, website, is_verified, created_at, updated_at ),
   likes ( count ),
   comments ( count )
 `;
@@ -14,6 +14,8 @@ function mapPost(row: PostRow, myLikes: Set<string>): Post {
     author_id: row.author_id,
     content: row.content,
     image_url: row.image_url,
+    media_type: row.media_type ?? "image",
+    group_id: row.group_id ?? null,
     created_at: row.created_at,
     author: row.author ?? undefined,
     like_count: row.likes?.[0]?.count ?? 0,
@@ -44,10 +46,12 @@ export async function fetchSavedPosts(supabase: SupabaseClient, userId: string):
   if (ids.length === 0) return [];
   const myLikes = await myLikedPostIds(supabase, userId);
   const savedSet = new Set(ids);
-  const { data, error: postsError } = await supabase.from("posts").select(POST_SELECT).in("id", ids);
+  const { data, error: postsError } = await selectPostsResilient(supabase, (select) =>
+    supabase.from("posts").select(select).in("id", ids),
+  );
   if (postsError) throw postsError;
   const byId = new Map(
-    ((data ?? []) as unknown as PostRow[]).map((r) => {
+    data.map((r) => {
       const p = mapPost(r, myLikes);
       p.saved_by_me = savedSet.has(r.id);
       return [r.id, p] as const;
@@ -58,12 +62,15 @@ export async function fetchSavedPosts(supabase: SupabaseClient, userId: string):
 
 export async function fetchFeed(supabase: SupabaseClient, userId: string, limit = 30): Promise<Post[]> {
   const [{ data, error }, myLikes, mySaved] = await Promise.all([
-    supabase.from("posts").select(POST_SELECT).order("created_at", { ascending: false }).limit(limit),
+    selectPostsResilient(supabase, (select) => {
+      const query = supabase.from("posts").select(select).order("created_at", { ascending: false }).limit(limit);
+      return select.includes("group_id") ? query.is("group_id", null) : query;
+    }),
     myLikedPostIds(supabase, userId),
     mySavedPostIds(supabase, userId).catch(() => new Set<string>()),
   ]);
   if (error) throw error;
-  return ((data ?? []) as unknown as PostRow[]).map((r) => {
+  return data.map((r) => {
     const p = mapPost(r, myLikes);
     p.saved_by_me = mySaved.has(r.id);
     return p;
@@ -76,15 +83,13 @@ export async function fetchUserPosts(
   viewerId: string,
 ): Promise<Post[]> {
   const [{ data, error }, myLikes] = await Promise.all([
-    supabase
-      .from("posts")
-      .select(POST_SELECT)
-      .eq("author_id", profileId)
-      .order("created_at", { ascending: false }),
+    selectPostsResilient(supabase, (select) =>
+      supabase.from("posts").select(select).eq("author_id", profileId).order("created_at", { ascending: false }),
+    ),
     myLikedPostIds(supabase, viewerId),
   ]);
   if (error) throw error;
-  return ((data ?? []) as unknown as PostRow[]).map((r) => mapPost(r, myLikes));
+  return data.map((r) => mapPost(r, myLikes));
 }
 
 export async function fetchLikedPosts(supabase: SupabaseClient, userId: string): Promise<Post[]> {
@@ -98,19 +103,22 @@ export async function fetchLikedPosts(supabase: SupabaseClient, userId: string):
   const ids = (likeRows ?? []).map((r: { post_id: string }) => r.post_id);
   if (ids.length === 0) return [];
   const myLikes = new Set(ids);
-  const { data, error: postsError } = await supabase.from("posts").select(POST_SELECT).in("id", ids);
+  const { data, error: postsError } = await selectPostsResilient(supabase, (select) =>
+    supabase.from("posts").select(select).in("id", ids),
+  );
   if (postsError) throw postsError;
-  const byId = new Map(((data ?? []) as unknown as PostRow[]).map((r) => [r.id, mapPost(r, myLikes)]));
+  const byId = new Map(data.map((r) => [r.id, mapPost(r, myLikes)]));
   return ids.map((id) => byId.get(id)).filter((p): p is Post => Boolean(p));
 }
 
 export async function fetchSinglePost(supabase: SupabaseClient, postId: string, userId: string): Promise<Post | null> {
   const [{ data, error }, myLikes] = await Promise.all([
-    supabase.from("posts").select(POST_SELECT).eq("id", postId).maybeSingle(),
+    selectPostsResilient(supabase, (select) => supabase.from("posts").select(select).eq("id", postId).maybeSingle()),
     myLikedPostIds(supabase, userId),
   ]);
   if (error) throw error;
-  return data ? mapPost(data as unknown as PostRow, myLikes) : null;
+  const row = (Array.isArray(data) ? data[0] : data) as PostRow | null;
+  return row ? mapPost(row, myLikes) : null;
 }
 
 /** Refresh just the counters of one post (used after Realtime events). */
@@ -217,4 +225,58 @@ export async function fetchTotalUnread(supabase: SupabaseClient, userId: string)
     .neq("sender_id", userId)
     .is("read_at", null);
   return count ?? 0;
+}
+
+
+/* ── v3 helpers: groups · reels · trending · leaderboard (query-level schema tolerance) ── */
+
+const POST_SELECT_LEGACY = POST_SELECT.replace(", media_type, group_id", "");
+
+async function selectPostsResilient(
+  supabase: SupabaseClient,
+  build: (select: string) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+): Promise<{ data: PostRow[]; error: { code?: string; message?: string } | null }> {
+  const first = await build(POST_SELECT);
+  if (first.error && (first.error.code === "42703" || /media_type|group_id/.test(first.error.message ?? ""))) {
+    const retry = await build(POST_SELECT_LEGACY);
+    return { data: (retry.data ?? []) as PostRow[], error: retry.error };
+  }
+  return { data: (first.data ?? []) as PostRow[], error: first.error };
+}
+
+export async function fetchGroupPosts(supabase: SupabaseClient, userId: string, groupId: string): Promise<Post[]> {
+  const myLikes = await myLikedPostIds(supabase, userId).catch(() => new Set<string>());
+  const { data, error } = await selectPostsResilient(supabase, (select) =>
+    supabase.from("posts").select(select).eq("group_id", groupId).order("created_at", { ascending: false }).limit(40),
+  );
+  if (error) throw error;
+  return data.map((r) => mapPost(r, myLikes));
+}
+
+export async function fetchVideoPosts(supabase: SupabaseClient, userId: string, limit = 30): Promise<Post[]> {
+  const myLikes = await myLikedPostIds(supabase, userId).catch(() => new Set<string>());
+  const { data, error } = await selectPostsResilient(supabase, (select) =>
+    supabase.from("posts").select(select).eq("media_type", "video").order("created_at", { ascending: false }).limit(limit),
+  );
+  if (error) throw error;
+  return data.map((r) => mapPost(r, myLikes));
+}
+
+/** Fast-rising hashtags + top posts in the last 48h (Dz connect Algeria trend). */
+export async function fetchTrending(supabase: SupabaseClient, userId: string) {
+  const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+  const myLikes = await myLikedPostIds(supabase, userId).catch(() => new Set<string>());
+  const { data } = await selectPostsResilient(supabase, (select) =>
+    supabase.from("posts").select(select).gte("created_at", since).order("created_at", { ascending: false }).limit(120),
+  );
+  const posts = data.map((r) => mapPost(r, myLikes));
+  const tagCount = new Map<string, number>();
+  for (const p of posts) {
+    for (const tag of (p.content ?? '').match(/#[\p{L}\p{N}_]+/gu) ?? []) {
+      tagCount.set(tag.slice(1), (tagCount.get(tag.slice(1)) ?? 0) + 1);
+    }
+  }
+  const hashtags = [...tagCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([tag, count]) => ({ tag, count }));
+  const topPosts = [...posts].sort((a, b) => b.like_count + b.comment_count * 2 - (a.like_count + a.comment_count * 2)).slice(0, 10);
+  return { hashtags, topPosts };
 }

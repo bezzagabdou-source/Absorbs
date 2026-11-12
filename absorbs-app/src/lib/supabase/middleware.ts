@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config";
 
-const PROTECTED_PREFIXES = ["/feed", "/explore", "/messages", "/profile", "/u", "/post", "/settings"];
+const PROTECTED_PREFIXES = ["/feed", "/explore", "/messages", "/profile", "/u", "/post", "/settings", "/ai", "/groups", "/reels", "/rewards", "/notifications"];
 const AUTH_ROUTES = ["/login", "/signup"];
 
 /** Refreshes the Supabase session on every request and guards private routes. */

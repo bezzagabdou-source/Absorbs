@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/components/providers/auth-provider";
 import { ProfileView } from "@/components/profile/profile-view";
 import { SecurityCenter } from "@/components/profile/security-center";
+import { InviteCard } from "@/components/social/invite-card";
 import { InstallButton } from "@/components/pwa/install-button";
 import { useToast } from "@/components/ui/feedback";
 import { Avatar } from "@/components/ui/avatar";
@@ -16,6 +17,7 @@ export default function MyProfilePage() {
   if (!profile) return null;
   return (
     <ProfileView profile={profile}>
+      <InviteCard />
       <SecurityCenter />
       <SettingsCard />
     </ProfileView>

@@ -151,6 +151,12 @@ export default function WelcomePage() {
         {/* ── CTA ── */}
         <div className="mt-8 space-y-3 pb-2 pt-2">
           <InstallButton />
+          <a
+            href="https://github.com/bezzagabdou-source/Absorbs/releases/download/dz-connect-v1.3.0/DZConnect.apk"
+            className="glass flex items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-emerald-200 transition hover:bg-white/[0.07] active:scale-[0.98]"
+          >
+            📱 حمّل تطبيق Android مباشرة (APK)
+          </a>
           <Link href="/signup" className="btn-primary flex items-center justify-center gap-2 rounded-full py-4 text-base font-black text-white">
             <Heart className="h-5 w-5" /> إنشاء حساب مجاني
           </Link>

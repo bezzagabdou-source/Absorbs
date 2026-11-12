@@ -81,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="aurora relative min-h-dvh">
+    <div className="aurora aurora-app relative min-h-dvh">
       {/* desktop ambience copy (only visible on wide screens, beside the phone column) */}
       <aside className="pointer-events-none fixed top-0 z-0 hidden h-full w-[calc(50%-290px)] flex-col justify-center ps-14 pe-6 min-[1100px]:flex">
         <span className="logo-mark h-16 w-16 rounded-[22px] text-2xl">A</span>

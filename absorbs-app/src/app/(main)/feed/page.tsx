@@ -111,6 +111,20 @@ export default function FeedPage() {
 
       <StoriesRow blockedIds={blockedIds} />
 
+      {/* quick discovery tiles */}
+      <div className="animate-fade-up grid grid-cols-3 gap-2">
+        {[
+          { href: "/reels", emoji: "🎬", label: "ريلز", tint: "from-emerald-400/20 to-teal-500/10 text-emerald-200 ring-emerald-300/20" },
+          { href: "/groups", emoji: "👥", label: "مجتمعات", tint: "from-cyan-400/20 to-sky-500/10 text-cyan-200 ring-cyan-300/20" },
+          { href: "/rewards", emoji: "🏆", label: "تحديات", tint: "from-amber-400/20 to-orange-500/10 text-amber-200 ring-amber-300/20" },
+        ].map((tile) => (
+          <a key={tile.href} href={tile.href} className={`flex flex-col items-center gap-1 rounded-[20px] bg-gradient-to-b px-2 py-3 ring-1 backdrop-blur transition hover:brightness-125 active:scale-95 ${tile.tint}`}>
+            <span className="text-xl">{tile.emoji}</span>
+            <span className="text-xs font-black">{tile.label}</span>
+          </a>
+        ))}
+      </div>
+
       <Composer
         onPosted={(post) => {
           setPosts((prev) => [post, ...prev]);

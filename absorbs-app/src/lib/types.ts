@@ -7,6 +7,9 @@ export interface Profile {
   cover_url: string | null;
   website: string | null;
   is_verified?: boolean;
+  invite_code?: string | null;
+  invited_by?: string | null;
+  points?: number;
   created_at: string;
   updated_at: string;
 }
@@ -16,6 +19,8 @@ export interface Post {
   author_id: string;
   content: string | null;
   image_url: string | null;
+  media_type?: "image" | "video";
+  group_id?: string | null;
   created_at: string;
   // joined / computed on the client
   author?: Profile;
@@ -73,8 +78,33 @@ export interface PostRow {
   author_id: string;
   content: string | null;
   image_url: string | null;
+  media_type?: "image" | "video";
+  group_id?: string | null;
   created_at: string;
   author: Profile | null;
   likes: { count: number }[];
   comments: { count: number }[];
+}
+
+
+export interface Group {
+  id: string;
+  name: string;
+  emoji: string;
+  wilaya: string | null;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  member_count?: number;
+  joined?: boolean;
+}
+
+export interface Challenge {
+  id: string;
+  title: string;
+  hashtag: string;
+  description: string | null;
+  prize: string | null;
+  ends_at: string;
+  created_at: string;
 }
