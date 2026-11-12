@@ -37,7 +37,9 @@ jobs:
 
       - name: Generate Gradle wrapper
         working-directory: absorbs-android
-        run: gradle wrapper --gradle-version 9.1.0 --distribution-type bin
+        run: |
+          set -o pipefail
+          gradle wrapper --gradle-version 9.1.0 --distribution-type bin 2>&1 | tee ../gradle-build.log
 
       - name: Check signing secrets
         id: sig
