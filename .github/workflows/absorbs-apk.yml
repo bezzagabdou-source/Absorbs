@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build-apk:
@@ -31,11 +32,29 @@ jobs:
         working-directory: absorbs-android
         run: gradle wrapper --gradle-version 8.9 --distribution-type bin
 
+      - name: Gradle · resolve dependencies
+        working-directory: absorbs-android
+        run: |
+          set -o pipefail
+          ./gradlew :app:preDebugBuild --stacktrace 2>&1 | tee ../gradle-build.log
+
+      - name: Gradle · process resources (AAPT)
+        working-directory: absorbs-android
+        run: |
+          set -o pipefail
+          ./gradlew :app:processDebugResources --stacktrace 2>&1 | tee -a ../gradle-build.log
+
+      - name: Gradle · compile Java
+        working-directory: absorbs-android
+        run: |
+          set -o pipefail
+          ./gradlew :app:compileDebugJavaWithJavac --stacktrace 2>&1 | tee -a ../gradle-build.log
+
       - name: Build debug APK (installable, debug-signed)
         working-directory: absorbs-android
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../gradle-build.log
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee -a ../gradle-build.log
 
       - name: Upload Gradle build log (always)
         if: always()
@@ -45,15 +64,15 @@ jobs:
           path: gradle-build.log
           if-no-files-found: ignore
 
-      - name: Publish build error log to repo (on failure)
+      - name: Report failure as issue (diagnostics)
         if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tail -c 60000 gradle-build.log > absorbs-android/build-error.log || true
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add absorbs-android/build-error.log
-          git commit -m "ci: apk build error log [skip ci]" || exit 0
-          git push origin HEAD:${{ github.ref_name }}
+          { echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}";
+            echo; echo '```'; tail -c 5000 gradle-build.log || true; echo '```';
+          } > issue-body.md
+          gh issue create --title "APK build failure — diagnostics" --body-file issue-body.md || true
 
       - name: Prepare Absorbs.apk
         run: |
