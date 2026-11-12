@@ -102,6 +102,23 @@ function ClaimUsername({ onDone }: { onDone: () => Promise<void> }) {
         <button disabled={busy} className="btn-primary mt-5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 font-black text-white">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} حفظ ودخول
         </button>
+
+        <div className="mt-5 rounded-3xl bg-amber-400/10 p-4 ring-1 ring-amber-300/25">
+          <p className="text-[13px] font-bold leading-6 text-amber-100">لو ظهرت رسالة «تعذّر الحفظ»: قاعدة البيانات تحتاج إعدادًا لمرة واحدة (دقيقتان)</p>
+          <ol className="mt-2 list-decimal space-y-1 ps-5 text-[12px] leading-6 text-amber-100/70">
+            <li>افتح زر «تنفيذ الإعداد» بالأسفل (حساب Supabase الخاص بالمشروع)</li>
+            <li>الصق محتوى ملف FULL-SETUP.sql كاملًا واضغط Run</li>
+            <li>ارجع هنا واضغط «حفظ ودخول» مرة أخرى — حسابك محفوظ ولن يضيع</li>
+          </ol>
+          <a
+            href="https://supabase.com/dashboard/project/mcgnmjnzibjtjazcmwkd/sql/new"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 flex items-center justify-center gap-2 rounded-full bg-amber-400/20 py-2.5 text-sm font-black text-amber-100 ring-1 ring-amber-300/40 transition hover:bg-amber-400/30"
+          >
+            تنفيذ الإعداد في Supabase ↗
+          </a>
+        </div>
       </form>
     </div>
   );
