@@ -9,6 +9,7 @@ data class Profile(
     val avatarUrl: String?,
     val bio: String?,
     val verified: Boolean,
+    val coverUrl: String? = null,
 ) {
     companion object {
         fun from(o: JSONObject) = Profile(
@@ -18,6 +19,7 @@ data class Profile(
             avatarUrl = o.optString("avatar_url").ifBlank { null },
             bio = o.optString("bio").ifBlank { null },
             verified = o.optBoolean("is_verified", false),
+            coverUrl = o.optString("cover_url").ifBlank { null },
         )
     }
 }
@@ -48,6 +50,8 @@ data class Post(
 
 data class Comment(
     val id: String,
+    val authorId: String,
+    val parentId: String?,
     val content: String,
     val createdAt: String,
     var author: Profile? = null,
@@ -55,6 +59,8 @@ data class Comment(
     companion object {
         fun from(o: JSONObject) = Comment(
             id = o.optString("id"),
+            authorId = o.optString("author_id"),
+            parentId = o.optString("parent_id").ifBlank { null },
             content = o.optString("content"),
             createdAt = o.optString("created_at"),
         )
@@ -80,6 +86,15 @@ data class StoryItem(
         )
     }
 }
+
+/** Aggregated in-app notification (like / comment / follow on your content). */
+data class NotifItem(
+    val kind: String, // like | comment | follow
+    val actor: Profile?,
+    val postId: String?,
+    val text: String,
+    val createdAt: String,
+)
 
 data class ThreadItem(
     val id: String,

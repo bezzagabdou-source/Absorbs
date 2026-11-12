@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Minimum permissions: networking only. Media uses the system photo
-         picker (no storage permission), calls live on the web version. -->
+         picker (no storage permission); camera goes through FileProvider. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -17,21 +17,41 @@
         android:theme="@style/Theme.DZConnect">
 
         <activity
-            android:name=".ui.SplashActivity"
+            android:name=".presentation.MainComposeActivity"
             android:exported="true"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.DZConnect">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Google OAuth return (Supabase authorize → dzconnect://auth#tokens) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dzconnect" android:host="auth" />
+            </intent-filter>
+            <!-- Profile deep links from the website -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="absorbs-app-abdoubita986-gif.vercel.app"
+                    android:pathPrefix="/u/" />
+            </intent-filter>
         </activity>
 
-        <activity android:name=".ui.AuthActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ui.MainActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ui.ComposerActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ui.ChatActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ui.PostDetailActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ui.SearchActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ui.StoryViewActivity" android:exported="false" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="dz.absorbs.app.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

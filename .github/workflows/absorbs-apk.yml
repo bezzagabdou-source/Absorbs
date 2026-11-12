@@ -108,11 +108,11 @@ jobs:
       - name: Publish to GitHub Release (direct download link)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: dz-connect-v2.1.0
-          name: "Dz connect Android v2.1.0 — Native Mega"
+          tag_name: dz-connect-v3.0.0
+          name: "Dz connect Android v3.0.0 — Compose Native"
           body: |
-            📱 **Dz connect — تطبيق Android أصلي (Native)** ماشي WebView: واجهات زجاجية بيضاء، تسجيل دخول أصلي، خلاصة/رسائل/Dz connect ai من التطبيق.
-            حمّل `DZConnect.apk` وثبّته. إذا عندك النسخة القديمة احذفها أولًا (اختلاف التوقيع).
+            📱 **Dz connect v3.0.0 — تطبيق Android أصلي بالكامل (Jetpack Compose)** ماشي WebView: خلاصة وقصص وريلز بفيديو حقيقي، رسائل فورية (Realtime + حضور + «يكتب الآن…»)، Dz connect ai، ملفات شخصية كاملة، بحث واستكشاف، إنشاء منشورات بفلاتر وضغط صور، ثلاث لغات (عربي RTL / فرنسية / إنجليزية) ووضع داكن.
+            حمّل `DZConnect.apk` وثبّته مباشرة. إذا عندك نسخة قديمة بتوقيع مختلف احذفها أولًا.
             ملف `DZConnect.aab` مخصّص للرفع على Google Play Console.
           files: |
             ./DZConnect.apk

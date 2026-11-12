@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/bg_media_stage">
-    <androidx.viewpager2.widget.ViewPager2 android:id="@+id/vpReels" android:layout_width="match_parent" android:layout_height="match_parent" />
-    <TextView android:id="@+id/tvReelsEmpty" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_gravity="center" android:text="لا توجد ريلز بعد — انشر أول فيديو من نسخة الويب أو التطبيق" android:textColor="#BFE8D8" android:visibility="gone" />
-    <ProgressBar android:id="@+id/pbReels" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" />
-</FrameLayout>

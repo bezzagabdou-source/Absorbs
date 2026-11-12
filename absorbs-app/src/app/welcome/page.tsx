@@ -152,7 +152,7 @@ export default function WelcomePage() {
         <div className="mt-8 space-y-3 pb-2 pt-2">
           <InstallButton />
           <a
-            href="https://github.com/bezzagabdou-source/Absorbs/releases/download/dz-connect-v2.1.0/DZConnect.apk"
+            href="https://github.com/bezzagabdou-source/Absorbs/releases/download/dz-connect-v3.0.0/DZConnect.apk"
             className="glass flex items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-black text-indigo-600 transition hover:bg-slate-900/[0.07] active:scale-[0.98]"
           >
             📱 حمّل تطبيق Android مباشرة (APK)
