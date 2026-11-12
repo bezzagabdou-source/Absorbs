@@ -120,12 +120,15 @@ print('signer public key == cert public key:', same)
 # ---------- content digest recompute (v2 scheme) ----------
 eocd_mod = bytearray(data[pos:pos+22+com_len])
 struct.pack_into('<I', eocd_mod, 16, blk_start)
-stream = data[:blk_start] + data[cd_off:cd_off+cd_size] + bytes(eocd_mod)
+segments = [data[:blk_start], data[cd_off:cd_off+cd_size], bytes(eocd_mod)]
 CH = 0x100000
-n_chunks = (len(stream) + CH - 1) // CH
-dig = [hashlib.sha256(b'\xa5' + struct.pack('<I', len(stream[i*CH:(i+1)*CH])) + stream[i*CH:(i+1)*CH]).digest()
-       for i in range(n_chunks)]
-content_digest = hashlib.sha256(b'\x5a' + struct.pack('<I', n_chunks) + b''.join(dig)).digest()
+dig = []
+for seg in segments:
+    n_chunks = (len(seg) + CH - 1) // CH
+    for i in range(n_chunks):
+        c = seg[i*CH:(i+1)*CH]
+        dig.append(hashlib.sha256(b'\xa5' + struct.pack('<I', len(c)) + c).digest())
+content_digest = hashlib.sha256(b'\x5a' + struct.pack('<I', len(dig)) + b''.join(dig)).digest()
 print('recomputed content digest:', content_digest.hex())
 for alg, d in digests:
     print(f'digest alg {hex(alg)} matches recomputed:', d == content_digest)

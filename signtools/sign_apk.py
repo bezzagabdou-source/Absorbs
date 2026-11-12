@@ -36,13 +36,16 @@ def lp_seq(records) -> bytes:
     return lp(b''.join(lp(r) for r in records))
 
 
-def chunked_sha256(stream: bytes) -> bytes:
-    n = (len(stream) + CHUNK - 1) // CHUNK
+def chunked_sha256(segments) -> bytes:
+    # apksig computeOneMbChunkContentDigests: EACH segment (APK entries,
+    # central directory, EOCD) is chunked separately at 1 MiB boundaries.
     parts = []
-    for i in range(n):
-        c = stream[i * CHUNK:(i + 1) * CHUNK]
-        parts.append(hashlib.sha256(b'\xa5' + struct.pack('<I', len(c)) + c).digest())
-    return hashlib.sha256(b'\x5a' + struct.pack('<I', n) + b''.join(parts)).digest()
+    for seg in segments:
+        n = (len(seg) + CHUNK - 1) // CHUNK
+        for i in range(n):
+            c = seg[i * CHUNK:(i + 1) * CHUNK]
+            parts.append(hashlib.sha256(b'\xa5' + struct.pack('<I', len(c)) + c).digest())
+    return hashlib.sha256(b'\x5a' + struct.pack('<I', len(parts)) + b''.join(parts)).digest()
 
 
 def main() -> int:
@@ -79,7 +82,7 @@ def main() -> int:
     # --- content digest: [entries][CD][EOCD with CD offset := blk_start] ---
     eocd_for_digest = bytearray(eocd)
     struct.pack_into('<I', eocd_for_digest, 16, blk_start)
-    digest = chunked_sha256(data[:blk_start] + data[cd_off:cd_off + cd_size] + bytes(eocd_for_digest))
+    digest = chunked_sha256([data[:blk_start], data[cd_off:cd_off + cd_size], bytes(eocd_for_digest)])
 
     # --- signed data / signature / signer ---
     # Each sub-sequence inside signed_data = lp( concat of lp(record) ).
