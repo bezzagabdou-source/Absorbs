@@ -150,7 +150,7 @@ async function uploadOne(base: string, item: ManifestItem, userId: string): Prom
     { path: item.tgs, format: "animated", type: "application/gzip", file: "s.tgs" },
     { path: item.webp || item.png || null, format: "static", type: item.webp ? "image/webp" : "image/png", file: item.webp ? "s.webp" : "s.png" },
   ];
-  let error = "";
+  const errs: string[] = [];
   for (const step of tries) {
     if (!step.path) continue;
     try {
@@ -163,9 +163,9 @@ async function uploadOne(base: string, item: ManifestItem, userId: string): Prom
           error = "ما كاين source للملف (بلا origin)";
           continue;
         }
-        const res = await fetch(`${base}/${step.path}`, { cache: "force-cache" });
+        const res = await fetch(`${base}/stickers/${step.path}`, { cache: "force-cache" });
         if (!res.ok) {
-          error = `HTTP ${res.status} على ${step.path}`;
+          errs.push(`HTTP ${res.status} على /stickers/${step.path}`);
           continue;
         }
         buf = await res.arrayBuffer();
@@ -177,12 +177,12 @@ async function uploadOne(base: string, item: ManifestItem, userId: string): Prom
       const up = await fetch(`https://api.telegram.org/bot${t}/uploadStickerFile`, { method: "POST", body: fd, cache: "no-store" });
       const j = (await up.json().catch(() => ({}))) as { ok?: boolean; description?: string; result?: { file_id?: string } };
       if (j.ok && j.result?.file_id) return { fileId: String(j.result.file_id), how: step.format, error: "" };
-      error = String(j.description || `HTTP ${up.status}`).slice(0, 160);
+      errs.push(`${step.format}: ${String(j.description || `HTTP ${up.status}`).slice(0, 140)}`);
     } catch (e) {
-      error = String((e as Error)?.message || e).slice(0, 160);
+      errs.push(`${step.format}: ${String((e as Error)?.message || e).slice(0, 140)}`);
     }
   }
-  return { fileId: "", how: "", error };
+  return { fileId: "", how: "", error: errs.join(" · ") || "الرفع فشل" };
 }
 
 /** 🚀 ارفع ملصقاتنا لـ تيليجرام وخزّن file_ids (apply=1 للرفع الحقيقي) */
