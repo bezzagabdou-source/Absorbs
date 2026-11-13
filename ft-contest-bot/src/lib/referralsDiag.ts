@@ -296,14 +296,14 @@ export type RecountResult = {
   credited: number;
   skipped: number;
   perJoin: number;
-  inviters: { userId: string; name: string; referrals: number; addPoints: number; balance: number }[];
+  inviters: { userId: string; name: string; referrals: number; paid: number; addPoints: number; balance: number }[];
   notes: string[];
   applied: boolean;
 };
 
 export async function recountReferralPoints(apply = false, maxRows = 4000): Promise<RecountResult> {
   const store = getStore();
-  const { getPointsConfig, addPoints, balanceOf } = await import("./rewards");
+  const { getPointsConfig, addPoints, balanceOf, joinedCreditCount } = await import("./rewards");
   const { getUser } = await import("./users");
   const cfg = await getPointsConfig();
   const per = Math.max(1, Math.floor(Number(cfg.perJoin) || 1));
@@ -373,18 +373,18 @@ export async function recountReferralPoints(apply = false, maxRows = 4000): Prom
 
   const inviters: RecountResult["inviters"] = [];
   let credited = 0;
+  let totalOwed = 0;
   for (const [userId, info] of [...perInviter.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 50)) {
-    const add = info.n * per;
-    let balance = 0;
-    try {
-      balance = await balanceOf(userId);
-    } catch {
-      /* */
-    }
-    if (apply) {
+    // 🚫 بلا ما نعدّو مرتين: كنطرحو اللي خدّو نقاطهم من قبل (عدّاد creditInvite)
+    const paid = await joinedCreditCount(userId).catch(() => 0);
+    const owed = Math.max(0, info.n - paid);
+    totalOwed += owed;
+    const add = owed * per;
+    let balance = await balanceOf(userId).catch(() => 0);
+    if (apply && owed > 0) {
       try {
         balance = await addPoints(userId, add);
-        credited += info.n;
+        credited += owed;
         // نعلّمو حتى على level ديال المسابقة باش ما يعاودش الإصلاح يحسبها
         for (const r of rows.filter((x) => x.inviterId === userId)) {
           await store.set(`refpts:${r.contestId}:${r.joinerId}`, Date.now()).catch(() => undefined);
@@ -399,10 +399,12 @@ export async function recountReferralPoints(apply = false, maxRows = 4000): Prom
       userId,
       name: info.name || (await getUser(userId).catch(() => null))?.firstName || `عضو ${userId.slice(-4)}`,
       referrals: info.n,
+      paid,
       addPoints: add,
       balance,
     });
   }
+  wouldCredit = totalOwed;
 
   if (!rows.length) notes.push("سجل الإحالات خاوي — ما كاين حتى جهة مسجلة باش تعاد الحسبة.");
   if (apply && !credited) notes.push("كل الإحالات عندها نقاط من قبل — ما كاين ما يعاود يتحسب.");

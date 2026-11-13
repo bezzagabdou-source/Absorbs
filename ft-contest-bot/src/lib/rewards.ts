@@ -266,6 +266,12 @@ export async function creditActivation(inviterId: string): Promise<number> {
   return addPoints(inviterId, cfg.perActivated);
 }
 
+/** ⏱️ شحال من جهة خّدات عليها نقاط المتجر من قبل (باش إعادة الحسبة ما تعدّش مرتين) */
+export async function joinedCreditCount(userId: string): Promise<number> {
+  const n = Number(await getStore().get<number>(KEY.joined(userId)));
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 export async function invitesOf(userId: string): Promise<{ joined: number; activated: number }> {
   const store = getStore();
   const [joined, activated] = await Promise.all([

@@ -242,7 +242,7 @@ type Recount = {
   perJoin: number;
   applied: boolean;
   notes: string[];
-  inviters: { userId: string; name: string; referrals: number; addPoints: number; balance: number }[];
+  inviters: { userId: string; name: string; referrals: number; paid: number; addPoints: number; balance: number }[];
 };
 
 function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
@@ -385,6 +385,7 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
                     <tr>
                       <th>صاحب الرابط</th>
                       <th>الجهات</th>
+                      <th>محسوب من قبل</th>
                       <th>{recount.applied ? "النقاط المضافة" : "النقاط المستحقة"}</th>
                       <th>الرصيد {recount.applied ? "دابا" : "قبل"}</th>
                     </tr>
@@ -396,8 +397,9 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
                           {r.name} <span className="a2-muted" style={{ fontFamily: "monospace" }}>{r.userId}</span>
                         </td>
                         <td>{r.referrals}</td>
+                        <td>{r.paid}</td>
                         <td>
-                          <b style={{ color: "var(--a2-gold)" }}>+{r.addPoints}</b>
+                          <b style={{ color: "var(--a2-gold)" }}>{r.addPoints ? `+${r.addPoints}` : "—"}</b>
                         </td>
                         <td>{r.balance}</td>
                       </tr>
