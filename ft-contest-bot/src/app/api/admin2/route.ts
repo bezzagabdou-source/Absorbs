@@ -319,20 +319,35 @@ export async function GET(req: NextRequest) {
 
     // 🎬 اختبار حيّ: صيفط ملصق حقيقي لشات (المالك بالأساس) وقول آش تصيفط فعلاً
     if (what === "stickers_test") {
-      const { sendStickers } = await import("@/lib/stickers");
+      const st = await import("@/lib/stickers");
       const settings0 = await getSettings();
       const chat =
         url.searchParams.get("chat") ||
         String(settings0.adminIds?.[0] || (/^\d+$/.test(String(settings0.ownerUsername || "")) ? settings0.ownerUsername : "")) ||
         "";
-      if (!chat) return bad("زيد chat=<id> — ما لقيناه حتى معرّف للمالك", 400);
+      if (!chat) return bad("زيد chat=<id ولا @username> ديالك — باش نبعثو اختبار حقيقي", 400);
       const kind = (url.searchParams.get("kind") || "welcome") as "welcome" | "react" | "more" | "win" | "shop";
       const count = Math.max(1, Math.min(3, Number(url.searchParams.get("count")) || 2));
-      const sent = await sendStickers(chat, kind, count);
+      // 🧪 بلا ابتلاع للأخطاء: كل sendSticker كيرجع السبب الحقيقي إلا فشل
+      const tries: { emoji: string; fileId: string; ok: boolean; error: string }[] = [];
+      let sent = 0;
+      const seen = new Set<string>();
+      for (let i = 0; i < count; i++) {
+        const one = await st.stickerFor(kind, i * 3, req.nextUrl.origin);
+        if (!one) {
+          tries.push({ emoji: "", fileId: "", ok: false, error: "ما كاينش ملصق جاهز (source: none)" });
+          continue;
+        }
+        if (seen.has(one.fileId)) continue;
+        seen.add(one.fileId);
+        const r = await tgCall("sendSticker", { chat_id: chat, sticker: one.fileId });
+        if (r?.ok) sent += 1;
+        tries.push({ emoji: one.emoji, fileId: `${one.fileId.slice(0, 18)}…`, ok: Boolean(r?.ok), error: r?.ok ? "" : String(r?.description || "فشل").slice(0, 160) });
+      }
       await pushAdminLog({ at: Date.now(), op: "stickers_test", detail: `chat ${chat} · ${kind} · ${sent}/${count}`, via: "panel" });
       return ok({
-        test: { chat, kind, requested: count, sent, ok: sent > 0 },
-        hint: sent > 0 ? "✅ الملصقات كتوصل — شوف شاتك فـ تيليجرام" : "⚠️ ما وصل والو: تحقق من التوكن/الشبكة (STICKER_STYLE ماشي 0)",
+        test: { chat, kind, requested: count, sent, ok: sent > 0, tries },
+        hint: sent > 0 ? "✅ الملصقات كتوصل — شوف شاتك فـ تيليجرام" : "⚠️ ما وصل والو: شوف tries[0].error للسبب الحقيقي ديال تيليجرام",
       });
     }
 
