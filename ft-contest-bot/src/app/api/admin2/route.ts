@@ -311,7 +311,8 @@ export async function GET(req: NextRequest) {
     if (what === "stickers_publish") {
       const st = await import("@/lib/stickers");
       const apply = ["1", "yes", "true"].includes((url.searchParams.get("apply") || "").toLowerCase());
-      const result = await st.publishOwn({ apply, origin: req.nextUrl.origin });
+      const force = ["1", "yes", "true"].includes((url.searchParams.get("force") || "").toLowerCase());
+      const result = await st.publishOwn({ apply, origin: req.nextUrl.origin, force });
       if (apply) await pushAdminLog({ at: Date.now(), op: "stickers_publish", detail: `uploaded ${result.uploaded ?? 0} · ${result.ok ? "ok" : String((result as { message?: string }).message || "")}`, via: "panel" });
       return ok({ publish: result, own: await st.ownStickers(true) });
     }
@@ -456,7 +457,7 @@ export async function POST(req: NextRequest) {
       const st = await import("@/lib/stickers");
       if (action === "stickers_publish") {
         const origin = String(body.origin || req.nextUrl.origin);
-        const result = await st.publishOwn({ apply: body.apply !== false, origin, userId: String(body.userId || "") });
+        const result = await st.publishOwn({ apply: body.apply !== false, origin, userId: String(body.userId || ""), force: Boolean(body.force) });
         await pushAdminLog({ at: Date.now(), op: "stickers_publish", detail: `uploaded ${result.uploaded ?? 0} · ${result.ok ? "ok" : String((result as { message?: string }).message || "")}`, via: "panel" });
         if (!result.ok) return bad(String((result as { message?: string }).message || "الرفع ما تمشاش"), 400);
         return ok({ publish: result, own: await st.ownStickers(true) });

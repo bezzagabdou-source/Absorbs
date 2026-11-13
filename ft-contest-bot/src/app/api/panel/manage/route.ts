@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       const st = await import("@/lib/stickers");
       if (op === "stickers_publish") {
         const origin = String(body.origin || "").slice(0, 200);
-        const result = await st.publishOwn({ apply: body.apply !== false, origin, userId: String(body.userId || "") });
+        const result = await st.publishOwn({ apply: body.apply !== false, origin, userId: String(body.userId || ""), force: Boolean(body.force) });
         await pushAdminLog({ at: Date.now(), op: "stickers_publish", detail: `uploaded ${result.uploaded ?? 0}`, via: "panel" });
         return reply(result.ok ? { ok: true, publish: result } : { ok: false, error: String((result as { message?: string }).message || "الرفع فشل") }, result.ok ? 200 : 400);
       }

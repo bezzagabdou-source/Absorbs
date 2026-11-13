@@ -199,7 +199,7 @@ async function uploadOne(base: string, item: ManifestItem, userId: string): Prom
 }
 
 /** 🚀 ارفع ملصقاتنا لـ تيليجرام وخزّن file_ids (apply=1 للرفع الحقيقي) */
-export async function publishOwn(opts: { apply?: boolean; origin?: string; userId?: string; only?: string[] } = {}) {
+export async function publishOwn(opts: { apply?: boolean; origin?: string; userId?: string; only?: string[]; force?: boolean } = {}) {
   const apply = Boolean(opts.apply);
   const { packs, base } = await loadManifest(opts.origin || "");
   if (packs.length === 0)
@@ -233,9 +233,30 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
   const sets: OwnSet[] = [];
   const errors: string[] = [];
 
+  // ♻️ الملفات اللي ترفعات من قبل: ما نعاودوش نرفعوه (file_id صالح للأبد)
+  const prevIds = new Map<string, string>();
+  try {
+    const prev = await ownStickers(true);
+    for (const [k, list] of Object.entries(prev?.byKind || {}))
+      for (const it of list || []) if (it?.emoji && it?.fileId) prevIds.set(`${k}:${it.emoji}`, String(it.fileId));
+  } catch {
+    /* أول مرة */
+  }
+  const doneSets = new Map<string, OwnSet>();
+  try {
+    for (const st of (await ownStickers(true))?.sets || []) if (st.created && st.name) doneSets.set(st.pack, st);
+  } catch {
+    /* لا شيء */
+  }
+
   for (const pack of usable) {
     const items: StickerItem[] = [];
     for (const item of pack.items) {
+      const cached = prevIds.get(`${pack.kind}:${item.emoji}`);
+      if (cached && !opts.force) {
+        items.push({ fileId: cached, emoji: item.emoji });
+        continue;
+      }
       const up = await uploadOne(base, item, userId);
       if (up.fileId) items.push({ fileId: up.fileId, emoji: item.emoji });
       else if (up.error) errors.push(`${pack.id}/${item.emoji}: ${up.error}`);
@@ -249,20 +270,45 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
     const setName = `${pack.id}_by_${(botName.split("@").pop() || "ftbot").replace(/[^a-z0-9_]/g, "")}`;
     let created = false;
     let note = "";
-    try {
-      const r = await tgCall("createNewStickerSet", {
+    const old = doneSets.get(pack.id);
+    if (old && !opts.force) {
+      created = true;
+      note = "النشرة موجودة من قبل";
+    } else {
+      // 🧩 تيليجرام الجديد كيطلب emoji_list (قائمة) — ونسّاو نسخة emoji القديمة إلا رفض
+      const mk = (mode: "list" | "one") => ({
         user_id: userId,
         name: setName,
         title: pack.title.slice(0, 50),
-        sticker_type: "regular",
+        sticker_type: "regular" as const,
         needs_repainting: false,
         format: "animated",
-        stickers: items.map((s) => ({ sticker: s.fileId, format: "animated", emoji: s.emoji || "⭐️" })),
+        stickers: items.map((s) => ({
+          sticker: s.fileId,
+          format: "animated",
+          ...(mode === "list" ? { emoji_list: [s.emoji || "⭐️"] } : { emoji: s.emoji || "⭐️" }),
+        })),
       });
-      created = Boolean(r.ok);
-      note = created ? "النشرة تولّت" : String(r.description || "createNewStickerSet فشل").slice(0, 140);
-    } catch (e) {
-      note = String((e as Error)?.message || e).slice(0, 140);
+      for (const mode of ["list", "one"] as const) {
+        try {
+          const r = await tgCall("createNewStickerSet", mk(mode));
+          if (r.ok) {
+            created = true;
+            note = mode === "list" ? "النشرة تولّت" : "النشرة تولّت (emoji)";
+            break;
+          }
+          const d = String(r.description || "createNewStickerSet فشل");
+          note = d.slice(0, 140);
+          if (/ALREADY_EXISTS|already exists/i.test(d)) {
+            created = true;
+            note = "النشرة موجودة — نفس file_ids خدامين";
+            break;
+          }
+          if (!/emoji_list/i.test(d)) break; // مش مسألة الإيموجي → ما نعاودوش
+        } catch (e) {
+          note = String((e as Error)?.message || e).slice(0, 140);
+        }
+      }
     }
     sets.push({
       kind: pack.kind,
