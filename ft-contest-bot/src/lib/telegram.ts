@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getSettings, saveSettings } from "./settings";
+import { stripCustomEmoji } from "./emoji";
 
 /**
  * 🧩 تشغيل أكثر من بوت على نفس الكود ونفس البيانات.
@@ -299,14 +300,20 @@ export async function sendMessage(
   keyboard?: InlineKeyboard,
   extra: Record<string, unknown> = {},
 ) {
-  return tgCall("sendMessage", {
+  const payload = {
     chat_id: chatId,
     text,
     parse_mode: "HTML",
     disable_web_page_preview: true,
     ...(keyboard ? { reply_markup: keyboard } : {}),
     ...extra,
-  });
+  };
+  const res = await tgCall("sendMessage", payload);
+  // ✨ احتياط: إلا رفض تيليجرام الإيموجي المخصص → نعاودو بالإيموجي العادي
+  if (!res.ok && String(text).includes("<tg-emoji")) {
+    return tgCall("sendMessage", { ...payload, text: stripCustomEmoji(text) });
+  }
+  return res;
 }
 
 export async function editMessage(
@@ -315,14 +322,19 @@ export async function editMessage(
   text: string,
   keyboard?: InlineKeyboard,
 ) {
-  const res = await tgCall("editMessageText", {
+  const payload = {
     chat_id: chatId,
     message_id: messageId,
     text,
     parse_mode: "HTML",
     disable_web_page_preview: true,
     ...(keyboard ? { reply_markup: keyboard } : {}),
-  });
+  };
+  let res = await tgCall("editMessageText", payload);
+  // ✨ احتياط: إيموجي مخصص ماشي متاح → نعاودو بالإيموجي العادي
+  if (!res.ok && String(text).includes("<tg-emoji")) {
+    res = await tgCall("editMessageText", { ...payload, text: stripCustomEmoji(text) });
+  }
   if (!res.ok) {
     return sendMessage(chatId, text, keyboard);
   }

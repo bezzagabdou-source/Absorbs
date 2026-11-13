@@ -112,9 +112,6 @@ export type PointsConfig = {
   perJoin: number;
   /** نقاط إضافية لمّا العضو الجديد يبدأ يستعمل البوت */
   perActivated: number;
-  /** هدية يومية (أدنى/أقصى) */
-  dailyMin: number;
-  dailyMax: number;
   /** الترحيب النصي لمتجر الجوائز */
   shopIntro: string;
   enabled: boolean;
@@ -123,8 +120,6 @@ export type PointsConfig = {
 export const DEFAULT_POINTS: PointsConfig = {
   perJoin: 2,
   perActivated: 1,
-  dailyMin: 1,
-  dailyMax: 3,
   shopIntro: "استبدل نقاطك بجوائز حقيقية — كل ما تجمع أكثر، تربح أكثر 🎁",
   enabled: true,
 };
@@ -146,7 +141,6 @@ const KEY = {
   points: (id: string) => `pts:${id}`,
   rewardList: "rewards:list",
   pointsCfg: "points:config",
-  daily: (id: string, day: string) => `daily:${id}:${day}`,
   requests: "rewards:requests",
   req: (id: string) => `rreq:${id}`,
   joined: (id: string) => `refs:joined:${id}`,
@@ -285,22 +279,6 @@ export async function invitesOf(userId: string): Promise<{ joined: number; activ
 
 export function algeriaDay(now = Date.now()): string {
   return new Date(now + 60 * 60 * 1000).toISOString().slice(0, 10);
-}
-
-export async function claimDaily(userId: string): Promise<{ ok: boolean; gained: number; balance: number }> {
-  const cfg = await getPointsConfig();
-  if (!cfg.enabled) return { ok: false, gained: 0, balance: await balanceOf(userId) };
-  const store = getStore();
-  const key = KEY.daily(userId, algeriaDay());
-  if (await store.get<number>(key)) {
-    return { ok: false, gained: 0, balance: await balanceOf(userId) };
-  }
-  const lo = Math.max(0, Math.min(cfg.dailyMin, cfg.dailyMax));
-  const hi = Math.max(lo, cfg.dailyMax);
-  const gained = lo + Math.floor(Math.random() * (hi - lo + 1));
-  await store.set(key, Date.now());
-  const balance = await addPoints(userId, gained);
-  return { ok: true, gained, balance };
 }
 
 /* ─────────────── الطلبات ─────────────── */

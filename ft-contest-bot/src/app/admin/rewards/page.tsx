@@ -76,16 +76,6 @@ export default async function RewardsPage({
               نقاط إضافية عند أول استعمال
               <input type="number" name="perActivated" min={0} defaultValue={cfg.perActivated} />
             </label>
-            <div className="row">
-              <label>
-                هدية اليوم — من
-                <input type="number" name="dailyMin" min={0} defaultValue={cfg.dailyMin} />
-              </label>
-              <label>
-                إلى
-                <input type="number" name="dailyMax" min={0} defaultValue={cfg.dailyMax} />
-              </label>
-            </div>
             <label>
               نص تشجيعي في المتجر
               <input type="text" name="shopIntro" defaultValue={cfg.shopIntro} />

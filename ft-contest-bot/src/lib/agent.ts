@@ -183,7 +183,7 @@ export async function buildContext(): Promise<string> {
     "=== الجوائز (id | عنوان | سعر | مخزون | قسم | حالة) ===",
     rl || "ما كاينش",
     "=== النقاط ===",
-    `مفعّلة: ${cfg.enabled}، لكل دعوة: ${cfg.perJoin}، تفعيل: ${cfg.perActivated}، يومية: ${cfg.dailyMin}-${cfg.dailyMax}`,
+    `مفعّلة: ${cfg.enabled}، لكل دعوة: ${cfg.perJoin}، تفعيل: ${cfg.perActivated}`,
     "=== قنوات الاشتراك الإجباري ===",
     `${settings.requireJoin ? "مفعّل" : "مطفي"} → ${(settings.requiredChannels || []).join("، ") || "بلا"}`,
     "=== نصوص ===",
@@ -200,7 +200,7 @@ const SYSTEM = [
   'save_reward {reward:{id?، emoji، title، desc، cost، stock (null=بلا حد)، active، section:"accounts"|"points"|"services"}}',
   'delete_reward {id}',
   'save_section {section:{id، title، emoji، order، active}}',
-  'set_points {userId، points|delta} — أو {pointsConfig:{perJoin، perActivated، dailyMin، dailyMax، shopIntro، enabled}} لإعدادات النقاط',
+  'set_points {userId، points|delta} — أو {pointsConfig:{perJoin، perActivated، shopIntro، enabled}} لإعدادات النقاط',
   'ban_user {userId}',
   'unban_user {userId}',
   'send_message {chatId، text}',
@@ -588,17 +588,17 @@ async function runOne(op: string, a: Record<string, unknown>, via: "panel" | "ai
       return `قسم ${id} → ${saved.find((x) => x.id === id)?.title}`;
     }
     case "set_points": {
-      // ⚙️ تعديل إعدادات نظام النقاط (perJoin/perActivated/الهدية اليومية/مقدمة المتجر)
+      // ⚙️ تعديل إعدادات نظام النقاط (perJoin/perActivated/مقدمة المتجر)
       const cfg = a.pointsConfig as Record<string, unknown> | undefined;
       if (cfg && !a.userId) {
         const patch: Record<string, unknown> = {};
-        for (const k of ["perJoin", "perActivated", "dailyMin", "dailyMax"] as const) {
+        for (const k of ["perJoin", "perActivated"] as const) {
           if (cfg[k] !== undefined) patch[k] = Math.max(0, Math.floor(Number(cfg[k]) || 0));
         }
         if (cfg.shopIntro !== undefined) patch.shopIntro = String(cfg.shopIntro).slice(0, 500);
         if (cfg.enabled !== undefined) patch.enabled = Boolean(cfg.enabled);
         const next = await savePointsConfig(patch);
-        return `إعدادات النقاط: ${next.perJoin}/عضو، ${next.perActivated}/تفعيل، يومية ${next.dailyMin}-${next.dailyMax}`;
+        return `إعدادات النقاط: ${next.perJoin}/عضو، ${next.perActivated}/تفعيل`;
       }
       const userId = String(a.userId || "").trim();
       if (!/^\d+$/.test(userId)) throw new Error("userId ماشي صحيح");

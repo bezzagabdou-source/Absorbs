@@ -342,8 +342,6 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
           enabled: patch.enabled === undefined ? undefined : Boolean(patch.enabled),
           perJoin: patch.perJoin === undefined ? undefined : Number(patch.perJoin),
           perActivated: patch.perActivated === undefined ? undefined : Number(patch.perActivated),
-          dailyMin: patch.dailyMin === undefined ? undefined : Number(patch.dailyMin),
-          dailyMax: patch.dailyMax === undefined ? undefined : Number(patch.dailyMax),
           shopIntro: patch.shopIntro === undefined ? undefined : String(patch.shopIntro),
         });
         return ok({points: cfg});

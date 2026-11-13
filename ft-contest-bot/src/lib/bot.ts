@@ -24,7 +24,6 @@ import { aiGenerate, aiStatus, toTelegramHtml } from "./ai";
 import { creditPoints, getPointsState, pointsLeaderboard, type PointsState } from "./points";
 import {
   balanceOf,
-  claimDaily,
   createRequest,
   ensureRewards,
   getJoinGroup,
@@ -39,6 +38,7 @@ import {
 } from "./rewards";
 import { getSettings, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
+import { E } from "./emoji";
 import { getStore } from "./store";
 import {
   answerCallback,
@@ -201,6 +201,8 @@ async function gateJoin(
 function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   // 🏠 أزرار فقط: المسابقات / حسابي / رابط الإحالة — بلا أي زر زايد
   const rows: Button[][] = [
+    // ✨ القائمة الجديدة (فوق كلشي): مميزات وأدوات البوت
+    [{ text: "🔥 مميزات وأدوات البوت", callback_data: "more" }],
     [
       { text: "🎁 المسابقات", callback_data: "home_list" },
       { text: "👤 حسابي", callback_data: "profile" },
@@ -210,6 +212,99 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   void settings;
   void contests;
   return keyboard(rows);
+}
+
+/** ✨ القائمة الجديدة: مميزات وأدوات البوت (فوق المسابقات/حسابي/إحالة) */
+async function showMore(
+  chatId: number | string,
+  user: BotUser,
+  settings: Settings,
+  messageId?: number,
+) {
+  const [contests, points, balance] = await Promise.all([
+    listContests(),
+    getPointsState(user.id),
+    balanceOf(String(user.id)),
+  ]);
+  const active = contests.filter((c) => c.status === "active");
+  const lines = [
+    `${E.fire()} <b>مميزات وأدوات البوت</b>`,
+    "",
+    `${E.trophy()} <b>مسابقات مفتوحة:</b> ${active.length}`,
+    `${E.star()} <b>نقاطك:</b> ${points.points}/${POINTS_MAX} — مجموع جهاتك: ${points.invites}`,
+    `${E.money()} <b>رصيد المتجر:</b> ${balance} نقطة`,
+    "",
+    "اختر من الأزرار تحت 👇",
+  ];
+  const rows: Button[][] = [
+    [{ text: "🧩 الخدمات", callback_data: "services" }],
+    [
+      { text: "🎁 متجر الجوائز", callback_data: "shop" },
+      { text: "⭐️ نقاطي", callback_data: "points" },
+    ],
+    [{ text: "📊 جهاتي", callback_data: "mine" }],
+    [{ text: "ℹ️ معلومات البوت", callback_data: "about" }],
+    [{ text: "⬅️ القائمة الرئيسية BACK", callback_data: "home" }],
+  ];
+  const kb = keyboard(rows);
+  const text = lines.join("\n");
+  if (messageId) await editMessage(chatId, messageId, text, kb);
+  else await sendMessage(chatId, text, kb);
+  void settings;
+}
+
+/** 🧩 الخدمات المتاحة (من المتجر — قسم الخدمات) */
+async function showServices(chatId: number | string, user: BotUser, messageId?: number) {
+  const services = (await ensureRewards()).filter((r) => r.active && (r.section || "accounts") === "services");
+  const balance = await balanceOf(String(user.id));
+  const lines = [
+    `${E.tools()} <b>الخدمات</b>`,
+    "",
+    `${E.money()} رصيدك: <b>${balance}</b> نقطة`,
+    "",
+    services.length ? "اختر الخدمة:" : "ما زال ماكانش خدمات — المالك يزيدها من اللوحة.",
+  ];
+  const rows: Button[][] = services.map((r) => {
+    const soldOut = r.stock !== null && r.stock <= 0;
+    return [
+      {
+        text: soldOut
+          ? `${r.emoji} ${r.title} — ${r.cost} نقطة ( غير متوفر الآن 🚫 )`
+          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
+        callback_data: `buy:${r.id}`,
+      },
+    ];
+  });
+  rows.push([{ text: "⬅️ مميزات وأدوات", callback_data: "more" }]);
+  rows.push([{ text: "🏠 القائمة الرئيسية", callback_data: "home" }]);
+  const kb = keyboard(rows);
+  const text = lines.join("\n");
+  if (messageId) await editMessage(chatId, messageId, text, kb);
+  else await sendMessage(chatId, text, kb);
+}
+
+/** ℹ️ معلومات البوت */
+async function showAbout(chatId: number | string, settings: Settings, messageId?: number) {
+  const { username } = await getBotIdentity();
+  const text = [
+    `${E.info()} <b>بوت مسابقات FT</b>`,
+    "",
+    `🤖 البوت: ${username ? `@${escapeHtml(username)}` : "—"}`,
+    `${E.crown()} المالك: ${escapeHtml(ownerHandle(settings))}`,
+    "",
+    `${E.link()} كل شخص يدخل من رابطك = جهة = نقطة`,
+    `${E.gift()} بدّل نقاطك بجوائز من «المسابقات»`,
+    `🚫 ممنوع الحسابات الوهمية`,
+    "",
+    "للدعم: زر «مراسلة المالك» تحت 👇",
+  ].join("\n");
+  const kb = keyboard([
+    [{ text: `💬 مراسلة المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
+    [{ text: "⬅️ مميزات وأدوات", callback_data: "more" }],
+    [{ text: "🏠 القائمة الرئيسية", callback_data: "home" }],
+  ]);
+  if (messageId) await editMessage(chatId, messageId, text, kb);
+  else await sendMessage(chatId, text, kb);
 }
 
 /** 🎁 ترتيب العرض كيما الصورة: حسابات بيس (تنازلي) ← النقاط ← الخدمات (تصاعدي) */
@@ -450,7 +545,11 @@ async function showHome(
   const text = (settings.welcomeText || "مرحبا بكم في بوت مسابقات FT")
     .replace(/\{name\}/g, nameOf(user))
     .replace(/\{count\}/g, String(contests.filter((c) => c.status === "active").length))
-    .replace(/\{points\}/g, String(balance));
+    .replace(/\{points\}/g, String(balance))
+    // ✨ إيموجيات متحركة داخل نص الترحيب (مع احتياط عادي تلقائي)
+    .replace(/👋/g, E.fire())
+    .replace(/💰/g, E.money())
+    .replace(/🎁/g, E.gift());
   const kb = homeKeyboard(settings, contests);
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else await sendMessage(chatId, text, kb);
@@ -944,20 +1043,6 @@ async function showJoin(chatId: number | string, user: BotUser, messageId?: numb
   rows.push(backRow());
   if (messageId) await editMessage(chatId, messageId, text, keyboard(rows));
   else await sendMessage(chatId, text, keyboard(rows));
-}
-
-async function doDaily(chatId: number | string, user: BotUser, messageId?: number) {
-  const res = await claimDaily(String(user.id));
-  const text = res.ok
-    ? `🎁 <b>هدية اليوم!</b>\n\n+${res.gained} نقطة\n💰 رصيدك: <b>${res.balance}</b> نقطة`
-    : `🎁 هدية اليوم خديتها من قبل ✅\n💰 رصيدك: <b>${res.balance}</b> نقطة\n\nارجع غدوة 🕛`;
-  const kb = keyboard([
-    [{ text: "🎁 المتجر", callback_data: "shop" }],
-    [ { text: "⭐️ نقاطي", callback_data: "points" }],
-    backRow(),
-  ]);
-  if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
 }
 
 async function decideRewardRequest(
@@ -1631,7 +1716,6 @@ async function handleMessageInner(message: TgMessage) {
     "/shop",
     "/rewards",
     "/store",
-    "/daily",
     "/gift",
     "/join",
     "/score",
@@ -1677,10 +1761,6 @@ async function handleMessageInner(message: TgMessage) {
 
   if (command === "/shop" || command === "/rewards" || command === "/store") {
     await showShop(chatId, user);
-    return;
-  }
-  if (command === "/daily" || command === "/gift") {
-    await doDaily(chatId, user);
     return;
   }
   if (command === "/join") {
@@ -1856,6 +1936,15 @@ async function handleCallback(query: TgCallbackQuery) {
   }
 
   switch (action) {
+    case "more":
+      await showMore(chatId, user, settings, messageId);
+      return;
+    case "services":
+      await showServices(chatId, user, messageId);
+      return;
+    case "about":
+      await showAbout(chatId, settings, messageId);
+      return;
     case "home_list":
       await showRewardsAll(chatId, user, settings, messageId);
       return;
@@ -1910,9 +1999,6 @@ async function handleCallback(query: TgCallbackQuery) {
       return;
     case "join":
       await showJoin(chatId, user, messageId);
-      return;
-    case "daily":
-      await doDaily(chatId, user, messageId);
       return;
     case "rqok":
       await decideRewardRequest(chatId, String(user.id), arg || "", true, messageId);

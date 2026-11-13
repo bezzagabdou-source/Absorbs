@@ -9,7 +9,6 @@ export const BOT_COMMANDS = [
   { command: "account", description: "حسابي — الرصيد والنقاط" },
   { command: "points", description: "نقاطي ورصيدي" },
   { command: "shop", description: "متجر الجوائز — بدّل نقاطك 🎁" },
-  { command: "daily", description: "هدية اليوم 🎁" },
   { command: "join", description: "دخول المجموعة ورابط الدعوة" },
   { command: "top", description: "الترتيب" },
   { command: "claim", description: "ربح الحساب" },

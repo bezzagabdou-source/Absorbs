@@ -43,8 +43,6 @@ export async function savePointsConfigForm(form: FormData): Promise<void> {
     enabled: str(form, "enabled") === "on",
     perJoin: int(form, "perJoin", 2),
     perActivated: int(form, "perActivated", 1),
-    dailyMin: int(form, "dailyMin", 1),
-    dailyMax: int(form, "dailyMax", 3),
     shopIntro: str(form, "shopIntro"),
   });
   revalidatePath("/admin/rewards");
