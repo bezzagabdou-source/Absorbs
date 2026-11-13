@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { stickerGalleryHtml, EMOJI_SETS } from "@/lib/stickers";
 
 export const runtime = "nodejs";
@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic";
 
 /* 🎭 معرض الملصقات: HTML حيّ (نفس الصور اللي كيصيفطهم البوت) + روابط النشر.
    `/api/stickers/gallery` — بلا سر، عام للعرض فقط. */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const html = await stickerGalleryHtml(EMOJI_SETS.slice(0, 2));
+    const html = await stickerGalleryHtml(EMOJI_SETS.slice(0, 2), req.nextUrl.origin);
     return new NextResponse(html, {
       headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
     });

@@ -26,5 +26,5 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get("as") === "json") {
     return NextResponse.json({ ok: true, stickers: await describeStickers(), emojiPacks: EMOJI_SETS }, { headers: { "cache-control": "no-store" } });
   }
-  return html(await stickerGalleryHtml(EMOJI_SETS.slice(0, 3)));
+  return html(await stickerGalleryHtml(EMOJI_SETS.slice(0, 3), req.nextUrl.origin));
 }

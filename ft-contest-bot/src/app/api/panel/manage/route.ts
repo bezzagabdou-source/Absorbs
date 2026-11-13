@@ -149,8 +149,14 @@ export async function POST(request: NextRequest) {
     const body = object(await request.json().catch(() => ({})));
     const op = String(body.op || "");
     // 🎭 الملصقات والإيموجي المخصّص (نفس اللي فاللوحة الداخلية)
-    if (op === "stickers_save" || op === "stickers_refresh" || op === "stickers_test" || op === "emoji_import") {
+    if (op === "stickers_publish" || op === "stickers_save" || op === "stickers_refresh" || op === "stickers_test" || op === "emoji_import") {
       const st = await import("@/lib/stickers");
+      if (op === "stickers_publish") {
+        const origin = String(body.origin || "").slice(0, 200);
+        const result = await st.publishOwn({ apply: body.apply !== false, origin, userId: String(body.userId || "") });
+        await pushAdminLog({ at: Date.now(), op: "stickers_publish", detail: `uploaded ${result.uploaded ?? 0}`, via: "panel" });
+        return reply(result.ok ? { ok: true, publish: result } : { ok: false, error: String((result as { message?: string }).message || "الرفع فشل") }, result.ok ? 200 : 400);
+      }
       if (op === "stickers_refresh") return reply({ ok: true, refresh: await st.refreshStickers() });
       if (op === "stickers_test") {
         const chat = typeof body.chat === "string" || typeof body.chat === "number" ? String(body.chat).trim() : "";

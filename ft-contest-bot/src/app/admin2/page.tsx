@@ -312,6 +312,18 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
   }
   const [stk, setStk] = useState<{ kind: string; ready: boolean; sets: { name: string; title: string; total: number; animated: boolean; ok: boolean }[] }[]>([]);
   const [stkJson, setStkJson] = useState("");
+  async function publishStickers() {
+    setBusy("publish");
+    try {
+      const r = await api({ action: "stickers_publish", apply: true });
+      const up = Number((r.publish as { uploaded?: number } | undefined)?.uploaded ?? 0);
+      flash("ok", `🚀 ${up} ملصق متحرك مرفوع ومربوط بالبوت — بان فكل الشاشات`);
+      void loadStickers();
+    } catch (e) {
+      flash("err", String((e as Error)?.message || "الرفع ما تمشاش"));
+    }
+    setBusy("");
+  }
   async function loadStickers() {
     try {
       const r = await fetch("/api/admin2?what=stickers", { credentials: "same-origin" }).then((x) => x.json());
@@ -551,6 +563,9 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
           <a className="btn2 sm" href="/api/admin2?what=stickers_test" target="_blank" rel="noopener">
             🎬 جرّب الملصقات الآن
           </a>
+          <button className="btn2 sm gold" onClick={() => void publishStickers()} disabled={busy === "publish"}>
+            🚀 ارفع الملصقات للبوت
+          </button>
           <a className="btn2 sm" href="/api/stickers/gallery" target="_blank" rel="noopener">
             🖼 معرض الملصقات
           </a>

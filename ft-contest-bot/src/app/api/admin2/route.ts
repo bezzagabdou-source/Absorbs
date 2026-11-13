@@ -289,16 +289,17 @@ export async function GET(req: NextRequest) {
       ]);
       return ok({
         sets,
+        publishHint: "what=stickers_publish&apply=1",
         preview,
         emojiPacks: EMOJI_SETS,
         gallery: "/api/panel/stickers",
         style: String(process.env.STICKER_STYLE ?? "1") !== "0" ? "on" : "off",
-        note: 'بدّل النشرات بـ {"welcome":["FredThePug","ChappyBunny"],"more":["HotCherry"]} فـ action=stickers_save — وكلشي بان بلا إعدادات.',
+        note: 'الملصقات الأساسية ديالنا (قلوب/نجوم/طاقة/احتفال/كؤوس) مضمّنة وكاتترفع أوتوماتيكيا —زيد نشرة علنية اختيارية بـ {"welcome":["AppleStickers"]} فـ action=stickers_save.',
       });
     }
     if (what === "stickers_gallery") {
       const { stickerGalleryHtml } = await import("@/lib/stickers");
-      return new NextResponse(await stickerGalleryHtml(), {
+      return new NextResponse(await stickerGalleryHtml([], req.nextUrl.origin), {
         headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
       });
     }
@@ -306,6 +307,15 @@ export async function GET(req: NextRequest) {
       const { refreshStickers } = await import("@/lib/stickers");
       return ok({ refresh: await refreshStickers() });
     }
+    // 🚀 رفع ملصقاتنا (TGS مضمّن فالكود) لـ تيليجرام + تخزين file_ids
+    if (what === "stickers_publish") {
+      const st = await import("@/lib/stickers");
+      const apply = ["1", "yes", "true"].includes((url.searchParams.get("apply") || "").toLowerCase());
+      const result = await st.publishOwn({ apply, origin: req.nextUrl.origin });
+      if (apply) await pushAdminLog({ at: Date.now(), op: "stickers_publish", detail: `uploaded ${result.uploaded ?? 0} · ${result.ok ? "ok" : String((result as { message?: string }).message || "")}`, via: "panel" });
+      return ok({ publish: result, own: await st.ownStickers(true) });
+    }
+
     // 🎬 اختبار حيّ: صيفط ملصق حقيقي لشات (المالك بالأساس) وقول آش تصيفط فعلاً
     if (what === "stickers_test") {
       const { sendStickers } = await import("@/lib/stickers");
@@ -442,8 +452,15 @@ export async function POST(req: NextRequest) {
 
   try {
     // 🎭 نشر الملصقات: تحديد النشرات + إنعاش + استيراد إيموجي
-    if (action === "stickers_save" || action === "stickers_refresh" || action === "stickers_import") {
+    if (action === "stickers_publish" || action === "stickers_save" || action === "stickers_refresh" || action === "stickers_import") {
       const st = await import("@/lib/stickers");
+      if (action === "stickers_publish") {
+        const origin = String(body.origin || req.nextUrl.origin);
+        const result = await st.publishOwn({ apply: body.apply !== false, origin, userId: String(body.userId || "") });
+        await pushAdminLog({ at: Date.now(), op: "stickers_publish", detail: `uploaded ${result.uploaded ?? 0} · ${result.ok ? "ok" : String((result as { message?: string }).message || "")}`, via: "panel" });
+        if (!result.ok) return bad(String((result as { message?: string }).message || "الرفع ما تمشاش"), 400);
+        return ok({ publish: result, own: await st.ownStickers(true) });
+      }
       if (action === "stickers_save") {
         const sets = (body.sets || {}) as Record<string, string[]>;
         const saved = await st.saveStickerSets(sets);

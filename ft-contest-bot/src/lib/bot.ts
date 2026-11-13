@@ -224,11 +224,11 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   return keyboard(rows);
 }
 
-/** ✨ القائمة الجديدة: مميزات وأدوات البوت (فوق المسابقات/حسابي/إحالة) */
-/** 🎭 ملصقات كيما الصورة (SPAM x Panel): ملصق + «تفاعلات» — كلها بلا كسر إلا كان file_id غالط */
+/** 🎭 ملصقات البوت المتحركة (ملصقاتنا TGS) — ملصق + تفاعل، بلا كسر على الرسالة */
 async function sendStickerPack(chatId: number | string, name: StickerKind = "welcome", count = 2): Promise<void> {
   try {
-    const sent = await sendStickers(chatId, name, count);
+    const origin = await currentOrigin().catch(() => "");
+    const sent = await sendStickers(chatId, name, count, origin);
     if (sent > 0) return;
   } catch {
     /* ما نكسرو والو على الرسالة */
@@ -321,14 +321,14 @@ async function showStickers(chatId: number | string, messageId?: number) {
   ];
   const rows: Button[][] = [];
   for (const group of info) {
-    const set = group.sets.find((x) => x.ok) || group.sets[0];
-    if (!set) continue;
-    rows.push([
-      {
-        text: `${set.animated ? "✨" : "🖼"} ${set.title.slice(0, 34)}`,
-        url: `https://t.me/addstickers/${encodeURIComponent(set.name)}`,
-      },
-    ]);
+    const ownMeta = (group as { own?: { link?: string; created?: boolean } }).own;
+    const set = group.sets[0];
+    if (ownMeta?.created && ownMeta.link && set) {
+      rows.push([{ text: `⚡️ زيد ${String(set.title || group.kind).slice(0, 30)}`, url: ownMeta.link }]);
+      continue;
+    }
+    if (!set || group.source !== "public") continue;
+    rows.push([{ text: `${set.animated ? "✨" : "🖼"} ${set.title.slice(0, 34)}`, url: `https://t.me/addstickers/${encodeURIComponent(set.name)}` }]);
   }
   if (EMOJI_SETS.length > 0) {
     rows.push([
@@ -346,7 +346,8 @@ async function showStickers(chatId: number | string, messageId?: number) {
     await sendMessage(chatId, text, kb);
     // 🎬 عيّنة حيّة: ملصق واحد من كل مجموعة جاهزة (حتى 3)
     for (const group of ready.slice(0, 3)) {
-      const one = await stickerFor(group.kind as "welcome" | "react" | "more" | "win" | "shop", 0);
+      const origin2 = await currentOrigin().catch(() => "");
+      const one = await stickerFor(group.kind as "welcome" | "react" | "more" | "win" | "shop", 0, origin2);
       if (one) await sendStickerSafe(chatId, one.fileId);
     }
   }
