@@ -317,11 +317,13 @@ export async function GET(req: NextRequest) {
           };
         }),
       );
+      const raw = await st.rawStickerSet(String(own?.sets?.[0]?.name || ""));
       const good = rows.filter((x) => x.ok).length;
       return ok({
         verify: rows,
         total: own?.sets?.reduce((n, x) => n + (x.created ? 1 : 0), 0) || 0,
         packs: (own?.sets || []).map((x) => ({ kind: x.kind, name: x.name, link: x.link, created: x.created })),
+        raw,
         ok: good === 5,
         message: good === 5 ? "✅ كل صنف فيه ملصق حيّ عند تيليجرام" : `⚠️ ${good}/5 كيدعو — شوف error`,
       });

@@ -376,8 +376,27 @@ let pub: { at: number; packs: Record<string, Pack | null> } | null = null;
 
 function fileIdOf(s: any): string {
   return String(
-    s?.file_id || s?.video?.file_id || s?.animation?.file_id || s?.webm_sticker?.file_id || s?.tgs_sticker?.file_id || s?.png_sticker?.file_id || s?.thumbnail?.file_id || "",
+    s?.video?.file_id || s?.animation?.file_id || s?.webm_sticker?.file_id || s?.tgs_sticker?.file_id || s?.file_id || s?.png_sticker?.file_id || s?.thumbnail?.file_id || "",
   );
+}
+
+/** 🔬 الخام ديال getStickerSet (للتشخيص فلوحة الإدارة) */
+export async function rawStickerSet(name: string): Promise<unknown> {
+  const clean = String(name || "").trim().replace(/[^A-Za-z0-9_]/g, "");
+  if (!clean) return null;
+  const res = await tgCall<any>("getStickerSet", { name: clean });
+  const r = res?.result;
+  if (!r) return { ok: false, description: res?.description || "getStickerSet فشل" };
+  return {
+    ok: true,
+    name: String(r.name || ""),
+    title: String(r.title || ""),
+    is_animated: Boolean(r.is_animated),
+    is_video: Boolean(r.is_video),
+    sticker_type: String(r.sticker_type || ""),
+    total: (r.stickers || []).length,
+    first: r.stickers?.[0] || null,
+  };
 }
 
 /** نجيب نشرّة من تيليجرام (اسم من t.me/addstickers/<name>) */
