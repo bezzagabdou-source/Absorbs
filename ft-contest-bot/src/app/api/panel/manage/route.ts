@@ -13,7 +13,7 @@ import { getStats } from "@/lib/stats";
 import { storageInfo } from "@/lib/store";
 import { sendMessage } from "@/lib/telegram";
 import type { Contest, Settings } from "@/lib/types";
-import { getUser, listRecentUsers } from "@/lib/users";
+import { getUser, listAllUsers, usersCount } from "@/lib/users";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,10 +92,24 @@ export async function GET(request: NextRequest) {
     if (view === "requests") return reply({ ok: true, requests: await listRequests(100) });
     if (view === "log") return reply({ ok: true, log: await readAdminLog(100) });
     if (view === "users") {
-      const users = await listRecentUsers(100);
-      const banned = new Set(await bannedIds());
-      const result = await Promise.all(users.map(async (u) => ({ ...u, points: await balanceOf(u.id), banned: banned.has(u.id) })));
-      return reply({ ok: true, users: result, limit: 100 });
+      // 👥 جميع المستخدمين منذ إنشاء البوت (ما غير 100 الأخيرين) — مع بحث/حد اختياري
+      const limit = Math.max(1, Math.min(5000, Number(query.get("limit")) || 2000));
+      const q = (query.get("q") || "").trim().toLowerCase();
+      const [all, banned, totals] = await Promise.all([listAllUsers(limit), bannedIds(), topBalances(Math.max(400, limit))]);
+      const bannedSet = new Set(banned);
+      const balances = new Map(totals.map((r) => [String(r.userId), Number(r.points) || 0]));
+      const pool = q ? all.filter((u) => `${u.id} ${u.firstName || ""} ${u.username || ""}`.toLowerCase().includes(q)) : all;
+      const picked = pool.slice(0, limit);
+      // 🎯 القوائم الصغيرة: الرصيد الحقيقي بالضبط؛ الكبيرة: خريطة النقاط (سؤال واحد) بلا timeout
+      const exact = picked.length <= 400;
+      const result = await Promise.all(
+        picked.map(async (u) => ({
+          ...u,
+          points: Math.max(0, exact ? await balanceOf(u.id) : balances.get(u.id) || 0),
+          banned: bannedSet.has(u.id),
+        })),
+      );
+      return reply({ ok: true, users: result, limit: picked.length, total: await usersCount() });
     }
     if (view === "user") {
       const id = userId(query.get("id"));
@@ -226,13 +240,17 @@ export async function POST(request: NextRequest) {
     }
     if (op === "points_config") {
       const input = object(body.points);
-      onlyKeys(input, ["enabled", "perJoin", "perActivated", "shopIntro"]);
+      // ⚠️ dailyMin/dailyMax حقول قديمة (الهدية اليومية محيّدة) — كنتقبلوهم و كنهملهم
+      //    باش زر «حفظ النقاط» في اللوحة ما يقعش في «حقل غير مسموح»
+      onlyKeys(input, ["enabled", "perJoin", "perActivated", "shopIntro", "dailyMin", "dailyMax"]);
       if (!Object.keys(input).length) return fail("حدد حقلاً للتعديل");
       const patch: Partial<PointsConfig> = {};
       if (input.enabled !== undefined) patch.enabled = bool(input.enabled, "نظام النقاط");
       for (const key of ["perJoin", "perActivated"] as const)
         if (input[key] !== undefined) patch[key] = number(input[key], key, 0, 1000);
       if (input.shopIntro !== undefined) patch.shopIntro = str(input.shopIntro, "مقدمة المتجر", 2000);
+      for (const key of ["dailyMin", "dailyMax"] as const)
+        if (input[key] !== undefined) number(input[key], key, 0, 100_000); // مقبول لكن غير مستعمل
       const points = await savePointsConfig(patch);
       await log(op, "تعديل إعدادات نقاط المتجر");
       return reply({ ok: true, points });

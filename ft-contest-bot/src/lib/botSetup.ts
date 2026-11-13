@@ -5,7 +5,7 @@ import { getMockLog, isMock, tgCall } from "./telegram";
 export const BOT_COMMANDS = [
   { command: "start", description: "مرحبا بكم في بوت مسابقات FT" },
   { command: "fastest", description: "مسابقة أسرع ضيف — رابط الدعوة" },
-  { command: "me", description: "جهاتي ورابطي" },
+  { command: "me", description: "دعواتي ورابطي" },
   { command: "account", description: "حسابي — الرصيد والنقاط" },
   { command: "points", description: "نقاطي ورصيدي" },
   { command: "shop", description: "متجر الجوائز — بدّل نقاطك 🎁" },

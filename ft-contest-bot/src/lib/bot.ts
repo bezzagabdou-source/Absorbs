@@ -258,7 +258,7 @@ async function showMore(
       { text: "🎁 متجر الجوائز", callback_data: "shop" },
       { text: "⭐️ نقاطي", callback_data: "points" },
     ],
-    [{ text: "📊 جهاتي", callback_data: "mine" }],
+    [{ text: "📊 دعواتي", callback_data: "mine" }],
     [{ text: "ℹ️ معلومات البوت", callback_data: "about" }],
     [{ text: "⬅️ القائمة الرئيسية BACK", callback_data: "home" }],
   ];
@@ -460,7 +460,7 @@ function contestKeyboard(contest: Contest): InlineKeyboard {
   return keyboard([
     [main],
     [
-      { text: "📊 جهاتي", callback_data: `mine:${contest.id}` },
+      { text: "📊 دعواتي", callback_data: `mine:${contest.id}` },
       { text: "🥇 الترتيب", callback_data: `top:${contest.id}` },
     ],
     [{ text: "🎁 ربح الحساب", callback_data: `claim:${contest.id}` }],
@@ -685,7 +685,7 @@ async function showFastest(
   const kb = keyboard([
     [{ text: "🔗 رابطي — أضف أعضاء", callback_data: `ginv:${contest.id}` }],
     [
-      { text: "📊 جهاتي", callback_data: "mine" },
+      { text: "📊 دعواتي", callback_data: "mine" },
       { text: "🎁 ربح الحساب", callback_data: `claim:${contest.id}` },
     ],
     ...(group.url ? ([[{ text: "👥 المجموعة", url: group.url }]] as Button[][]) : []),
@@ -717,7 +717,7 @@ async function showGroupInvite(chatId: number | string, user: BotUser, contest: 
         ].join("\n"),
         keyboard([
           [{ text: "📣 مشاركة الرابط", url: share }],
-          [{ text: "📊 جهاتي", callback_data: `mine:${contest.id}` }],
+          [{ text: "📊 دعواتي", callback_data: `mine:${contest.id}` }],
           backRow(`c:${contest.id}`),
         ]),
       );
@@ -750,7 +750,7 @@ async function showGroupInvite(chatId: number | string, user: BotUser, contest: 
     keyboard([
       [{ text: "📣 مشاركة الرابط", url: share }],
       [
-        { text: "📊 جهاتي", callback_data: `mine:${contest.id}` },
+        { text: "📊 دعواتي", callback_data: `mine:${contest.id}` },
         { text: "🏃 أسرع ضيف", callback_data: "fastest" },
       ],
       backRow(`c:${contest.id}`),
@@ -1199,7 +1199,7 @@ async function showLink(chatId: number | string, user: BotUser, contest: Contest
     ["🔗 <b>رابطك</b>", `<code>${link}</code>`, "", "كل شخص يفتحه = جهة في رصيدك ✅"].join("\n"),
     keyboard([
       [{ text: "📣 مشاركة سريعة", url: share }],
-      [{ text: "📊 جهاتي", callback_data: `mine:${contest.id}` }],
+      [{ text: "📊 دعواتي", callback_data: `mine:${contest.id}` }],
       backRow(`c:${contest.id}`),
     ]),
   );
@@ -1507,7 +1507,7 @@ async function notifyOwnerOfReferral(
             text: isGroupMode(contest) ? "🔗 رابطي" : "🔗 رابطي",
             callback_data: isGroupMode(contest) ? `ginv:${contest.id}` : `link:${contest.id}`,
           },
-          { text: "📊 جهاتي", callback_data: `mine:${contest.id}` },
+          { text: "📊 دعواتي", callback_data: `mine:${contest.id}` },
         ],
       ]),
     );

@@ -281,12 +281,6 @@ export async function invitesOf(userId: string): Promise<{ joined: number; activ
   return { joined: Number(joined) || 0, activated: Number(activated) || 0 };
 }
 
-/* ─────────────── الهدية اليومية ─────────────── */
-
-export function algeriaDay(now = Date.now()): string {
-  return new Date(now + 60 * 60 * 1000).toISOString().slice(0, 10);
-}
-
 /* ─────────────── الطلبات ─────────────── */
 
 export async function createRequest(input: {

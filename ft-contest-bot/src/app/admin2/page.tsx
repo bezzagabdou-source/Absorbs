@@ -27,7 +27,7 @@ type AiRun = { say: string; actions: { op: string; [k: string]: unknown }[]; res
 type Data = {
   rewards: Reward[];
   sections: Section[];
-  points: { perJoin: number; perActivated: number; dailyMin: number; dailyMax: number; shopIntro: string; enabled: boolean };
+  points: { perJoin: number; perActivated: number; shopIntro: string; enabled: boolean };
   settings: {
     ownerUsername: string;
     supportUsername: string;
@@ -911,14 +911,6 @@ function PointsForm({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "er
         <label className="f">
           <span>نقاط التفعيل</span>
           <input type="number" min={0} value={p.perActivated} onChange={(e) => setP({ ...p, perActivated: Number(e.target.value) })} />
-        </label>
-        <label className="f">
-          <span>الهدية اليومية (أدنى)</span>
-          <input type="number" min={0} value={p.dailyMin} onChange={(e) => setP({ ...p, dailyMin: Number(e.target.value) })} />
-        </label>
-        <label className="f">
-          <span>الهدية اليومية (أقصى)</span>
-          <input type="number" min={0} value={p.dailyMax} onChange={(e) => setP({ ...p, dailyMax: Number(e.target.value) })} />
         </label>
       </div>
       <label className="f">
