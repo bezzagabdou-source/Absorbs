@@ -139,10 +139,11 @@ export async function POST(request: NextRequest) {
     const body = object(await request.json().catch(() => ({})));
     const op = String(body.op || "");
     if (op === "contest_save") {
-      const id = body.id ? resourceId(body.id) : "";
       const input = object(body.contest);
-      onlyKeys(input, ["title", "description", "prize", "target", "winners", "status", "mode"]);
-      if (!Object.keys(input).length) return fail("حدد حقلاً للتعديل");
+      // 🧩 كامل الكائن كيتقبل (id/imageUrl/التواريخ) — التواريخ كتهمّل
+      onlyKeys(input, ["title", "description", "prize", "target", "winners", "status", "mode", "id", "imageUrl", "hasImage", "createdAt", "startedAt", "endedAt"]);
+      const id = body.id ? resourceId(body.id) : input.id !== undefined ? resourceId(input.id, "معرّف المسابقة") : "";
+      if (!Object.keys(input).filter((k) => !["id", "hasImage", "createdAt", "startedAt", "endedAt"].includes(k)).length) return fail("حدد حقلاً للتعديل");
       const existing = id ? await getContest(id) : null;
       if (id && !existing) return fail("المسابقة غير موجودة", 404);
       const patch: Partial<Contest> = {};
@@ -153,6 +154,11 @@ export async function POST(request: NextRequest) {
       if (input.status !== undefined) {
         if (input.status !== "active" && input.status !== "draft" && input.status !== "ended") return fail("حالة المسابقة غير صالحة");
         patch.status = input.status;
+      }
+      if (input.imageUrl !== undefined) {
+        const image = str(input.imageUrl, "صورة المسابقة", 2_000_000, true);
+        if (image && !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(image) && !/^https:\/\//.test(image)) return fail("صيغة الصورة غير مدعومة");
+        patch.imageUrl = image || undefined;
       }
       if (input.mode !== undefined) {
         if (input.mode !== "group" && input.mode !== "referral") return fail("نوع المسابقة غير صالح");
@@ -175,10 +181,11 @@ export async function POST(request: NextRequest) {
       return reply({ ok: true, deleted: { id, title: existing.title }, removedStock: true });
     }
     if (op === "reward_save") {
-      const id = body.id ? resourceId(body.id) : "";
       const input = object(body.reward);
-      onlyKeys(input, ["title", "desc", "emoji", "cost", "stock", "active", "order", "section", "delivery"]);
-      if (!Object.keys(input).length) return fail("حدد حقلاً للتعديل");
+      // 🧩 كتقبل الجائزة كاملة (حتى id/hasImage) باش «round-trip» ديال اللوحة والـAI ما يقعش
+      onlyKeys(input, ["title", "desc", "emoji", "cost", "stock", "active", "order", "section", "delivery", "id", "image", "hasImage"]);
+      const id = body.id ? resourceId(body.id) : input.id !== undefined ? resourceId(input.id, "معرّف الجائزة") : "";
+      if (!Object.keys(input).filter((k) => k !== "id" && k !== "hasImage").length) return fail("حدد حقلاً للتعديل");
       const list = await ensureRewards();
       const previous = id ? list.find((r) => r.id === id) : undefined;
       if (id && !previous) return fail("الجائزة غير موجودة", 404);
@@ -192,6 +199,12 @@ export async function POST(request: NextRequest) {
       if (input.section !== undefined) {
         if (!["accounts", "points", "services"].includes(String(input.section))) return fail("القسم غير صالح");
         next.section = input.section as SectionId;
+      }
+      if (input.image !== undefined) {
+        const image = str(input.image, "صورة الجائزة", 2_000_000, true);
+        if (image && !/^data:image\/(png|jpe?g|webp|gif);base64,/.test(image) && !/^https:\/\//.test(image)) return fail("صيغة الصورة غير مدعومة");
+        next.image = image || undefined;
+        if (!image) delete next.image;
       }
       if (!next.title || (!id && input.cost === undefined)) return fail("الاسم والسعر مطلوبان");
       await saveRewards(previous ? list.map((r) => r.id === id ? next : r) : [...list, next]);
