@@ -28,6 +28,8 @@ export type BcJob = {
   stopped: boolean;
   targets: string[];
   lastError: string;
+  lockedAt: number;
+  lockedCursor?: number;
 };
 
 /** سقف الوقت ديال كل دفعة (request) — تحت timeout ديال فيرسيل */
@@ -76,6 +78,8 @@ function blank(partial: Partial<BcJob> = {}): BcJob {
     stopped: false,
     targets: [],
     lastError: "",
+    lockedAt: 0,
+    lockedCursor: 0,
     ...partial,
   };
 }
@@ -139,10 +143,41 @@ export async function tickBroadcast(budgetMs = TICK_MS, seeded?: BcJob): Promise
   if (!job) throw new Error("ماكا حتى بثّ شغّال — بدا واحد جديد");
   if (job.finished || job.stopped) return job;
 
+  // 🔒 إلا كاين شي خدام على نفس البثّ دابا (نقرة مضاعفة / طلبين) → ما نكرّروش
+  const inProcess = (globalThis as { __ftBcTick?: boolean }).__ftBcTick;
+  const lockedRecently = Date.now() - (job.lockedAt || 0) < 30_000;
+  if (!seeded && inProcess) return job;
+  if (!seeded && lockedRecently && job.cursor === job.lockedCursor) return job;
+
+  job.lockedAt = Date.now();
+  job.lockedCursor = job.cursor;
+  await saveJob(job);
+  (globalThis as { __ftBcTick?: boolean }).__ftBcTick = true;
+  try {
+    await pump(job, budgetMs);
+  } finally {
+    (globalThis as { __ftBcTick?: boolean }).__ftBcTick = false;
+    const fresh = await loadJob();
+    if (fresh) {
+      fresh.lockedAt = 0;
+      await saveJob(fresh);
+    }
+  }
+  return (await loadJob()) || job;
+}
+
+async function pump(job: BcJob, budgetMs: number) {
   const ids = job.targets || [];
   const deadline = Date.now() + Math.max(3_000, budgetMs);
 
   while (job.cursor < ids.length) {
+    // 🔄 ناخدو آخر حالة من المخزن (باش الطلبات المتوازية ما يكرروش نفس الواحد)
+    const fresh = await loadJob();
+    if (fresh && (fresh.finished || fresh.stopped)) {
+      Object.assign(job, fresh);
+      return;
+    }
+    if (fresh && fresh.cursor > job.cursor) job.cursor = fresh.cursor;
     const batch = ids.slice(job.cursor, job.cursor + BATCH);
     const results = await Promise.all(
       batch.map(async (id) => {
@@ -179,7 +214,7 @@ export async function tickBroadcast(budgetMs = TICK_MS, seeded?: BcJob): Promise
     job.cursor += batch.length;
     job.updatedAt = Date.now();
     await saveJob(job);
-    if (Date.now() >= deadline) return job;
+    if (Date.now() >= deadline) return;
     await sleep(GAP_MS);
   }
 
@@ -187,7 +222,6 @@ export async function tickBroadcast(budgetMs = TICK_MS, seeded?: BcJob): Promise
   job.updatedAt = Date.now();
   await saveJob(job);
   await pushHistory(job);
-  return job;
 }
 
 export async function stopBroadcast(): Promise<BcJob | null> {
