@@ -312,21 +312,48 @@ export async function recountReferralPoints(apply = false, maxRows = 4000): Prom
   const notes: string[] = [];
   let skipped = 0;
 
+  // 🕰️ السجل فيه أشكال قديمة (inviter/referrer/userId…) → كنقبلو كل الأسماء المعروفة
+  const pick = (e: Record<string, unknown>, keys: string[]) => {
+    for (const k of keys) {
+      const v = e?.[k];
+      if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+    }
+    return "";
+  };
+  const fallbackContest =
+    (await import("./contests"))
+      .listContests()
+      .then((cs) => (cs.find((c) => c.status === "active") || cs[0])?.id || "")
+      .catch(() => "");
+  let badRows = 0;
   for (const line of raw) {
     try {
-      const e = JSON.parse(line);
-      const inviterId = String(e?.inviterId || "");
-      const joinerId = String(e?.joinerId || e?.joiner || "");
-      const contestId = String(e?.contestId || "");
-      if (!/^\d+$/.test(inviterId) || !/^\d+$/.test(joinerId) || inviterId === joinerId || !contestId) {
+      const e = (typeof line === "string" ? JSON.parse(line) : line) as Record<string, unknown>;
+      if (e?.counted === false) {
         skipped++;
         continue;
       }
-      rows.push({ at: Number(e?.at) || 0, contestId, inviterId, inviterName: e?.inviterName || "", joinerId });
+      const inviterId = pick(e, ["inviterId", "inviter", "ownerId", "referrer", "refId", "from", "senderId"]);
+      const joinerId = pick(e, ["joinerId", "joiner", "newUserId", "userId", "memberId", "user", "referred"]);
+      const contestId = pick(e, ["contestId", "contest", "cid"]) || (await fallbackContest);
+      if (!/^\d+$/.test(inviterId) || !/^\d+$/.test(joinerId) || inviterId === joinerId || !contestId) {
+        badRows++;
+        skipped++;
+        continue;
+      }
+      rows.push({
+        at: Number(e?.at || e?.atMs || e?.ts) || 0,
+        contestId,
+        inviterId,
+        inviterName: String(e?.inviterName || e?.ownerName || ""),
+        joinerId,
+      });
     } catch {
+      badRows++;
       skipped++;
     }
   }
+  if (badRows) notes.push(`${badRows} سطر قديم ما فيهش ما يكفي من المعلومات — تجاوزه`);
 
   const perInviter = new Map<string, { n: number; name: string }>();
   let wouldCredit = 0;
