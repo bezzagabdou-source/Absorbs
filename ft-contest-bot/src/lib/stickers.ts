@@ -42,7 +42,7 @@ const OVERRIDES_KEY = "sticker_sets";
 const TTL_MS = 10 * 60 * 1000;
 const GALLERY_PER_SET = 8;
 
-export type StickerItem = { fileId: string; emoji: string };
+export type StickerItem = { fileId: string; emoji: string; fmt?: string };
 export type OwnSet = { kind: StickerKind; pack: string; title: string; name: string; link: string; created: boolean; note: string };
 export type OwnState = { at: number; byKind: Record<string, StickerItem[]>; sets: OwnSet[] };
 
@@ -159,16 +159,18 @@ async function ownerUserId(forced = ""): Promise<string> {
 async function uploadOne(base: string, item: ManifestItem, userId: string): Promise<{ fileId: string; how: string; error: string }> {
   const t = await token();
   if (!t) return { fileId: "", how: "", error: "ما كاينش توكن البوت" };
-  const tries: { path: string | null; format: string; type: string; file: string }[] = [
-    { path: item.tgs, format: "animated", type: "application/gzip", file: "s.tgs" },
-    { path: item.webp || item.png || null, format: "static", type: item.webp ? "image/webp" : "image/png", file: item.webp ? "s.webp" : "s.png" },
+  // 🎬 tgs = الاسم الرسمي ديال uploadStickerFile؛ «animated» غير احتياط للنسخ القديمة
+  const tries: { path: string | null; format: string; upload: string; type: string; file: string }[] = [
+    { path: item.tgs, format: "tgs", upload: "tgs", type: "application/gzip", file: "s.tgs" },
+    { path: item.tgs, format: "animated", upload: "animated", type: "application/gzip", file: "s.tgs" },
+    { path: item.webp || item.png || null, format: "png", upload: "png", type: item.webp ? "image/webp" : "image/png", file: item.webp ? "s.webp" : "s.png" },
   ];
   const errs: string[] = [];
   for (const step of tries) {
     if (!step.path) continue;
     try {
       let buf: ArrayBuffer;
-      if (step.format === "animated" && item.tgsB64) {
+      if ((step.format === "tgs" || step.format === "animated") && item.tgsB64) {
         const raw = Buffer.from(item.tgsB64, "base64");
         buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
       } else {
@@ -185,7 +187,7 @@ async function uploadOne(base: string, item: ManifestItem, userId: string): Prom
       }
       const fd = new FormData();
       fd.set("user_id", userId);
-      fd.set("sticker_format", step.format);
+      fd.set("sticker_format", step.upload);
       fd.append("sticker", new Blob([buf], { type: step.type }), step.file);
       const up = await fetch(`https://api.telegram.org/bot${t}/uploadStickerFile`, { method: "POST", body: fd, cache: "no-store" });
       const j = (await up.json().catch(() => ({}))) as { ok?: boolean; description?: string; result?: { file_id?: string } };
@@ -238,7 +240,7 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
   try {
     const prev = await ownStickers(true);
     for (const [k, list] of Object.entries(prev?.byKind || {}))
-      for (const it of list || []) if (it?.emoji && it?.fileId) prevIds.set(`${k}:${it.emoji}`, String(it.fileId));
+      for (const it of list || []) if (it?.emoji && it?.fileId) prevIds.set(`${k}:${it.emoji}`, `${it.fileId}::${it.fmt || "png"}`);
   } catch {
     /* أول مرة */
   }
@@ -251,27 +253,34 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
 
   for (const pack of usable) {
     const items: StickerItem[] = [];
+    let fmtTag = "";
     for (const item of pack.items) {
       const cached = prevIds.get(`${pack.kind}:${item.emoji}`);
-      if (cached && !opts.force) {
-        items.push({ fileId: cached, emoji: item.emoji });
+      if (cached && cached.includes("::") && !opts.force) {
+        const [id, tag] = cached.split("::");
+        items.push({ fileId: id, emoji: item.emoji, fmt: tag });
+        fmtTag ||= tag;
         continue;
       }
       const up = await uploadOne(base, item, userId);
-      if (up.fileId) items.push({ fileId: up.fileId, emoji: item.emoji });
-      else if (up.error) errors.push(`${pack.id}/${item.emoji}: ${up.error}`);
+      if (up.fileId) {
+        items.push({ fileId: up.fileId, emoji: item.emoji, fmt: up.how });
+        fmtTag ||= up.how;
+      } else if (up.error) errors.push(`${pack.id}/${item.emoji}: ${up.error}`);
       await new Promise((r) => setTimeout(r, 120));
     }
+    const animated = fmtTag === "tgs" || fmtTag === "animated";
+    const tag = animated ? "tgs" : "png";
     if (items.length === 0) {
       sets.push({ kind: pack.kind, pack: pack.id, title: pack.title, name: "", link: "", created: false, note: "ما تولّا حتى ملف مرفوع" });
       continue;
     }
     byKind[pack.kind] = items;
-    const setName = `${pack.id}_by_${(botName.split("@").pop() || "ftbot").replace(/[^a-z0-9_]/g, "")}`;
+    const setName = `${pack.id}_${tag}_by_${(botName.split("@").pop() || "ftbot").replace(/[^a-z0-9_]/g, "")}`.slice(0, 64);
     let created = false;
     let note = "";
     const old = doneSets.get(pack.id);
-    if (old && !opts.force) {
+    if (old && !opts.force && old.name === setName) {
       created = true;
       note = "النشرة موجودة من قبل";
     } else {
@@ -280,12 +289,12 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
         user_id: userId,
         name: setName,
         title: pack.title.slice(0, 50),
-        sticker_type: "regular" as const,
+        ...(animated ? {} : { sticker_type: "regular" as const }),
         needs_repainting: false,
-        format: "animated",
+        format: animated ? "animated" : "regular",
         stickers: items.map((s) => ({
           sticker: s.fileId,
-          format: "animated",
+          format: animated ? "animated" : "regular",
           ...(mode === "list" ? { emoji_list: [s.emoji || "⭐️"] } : { emoji: s.emoji || "⭐️" }),
         })),
       });
@@ -313,7 +322,7 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
     // ✅ من بعد النشرة تولّت: ناخدو file_ids الأحياء منها (هي اللي كتتمّى بعثها بـ sendSticker)
     if (created) {
       const live = await fetchSet(setName);
-      if (live && live.stickers.length > 0) byKind[pack.kind] = live.stickers.map((x) => ({ fileId: x.fileId, emoji: x.emoji }));
+      if (live && live.stickers.length > 0) byKind[pack.kind] = live.stickers.map((x) => ({ fileId: x.fileId, emoji: x.emoji, fmt: tag }));
       else note = `${note} · ما تجاوبش getStickerSet (نفس file_ids ديال الرفع غادي يخدمو)`;
     }
     sets.push({
