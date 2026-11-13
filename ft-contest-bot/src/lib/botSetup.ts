@@ -17,8 +17,6 @@ export const BOT_COMMANDS = [
   { command: "rules", description: "الشروط" },
   { command: "ai", description: "المساعد الذكي — اسأل أي حاجة" },
   { command: "owner", description: "مالك البوت" },
-  { command: "emojis", description: "الإيموجيات المتحركة المحمّلة (مالك)" },
-  { command: "addemoji", description: "إضافة حزمة إيموجي: /addemoji PackName (مالك)" },
 ];
 
 /** أنواع التحديثات التي يستقبلها الويب هوك (تشمل طلبات الانضمام للمجموعة) */
@@ -172,6 +170,13 @@ export async function ensureBotReady(
     } else {
       status.details.push(`فشل ربط الويب هوك تلقائياً: ${res.description || "خطأ"}`);
     }
+  }
+
+  // 🧹 منيو الأوامر كيتحدّث دايما (حذفنا /emojis و/addemoji من المينو — بقاو خدامين للوحة)
+  try {
+    await tgCall("setMyCommands", { commands: BOT_COMMANDS });
+  } catch {
+    /* ما نعطّلو التشخيص */
   }
 
   guardGlobal.__ftAutoSetupAt = now;

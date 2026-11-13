@@ -58,7 +58,8 @@ export async function logJoinAttempt(attempt: JoinAttempt): Promise<void> {
 }
 
 export async function recentJoinAttempts(chatId: string | number, limit = 50): Promise<JoinAttempt[]> {
-  const raw = await getStore().listAll(JOIN_LOG(chatId), 300);
+  // 📚 نجيبو السجل كامل (متكوّس ~500) من اللول — باش ديما نلقاو الأحدث
+  const raw = await getStore().listAll(JOIN_LOG(chatId), 1000);
   const out: JoinAttempt[] = [];
   for (const line of raw) {
     try {
@@ -225,14 +226,22 @@ export async function backfillReferrals(chatId?: string | number): Promise<FixRe
   let fixed = 0;
   let skipped = 0;
   const touched = new Set<string>();
-  if (!chat) return { fixed: 0, skipped: 0, contests: [], notes: ["ما كاينش مجموعة مربوطة"] };
-
   const contests = (await listContests()).filter((c) => c.status === "active");
   const contest = contests.find((c) => c.mode === "group") || contests[0];
   if (!contest) return { fixed: 0, skipped: 0, contests: [], notes: ["ما كاينش مسابقة نشطة"] };
 
-  const events = await recentJoinAttempts(chat, 500);
+  const events = chat ? await recentJoinAttempts(chat, 500) : [];
   const { creditPoints } = await import("./points");
+  const credit = async (contestId: string, ownerId: string, joinerId: string, withPoints: boolean) => {
+    if (await store.get(`refbtot:${contestId}:${joinerId}`)) return false;
+    const added = await store.sAdd(`contest:${contestId}:credited`, joinerId);
+    if (added) {
+      await store.zIncr(`contest:${contestId}:score`, ownerId, 1);
+      if (withPoints) await creditPoints(ownerId);
+    }
+    await store.set(`refbtot:${contestId}:${joinerId}`, Date.now());
+    return added;
+  };
   for (const event of events) {
     // 🛡️ ما نعاودوش نحسبو واحد مسجّل «محسوب» ولا بلا صاحب رابط (باش ما يتضاعفش العدّ)
     if (event.counted || !event.ownerId || event.ownerId === event.joinerId) {
@@ -240,16 +249,35 @@ export async function backfillReferrals(chatId?: string | number): Promise<FixRe
       continue;
     }
     const target = (event.contestId && (await store.get(`contest:${event.contestId}`))) ? event.contestId : contest.id;
-    const added = await store.sAdd(`contest:${target}:credited`, event.joinerId);
-    if (!added) {
+    if (!(await credit(target, event.ownerId, event.joinerId, true))) {
       skipped += 1;
       continue;
     }
-    await store.zIncr(`contest:${target}:score`, event.ownerId, 1);
-    await creditPoints(event.ownerId);
     touched.add(event.ownerId);
     fixed += 1;
   }
+
+  // ️ استرجاع سجل الإحالات القديمة (referrals:log) — إلا كانت مسابقتها تمسحات
+  //    تحسب غير على المسابقة النشطة (بلا نقاط جديدة: النقاط تعاوط وقتها)
+  const refLines = await store.listAll(REF_LOG, 2000);
+  let restored = 0;
+  for (const line of refLines) {
+    try {
+      const e = JSON.parse(line) as {
+        counted?: boolean;
+        inviterId?: string;
+        joinerId?: string;
+        contestId?: string;
+      };
+      if (!e.counted || !e.inviterId || !e.joinerId || e.inviterId === e.joinerId) continue;
+      const alive = e.contestId ? await store.get(`contest:${e.contestId}`) : null;
+      const cid = alive ? String(e.contestId) : contest.id;
+      if (await credit(cid, String(e.inviterId), String(e.joinerId), false)) restored += 1;
+    } catch {
+      /* سطر تالف */
+    }
+  }
+  if (restored) notes.push(`🕰️ استرجعنا ${restored} إحالة قديمة كانت ضايعة (المسابقة تبدلات)`);
 
   notes.push(`تمّ حساب ${fixed} جهة لـ ${touched.size} مشارك (المسابقة: ${contest.title})`);
   if (skipped) notes.push(`${skipped} كانو محسوبين من قبل — ما تبدّل والو`);

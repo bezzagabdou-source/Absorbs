@@ -201,14 +201,26 @@ async function gateJoin(
 
 function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   // 🏠 أزرار فقط: المسابقات / حسابي / رابط الإحالة — بلا أي زر زايد
+  // 🧲 قايمة كبيرة وحدة: كل الأزرار لاصقة مع المسابقات / حسابي / الإحالات
   const rows: Button[][] = [
-    // ✨ القائمة الجديدة (فوق كلشي): مميزات وأدوات البوت
+    // ✨ (فوق كلشي): مميزات وأدوات البوت
     [{ text: "🔥 مميزات وأدوات البوت", callback_data: "more" }],
     [
       { text: "🎁 المسابقات", callback_data: "home_list" },
       { text: "👤 حسابي", callback_data: "profile" },
     ],
-    [{ text: "🔗 رابط الإحالة", callback_data: "reflink" }],
+    [
+      { text: "🔗 رابط الإحالة", callback_data: "reflink" },
+      { text: "📊 جهاتي", callback_data: "mine" },
+    ],
+    [
+      { text: "🎁 متجر الجوائز", callback_data: "shop" },
+      { text: "⭐️ نقاطي", callback_data: "points" },
+    ],
+    [
+      { text: "🧩 الخدمات", callback_data: "services" },
+      { text: "ℹ️ معلومات البوت", callback_data: "about" },
+    ],
   ];
   void settings;
   void contests;
@@ -1365,10 +1377,15 @@ async function handleClaim(
 
 /* ───────────────────────── الإحالة عبر رابط البوت ───────────────────────── */
 
-async function creditReferral(contest: Contest, inviterId: string, newUser: BotUser) {
+async function creditReferral(contest: Contest | null, inviterId: string, newUser: BotUser) {
   const store = getStore();
   if (!/^\d+$/.test(inviterId) || inviterId === newUser.id) return { counted: false, count: 0 };
-  if (contest.status !== "active") return { counted: false, count: 0 };
+  // 🛟 الرابط قديم/المسابقة تبدّلات؟ نحسبو على المسابقة النشطة دابا (باش الإحالات ما تضيعش أبدًا)
+  if (!contest || contest.status !== "active") {
+    const actives = (await listContests()).filter((c) => c.status === "active");
+    contest = actives.find((c) => c.mode === "group") || actives[0] || null;
+  }
+  if (!contest) return { counted: false, count: 0 };
   const inviterExists = await getUser(inviterId);
   if (!inviterExists) return { counted: false, count: 0 };
 
@@ -1399,6 +1416,8 @@ async function creditReferral(contest: Contest, inviterId: string, newUser: BotU
   if (!added) return { counted: false, count: await getReferralCount(contest.id, inviterId) };
 
   const count = await store.zIncr(`contest:${contest.id}:score`, inviterId, 1);
+  // 🧱 بصمة «تحسبات» حتى هي — باش الإصلاح التلقائي ما يعاودش يحسبها
+  await store.set(`refbtot:${contest.id}:${newUser.id}`, Date.now());
   await notifyOwnerOfReferral(contest, inviterExists, count, newUser.firstName);
   const settings = await getSettings();
   const points = await creditPoints(inviterId);
@@ -1800,7 +1819,7 @@ async function handleMessageInner(message: TgMessage) {
       if (command === "/start" && payload.startsWith("r_")) {
         const [, contestId, inviterId] = payload.split("_");
         const contest = await getContest(contestId);
-        if (contest && inviterId) await creditReferral(contest, inviterId, user);
+        if (inviterId) await creditReferral(contest, inviterId, user);
       }
       await sendGate(chatId, settings, gate.missing);
       return;
@@ -1829,6 +1848,16 @@ async function handleMessageInner(message: TgMessage) {
         await creditReferral(contest, inviterId, user);
         await showContest(chatId, user, contest);
         return;
+      }
+      // 🛟 رابط ديال مسابقة مشات: نحسبو الجهة على النشطة و نوجهو المستخدم ليها
+      if (inviterId) {
+        await creditReferral(null, inviterId, user);
+        const actives = (await listContests()).filter((c) => c.status === "active");
+        const fallback = actives.find((c) => c.mode === "group") || actives[0];
+        if (fallback) {
+          await showContest(chatId, user, fallback);
+          return;
+        }
       }
     }
     if (payload.startsWith("c_")) {

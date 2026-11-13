@@ -226,6 +226,14 @@ export async function GET(req: NextRequest) {
       return ok({ fixed: result, check: await referralCheck(chat || undefined) });
     }
 
+    // 🎭 حالة الإيموجيات/الملصقات (المينيوم ديال /emojistrans → دابا في اللوحة)
+    if (what === "emojis") {
+      const { extraMap } = await import("@/lib/emojiAdmin");
+      const map = await extraMap();
+      const packs = Object.keys(map);
+      return ok({ map, packs, count: packs.reduce((n, k) => n + (map[k] || []).length, 0) });
+    }
+
     if (what === "log") return ok({ log: await readAdminLog(150) });
 
     if (what === "health") {
@@ -334,6 +342,16 @@ export async function POST(req: NextRequest) {
   if (!(await authed(req))) return bad("ماشي مسجّل", 401);
 
   try {
+    // 🎭 إضافة حزمة إيموجي متحرك من اللوحة (بدل /addemoji في المينيوم)
+    if (action === "emoji_add") {
+      const pack = String(body.pack || "").trim().replace(/^@/, "");
+      if (!pack) return bad("سمّي الحزمة: مثال EmojiAnimPack", 400);
+      const { addPack } = await import("@/lib/emojiAdmin");
+      const r = await addPack(pack);
+      await pushAdminLog({ at: Date.now(), op: "emoji_add", detail: `${pack}: ${r.message}`, via: "panel" });
+      return r.ok ? ok(r) : bad(r.message, 400);
+    }
+
     // 🤖 وكيل الذكاء الاصطناعي
     if (action === "ai") {
       const prompt = String(body.prompt || "").trim();

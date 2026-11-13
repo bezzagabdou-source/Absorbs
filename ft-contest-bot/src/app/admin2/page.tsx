@@ -58,6 +58,7 @@ const TABS = [
   { id: "texts", label: "📝 النصوص" },
   { id: "settings", label: "⚙️ الإعدادات" },
   { id: "contests", label: "🏆 المسابقات" },
+  { id: "diag", label: "🩺 الإحالات والإيموجي" },
   { id: "stats", label: "📊 إحصائيات" },
   { id: "log", label: "🧾 السجل" },
 ] as const;
@@ -210,12 +211,190 @@ export default function Panel() {
       {tab === "texts" ? <TextsTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "settings" ? <SettingsTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "contests" ? <ContestsTab data={data} flash={flash} onDone={loadAll} /> : null}
+      {tab === "diag" ? <DiagTab flash={flash} /> : null}
       {tab === "stats" ? <StatsTab data={data} users={users} /> : null}
       {tab === "log" ? <LogTab log={log} /> : null}
 
       {toast ? <div className={`a2-toast ${toast.kind}`}>{toast.text}</div> : null}
       <div style={{ display: "none" }}>{busy ? "…" : ""}</div>
     </>
+  );
+}
+
+/* ─────────────────────── 🩺 الإحالات + 🎭 الإيموجي ─────────────────────── */
+type RefCause = { code: string; title: string; fix: string; count?: number };
+type RefCheck = {
+  ok: boolean;
+  group: { chatId: string; title: string } | null;
+  botInGroup: string;
+  canInvite: string;
+  totals: Record<string, number>;
+  causes: RefCause[];
+  hint: string;
+};
+type JoinRow = { at: number; joinerName: string; ownerId: string; reason: string; counted: boolean };
+
+function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
+  const [busy, setBusy] = useState("");
+  const [check, setCheck] = useState<RefCheck | null>(null);
+  const [recent, setRecent] = useState<JoinRow[]>([]);
+  const [packs, setPacks] = useState<Record<string, string[]>>({});
+  const [emojiCount, setEmojiCount] = useState(0);
+  const [packName, setPackName] = useState("");
+
+  async function checkReferrals() {
+    setBusy("check");
+    try {
+      const r = await fetch("/api/admin2?what=referrals", { credentials: "same-origin" }).then((x) => x.json());
+      if (r.ok) {
+        setCheck(r.check as RefCheck);
+        setRecent((r.recent || []) as JoinRow[]);
+        flash("ok", r.check.ok ? "✅ كلشي مزيان — الإحالات شغالين" : `⚠️ ${r.check.causes?.length || 0} مشكل موجود`);
+      } else flash("err", String(r.error || "فشل الفحص"));
+    } catch {
+      flash("err", "تعذّر الاتصال");
+    }
+    setBusy("");
+  }
+  async function fixReferrals() {
+    setBusy("fix");
+    try {
+      const r = await fetch("/api/admin2?what=referrals_fix", { credentials: "same-origin" }).then((x) => x.json());
+      if (r.ok) {
+        setCheck(r.check as RefCheck);
+        const f = r.fixed?.fixed ?? 0;
+        const notes: string[] = r.fixed?.notes || [];
+        flash("ok", `🔧 الإصلاح: ${f} جهة جديدة ${notes.length ? "— " + notes.join(" • ") : ""}`);
+      } else flash("err", String(r.error || "فشل الإصلاح"));
+    } catch {
+      flash("err", "تعذّر الاتصال");
+    }
+    setBusy("");
+  }
+  async function loadEmoji() {
+    try {
+      const r = await fetch("/api/admin2?what=emojis", { credentials: "same-origin" }).then((x) => x.json());
+      if (r.ok) {
+        setPacks((r.map || {}) as Record<string, string[]>);
+        setEmojiCount(Number(r.count) || 0);
+      }
+    } catch {
+      /* لا شيء */
+    }
+  }
+  useEffect(() => {
+    void checkReferrals();
+    void loadEmoji();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function addEmojiPack() {
+    const pack = packName.trim().replace(/^@/, "");
+    if (!pack) return flash("err", "سمّي الحزمة أولا");
+    setBusy("emoji");
+    try {
+      const r = await api({ action: "emoji_add", pack });
+      setPackName("");
+      flash("ok", `🎭 ${pack}: ${r.message || "تزادت"}`);
+      void loadEmoji();
+    } catch (e) {
+      flash("err", String((e as Error)?.message || "فشلت الإضافة"));
+    }
+    setBusy("");
+  }
+
+  return (
+    <div className="a2-col" style={{ display: "grid", gap: 14 }}>
+      <div className="a2-card">
+        <h3>🩺 فحص الإحالات</h3>
+        <p style={{ opacity: 0.75, fontSize: 13, margin: "4px 0 10px" }}>
+          {check
+            ? check.ok
+              ? "كل شي مزيان: الروابط، المجموعة، والمسابقة النشطة خدامين."
+              : check.hint || "كاين مشكل — شوف الأسباب تحت."
+            : "كنجيبو التشخيص…"}
+        </p>
+        <div className="a2-row" style={{ gap: 8, marginBottom: 10 }}>
+          <button className="btn2 sm" onClick={() => void checkReferrals()} disabled={busy === "check"}>
+            ↻ إعادة الفحص
+          </button>
+          <button className="btn2 sm gold" onClick={() => void fixReferrals()} disabled={busy === "fix"}>
+            🔧 إصلاح تلقائي (استرجاع الجهات الضايعة)
+          </button>
+        </div>
+        {check ? (
+          <>
+            <div className="a2-row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+              <span className={`a2-pill ${check.ok ? "on" : "off"}`}>
+                {check.ok ? "✅ سليم" : "⚠️ يحتاج تدخل"}
+              </span>
+              <span className="a2-pill">👥 {check.group ? check.group.chatId : "بلا مجموعة"}</span>
+              <span className="a2-pill">🤖 {check.botInGroup}</span>
+              <span className="a2-pill">✉️ دعوة: {check.canInvite}</span>
+              {Object.entries(check.totals || {}).map(([k, v]) => (
+                <span key={k} className="a2-pill">
+                  {k}: {v}
+                </span>
+              ))}
+            </div>
+            {check.causes?.length ? (
+              <ul style={{ margin: 0, paddingRight: 18, fontSize: 13, display: "grid", gap: 6 }}>
+                {check.causes.map((c) => (
+                  <li key={c.code}>
+                    <b>{c.title}</b>
+                    <br />
+                    <span style={{ opacity: 0.75 }}>🔧 {c.fix}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={{ fontSize: 13 }}>ما كاين حتى مشكل 🎉</p>
+            )}
+            {recent.length ? (
+              <details style={{ marginTop: 10 }}>
+                <summary style={{ cursor: "pointer", fontSize: 13 }}>🧾 آخر محاولات الدخول ({recent.length})</summary>
+                <ul style={{ margin: "6px 0 0", paddingRight: 18, fontSize: 12, opacity: 0.85 }}>
+                  {recent.slice(0, 15).map((j, i) => (
+                    <li key={i}>
+                      {j.counted ? "✅" : "❌"} {j.joinerName} — {j.reason}
+                      {j.ownerId ? ` ← ${j.ownerId}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+
+      <div className="a2-card">
+        <h3>🎭 الإيموجي المتحرك والملصقات</h3>
+        <p style={{ opacity: 0.75, fontSize: 13, margin: "4px 0 10px" }}>
+          {emojiCount} إيموجي محمّل في {Object.keys(packs).length} حزمة. زيد حزمة جديدة مباشرة — بلا أوامر في المينيوم.
+        </p>
+        <div className="a2-row" style={{ gap: 8, marginBottom: 10 }}>
+          <input
+            value={packName}
+            onChange={(e) => setPackName(e.target.value)}
+            placeholder="اسم الحزمة (مثال: CuteAnimatedEmoji)"
+            style={{ flex: 1, minWidth: 180 }}
+          />
+          <button className="btn2 sm gold" onClick={() => void addEmojiPack()} disabled={busy === "emoji"}>
+            ➕ زيد الحزمة
+          </button>
+        </div>
+        {Object.keys(packs).length ? (
+          <div className="a2-row" style={{ flexWrap: "wrap", gap: 6 }}>
+            {Object.entries(packs).map(([name, ids]) => (
+              <span key={name} className="a2-pill on">
+                {name}: {ids.length}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, opacity: 0.7 }}>ما كاين حتى حزمة مسجّلة بعد.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
