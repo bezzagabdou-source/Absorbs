@@ -23,6 +23,7 @@ import { storageInfo } from "@/lib/store";
 import { aiStatus } from "@/lib/ai";
 import { ALLOWED_OPS, executeAction, planActions, panelStats, planOnly } from "@/lib/agent";
 import { getBotIdentity, tgCall } from "@/lib/telegram";
+import { backfillReferrals, referralCheck, recentJoinAttempts } from "@/lib/referralsDiag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -210,6 +211,20 @@ export async function GET(req: NextRequest) {
     }
 
     if (what === "ai_status") return ok({ ai: aiStatus(), ops: ALLOWED_OPS });
+
+    /* 🩺 تشخيص الإحالات: علاش ما كيبانوش + إصلاح تلقائي */
+    if (what === "referrals") {
+      const chat = url.searchParams.get("chat") || "";
+      return ok({
+        check: await referralCheck(chat || undefined),
+        recent: await recentJoinAttempts(chat || (await getSettings()).groupChat || "", 20),
+      });
+    }
+    if (what === "referrals_fix") {
+      const chat = url.searchParams.get("chat") || "";
+      const result = await backfillReferrals(chat || undefined);
+      return ok({ fixed: result, check: await referralCheck(chat || undefined) });
+    }
 
     if (what === "log") return ok({ log: await readAdminLog(150) });
 

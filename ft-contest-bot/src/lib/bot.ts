@@ -1559,6 +1559,37 @@ async function handleJoinRequest(
   }
 }
 
+/**
+ * 🆕 دخول عضو من تحديث chat_member (بديل/مكمّل لـ new_chat_members).
+ * كيتفعّل غير إلا كانت الحالة القديمة «خارج» والجديدة «داخل» باش ما نغلطوش.
+ */
+async function handleChatMemberJoin(
+  update: NonNullable<TgUpdate["chat_member"]>,
+): Promise<void> {
+  const chat = update.chat;
+  if (!groupType(chat)) return;
+  const member = update.new_chat_member?.user;
+  if (!member || member.is_bot) return;
+  const wasOut = ["left", "kicked"].includes(update.old_chat_member?.status || "");
+  const nowIn = ["member", "administrator", "creator"].includes(update.new_chat_member?.status || "");
+  if (!wasOut || !nowIn) return;
+  await ensureLinkedFromActivity(chat);
+  const credit = await creditGroupJoin({
+    chatId: String(chat.id),
+    joiner: { id: member.id, firstName: member.first_name, username: member.username },
+    inviteLink: update.invite_link?.invite_link,
+    inviteName: update.invite_link?.name,
+    adderId: update.from && update.from.id !== member.id ? String(update.from.id) : undefined,
+    adderName: update.from?.first_name,
+  });
+  if (!credit.counted || !credit.contest) return;
+  const owner = await getUser(credit.ownerId);
+  if (owner) {
+    await notifyOwnerOfReferral(credit.contest, owner, credit.count, member.first_name || "عضو");
+    await creditPointsForOwner(credit.ownerId);
+  }
+}
+
 async function handleNewChatMembers(message: TgMessage): Promise<void> {
   const added = message.new_chat_members || [];
   if (!added.length) return;
@@ -1644,6 +1675,11 @@ export async function handleUpdate(update: TgUpdate): Promise<void> {
   }
   if (update.chat_join_request) {
     await handleJoinRequest(update.chat_join_request);
+    return;
+  }
+  // 🆕 تحديث العضوية: يغطّي الحالة اللي ما كيوصلش فيها new_chat_members
+  if (update.chat_member) {
+    await handleChatMemberJoin(update.chat_member);
     return;
   }
   const message = update.message || update.edited_message;

@@ -73,6 +73,15 @@ export type TgUpdate = {
     from: TgUser;
     new_chat_member: { status: string; user: TgUser };
   };
+  /** 🆕 تحديث عضوية (كيخدم حتى إلا كان «منع إضافة الأعضاء» أو join requests) */
+  chat_member?: {
+    chat: TgChat;
+    from?: TgUser;
+    date?: number;
+    old_chat_member?: { status: string; user: TgUser };
+    new_chat_member: { status: string; user: TgUser; is_member?: boolean };
+    invite_link?: TgChatInviteLink;
+  };
   /** طلب انضمام لمجموعة عبر رابط دعوة (يحمل صاحب الرابط) */
   chat_join_request?: {
     chat: TgChat;

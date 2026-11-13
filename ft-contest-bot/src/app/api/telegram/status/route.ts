@@ -6,6 +6,7 @@ import { getStore, storageInfo } from "@/lib/store";
 import { reactionStickers, stickerId, stickerStyleOn } from "@/lib/emoji";
 import { getRememberedSticker } from "@/lib/telegram";
 import { usersCount } from "@/lib/users";
+import { referralCheck } from "@/lib/referralsDiag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +57,9 @@ export async function GET(request: NextRequest) {
       lastFileId: (await getRememberedSticker())?.fileId || null,
       hint: "صيفط الملصق للبوت → خُذ lastFileId وحدّد STICKER_WELCOME / STICKER_MORE / STICKER_REACTIONS",
     },
+    referrals: await referralCheck()
+      .then((r) => ({ ok: r.ok, group: r.group, botInGroup: r.botInGroup, causes: r.causes.map((c) => c.code), counts: r.totals }))
+      .catch((error) => ({ error: String(error?.message || error) })),
     details: status.details,
     checkedAt: new Date().toISOString(),
   });

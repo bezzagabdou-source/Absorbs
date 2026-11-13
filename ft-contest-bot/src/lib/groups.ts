@@ -43,7 +43,15 @@ const JOINED_KEY = (chatId: string) => `group:${chatId}:joined`;
 const inviteKey = (chatId: string, userId: string, contestId: string) =>
   `ginv:${chatId}:${userId}:${contestId}`;
 const linkIndexKey = (link: string) =>
-  `glink:${crypto.createHash("sha1").update(link).digest("hex").slice(0, 24)}`;
+  `glink:${crypto.createHash("sha1").update(String(link).trim()).digest("hex").slice(0, 24)}`;
+
+/** 🧹 ينحي ?query / شرطات باش نلقاو الرابط ولو تبدّل شوية */
+export function normalizeInviteLink(link: string): string {
+  return String(link || "")
+    .trim()
+    .split("?")[0]
+    .replace(/\/+$/, "");
+}
 
 export function groupType(chat: { type?: string }): boolean {
   return chat.type === "group" || chat.type === "supergroup";
@@ -170,12 +178,29 @@ export function resolveInviteName(
   return { userId: match[1], contestId: match[2] };
 }
 
+/**
+ * 🛟 آخر حل: نستنبطو الاسم من الرابط نفسه.
+ * تيليجرام كيرجّع hash عشوائي (ما فيهش الاسم)، ولكن إلا كان اسم مخصّص كيبان؛
+ * لهذا كنسجّلو الفهرس من الأول (وقت الإنشاء) وهذا غير احتياط.
+ */
+export function inferInviteNameFromLink(link?: string): string {
+  if (!link) return "";
+  const match = /FT-(\d+)-([A-Za-z0-9]+)/.exec(link);
+  return match ? match[0] : "";
+}
+
 /** يعرف صاحب الرابط من نص رابط الدعوة */
 export async function resolveInviteLink(
   link: string,
 ): Promise<{ chatId: string; userId: string; contestId: string } | null> {
   if (!link) return null;
-  return getStore().get(linkIndexKey(link));
+  const store = getStore();
+  const exact = await store.get<{ chatId: string; userId: string; contestId: string }>(linkIndexKey(link));
+  if (exact) return exact;
+  const norm = await store.get<{ chatId: string; userId: string; contestId: string }>(
+    linkIndexKey(normalizeInviteLink(link)),
+  );
+  return norm || null;
 }
 
 async function findInviteRecord(chatId: string, userId: string, contestId: string) {
@@ -212,7 +237,8 @@ export async function creditGroupJoin(input: {
   let contest: Contest | null = null;
 
   const fromLink = input.inviteLink ? await resolveInviteLink(input.inviteLink) : null;
-  const fromName = resolveInviteName(input.inviteName);
+  // 🛟 حتى إلا ما لقيناش الرابط في الفهرس، الاسم FT-<userId>-<contestId> كافي
+  const fromName = resolveInviteName(input.inviteName) || resolveInviteName(inferInviteNameFromLink(input.inviteLink));
   if (fromLink && fromLink.chatId === input.chatId) {
     ownerId = fromLink.userId;
     contest = await getContest(fromLink.contestId);
@@ -223,14 +249,67 @@ export async function creditGroupJoin(input: {
     ownerId = input.adderId;
   }
 
-  if (!ownerId || ownerId === joinerId) return { ...empty, reason: "self-or-unknown", ownerId };
+  if (!ownerId || ownerId === joinerId) {
+    // 🧾 نسجّلو المحاولة باش التشخيص يشوف «شكون دخل برابط عادي»
+    try {
+      const { logJoinAttempt } = await import("./referralsDiag");
+      await logJoinAttempt({
+        at: Date.now(),
+        chatId: String(input.chatId),
+        joinerId,
+        joinerName: input.joiner.firstName || "عضو",
+        ownerId,
+        reason: "self-or-unknown",
+        counted: false,
+        inviteName: input.inviteName || "",
+        hasLink: Boolean(input.inviteLink),
+      });
+    } catch {
+      /* السجل ما يعطّلش */
+    }
+    return { ...empty, reason: "self-or-unknown", ownerId };
+  }
 
   const current = await activeGroupContest();
   if (!contest || contest.mode !== "group" || contest.status !== "active") contest = current;
-  if (!contest) return { ...empty, reason: "no-contest", ownerId };
+  if (!contest) {
+    try {
+      const { logJoinAttempt } = await import("./referralsDiag");
+      await logJoinAttempt({
+        at: Date.now(),
+        chatId: String(input.chatId),
+        joinerId,
+        joinerName: input.joiner.firstName || "عضو",
+        ownerId,
+        reason: "no-contest",
+        counted: false,
+        inviteName: input.inviteName || "",
+        hasLink: Boolean(input.inviteLink),
+      });
+    } catch {
+      /* السجل ما يعطّلش */
+    }
+    return { ...empty, reason: "no-contest", ownerId };
+  }
 
   const first = await store.sAdd(JOINED_KEY(input.chatId), joinerId);
   if (!first) {
+    try {
+      const { logJoinAttempt } = await import("./referralsDiag");
+      await logJoinAttempt({
+        at: Date.now(),
+        chatId: String(input.chatId),
+        joinerId,
+        joinerName: input.joiner.firstName || "عضو",
+        ownerId,
+        reason: "duplicate",
+        counted: false,
+        inviteName: input.inviteName || "",
+        hasLink: Boolean(input.inviteLink),
+      });
+    } catch {
+      /* السجل ما يعطّلش */
+    }
     return {
       counted: false,
       reason: "duplicate",
@@ -260,6 +339,24 @@ export async function creditGroupJoin(input: {
     via: fromLink || fromName ? "link" : "add",
   };
   await store.listPush(LOG_KEY(input.chatId), [JSON.stringify(event)]);
+  // 🧾 نسجّلو المحاولة الناجحة حتى هي (باش التشخيص يبان فيه كلشي)
+  try {
+    const { logJoinAttempt } = await import("./referralsDiag");
+    await logJoinAttempt({
+      at: event.at,
+      chatId: String(input.chatId),
+      joinerId,
+      joinerName: event.userName,
+      ownerId,
+      reason: event.via,
+      counted: true,
+      contestId: contest.id,
+      inviteName: input.inviteName || "",
+      hasLink: Boolean(input.inviteLink),
+    });
+  } catch {
+    /* السجل ما يعطّلش */
+  }
   const len = await store.listLen(LOG_KEY(input.chatId));
   if (len > JOIN_CAP) {
     const all = (await store.listAll(LOG_KEY(input.chatId), JOIN_CAP + 100)).slice(-JOIN_CAP);
