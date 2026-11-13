@@ -17,6 +17,8 @@ export const BOT_COMMANDS = [
   { command: "rules", description: "الشروط" },
   { command: "ai", description: "المساعد الذكي — اسأل أي حاجة" },
   { command: "owner", description: "مالك البوت" },
+  { command: "emojis", description: "الإيموجيات المتحركة المحمّلة (مالك)" },
+  { command: "addemoji", description: "إضافة حزمة إيموجي: /addemoji PackName (مالك)" },
 ];
 
 /** أنواع التحديثات التي يستقبلها الويب هوك (تشمل طلبات الانضمام للمجموعة) */

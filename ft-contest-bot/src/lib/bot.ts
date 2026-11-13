@@ -38,7 +38,7 @@ import {
 } from "./rewards";
 import { getSettings, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
-import { E, reactionStickers, stickerId } from "./emoji";
+import { E, fx, reactionStickers, stickerId } from "./emoji";
 import { getStore } from "./store";
 import {
   answerCallback,
@@ -625,7 +625,7 @@ async function showContest(
       const sent = await tgCall("sendPhoto", {
         chat_id: chatId,
         photo,
-        caption: text.slice(0, 1000),
+        caption: fx(text).slice(0, 1000),
         parse_mode: "HTML",
         reply_markup: kb,
       });
@@ -953,7 +953,7 @@ async function showReward(chatId: number | string, user: BotUser, rewardId: stri
       const edited = await tgCall("editMessageMedia", {
         chat_id: chatId,
         message_id: messageId,
-        media: { type: "photo", media: photo, caption: text.slice(0, 1000), parse_mode: "HTML" },
+        media: { type: "photo", media: photo, caption: fx(text).slice(0, 1000), parse_mode: "HTML" },
         reply_markup: kb,
       });
       if (edited.ok) return;
@@ -966,7 +966,7 @@ async function showReward(chatId: number | string, user: BotUser, rewardId: stri
     const sent = await tgCall("sendPhoto", {
       chat_id: chatId,
       photo: `${origin}/api/rewards/${reward.id}/image`,
-      caption: text.slice(0, 1000),
+      caption: fx(text).slice(0, 1000),
       parse_mode: "HTML",
       reply_markup: kb,
     });
@@ -1751,6 +1751,8 @@ async function handleMessageInner(message: TgMessage) {
     "/ai",
     "/ask",
     "/account",
+    "/emojis",
+    "/addemoji",
   ];
   if (inGroup && !known.includes(command)) return;
 
@@ -1861,6 +1863,48 @@ async function handleMessageInner(message: TgMessage) {
     } else {
       await sendMessage(chatId, "⛔️ هذا الأمر للإدارة فقط.");
     }
+    return;
+  }
+
+  // ✨ /emojis — عرض الإيموجيات المحمّلة (للمالك فقط)
+  if (command === "/emojis") {
+    if (!isAdminUser(settings, user.id)) {
+      await sendMessage(chatId, "⛔️ هذا الأمر للمالك فقط.");
+      return;
+    }
+    const { loadedEmojis, allIds } = await import("./emoji");
+    const rows = loadedEmojis();
+    const lines = rows.length
+      ? rows.map((r) => `${r.base} → ${r.count} نسخة`).join("\n")
+      : "الخريطة خاوية — شغّل: node scripts/emoji.mjs sync";
+    await sendMessage(
+      chatId,
+      [
+        "<b>✨ الإيموجيات المتحركة المحمّلة</b>",
+        "",
+        lines,
+        "",
+        `📦 ${rows.length} إيموجي • ${allIds().length} ID`,
+      ].join("\n"),
+      keyboard([[{ text: "🏠 القائمة الرئيسية", callback_data: "home" }]]),
+    );
+    return;
+  }
+
+  // ➕ /addemoji PackName — يزيد حزمة ويحدّث الخريطة (للمالك فقط)
+  if (command === "/addemoji") {
+    if (!isAdminUser(settings, user.id)) {
+      await sendMessage(chatId, "⛔️ هذا الأمر للمالك فقط.");
+      return;
+    }
+    const name = text.slice(rawCommand.length).trim();
+    if (!name) {
+      await sendMessage(chatId, "➕ اكتب اسم الحزمة: <code>/addemoji PackName</code>");
+      return;
+    }
+    const { addPack } = await import("./emojiAdmin");
+    const res = await addPack(name);
+    await sendMessage(chatId, res.ok ? `✅ ${res.message}` : `⚠️ ${res.message}`);
     return;
   }
 

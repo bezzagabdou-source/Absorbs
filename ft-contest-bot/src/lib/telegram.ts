@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getSettings, saveSettings } from "./settings";
-import { stripCustomEmoji } from "./emoji";
+import { fx, hydrate, stripCustomEmoji } from "./emoji";
 
 /**
  * 🧩 تشغيل أكثر من بوت على نفس الكود ونفس البيانات.
@@ -296,25 +296,115 @@ export function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
+
+/* ───────────── ✨ أزرار بإيموجي متحرك (icon_custom_emoji_id) ───────────── */
+import { baseOfId, idFor } from "./emoji";
+
+type AnyButton = { text?: string; callback_data?: string; url?: string; icon_custom_emoji_id?: string };
+
+/** ياخذ أول إيموجي في نص الزر → icon_custom_emoji_id ونحيّد الإيموجي من النص (بلا كسر أي زر) */
+export function decorateKeyboard<T>(keyboard: T): T {
+  const kb = keyboard as unknown as { inline_keyboard?: AnyButton[][] } | undefined;
+  if (!kb || !Array.isArray(kb.inline_keyboard)) return keyboard;
+  try {
+    kb.inline_keyboard = kb.inline_keyboard.map((row) =>
+      (row || []).map((btn) => {
+        if (!btn || btn.icon_custom_emoji_id) return btn;
+        const text = String(btn.text || "");
+        const m = text.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u);
+        if (!m) return btn;
+        const id = idFor(m[1]);
+        if (!id) return btn;
+        // نخليو الإيموجي في النص (باش الزر ما يبقاش خاوي عند غير البريميوم)
+        return { ...btn, icon_custom_emoji_id: id };
+      }),
+    );
+  } catch {
+    /* أي مشكل: نرجعو الأزرار كيفما كانت */
+  }
+  return keyboard;
+}
+
+/** احتياط: نححيّد الأيقونات ونرجّع الإيموجي في النص (إلا رفض تيليجرام الأيقونة) */
+export function plainKeyboard<T>(keyboard: T): T {
+  const kb = keyboard as unknown as { inline_keyboard?: AnyButton[][] } | undefined;
+  if (!kb || !Array.isArray(kb.inline_keyboard)) return keyboard;
+  kb.inline_keyboard = kb.inline_keyboard.map((row) =>
+    (row || []).map((btn) => {
+      if (!btn || !btn.icon_custom_emoji_id) return btn;
+      const base = baseOfId(btn.icon_custom_emoji_id);
+      const next = { ...btn };
+      delete next.icon_custom_emoji_id;
+      const text = String(btn.text || "");
+      const hasEmoji = /^\p{Extended_Pictographic}/u.test(text);
+      next.text = `${hasEmoji || !base ? "" : `${base} `}${text}`.trim();
+      return next;
+    }),
+  );
+  return keyboard;
+}
+
+/* 🔌 قاطع أمان: إلا تيليجرام رفض الإيموجي المخصص 3 مرات → نطفّيه 10 دقائق (بلا بطء) */
+let emojiFails = 0;
+let emojiOffUntil = 0;
+function emojiBlocked(): boolean {
+  return Date.now() < emojiOffUntil;
+}
+function noteEmojiFailure(): void {
+  emojiFails += 1;
+  if (emojiFails >= 3) {
+    emojiOffUntil = Date.now() + 10 * 60_000;
+    emojiFails = 0;
+    console.warn("[emoji] تم إطفاء الإيموجي المخصص مؤقتاً (رفض متكرر)");
+  }
+}
+function noteEmojiSuccess(): void {
+  emojiFails = 0;
+}
+
+/* 🎭 ندمجو إضافات /addemoji مرة واحدة (بدون ما نعطّلو أي طلب) */
+let hydrated = false;
+async function ensureEmojiHydrated(): Promise<void> {
+  if (hydrated) return;
+  hydrated = true;
+  try {
+    const { extraMap } = await import("./emojiAdmin");
+    hydrate(await extraMap());
+  } catch {
+    /* بلا إضافات */
+  }
+}
+
 export async function sendMessage(
   chatId: number | string,
   text: string,
   keyboard?: InlineKeyboard,
   extra: Record<string, unknown> = {},
 ) {
+  await ensureEmojiHydrated();
   const payload = {
     chat_id: chatId,
-    text,
+    text: emojiBlocked() ? String(text) : fx(text),
     parse_mode: "HTML",
     disable_web_page_preview: true,
-    ...(keyboard ? { reply_markup: keyboard } : {}),
+    ...(keyboard ? { reply_markup: decorateKeyboard(keyboard) } : {}),
     ...extra,
   };
-  const res = await tgCall("sendMessage", payload);
-  // ✨ احتياط: إلا رفض تيليجرام الإيموجي المخصص → نعاودو بالإيموجي العادي
-  if (!res.ok && String(text).includes("<tg-emoji")) {
-    return tgCall("sendMessage", { ...payload, text: stripCustomEmoji(text) });
+  let res = await tgCall("sendMessage", payload);
+  // ✨ أيقونة زر ماشي متاحة؟ نعاودو بأزرار عادية
+  if (!res.ok && keyboard) {
+    res = await tgCall("sendMessage", { ...payload, reply_markup: plainKeyboard(decorateKeyboard(keyboard)) });
   }
+  // ✨ احتياط: إلا رفض تيليجرام الإيموجي المخصص → نعاودو بالإيموجي العادي
+  if (!res.ok && String(payload.text).includes("<tg-emoji")) {
+    noteEmojiFailure();
+    res = await tgCall("sendMessage", {
+      ...payload,
+      text: stripCustomEmoji(payload.text),
+      ...(keyboard ? { reply_markup: plainKeyboard(decorateKeyboard(keyboard)) } : {}),
+    });
+  }
+  if (res.ok) noteEmojiSuccess();
   return res;
 }
 
@@ -324,21 +414,47 @@ export async function editMessage(
   text: string,
   keyboard?: InlineKeyboard,
 ) {
+  await ensureEmojiHydrated();
   const payload = {
     chat_id: chatId,
     message_id: messageId,
-    text,
+    text: emojiBlocked() ? String(text) : fx(text),
     parse_mode: "HTML",
     disable_web_page_preview: true,
-    ...(keyboard ? { reply_markup: keyboard } : {}),
+    ...(keyboard ? { reply_markup: decorateKeyboard(keyboard) } : {}),
   };
   let res = await tgCall("editMessageText", payload);
+  if (!res.ok && keyboard) {
+    res = await tgCall("editMessageText", { ...payload, reply_markup: plainKeyboard(decorateKeyboard(keyboard)) });
+  }
   // ✨ احتياط: إيموجي مخصص ماشي متاح → نعاودو بالإيموجي العادي
-  if (!res.ok && String(text).includes("<tg-emoji")) {
-    res = await tgCall("editMessageText", { ...payload, text: stripCustomEmoji(text) });
+  if (!res.ok && String(payload.text).includes("<tg-emoji")) {
+    noteEmojiFailure();
+    res = await tgCall("editMessageText", { ...payload, text: stripCustomEmoji(payload.text) });
   }
   if (!res.ok) {
     return sendMessage(chatId, text, keyboard);
+  }
+  return res;
+}
+
+/** 🖼️ صورة + كابشن: نفس fx على الكابشن */
+export async function sendPhoto(
+  chatId: number | string,
+  photo: string,
+  caption = "",
+  keyboard?: InlineKeyboard,
+) {
+  const payload = {
+    chat_id: chatId,
+    photo,
+    caption: fx(caption).slice(0, 1024),
+    parse_mode: "HTML",
+    ...(keyboard ? { reply_markup: keyboard } : {}),
+  };
+  let res = await tgCall("sendPhoto", payload);
+  if (!res.ok && String(payload.caption).includes("<tg-emoji")) {
+    res = await tgCall("sendPhoto", { ...payload, caption: stripCustomEmoji(payload.caption) });
   }
   return res;
 }
