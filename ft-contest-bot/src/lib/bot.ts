@@ -354,17 +354,14 @@ async function showRewardsAll(
     "",
     rewards.length ? "اختر الجائزة التي تريد استبدالها:" : "ما زال ماكانش جوائز — المالك يزيدها من اللوحة.",
   ];
-  const rows: Button[][] = rewards.map((r) => {
-    const soldOut = r.stock !== null && r.stock <= 0;
-    return [
-      {
-        text: soldOut
-          ? `${r.emoji} ${r.title} — ${r.cost} نقطة ( غير متوفر الآن 🚫 )`
-          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
-        callback_data: `buy:${r.id}`,
-      },
-    ];
-  });
+  const rows: Button[][] = [];
+  for (const def of SHOP_SECTIONS) {
+    const list = rewards.filter((r) => (r.section || "accounts") === def.id);
+    if (!list.length) continue;
+    rows.push([{ text: `— ${def.label} —`, callback_data: `sec:${def.id}` }]);
+    rows.push(...rewardGridRows(list));
+  }
+  if (!rows.length) rows.push([{ text: "ما زال ماكانش جوائز", callback_data: "home" }]);
   rows.push([{ text: "⬅️ القائمة الرئيسية BACK", callback_data: "home" }]);
   const kb = keyboard(rows);
   const text = lines.join("\n");
@@ -891,6 +888,26 @@ function isAdminUser(settings: Settings, userId: string | number): boolean {
 
 /* ───────────────────────────── متجر الجوائز ───────────────────────────── */
 
+/** 🎁 سطر لكل جائزة كيما الصورة: زر الاسم + زر الثمن (وحدهم الأقسام كتفرّق النقاط عن الحسابات) */
+function rewardGridRows(rewards: Reward[]): Button[][] {
+  return rewards.map((r) => {
+    const soldOut = r.stock !== null && r.stock <= 0;
+    return [
+      {
+        text: soldOut ? `${r.emoji} ${r.title} 🚫` : `${r.emoji} ${r.title}`,
+        callback_data: `buy:${r.id}`,
+      },
+      { text: `${r.cost} نقطة ⭐️`, callback_data: `buy:${r.id}` },
+    ];
+  });
+}
+
+const SHOP_SECTIONS: { id: "accounts" | "points" | "services"; label: string }[] = [
+  { id: "accounts", label: "🎁 حسابات بيس" },
+  { id: "points", label: "⭐️ نقاط" },
+  { id: "services", label: "🤝 خدمات" },
+];
+
 async function shopKeyboard(rewards: Reward[]): Promise<InlineKeyboard> {
   // 🗂️ الأقسام: حسابات بيس وحدها، النقاط وحدها، الخدمات وحدها
   const active = rewards.filter((r) => r.active);
@@ -928,18 +945,8 @@ async function showSection(
     rewards.length ? "اختر الجائزة التي تريد استبدالها:" : "ما زال ماكانش جوائز في هاد القسم.",
     `— قسم ${title}`,
   ];
-  // 🎁 كيما الصورة: سطر واحد لكل جائزة → «Emoji الاسم — النقاط نقطة»
-  const rows: Button[][] = rewards.map((r) => {
-    const soldOut = r.stock !== null && r.stock <= 0;
-    return [
-      {
-        text: soldOut
-          ? `${r.emoji} ${r.title} — ${r.cost} نقطة ( غير متوفر الآن 🚫 )`
-          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
-        callback_data: `buy:${r.id}`,
-      },
-    ];
-  });
+  // 🎁 كيما الصورة: زر الاسم + زر «N نقطة ⭐️» في كل سطر
+  const rows: Button[][] = rewardGridRows(rewards);
   rows.push([{ text: "⬅️ المتجر", callback_data: "shop" }]);
   rows.push([{ text: "🏠 القائمة الرئيسية", callback_data: "home" }]);
   const kb = keyboard(rows);
