@@ -13,7 +13,8 @@
    • importEmojiPack() → إيموجي مخصّص (tg-emoji) من t.me/addemoji/<name>
    • stickerGalleryHtml() → معرض HTML حيّ
    ══════════════════════════════════════════════════════════════════════════ */
-import { tgCall } from "./telegram";
+import { tgCall, currentBotToken } from "./telegram";
+import { getSettings } from "./settings";
 import { getStore } from "./store";
 import { addPack } from "./emojiAdmin";
 import { STICKER_ASSETS } from "./stickerAssets";
@@ -53,7 +54,19 @@ let lastTry = 0;
 
 /* ─────────────────────────── assistants ─────────────────────────── */
 
-const token = () => String(process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "");
+/**
+ * 🎟️ التوكن الصحيح = نفس اللي كيستعملو tgCall (مخزّن فاللوحة ← سياق الطلب ← البيئة).
+ * القراءة من البيئة وحدها كانت كتعطّي «Unauthorized» حيت التوكن الحقيقي مخزّن فالتخزين.
+ */
+async function token(): Promise<string> {
+  try {
+    const t = currentBotToken() || (await getSettings()).botToken || "";
+    if (t) return String(t);
+  } catch {
+    /* نجربو البيئة */
+  }
+  return String(process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "");
+}
 function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 }
@@ -144,8 +157,8 @@ async function ownerUserId(forced = ""): Promise<string> {
 
 /** رفع ملف واحد → file_id (TGS، وإلا PNG ثابت) */
 async function uploadOne(base: string, item: ManifestItem, userId: string): Promise<{ fileId: string; how: string; error: string }> {
-  const t = token();
-  if (!t || !base) return { fileId: "", how: "", error: "بلا توكن ولا origin" };
+  const t = await token();
+  if (!t) return { fileId: "", how: "", error: "ما كاينش توكن البوت" };
   const tries: { path: string | null; format: string; type: string; file: string }[] = [
     { path: item.tgs, format: "animated", type: "application/gzip", file: "s.tgs" },
     { path: item.webp || item.png || null, format: "static", type: item.webp ? "image/webp" : "image/png", file: item.webp ? "s.webp" : "s.png" },
@@ -205,11 +218,17 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
       total: usable.reduce((n, p) => n + p.items.length, 0),
     };
   }
-  if (!token()) return { ok: false, message: "ما كاينش توكن البوت" };
+  if (!(await token())) return { ok: false, message: "ما كاينش توكن البوت" };
   const userId = await ownerUserId(opts.userId);
   if (!userId) return { ok: false, message: "ما لقيناه حتى معرّف مستخدم (خاص اللوحة تكون فيها مستخدم واحد)" };
-  const bot = await tgCall<{ username?: string }>("getMe");
+  const bot = await tgCall<{ username?: string; id?: number }>("getMe");
   const botName = String(bot.result?.username || "").toLowerCase();
+  if (!bot.ok || !botName)
+    return {
+      ok: false,
+      message: `تيليجرام رفض التوكن: ${String(bot.description || "getMe فشل").slice(0, 120)}`,
+      planned: [] as unknown[],
+    };
   const byKind: Record<string, StickerItem[]> = {};
   const sets: OwnSet[] = [];
   const errors: string[] = [];
@@ -237,7 +256,8 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
         title: pack.title.slice(0, 50),
         sticker_type: "regular",
         needs_repainting: false,
-        stickers: JSON.stringify(items.map((s) => ({ sticker: s.fileId, format: "animated", emoji: s.emoji || "⭐️" }))),
+        format: "animated",
+        stickers: items.map((s) => ({ sticker: s.fileId, format: "animated", emoji: s.emoji || "⭐️" })),
       });
       created = Boolean(r.ok);
       note = created ? "النشرة تولّت" : String(r.description || "createNewStickerSet فشل").slice(0, 140);
@@ -262,7 +282,7 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
     /* cache المحلي خدام */
   }
   own = state;
-  return { ok: true, uploaded: Object.values(byKind).reduce((n, l) => n + l.length, 0), sets, errors: errors.slice(0, 8), base };
+  return { ok: true, uploaded: Object.values(byKind).reduce((n, l) => n + l.length, 0), bot: botName, sets, errors: errors.slice(0, 8), base };
 }
 
 /** حالة ملصقاتنا (من التخزين) */
@@ -282,7 +302,7 @@ export async function ownStickers(force = false): Promise<OwnState | null> {
 
 /** 🔄 شغّل الرفع فالخلفية مرة وحدة كل 10د (بلا ما نبطّو الرسالة) */
 export async function ensureOwn(origin = ""): Promise<void> {
-  if (token() === "" || String(process.env.STICKER_AUTO_PUBLISH ?? "1") === "0") return;
+  if (!(await token()) || String(process.env.STICKER_AUTO_PUBLISH ?? "1") === "0") return;
   if (Date.now() - lastTry < TTL_MS) return;
   lastTry = Date.now();
   try {
