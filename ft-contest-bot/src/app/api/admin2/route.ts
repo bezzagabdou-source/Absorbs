@@ -17,7 +17,7 @@ import {
   type Section,
 } from "@/lib/rewards";
 import { getSettings } from "@/lib/settings";
-import { listRecentUsers, usersCount, getUser } from "@/lib/users";
+import { listRecentUsers, usersCount, getUser, allUserIds } from "@/lib/users";
 import { listContests, updateContest, getContest } from "@/lib/contests";
 import { storageInfo } from "@/lib/store";
 import { aiStatus } from "@/lib/ai";
@@ -227,8 +227,15 @@ export async function GET(req: NextRequest) {
     // 📢 حالة البثّ الجماعي (جميع المستخدمين)
     if (what === "broadcast") {
       const { loadJob, view, broadcastHistory } = await import("@/lib/broadcast");
-      const [job, history] = await Promise.all([loadJob(), broadcastHistory()]);
-      return ok({ broadcast: view(job), history });
+      const [job, history, banned] = await Promise.all([loadJob(), broadcastHistory(), bannedIds()]);
+      const audience = (await allUserIds()).length;
+      return ok({
+        broadcast: view(job),
+        history,
+        audience,
+        reachable: Math.max(0, audience - banned.length),
+        bannedCount: banned.length,
+      });
     }
 
     if (what === "ai_status") return ok({ ai: aiStatus(), ops: ALLOWED_OPS });

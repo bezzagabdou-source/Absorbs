@@ -1221,15 +1221,25 @@ async function showTop(
     getReferralCount(target.id, user.id),
   ]);
   const medals = ["🥇", "🥈", "🥉"];
-  const lines = top.length
-    ? top
-        .map((t, i) => {
-          const u = t.member;
-          const who = u === user.id ? "🫵 أنت" : `عضو ${u.slice(-4)}`;
-          return `${medals[i] || `${i + 1}.`} ${who} — <b>${t.score}</b>`;
-        })
-        .join("\n")
-    : "لا أحد بعد.";
+  // 🏅 إلا ما كاينش اللي تسجلات عنده إحالات → نوريو ترتيب النقاط (البوت ما يبقىش خاوي)
+  const byPoints = top.length ? [] : (await topBalances(10)).filter((r) => Number(r.points) > 0);
+  const lines =
+    top.length || byPoints.length
+      ? (
+          await Promise.all(
+            (top.length
+              ? top.map((t) => ({ member: t.member, score: t.score, unit: "" }))
+              : byPoints.map((r) => ({ member: String(r.userId), score: Number(r.points), unit: " نقطة" }))
+            ).map(async (row, i) => {
+              const isMe = row.member === user.id;
+              const u = isMe ? user : await getUser(row.member);
+              const who = isMe ? "🫵 أنت" : escapeHtml(u?.firstName || `عضو ${row.member.slice(-4)}`);
+              const badge = i === 0 ? " ✅" : "";
+              return `${medals[i] || `${i + 1}.`} ${who}${badge} — <b>${row.score}</b>${row.unit}`;
+            }),
+          )
+        ).join("\n")
+      : "لا أحد بعد.";
 
   const text = [
     `🥇 <b>${escapeHtml(target.title)}</b>`,

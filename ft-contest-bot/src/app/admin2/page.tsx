@@ -1048,11 +1048,13 @@ function MessageTab({
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<string>("");
   const [bc, setBc] = useState<BcView | null>(null);
+  const [reach, setReach] = useState<number | null>(null);
   const [pushing, setPushing] = useState(false);
 
   async function refreshBc(): Promise<BcView | null> {
     try {
       const r = await fetch("/api/admin2?what=broadcast").then((x) => x.json());
+      if (typeof r?.audience === "number") setReach(r.audience);
       if (r?.broadcast) {
         setBc(r.broadcast as BcView);
         return r.broadcast as BcView;
@@ -1150,8 +1152,8 @@ function MessageTab({
       <div className="a2-grid" style={{ marginBottom: 12 }}>
         <div>
           <div className="a2-hint" style={{ marginBottom: 6 }}>
-            📢 البثّ الجماعي كيمشي لكل من بدأ البوت ({bc?.total ?? audience ?? users.length} مستخدم)، على دفعات
-            آمنة، وما كينسان حتى واحد.
+            📢 البثّ الجماعي كيمشي لكل من بدأ البوت — <b>{reach ?? bc?.total ?? audience ?? users.length}</b>{" "}
+            مستخدم (دفعات آمنة ~8 رسائل/ثانية، ما كينسان حتى واحد، واللي حظر البوت كيتسجّل).
           </div>
           {bc ? (
             <>
