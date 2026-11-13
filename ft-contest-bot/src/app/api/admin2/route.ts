@@ -23,7 +23,7 @@ import { storageInfo } from "@/lib/store";
 import { aiStatus } from "@/lib/ai";
 import { ALLOWED_OPS, executeAction, planActions, panelStats, planOnly } from "@/lib/agent";
 import { getBotIdentity, tgCall } from "@/lib/telegram";
-import { backfillReferrals, referralCheck, recentJoinAttempts } from "@/lib/referralsDiag";
+import { backfillReferrals, referralCheck, recentJoinAttempts, recountReferralPoints } from "@/lib/referralsDiag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -215,11 +215,20 @@ export async function GET(req: NextRequest) {
           ? new Map((await topBalances(Math.max(200, slice.length))).map((r) => [String(r.userId), Number(r.points) || 0]))
           : null;
       const withBalances = await Promise.all(
-        slice.map(async (u) => ({
-          ...u,
-          points: scores ? (scores.get(u.id) || 0) : await balanceOf(u.id),
-          banned: banned.has(u.id),
-        })),
+        slice.map(async (u) => {
+          const fromMap = scores ? scores.get(u.id) : undefined;
+          // 🎯 القوائم الصغيرة (بحث/300) كنقراو فيهم الرصيد الحقيقي بالضبط،
+          //    والقوائم الكبيرة كنديرو خريطة النقاط بس (سؤال واحد) بلا ما نطيحو في timeout
+          const points =
+            scores === null
+              ? await balanceOf(u.id)
+              : typeof fromMap === "number" && fromMap > 0
+                ? fromMap
+                : slice.length <= 400
+                  ? await balanceOf(u.id)
+                  : fromMap || 0;
+          return { ...u, points: Math.max(0, points), banned: banned.has(u.id) };
+        }),
       );
       return ok({ users: withBalances, total: await usersCount() });
     }
@@ -247,6 +256,18 @@ export async function GET(req: NextRequest) {
         check: await referralCheck(chat || undefined),
         recent: await recentJoinAttempts(chat || (await getSettings()).groupChat || "", 20),
       });
+    }
+    // ♻️ إعادة حساب نقاط الإحالات القديمة (preview ثم apply)
+    if (what === "referrals_recount") {
+      const apply = ["1", "yes", "true"].includes((url.searchParams.get("apply") || "").toLowerCase());
+      const result = await recountReferralPoints(apply);
+      await pushAdminLog({
+        at: Date.now(),
+        op: apply ? "referrals_recount_apply" : "referrals_recount",
+        detail: `مسح ${result.scanned} · مستحق ${result.wouldCredit} · ممنوح ${result.credited} · perJoin ${result.perJoin}`,
+        via: "panel",
+      });
+      return ok({ recount: result });
     }
     if (what === "referrals_fix") {
       const chat = url.searchParams.get("chat") || "";

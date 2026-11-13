@@ -283,3 +283,115 @@ export async function backfillReferrals(chatId?: string | number): Promise<FixRe
   if (skipped) notes.push(`${skipped} كانو محسوبين من قبل — ما تبدّل والو`);
   return { fixed, skipped, contests: [contest.id], notes };
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ♻️ إعادة حساب نقاط الإحالات القديمة
+   كنقراو سجل الإحالات (referrals:log) + scores ديال المسابقات، وكنديرو لكل
+   واحد نقاط المتجر اللي خاصو (perJoin لكل جهة) — بعلامة refpts:* باش ما تتكررش.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+export type RecountResult = {
+  scanned: number;
+  wouldCredit: number;
+  credited: number;
+  skipped: number;
+  perJoin: number;
+  inviters: { userId: string; name: string; referrals: number; addPoints: number; balance: number }[];
+  notes: string[];
+  applied: boolean;
+};
+
+export async function recountReferralPoints(apply = false, maxRows = 4000): Promise<RecountResult> {
+  const store = getStore();
+  const { getPointsConfig, addPoints, balanceOf } = await import("./rewards");
+  const { getUser } = await import("./users");
+  const cfg = await getPointsConfig();
+  const per = Math.max(1, Math.floor(Number(cfg.perJoin) || 1));
+  const raw = await store.listAll(REF_LOG, maxRows).catch(() => [] as string[]);
+  const rows: { at: number; contestId: string; inviterId: string; inviterName?: string; joinerId: string }[] = [];
+  const notes: string[] = [];
+  let skipped = 0;
+
+  for (const line of raw) {
+    try {
+      const e = JSON.parse(line);
+      const inviterId = String(e?.inviterId || "");
+      const joinerId = String(e?.joinerId || e?.joiner || "");
+      const contestId = String(e?.contestId || "");
+      if (!/^\d+$/.test(inviterId) || !/^\d+$/.test(joinerId) || inviterId === joinerId || !contestId) {
+        skipped++;
+        continue;
+      }
+      rows.push({ at: Number(e?.at) || 0, contestId, inviterId, inviterName: e?.inviterName || "", joinerId });
+    } catch {
+      skipped++;
+    }
+  }
+
+  const perInviter = new Map<string, { n: number; name: string }>();
+  let wouldCredit = 0;
+  for (const r of rows) {
+    const mark = `refpts:${r.contestId}:${r.joinerId}`;
+    if (seenInRun.has(mark)) continue;
+    seenInRun.add(mark);
+    if (await store.get<number>(mark).catch(() => null)) {
+      skipped++;
+      continue;
+    }
+    wouldCredit++;
+    const cur = perInviter.get(r.inviterId) || { n: 0, name: r.inviterName || "" };
+    cur.n += 1;
+    perInviter.set(r.inviterId, cur);
+  }
+
+  const inviters: RecountResult["inviters"] = [];
+  let credited = 0;
+  for (const [userId, info] of [...perInviter.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 50)) {
+    const add = info.n * per;
+    let balance = 0;
+    try {
+      balance = await balanceOf(userId);
+    } catch {
+      /* */
+    }
+    if (apply) {
+      try {
+        balance = await addPoints(userId, add);
+        credited += info.n;
+        // نعلّمو حتى على level ديال المسابقة باش ما يعاودش الإصلاح يحسبها
+        for (const r of rows.filter((x) => x.inviterId === userId)) {
+          await store.set(`refpts:${r.contestId}:${r.joinerId}`, Date.now()).catch(() => undefined);
+          await store.sAdd(`contest:${r.contestId}:credited`, r.joinerId).catch(() => undefined);
+          await store.set(`refbtot:${r.contestId}:${r.joinerId}`, Date.now()).catch(() => undefined);
+        }
+      } catch (error) {
+        notes.push(`زيدش مشكل مع ${userId}: ${String((error as Error)?.message || error)}`);
+      }
+    }
+    inviters.push({
+      userId,
+      name: info.name || (await getUser(userId).catch(() => null))?.firstName || `عضو ${userId.slice(-4)}`,
+      referrals: info.n,
+      addPoints: add,
+      balance,
+    });
+  }
+
+  if (!rows.length) notes.push("سجل الإحالات خاوي — ما كاين حتى جهة مسجلة باش تعاد الحسبة.");
+  if (apply && !credited) notes.push("كل الإحالات عندها نقاط من قبل — ما كاين ما يعاود يتحسب.");
+  seenInRun.clear();
+
+  return {
+    scanned: rows.length,
+    wouldCredit,
+    credited: apply ? credited : 0,
+    skipped,
+    perJoin: per,
+    inviters,
+    notes,
+    applied: apply,
+  };
+}
+
+/** بصمة داخل نفس العملية (باش ما نحسبوش نفس الجهة مرتين في نفس الـrun) */
+const seenInRun = new Set<string>();

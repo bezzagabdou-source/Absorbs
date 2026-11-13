@@ -1449,6 +1449,15 @@ async function creditReferral(contest: Contest | null, inviterId: string, newUse
   const count = await store.zIncr(`contest:${contest.id}:score`, inviterId, 1);
   // 🧱 بصمة «تحسبات» حتى هي — باش الإصلاح التلقائي ما يعاودش يحسبها
   await store.set(`refbtot:${contest.id}:${newUser.id}`, Date.now());
+  // 💰 نقاط المتجر: كل جهة دخلت من رابطك = نقاط في رصيدك (كتتحسب هنا، ماشي غير من الويب-هوك
+  //    ديال المجموعة — يعني حتى البوت ماكونش أدمن فالمجموعة النقاط كتنحسب عادي)
+  try {
+    const { creditInvite } = await import("./rewards");
+    await creditInvite(inviterId);
+    await store.set(`refpts:${contest.id}:${newUser.id}`, Date.now());
+  } catch (error) {
+    console.error("[rewards] creditInvite في creditReferral فشل", error);
+  }
   await notifyOwnerOfReferral(contest, inviterExists, count, newUser.firstName);
   const settings = await getSettings();
   const points = await creditPoints(inviterId);

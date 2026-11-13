@@ -100,8 +100,10 @@ export const WELCOME_TEXT = [
 export const OWNER_USERNAME = "F_Y_Y_T";
 
 /** كل 100 جهة = نقطة واحدة، و3 نقاط = جائزة عشوائية من المالك */
-export const POINTS_STEP = 100;
-export const POINTS_MAX = 3;
+/** كم جهة خاصة بيدّ نقطة واحدة (قابل للتغيير بـ POINTS_STEP في متغيّرات البيئة) */
+export const POINTS_STEP = Math.max(1, Number(process.env.POINTS_STEP) || 100);
+/** الحد الأقصى ديال نقاط الإحالة */
+export const POINTS_MAX = Math.max(1, Number(process.env.POINTS_MAX) || 3);
 
 export const DEFAULT_SETTINGS: Settings = {
   botToken: "",

@@ -234,6 +234,17 @@ type RefCheck = {
 };
 type JoinRow = { at: number; joinerName: string; ownerId: string; reason: string; counted: boolean };
 
+type Recount = {
+  scanned: number;
+  wouldCredit: number;
+  credited: number;
+  skipped: number;
+  perJoin: number;
+  applied: boolean;
+  notes: string[];
+  inviters: { userId: string; name: string; referrals: number; addPoints: number; balance: number }[];
+};
+
 function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
   const [busy, setBusy] = useState("");
   const [check, setCheck] = useState<RefCheck | null>(null);
@@ -241,6 +252,34 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
   const [packs, setPacks] = useState<Record<string, string[]>>({});
   const [emojiCount, setEmojiCount] = useState(0);
   const [packName, setPackName] = useState("");
+  const [recount, setRecount] = useState<Recount | null>(null);
+
+  async function runRecount(apply: boolean) {
+    setBusy("recount");
+    try {
+      const r = await fetch(`/api/admin2?what=referrals_recount${apply ? "&apply=1" : ""}`, {
+        credentials: "same-origin",
+      }).then((x) => x.json());
+      if (r.ok) {
+        const res = r.recount as Recount;
+        setRecount(res);
+        if (apply) {
+          flash("ok", `♻️ توّا توجّهت النقاط: ${res.credited} جهة → ${res.inviters.length} صاحوب روابط (+${res.perJoin} نقطة لكل جهة)`);
+          setCheck(null);
+        } else {
+          flash(
+            "ok",
+            res.wouldCredit
+              ? `♻️ لقينا ${res.wouldCredit} إحالة ما حوسبتش (من ${res.scanned}) — اضغط «طبّق» باش ترجع النقاط`
+              : "♻️ ما كاينة حتى إحالة ضايعة — كلشي محسوب",
+          );
+        }
+      } else flash("err", String(r.error || "فشل"));
+    } catch {
+      flash("err", "تعذّر الاتصال");
+    }
+    setBusy("");
+  }
 
   async function checkReferrals() {
     setBusy("check");
@@ -320,7 +359,57 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
           <button className="btn2 sm gold" onClick={() => void fixReferrals()} disabled={busy === "fix"}>
             🔧 إصلاح تلقائي (استرجاع الجهات الضايعة)
           </button>
+          <button className="btn2 sm blue" onClick={() => void runRecount(false)} disabled={busy === "recount"}>
+            ♻️ فحص نقاط الإحالات
+          </button>
+          {recount && recount.wouldCredit > 0 ? (
+            <button className="btn2 sm green" onClick={() => void runRecount(true)} disabled={busy === "recount"}>
+              ✅ طبّق (+{recount.wouldCredit * recount.perJoin} نقطة)
+            </button>
+          ) : null}
         </div>
+        {recount ? (
+          <div className="a2-card" style={{ marginTop: 0, marginBottom: 10 }}>
+            <h2>
+              ♻️ إعادة حساب النقاط{" "}
+              <span className="a2-hint">
+                {recount.scanned} إحالة مقروءة · {recount.wouldCredit} ما محسوبةش · {recount.skipped} عندها نقاط من
+                قبل · +{recount.perJoin} نقطة/جهة
+              </span>
+            </h2>
+            {recount.notes?.length ? <div className="a2-hint" style={{ marginBottom: 8 }}>{recount.notes.join(" • ")}</div> : null}
+            {recount.inviters?.length ? (
+              <div className="a2-scroll">
+                <table className="a2-table">
+                  <thead>
+                    <tr>
+                      <th>صاحب الرابط</th>
+                      <th>الجهات</th>
+                      <th>{recount.applied ? "النقاط المضافة" : "النقاط المستحقة"}</th>
+                      <th>الرصيد {recount.applied ? "دابا" : "قبل"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recount.inviters.map((r) => (
+                      <tr key={r.userId}>
+                        <td>
+                          {r.name} <span className="a2-muted" style={{ fontFamily: "monospace" }}>{r.userId}</span>
+                        </td>
+                        <td>{r.referrals}</td>
+                        <td>
+                          <b style={{ color: "var(--a2-gold)" }}>+{r.addPoints}</b>
+                        </td>
+                        <td>{r.balance}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="a2-hint">ما لقيناش أحالات تستاهل النقاط.</div>
+            )}
+          </div>
+        ) : null}
         {check ? (
           <>
             <div className="a2-row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
