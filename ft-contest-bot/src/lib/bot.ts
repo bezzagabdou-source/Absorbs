@@ -201,9 +201,8 @@ async function gateJoin(
 
 function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   // 🏠 أزرار فقط: المسابقات / حسابي / رابط الإحالة — بلا أي زر زايد
-  // 🧲 قايمة كبيرة وحدة: كل الأزرار لاصقة مع المسابقات / حسابي / الإحالات
+  // 🏠 النسخة المضمونة: المسابقات / حسابي / رابط الإحالة — وزاد غير: خدمات + معلومات + نقاطي
   const rows: Button[][] = [
-    // ✨ (فوق كلشي): مميزات وأدوات البوت
     [{ text: "🔥 مميزات وأدوات البوت", callback_data: "more" }],
     [
       { text: "🎁 المسابقات", callback_data: "home_list" },
@@ -211,10 +210,6 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
     ],
     [
       { text: "🔗 رابط الإحالة", callback_data: "reflink" },
-      { text: "📊 جهاتي", callback_data: "mine" },
-    ],
-    [
-      { text: "🎁 متجر الجوائز", callback_data: "shop" },
       { text: "⭐️ نقاطي", callback_data: "points" },
     ],
     [
@@ -434,8 +429,13 @@ async function showReferralHome(
 
   let link = "";
   if (contest?.mode === "group") link = (await personalGroupInvite(user, contest))?.link || "";
-  else if (contest && username) link = referralLink(username, contest.id, user.id);
-  else if (group?.url) link = group.url;
+  // 🛟 100% مضمون: إلا فشل رابط المجموعة، كل واحد كياخد رابط الإحالة الشخصي ديال البوت
+  if (!link && contest && username) link = referralLink(username, contest.id, user.id);
+  if (!link && username) {
+    const alt = (await listContests()).find((c) => c.status === "active");
+    if (alt) link = referralLink(username, alt.id, user.id);
+  }
+  if (!link && group?.url) link = group.url;
 
   if (!link) {
     const text = "🔗 ما زال ما فيه رابط متوفر. جرّب من «المسابقات» أو كلّم المالك.";
@@ -712,6 +712,29 @@ async function showGroupInvite(chatId: number | string, user: BotUser, contest: 
   const invite = await personalGroupInvite(user, contest);
   const settings = await getSettings();
   if (!invite) {
+    // 🛟 البوت ماشي أدمن؟ على الأقل نعطيو المستخدم رابط يحسبو (رابط البوت الشخصي)
+    const { username } = await getBotIdentity();
+    if (username) {
+      const link = referralLink(username, contest.id, user.id);
+      const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(
+        `🏆 مسابقة ${contest.title} — ادخل من رابطي وندخلو جوج!`,
+      )}`;
+      await sendMessage(
+        chatId,
+        [
+          "🔗 <b>رابط الدعوة الخاص بك</b>",
+          `<code>${escapeHtml(link)}</code>`,
+          "",
+          "كل شخص يدخل من رابطك = جهة في رصيدك ✅",
+        ].join("\n"),
+        keyboard([
+          [{ text: "📣 مشاركة الرابط", url: share }],
+          [{ text: "📊 جهاتي", callback_data: `mine:${contest.id}` }],
+          backRow(`c:${contest.id}`),
+        ]),
+      );
+      return;
+    }
     await sendMessage(
       chatId,
       "⚠️ ما قدرتش نصاوب رابط الدعوة. تأكد أن البوت أدمن في المجموعة بصلاحية «دعوة مستخدمين».",
