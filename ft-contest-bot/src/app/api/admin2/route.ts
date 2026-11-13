@@ -297,6 +297,35 @@ export async function GET(req: NextRequest) {
         note: 'الملصقات الأساسية ديالنا (قلوب/نجوم/طاقة/احتفال/كؤوس) مضمّنة وكاتترفع أوتوماتيكيا —زيد نشرة علنية اختيارية بـ {"welcome":["AppleStickers"]} فـ action=stickers_save.',
       });
     }
+    // 🔍 تحقّق بلا ما نزعجو حتى واحد: getFile على كل file_id ديالنا — إلا رجع file_path
+    // ملّي البوت يقدر يبعث الملصق (نفس الملف، نفس الصلاحية).
+    if (what === "stickers_verify") {
+      const st = await import("@/lib/stickers");
+      const own = await st.ownStickers(true);
+      const rows = await Promise.all(
+        ([("welcome" as const), "react", "more", "win", "shop"] as const).map(async (kind) => {
+          const one = await st.stickerFor(kind, 0, req.nextUrl.origin);
+          if (!one) return { kind, ok: false, error: "ما كاينش ملصق" };
+          const r = await tgCall<{ file_path?: string }>("getFile", { file_id: one.fileId });
+          return {
+            kind,
+            emoji: one.emoji,
+            setName: one.setName,
+            ok: Boolean(r.ok && r.result?.file_path),
+            path: String(r.result?.file_path || "").split("/").pop() || "",
+            error: r.ok ? "" : String(r.description || "getFile فشل").slice(0, 120),
+          };
+        }),
+      );
+      const good = rows.filter((x) => x.ok).length;
+      return ok({
+        verify: rows,
+        total: own?.sets?.reduce((n, x) => n + (x.created ? 1 : 0), 0) || 0,
+        packs: (own?.sets || []).map((x) => ({ kind: x.kind, name: x.name, link: x.link, created: x.created })),
+        ok: good === 5,
+        message: good === 5 ? "✅ كل صنف فيه ملصق حيّ عند تيليجرام" : `⚠️ ${good}/5 كيدعو — شوف error`,
+      });
+    }
     if (what === "stickers_gallery") {
       const { stickerGalleryHtml } = await import("@/lib/stickers");
       return new NextResponse(await stickerGalleryHtml([], req.nextUrl.origin), {
