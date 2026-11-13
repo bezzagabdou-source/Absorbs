@@ -40,6 +40,8 @@ export type TgMessage = {
   /** أعضاء جدد أُضيفوا للمجموعة */
   new_chat_members?: TgUser[];
   left_chat_member?: TgUser;
+  /** 🎭 ملصق (نستعملو file_id ديالو باش نبعثو نفس الملصق) */
+  sticker?: { file_id: string; file_unique_id: string; emoji?: string; is_animated?: boolean; is_video?: boolean };
 };
 
 /** رابط دعوة أنشأه البوت لعضو معيّن داخل المجموعة */
@@ -385,4 +387,38 @@ export async function declineJoinRequest(chatId: number | string, userId: number
 
 export async function getChatInfo(chatId: number | string) {
   return tgCall<TgChat>("getChat", { chat_id: chatId });
+}
+
+/* 🎭 آخر ملصق وصّل للبوت — نحفظو file_id باش نستعملوه في الواجهة (تشخيص من /api/telegram/status) */
+let lastSticker: { fileId: string; emoji: string; at: number } | null = null;
+
+export async function rememberSticker(sticker: { file_id: string; emoji?: string }): Promise<void> {
+  lastSticker = { fileId: sticker.file_id, emoji: String(sticker.emoji || ""), at: Date.now() };
+  try {
+    const { getStore } = await import("./store");
+    await getStore().set("stickers:last", lastSticker);
+  } catch {
+    /* ما نكسرش البوت */
+  }
+}
+
+export async function getRememberedSticker(): Promise<{ fileId: string; emoji: string; at: number } | null> {
+  if (lastSticker) return lastSticker;
+  try {
+    const { getStore } = await import("./store");
+    return (await getStore().get<{ fileId: string; emoji: string; at: number }>("stickers:last")) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** 🎭 يبعث ملصق بهدوء: أي خطأ (ملصق غالط/ماشي متاح) يتجاهل بلا ما يكسر شي */
+export async function sendStickerSafe(chatId: number | string, fileId: string): Promise<boolean> {
+  if (!String(fileId || "").trim()) return false;
+  try {
+    const res = await sendSticker(chatId, fileId.trim());
+    return Boolean(res.ok);
+  } catch {
+    return false;
+  }
 }

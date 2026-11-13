@@ -3,6 +3,8 @@ import { aiStatus } from "@/lib/ai";
 import { ensureBotReady } from "@/lib/botSetup";
 import { listContests } from "@/lib/contests";
 import { getStore, storageInfo } from "@/lib/store";
+import { reactionStickers, stickerId, stickerStyleOn } from "@/lib/emoji";
+import { getRememberedSticker } from "@/lib/telegram";
 import { usersCount } from "@/lib/users";
 
 export const runtime = "nodejs";
@@ -46,6 +48,14 @@ export async function GET(request: NextRequest) {
         : "لا توجد قاعدة بيانات — أضف Upstash Redis من Vercel ← Storage ثم Redeploy",
     },
     data: { contests: contests.length, active: contests.filter((c) => c.status === "active").length, users, claims },
+    stickers: {
+      styleOn: stickerStyleOn(),
+      welcome: stickerId("welcome") || null,
+      more: stickerId("more") || null,
+      reactions: reactionStickers().length,
+      lastFileId: (await getRememberedSticker())?.fileId || null,
+      hint: "صيفط الملصق للبوت → خُذ lastFileId وحدّد STICKER_WELCOME / STICKER_MORE / STICKER_REACTIONS",
+    },
     details: status.details,
     checkedAt: new Date().toISOString(),
   });

@@ -38,7 +38,7 @@ import {
 } from "./rewards";
 import { getSettings, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
-import { E } from "./emoji";
+import { E, reactionStickers, stickerId } from "./emoji";
 import { getStore } from "./store";
 import {
   answerCallback,
@@ -50,6 +50,7 @@ import {
   getTrace,
   sendChatAction,
   sendMessage,
+  sendStickerSafe,
   tgCall,
   type InlineKeyboard,
   type TgCallbackQuery,
@@ -215,6 +216,13 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
 }
 
 /** ✨ القائمة الجديدة: مميزات وأدوات البوت (فوق المسابقات/حسابي/إحالة) */
+/** 🎭 ملصقات كيما الصورة (SPAM x Panel): ملصق + «تفاعلات» — كلها بلا كسر إلا كان file_id غالط */
+async function sendStickerPack(chatId: number | string, name: "welcome" | "more"): Promise<void> {
+  const main = stickerId(name);
+  if (main) await sendStickerSafe(chatId, main);
+  for (const extra of reactionStickers()) await sendStickerSafe(chatId, extra);
+}
+
 async function showMore(
   chatId: number | string,
   user: BotUser,
@@ -249,7 +257,10 @@ async function showMore(
   const kb = keyboard(rows);
   const text = lines.join("\n");
   if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
+  else {
+    await sendMessage(chatId, text, kb);
+    await sendStickerPack(chatId, "more");
+  }
   void settings;
 }
 
@@ -552,7 +563,11 @@ async function showHome(
     .replace(/🎁/g, E.gift());
   const kb = homeKeyboard(settings, contests);
   if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
+  else {
+    await sendMessage(chatId, text, kb);
+    // 🎭 ملصقات الترحيب (اختيارية — تتحكّم فيها من البيئة)
+    await sendStickerPack(chatId, "welcome");
+  }
 }
 
 async function showContest(

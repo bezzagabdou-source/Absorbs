@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { handleUpdate } from "@/lib/bot";
 import { getSettings } from "@/lib/settings";
 import { trackBotMessage } from "@/lib/stats";
-import { getTrace, runWithBotToken, secondBotToken, type TgUpdate } from "@/lib/telegram";
+import { getTrace, rememberSticker, runWithBotToken, secondBotToken, type TgUpdate } from "@/lib/telegram";
 
 export type AuditEntry = {
   at: number;
@@ -171,6 +171,16 @@ async function handleWebhook(update: TgUpdate) {
   }
 
   await trackBotMessage();
+
+  // 🎭 إلا وصّل ملصق: نحفظو file_id باش المالك يستعملو في الواجهة (بلا ما يردّ عليه)
+  if (update.message?.sticker?.file_id) {
+    try {
+      await rememberSticker(update.message.sticker);
+    } catch {
+      /* ما نعطّلوش الويب هوك */
+    }
+    return NextResponse.json({ ok: true, sticker: "saved" });
+  }
 
   // 🩺 تدقيق: آخر 40 تحديث وصلو + شنو ردّ البوت عليهم/أي خطأ (للتشخيص من اللوحة)
   const detail = describeUpdate(update);

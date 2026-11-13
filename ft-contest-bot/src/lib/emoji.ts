@@ -59,6 +59,38 @@ export const E = {
   rocket: () => emoji("rocket", "🚀"),
 };
 
+/* ══════════════════════════════════════════════════════════════════════════
+   🎭 ملصقات/إيموجيات جاهزة كيما الصورة (SPAM x Panel) — مع إخفاء آمن.
+   تتحكّم فيها من البيئة بلا كود:
+     STICKER_STYLE=1|0            شغّل/طفّي الملصق مع الترحيب (افتراضي 1)
+     STICKER_WELCOME=<file_id>    ملصق رسالة الترحيب
+     STICKER_REACTIONS=<id,id,…>  ملصقات «تفاعل» تتبع الترحيب (حتى 3)
+     STICKER_MORE=<file_id>       ملصق صفحة «مميزات وأدوات البوت»
+   تلقاهم من: صيفط الملصق للبوت وافحص /api/telegram/status → stickers.lastFileId
+   ══════════════════════════════════════════════════════════════════════════ */
+
+export function stickerStyleOn(): boolean {
+  return String(process.env.STICKER_STYLE ?? "1") !== "0";
+}
+
+export function stickerId(name: "welcome" | "more"): string {
+  if (!stickerStyleOn()) return "";
+  const map: Record<string, string> = {
+    welcome: "STICKER_WELCOME",
+    more: "STICKER_MORE",
+  };
+  return String(process.env[map[name]] || "").trim();
+}
+
+export function reactionStickers(): string[] {
+  if (!stickerStyleOn()) return [];
+  return String(process.env.STICKER_REACTIONS || "")
+    .split(/[,\n ]+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 /** ☑️ تحويل رسالة فيها tg-emoji → نص عادي (لمّا تيليجرام يرفض) */
 export function stripCustomEmoji(text: string): string {
   return String(text || "").replace(/<tg-emoji[^>]*>([\s\S]*?)<\/tg-emoji>/g, "$1");
