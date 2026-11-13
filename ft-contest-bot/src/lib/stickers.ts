@@ -310,6 +310,12 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
         }
       }
     }
+    // ✅ من بعد النشرة تولّت: ناخدو file_ids الأحياء منها (هي اللي كتتمّى بعثها بـ sendSticker)
+    if (created) {
+      const live = await fetchSet(setName);
+      if (live && live.stickers.length > 0) byKind[pack.kind] = live.stickers.map((x) => ({ fileId: x.fileId, emoji: x.emoji }));
+      else note = `${note} · ما تجاوبش getStickerSet (نفس file_ids ديال الرفع غادي يخدمو)`;
+    }
     sets.push({
       kind: pack.kind,
       pack: pack.id,
@@ -474,9 +480,19 @@ export async function describeStickers() {
         ready,
         source: mine.length > 0 ? "own" : packs.some(Boolean) ? "public" : "none",
         own: { count: mine.length, emojis: mine.map((m) => m.emoji), created: Boolean(meta?.created), link: meta?.link || "", note: meta?.note || "" },
-        sets: mine.length > 0 && meta
-          ? [{ name: meta.pack, title: meta.title, total: mine.length, animated: true, ok: true }]
-          : publicNames.map((name, i) => ({
+        sets: meta?.created && meta?.name
+          ? [
+              {
+                name: meta.name,
+                title: meta.title,
+                total: (await fetchSet(meta.name))?.total ?? mine.length,
+                animated: true,
+                ok: true,
+              },
+            ]
+          : mine.length > 0
+            ? [{ name: meta?.pack || "own", title: meta?.title || "ملصقات البوت", total: mine.length, animated: true, ok: true }]
+            : publicNames.map((name, i) => ({
               name,
               title: packs[i]?.title || name,
               total: packs[i]?.total || 0,
