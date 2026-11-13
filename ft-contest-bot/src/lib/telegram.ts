@@ -96,6 +96,12 @@ export type TgResult<T = unknown> = {
   ok: boolean;
   result?: T;
   description?: string;
+  /** 🧠 للوحة التحكم: شنو قال تيليغرام بالضبط (429 / 400 / …) */
+  error_code?: number;
+  parameters?: { retry_after?: number };
+  /** ⚠️ النتيجة مجهولة (شبكة/timeout) → ما نعاودوش باش ما يتبعتش مرتين */
+  uncertain?: boolean;
+  retryable?: boolean;
 };
 
 export type MockCall = { at: number; method: string; payload: Record<string, unknown> };
@@ -267,16 +273,29 @@ export async function tgCall<T = unknown>(
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    const json = (await res.json()) as TgResult<T>;
+    let json: TgResult<T>;
+    try {
+      json = (await res.json()) as TgResult<T>;
+    } catch {
+      return { ok: false, description: `HTTP ${res.status}`, error_code: res.status, uncertain: true };
+    }
     if (!json.ok) {
       console.error(`[tg] ${method}`, json.description);
       pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: String(json.description || "خطأ") });
+      const code = Number((json as { error_code?: unknown }).error_code) || res.status;
+      const retryAfter = Number((json.parameters as { retry_after?: unknown } | undefined)?.retry_after) || 0;
+      json = {
+        ...json,
+        error_code: code,
+        ...(retryAfter ? { parameters: { ...(json.parameters || {}), retry_after: retryAfter } } : {}),
+        retryable: code === 429 || code >= 500,
+      };
     }
     return json;
   } catch (error) {
     console.error(`[tg] ${method} network error`, error);
     pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "تعذّر الاتصال بتلغرام" });
-    return { ok: false, description: "تعذّر الاتصال بتلغرام" };
+    return { ok: false, description: "تعذّر الاتصال بتلغرام", uncertain: true, retryable: false };
   }
 }
 

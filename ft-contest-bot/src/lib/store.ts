@@ -30,7 +30,13 @@ export interface Store {
   listPop(key: string): Promise<string | null>;
   listLen(key: string): Promise<number>;
   listAll(key: string, limit?: number): Promise<string[]>;
+  listRecent(key: string, limit?: number): Promise<string[]>;
   delList(key: string): Promise<void>;
+  /** ✍️ كتابة مرة واحدة فقط (NX) → true إلا تولّت الكتابة */
+  setIfAbsent(key: string, value: unknown): Promise<boolean>;
+  /** 🔒 قفل موقّت (lease) — البثّ ما يتكررش بين الطلبات */
+  acquireLease(key: string, token: string, ttlMs: number): Promise<boolean>;
+  releaseLease(key: string, token: string): Promise<void>;
 }
 
 /* ───────────────────────── Redis (Upstash REST) ───────────────────────── */
@@ -160,6 +166,25 @@ class RedisStore implements Store {
     ]);
     return raw.map(String);
   }
+  async listRecent(key: string, limit = 1000) {
+    const raw = await this.cmd<string[]>(["LRANGE", this.k(key), -Math.max(1, limit), -1]);
+    return raw.map(String).reverse();
+  }
+  async setIfAbsent(key: string, value: unknown) {
+    return (await this.cmd<string | null>(["SET", this.k(key), JSON.stringify(value), "NX"])) === "OK";
+  }
+  async acquireLease(key: string, token: string, ttlMs: number) {
+    return (await this.cmd<string | null>(["SET", this.k(key), token, "NX", "PX", Math.max(1000, ttlMs)])) === "OK";
+  }
+  async releaseLease(key: string, token: string) {
+    await this.cmd([
+      "EVAL",
+      "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end",
+      1,
+      this.k(key),
+      token,
+    ]);
+  }
   async delList(key: string) {
     await this.del(key);
   }
@@ -189,7 +214,7 @@ function postgresUrl(): string | null {
     .replace(/\?&/, "?");
 }
 
-async function getPool(): Promise<PgPool> {
+export async function getPool(): Promise<PgPool> {
   const url = postgresUrl();
   if (!url) throw new Error("Postgres URL not configured");
   if (!globalForDb.__ftPool) {
@@ -375,6 +400,38 @@ class PostgresStore implements Store {
     );
     return rows.map((r: { v: string }) => String(r.v));
   }
+  async listRecent(key: string, limit = 1000) {
+    const pool = await getPool();
+    const { rows } = await pool.query(
+      "select v from ft_list where k = $1 order by id desc limit $2",
+      [key, Math.max(1, limit)],
+    );
+    return rows.map((r: { v: string }) => String(r.v));
+  }
+  async setIfAbsent(key: string, value: unknown) {
+    const pool = await getPool();
+    const res = await pool.query(
+      "insert into ft_kv (k, v) values ($1, $2::jsonb) on conflict do nothing returning k",
+      [key, JSON.stringify(value)],
+    );
+    return res.rowCount === 1;
+  }
+  async acquireLease(key: string, token: string, ttlMs: number) {
+    const pool = await getPool();
+    const now = Date.now();
+    const res = await pool.query(
+      `insert into ft_kv (k, v, n) values ($1, $2::jsonb, $3)
+       on conflict (k) do update set v = excluded.v, n = excluded.n
+       where ft_kv.n <= $4 or ft_kv.v ->> 'token' = $5
+       returning k`,
+      [key, JSON.stringify({ token }), now + Math.max(1000, ttlMs), now, token],
+    );
+    return res.rowCount === 1;
+  }
+  async releaseLease(key: string, token: string) {
+    const pool = await getPool();
+    await pool.query("delete from ft_kv where k = $1 and v ->> 'token' = $2", [key, token]);
+  }
   async delList(key: string) {
     const pool = await getPool();
     await pool.query("delete from ft_list where k = $1", [key]);
@@ -517,6 +574,29 @@ class MemoryStore implements Store {
   }
   async listAll(key: string, limit = 1000) {
     return (mem().lists[key] || []).slice(0, limit);
+  }
+  async listRecent(key: string, limit = 1000) {
+    const l = mem().lists[key] || [];
+    return l.slice(-Math.max(1, limit)).reverse();
+  }
+  async setIfAbsent(key: string, value: unknown) {
+    const d = mem();
+    if (d.kv[key] !== undefined) return false;
+    d.kv[key] = value;
+    persist();
+    return true;
+  }
+  async acquireLease(key: string, token: string, ttlMs: number) {
+    const d = mem();
+    const cur = d.kv[key] as { token?: string; exp?: number } | undefined;
+    if (cur && Number(cur.exp) > Date.now() && cur.token !== token) return false;
+    d.kv[key] = { token, exp: Date.now() + Math.max(1000, ttlMs) };
+    return true;
+  }
+  async releaseLease(key: string, token: string) {
+    const d = mem();
+    const cur = d.kv[key] as { token?: string } | undefined;
+    if (cur && cur.token === token) delete d.kv[key];
   }
   async delList(key: string) {
     delete mem().lists[key];
