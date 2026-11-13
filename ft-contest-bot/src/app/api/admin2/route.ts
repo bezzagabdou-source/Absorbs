@@ -202,12 +202,33 @@ export async function GET(req: NextRequest) {
     if (what === "stats") return ok({ stats: await panelStats(), storage: storageInfo() });
 
     if (what === "users") {
-      const users = await listRecentUsers(300);
+      const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+      const wantAll = ["1", "all", "true"].includes((url.searchParams.get("all") || "").toLowerCase());
+      const limit = Math.min(5000, Math.max(1, Number(url.searchParams.get("limit")) || (wantAll ? 5000 : 300)));
+      const pool = await (wantAll || q ? (await import("@/lib/users")).listAllUsers(limit) : listRecentUsers(limit));
       const banned = new Set(await bannedIds());
+      const picked = q ? pool.filter((u) => `${u.id} ${u.firstName || ""} ${u.username || ""}`.toLowerCase().includes(q)) : pool;
+      const slice = picked.slice(0, limit);
+      // 💰 الأرصدة من zset واحد (سؤال واحد) حتى مع آلاف المستخدمين — بلا timeout
+      const scores =
+        slice.length > 120
+          ? new Map((await topBalances(Math.max(200, slice.length))).map((r) => [String(r.userId), Number(r.points) || 0]))
+          : null;
       const withBalances = await Promise.all(
-        users.map(async (u) => ({ ...u, points: await balanceOf(u.id), banned: banned.has(u.id) })),
+        slice.map(async (u) => ({
+          ...u,
+          points: scores ? (scores.get(u.id) || 0) : await balanceOf(u.id),
+          banned: banned.has(u.id),
+        })),
       );
       return ok({ users: withBalances, total: await usersCount() });
+    }
+
+    // 📢 حالة البثّ الجماعي (جميع المستخدمين)
+    if (what === "broadcast") {
+      const { loadJob, view, broadcastHistory } = await import("@/lib/broadcast");
+      const [job, history] = await Promise.all([loadJob(), broadcastHistory()]);
+      return ok({ broadcast: view(job), history });
     }
 
     if (what === "ai_status") return ok({ ai: aiStatus(), ops: ALLOWED_OPS });
@@ -350,6 +371,26 @@ export async function POST(req: NextRequest) {
       const r = await addPack(pack);
       await pushAdminLog({ at: Date.now(), op: "emoji_add", detail: `${pack}: ${r.message}`, via: "panel" });
       return r.ok ? ok(r) : bad(r.message, 400);
+    }
+
+    // 📢 بثّ لجميع المستخدمين (منذ إنشاء البوت) — على دفعات، بشريط تقدّم
+    if (action === "broadcast_start" || action === "broadcast_tick" || action === "broadcast_stop") {
+      const { startBroadcast, tickBroadcast, stopBroadcast, view, summary } = await import("@/lib/broadcast");
+      if (action === "broadcast_stop") {
+        const job = await stopBroadcast();
+        await pushAdminLog({ at: Date.now(), op: "broadcast_stop", detail: job ? summary(job) : "ماكا بثّ شغّال", via: "panel" });
+        return ok({ broadcast: view(job), note: job ? "وقّفنا البثّ" : "ماكا حتى بثّ باش يوقّف" });
+      }
+      if (action === "broadcast_tick") {
+        const job = await tickBroadcast();
+        return ok({ broadcast: view(job) });
+      }
+      const text = String(body.text || "").trim();
+      if (!text) return bad("كتب نص الرسالة", 400);
+      if (text.length > 4000) return bad("الرسالة طويلة بزاف (الحد 4000 حرف)", 400);
+      const job = await startBroadcast(text);
+      await pushAdminLog({ at: Date.now(), op: "broadcast", detail: summary(job), via: "panel" });
+      return ok({ broadcast: view(job) });
     }
 
     // 🤖 وكيل الذكاء الاصطناعي

@@ -206,7 +206,7 @@ export default function Panel() {
       {tab === "ai" ? <AiTab flash={flash} onDone={loadAll} /> : null}
       {tab === "rewards" ? <RewardsTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "users" ? <UsersTab users={users} flash={flash} onDone={loadAll} /> : null}
-      {tab === "message" ? <MessageTab users={users} flash={flash} /> : null}
+      {tab === "message" ? <MessageTab users={users} flash={flash} audience={data.stats.users} /> : null}
       {tab === "gate" ? <GateTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "texts" ? <TextsTab data={data} flash={flash} onDone={loadAll} /> : null}
       {tab === "settings" ? <SettingsTab data={data} flash={flash} onDone={loadAll} /> : null}
@@ -863,8 +863,25 @@ function PointsForm({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "er
 function UsersTab({ users, flash, onDone }: { users: UserRow[]; flash: (k: "ok" | "err", t: string) => void; onDone: () => void }) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [full, setFull] = useState<UserRow[] | null>(null);
+  const [loadingAll, setLoadingAll] = useState(false);
 
-  const rows = users.filter((u) => {
+  async function loadEveryone() {
+    setLoadingAll(true);
+    try {
+      const r = await fetch("/api/admin2?what=users&all=1").then((x) => x.json());
+      if (r?.ok === false) throw new Error(String(r.error || "خطأ"));
+      setFull((r.users || []) as UserRow[]);
+      flash("ok", `حمّلنا ${((r.users || []) as UserRow[]).length} مستخدم — كلشي من إنشاء البوت`);
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setLoadingAll(false);
+    }
+  }
+
+  const source = full || users;
+  const rows = source.filter((u) => {
     if (!q.trim()) return true;
     const s = `${u.id} ${u.firstName} ${u.username}`.toLowerCase();
     return s.includes(q.trim().toLowerCase());
@@ -874,6 +891,20 @@ function UsersTab({ users, flash, onDone }: { users: UserRow[]; flash: (k: "ok" 
     setBusy(`${op}:${userId}`);
     try {
       const res = (await api({ action: "run", op, userId, delta })) as { result: Outcome };
+      if (!res.result.ok) throw new Error(res.result.detail);
+      flash("ok", res.result.detail);
+      onDone();
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function bump(userId: string, delta: number) {
+    setBusy(`set_points:${userId}`);
+    try {
+      const res = (await api({ action: "run", op: "set_points", userId, delta })) as { result: Outcome };
       if (!res.result.ok) throw new Error(res.result.detail);
       flash("ok", res.result.detail);
       onDone();
@@ -905,8 +936,21 @@ function UsersTab({ users, flash, onDone }: { users: UserRow[]; flash: (k: "ok" 
   return (
     <div className="a2-card">
       <h2>
-        👥 المستخدمين <span className="a2-hint">{users.length} مسجّل</span>
+        👥 المستخدمين{" "}
+        <span className="a2-hint">
+          {source.length} معروضة{full ? "" : " (الأحدث)"} · {rows.length} مطابقة
+        </span>
       </h2>
+      <div className="a2-row" style={{ marginBottom: 10 }}>
+        <button className="btn2 sm" onClick={loadEveryone} disabled={loadingAll}>
+          {loadingAll ? "…كنحمّل الكل" : full ? "↻ تحديث الكل" : "👥 كل المستخدمين منذ الإنشاء"}
+        </button>
+        {full ? (
+          <button className="btn2 sm" onClick={() => setFull(null)}>
+            رجوع للأحدث
+          </button>
+        ) : null}
+      </div>
       <label className="f">
         <span>بحث (آي دي / اسم / يوزر)</span>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="12345678 أو @username" />
@@ -940,13 +984,13 @@ function UsersTab({ users, flash, onDone }: { users: UserRow[]; flash: (k: "ok" 
                 </td>
                 <td>
                   <div className="a2-row">
-                    <button className="btn2 sm green" disabled={busy === `set_points:${u.id}`} onClick={() => run("set_points", u.id, 5)}>
+                    <button className="btn2 sm green" disabled={busy === `set_points:${u.id}`} onClick={() => bump(u.id, 5)}>
                       +5
                     </button>
-                    <button className="btn2 sm green" disabled={busy === `set_points:${u.id}`} onClick={() => run("set_points", u.id, 20)}>
+                    <button className="btn2 sm green" disabled={busy === `set_points:${u.id}`} onClick={() => bump(u.id, 20)}>
                       +20
                     </button>
-                    <button className="btn2 sm red" disabled={busy === `set_points:${u.id}`} onClick={() => run("set_points", u.id, -5)}>
+                    <button className="btn2 sm red" disabled={busy === `set_points:${u.id}`} onClick={() => bump(u.id, -5)}>
                       −5
                     </button>
                     <button className="btn2 sm" onClick={() => setTo(u.id)}>
@@ -974,15 +1018,97 @@ function UsersTab({ users, flash, onDone }: { users: UserRow[]; flash: (k: "ok" 
 }
 
 /* ───────────────────────────── ✉️ الرسائل ───────────────────────────── */
-function MessageTab({ users, flash }: { users: UserRow[]; flash: (k: "ok" | "err", t: string) => void }) {
+type BcView = {
+  total: number;
+  cursor: number;
+  remaining: number;
+  pct: number;
+  sent: number;
+  failed: number;
+  blocked: number;
+  skipped: number;
+  finished: boolean;
+  stopped: boolean;
+  running: boolean;
+  lastError: string;
+  preview: string;
+};
+
+function MessageTab({
+  users,
+  flash,
+  audience,
+}: {
+  users: UserRow[];
+  flash: (k: "ok" | "err", t: string) => void;
+  audience?: number;
+}) {
   const [target, setTarget] = useState("all");
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<string>("");
+  const [bc, setBc] = useState<BcView | null>(null);
+  const [pushing, setPushing] = useState(false);
+
+  async function refreshBc(): Promise<BcView | null> {
+    try {
+      const r = await fetch("/api/admin2?what=broadcast").then((x) => x.json());
+      if (r?.broadcast) {
+        setBc(r.broadcast as BcView);
+        return r.broadcast as BcView;
+      }
+    } catch {
+      /* اللوحة ما تزال تخدم */
+    }
+    return null;
+  }
+
+  useEffect(() => {
+    refreshBc();
+  }, []);
+
+  const wait = (ms: number) => new Promise<void>((res) => window.setTimeout(res, ms));
+
+  /* 📢 كلينا كملنا الدفعة — نكمّلو الدفعات الباقية وحدة بوحدة */
+  async function finishBroadcast() {
+    setPushing(true);
+    try {
+      for (let i = 0; i < 300; i++) {
+        const r = (await api({ action: "broadcast_tick" })) as { broadcast?: BcView };
+        const v = (r.broadcast || null) as BcView | null;
+        if (v) setBc(v);
+        if (!v || v.finished || v.stopped || v.remaining <= 0) {
+          if (v?.finished) flash("ok", `✅ البثّ وصل لـ ${v.sent} مستخدم (من ${v.total})`);
+          break;
+        }
+        await wait(500);
+      }
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setPushing(false);
+    }
+  }
 
   async function send() {
     if (!text.trim()) return;
-    if (target === "all" && !window.confirm(`تحب تبعث للجميع (${users.length} مستخدم)؟`)) return;
+    if (target === "all") {
+      const n = bc?.total || audience || users.length;
+      if (!window.confirm(`تحب تبعث هاد الرسالة لجميع المستخدمين (${n}) منذ إنشاء البوت؟`)) return;
+      setBusy(true);
+      setOut("");
+      try {
+        const r = (await api({ action: "broadcast_start", text })) as { broadcast?: BcView };
+        setBc((r.broadcast || null) as BcView | null);
+        setText("");
+        setBusy(false);
+        await finishBroadcast();
+      } catch (e) {
+        flash("err", String((e as Error).message));
+        setBusy(false);
+      }
+      return;
+    }
     setBusy(true);
     setOut("");
     try {
@@ -998,15 +1124,79 @@ function MessageTab({ users, flash }: { users: UserRow[]; flash: (k: "ok" | "err
     }
   }
 
+  async function stopBc() {
+    setPushing(true);
+    try {
+      const r = (await api({ action: "broadcast_stop" })) as { broadcast?: BcView };
+      if (r.broadcast) setBc(r.broadcast as BcView);
+      flash("ok", "وقّفنا البثّ");
+    } catch (e) {
+      flash("err", String((e as Error).message));
+    } finally {
+      setPushing(false);
+    }
+  }
+
+  const running = Boolean(bc && bc.running);
+
   return (
     <div className="a2-card">
       <h2>
-        ✉️ رسالة لمستخدم / بثّ للجميع <span className="a2-hint">HTML مسموح: &lt;b&gt; &lt;i&gt; &lt;a&gt;</span>
+        ✉️ رسالة لمستخدم / بثّ للجميع{" "}
+        <span className="a2-hint">HTML مسموح: &lt;b&gt; &lt;i&gt; &lt;a&gt;</span>
       </h2>
+
+      {/* 📢 البثّ الجماعي — لجميع المستخدمين منذ إنشاء البوت */}
+      <div className="a2-grid" style={{ marginBottom: 12 }}>
+        <div>
+          <div className="a2-hint" style={{ marginBottom: 6 }}>
+            📢 البثّ الجماعي كيمشي لكل من بدأ البوت ({bc?.total ?? audience ?? users.length} مستخدم)، على دفعات
+            آمنة، وما كينسان حتى واحد.
+          </div>
+          {bc ? (
+            <>
+              <div className="progress" style={{ marginBottom: 6 }}>
+                <div style={{ width: `${Math.max(2, Math.min(100, bc.pct))}%` }} />
+              </div>
+              <div className="a2-row" style={{ flexWrap: "wrap" }}>
+                <span className={`a2-pill ${bc.finished ? "on" : "gold"}`}>
+                  {bc.finished ? "✓ مكمّل" : bc.stopped ? "⏸ موقّف" : "…كنبعث"} {bc.pct}%
+                </span>
+                <span className="a2-pill on">وصل: {bc.sent}</span>
+                <span className="a2-pill off"> فشل: {bc.failed}</span>
+                <span className="a2-pill off">🚫 حظر البوت: {bc.blocked}</span>
+                <span className="a2-pill off">محظور من اللوحة: {bc.skipped}</span>
+                <span className="a2-pill off">باقي: {bc.remaining}</span>
+              </div>
+              {bc.lastError ? <div className="a2-hint" style={{ marginTop: 6 }}>آخر خطأ: {bc.lastError}</div> : null}
+            </>
+          ) : (
+            <div className="a2-hint">ماكا حتى بثّ شغّال دابا.</div>
+          )}
+          <div className="a2-row" style={{ marginTop: 8 }}>
+            {running && !pushing ? (
+              <button className="btn2 sm gold" onClick={finishBroadcast}>
+                ▶️ كمّل البثّ ({bc?.remaining ?? 0} باقي)
+              </button>
+            ) : null}
+            {running && pushing ? (
+              <button className="btn2 sm" onClick={refreshBc}>
+                ↻ حدّث التقدم
+              </button>
+            ) : null}
+            {running ? (
+              <button className="btn2 sm red" onClick={stopBc} disabled={pushing && false}>
+                ⏹ وقّف
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
       <label className="f">
         <span>المرسل إليه</span>
         <select value={target} onChange={(e) => setTarget(e.target.value)}>
-          <option value="all">📢 الجميع (بثّ)</option>
+          <option value="all">📢 الجميع — كل المستخدمين ({bc?.total ?? audience ?? users.length})</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.firstName || u.id} {u.username ? `@${u.username}` : ""} — {u.id}
@@ -1019,7 +1209,7 @@ function MessageTab({ users, flash }: { users: UserRow[]; flash: (k: "ok" | "err
         <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب الرسالة…" />
       </label>
       <div className="a2-row">
-        <button className="btn2 gold" onClick={send} disabled={busy || !text.trim()}>
+        <button className="btn2 gold" onClick={send} disabled={busy || pushing || !text.trim()}>
           {busy ? "…كنبعث" : target === "all" ? "📢 بثّ للجميع" : "📨 أرسل"}
         </button>
         {out ? <span className="a2-pill on">{out}</span> : null}

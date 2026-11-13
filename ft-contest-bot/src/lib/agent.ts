@@ -269,7 +269,14 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
   // آي دي: أطول سلسلة أرقام (6+ خانات)، وإلا أول رقم إذا الطلب يخصّ مستخدم بالضبط
   const mentionsUser = /(مستخدم|للمستخدم|المستخدم|حظر|بلوك|نقاطو|رصيدو)/i.test(p);
   const userRequest = /(مستخدم|للمستخدم|المستخدم|حظر|بلوك|نقاط|نقط|رصيد|points)/i.test(p) && !isRewardRequest;
-  const uid = bigId(p) || ((mentionsUser || userRequest) && nums.length >= 2 ? String(nums[0]) : "");
+  const explicitUid =
+    (p.match(/(?:لـ|لى|إلى|الى|عند|للمستخدم|المستخدم|مستخدم|\bid\b|آي دي|ايدي)\D{0,8}(\d{4,14})/i) || [])[1] || "";
+  const userish = /(حظر|بلوك|ban|unban|فك|نقاط|نقط|رصيد|رسالة|بعث|ارسل|مستخدم)/i.test(p) && !isRewardRequest;
+  const uid =
+    bigId(p) ||
+    explicitUid ||
+    ((mentionsUser || userRequest || userish) && nums.length >= 2 ? String(nums[0]) : "") ||
+    (userish && nums.length === 1 ? String(nums[0]) : "");
   const amountPool = uid && nums.length >= 2 && String(nums[0]) === uid ? nums.slice(1) : nums;
   const words = (t: string) => t.replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((w) => w.length > 1);
   const promptWords = words(p);
@@ -325,13 +332,27 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
     }
   }
 
-  // ⭐️ نقاط مستخدم
-  if (userRequest && uid && /(نقط|point)/i.test(p) && /(زيد|أعطي|اعطي|عطي|نقص|نقّص|حط)/i.test(p)) {
-    const amount = amountPool.filter((n) => n < 100000).pop() || 0;
-    const negative = /(نقص|نقّص|حيّد|حيد|نحّي)/i.test(p);
+  // ⭐️ نقاط مستخدم — «زيد 10 نقاط لـ 561001» · «عطي 50 نقطة للمستخدم 1234» · «عين الرصيد 200»
+  const pointsWord = /(نقاط|نقط|نقطة|points?|رصيد|بونص)/i.test(p);
+  const grantWord = /(زيد|زد|زود|أعطي|اعطي|عطي|حط|أضف|اضف|ضيف|دي|نقص|نقّص|خصم|عين|تعيين|ساوي|سوي|صير|ولّي|ولي)/i.test(p);
+  const uidForPoints = explicitUid || uid;
+  if (pointsWord && uidForPoints && grantWord && !isRewardRequest) {
+    const amount = amountPool.filter((n) => n < 100_000 && String(n) !== String(uidForPoints)).pop() || 0;
+    const negative = /(نقص|نقّص|حيّد|حيد|نحّي|خصم|شيل)/i.test(p);
+    const absolute = /(عين|تعيين|ساوي|سوي|صير|ولّي|ولي)/i.test(p) && !negative;
     if (amount) {
-      actions.push({ op: "set_points", userId: uid, delta: negative ? -amount : amount });
-      say.push(`${negative ? "نقّصت" : "زدت"} ${amount} نقطة لـ ${uid}.`);
+      actions.push(
+        absolute
+          ? { op: "set_points", userId: uidForPoints, points: amount }
+          : { op: "set_points", userId: uidForPoints, delta: negative ? -amount : amount },
+      );
+      say.push(
+        absolute
+          ? `عيّنت رصيد ${uidForPoints} فـ ${amount} نقطة.`
+          : `${negative ? "نقّصت" : "زدت"} ${amount} نقطة لـ ${uidForPoints}.`,
+      );
+    } else {
+      say.push(`قول الكمية: «زيد <عدد> نقاط لـ ${uidForPoints}».`);
     }
   }
 
@@ -642,18 +663,9 @@ async function runOne(op: string, a: Record<string, unknown>, via: "panel" | "ai
     case "broadcast": {
       const text = String(a.text || "").trim();
       if (!text) throw new Error("text مطلوب");
-      const banned = new Set(await bannedIds());
-      const limit = Math.min(500, Math.max(1, Math.floor(Number(a.limit) || 100)));
-      const users = await listRecentUsers(limit);
-      let sent = 0;
-      let failed = 0;
-      for (const u of users) {
-        if (banned.has(u.id)) continue;
-        const r = await sendMessage(u.id, text).catch(() => ({ ok: false }));
-        if (r.ok) sent++;
-        else failed++;
-      }
-      return `بثّ: ${sent} وصل، ${failed} فشل (من ${users.length})`;
+      const { startBroadcast, summary } = await import("./broadcast");
+      const job = await startBroadcast(text);
+      return summary(job);
     }
     case "save_settings": {
       const s = (a.settings || a) as Record<string, unknown>;

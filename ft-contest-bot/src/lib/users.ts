@@ -37,3 +37,35 @@ export async function listRecentUsers(limit = 200): Promise<BotUser[]> {
 export async function usersCount(): Promise<number> {
   return getStore().zCount(JOINED_KEY);
 }
+
+/**
+ * كل IDs ديال المستخدمين منذ إنشاء البوت (بلا سقف 200).
+ * كتجمع بين الـset (`users:ids`) و الـzset ديال الانخراط، بلا مكرّر.
+ */
+export async function allUserIds(limit = 200_000): Promise<string[]> {
+  const store = getStore();
+  const [fromSet, fromZ] = await Promise.all([
+    store.sMembers(IDS_KEY).catch(() => [] as string[]),
+    store.zTop(JOINED_KEY, limit).catch(() => [] as { member: string }[]),
+  ]);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown) => {
+    const id = String(raw ?? "").trim();
+    if (/^\d{1,20}$/.test(id) && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  };
+  for (const z of fromZ || []) push((z as { member?: string })?.member);
+  for (const id of fromSet || []) push(id);
+  return out.slice(0, Math.max(1, limit));
+}
+
+/** لائحة كاملة بالمستخدمين (الأحدث أولاً) — للوحدة ديال التحكم */
+export async function listAllUsers(limit = 5_000): Promise<BotUser[]> {
+  const store = getStore();
+  const ids = await allUserIds(limit);
+  const users = await Promise.all(ids.map((id) => store.get<BotUser>(`user:${id}`)));
+  return users.filter((u): u is BotUser => Boolean(u));
+}
