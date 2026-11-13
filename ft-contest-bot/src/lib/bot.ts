@@ -39,6 +39,7 @@ import {
 import { getSettings, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
 import { E, fx, reactionStickers, stickerId } from "./emoji";
+import { parseGeneralReferral, registerGeneralReferral } from "./referrals";
 import { getStore } from "./store";
 import {
   answerCallback,
@@ -1860,6 +1861,9 @@ async function handleMessageInner(message: TgMessage) {
         const [, contestId, inviterId] = payload.split("_");
         const contest = await getContest(contestId);
         if (inviterId) await creditReferral(contest, inviterId, user);
+      } else if (command === "/start" && payload.startsWith("ref_")) {
+        const inviterId = parseGeneralReferral(payload);
+        if (inviterId) await registerGeneralReferral(from, inviterId);
       }
       await sendGate(chatId, settings, gate.missing);
       return;
@@ -1881,6 +1885,13 @@ async function handleMessageInner(message: TgMessage) {
   }
 
   if (command === "/start") {
+    // 🔗 رابط الإحالة العام (ref_<id>) — كيخدم بلا مسابقة وبلا مجموعة
+    if (payload.startsWith("ref_")) {
+      const inviterId = parseGeneralReferral(payload);
+      if (inviterId) await registerGeneralReferral(from, inviterId);
+      await showHome(chatId, user, settings);
+      return;
+    }
     if (payload.startsWith("r_")) {
       const [, contestId, inviterId] = payload.split("_");
       const contest = await getContest(contestId);

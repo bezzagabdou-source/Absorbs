@@ -265,9 +265,11 @@ class PostgresStore implements Store {
   readonly backend = "postgres" as const;
   async get<T>(key: string): Promise<T | null> {
     const pool = await getPool();
-    const { rows } = await pool.query("select v from ft_kv where k = $1", [key]);
+    // ⚠️ `incr` كيكتب في عمود n و `set` في v → خاص القراءة ترجع الاثنين
+    const { rows } = await pool.query("select v, n from ft_kv where k = $1", [key]);
     if (!rows.length) return null;
-    return rows[0].v as T;
+    if (rows[0].v !== null && rows[0].v !== undefined) return rows[0].v as T;
+    return (rows[0].n ?? null) as T;
   }
   async set(key: string, value: unknown) {
     const pool = await getPool();
@@ -492,7 +494,9 @@ class MemoryStore implements Store {
   readonly backend = "memory" as const;
   async get<T>(key: string): Promise<T | null> {
     const d = mem();
-    return (key in d.kv ? (d.kv[key] as T) : null);
+    if (key in d.kv) return d.kv[key] as T;
+    if (key in d.counters) return d.counters[key] as T;
+    return null;
   }
   async set(key: string, value: unknown) {
     mem().kv[key] = value;

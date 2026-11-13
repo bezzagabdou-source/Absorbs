@@ -1,4 +1,4 @@
-import { addPoints, getPointsConfig } from "./rewards";
+import { creditInvite, getPointsConfig } from "./rewards";
 import { getStore } from "./store";
 import { getUser } from "./users";
 import type { BotUser } from "./types";
@@ -43,19 +43,21 @@ export async function registerGeneralReferral(from: TgUser, inviterId: string) {
   };
   const points = config.enabled ? Math.max(0, Math.min(100000, Math.floor(Number(config.perJoin) || 0))) : 0;
   const store = getStore();
-  // 🧱 claim ذرّي: أول دخول فقط كيتحسب (sAdd كيضمن بلا مكرّر في Redis/Postgres)
-  let counted = true;
-  try {
-    counted = await store.sAdd("referrals:claimed", joinerId);
-  } catch {
-    counted = true;
-  }
-  if (!counted) return null;
-  try {
+  // 🧱 مرة واحدة في العمر: نفس العضو ما كيتحسبش جوج مرات على نفس الرابط
+  const firstEver = await store.sAdd("genref:credited", joinerId).catch(() => true);
+  if (!firstEver) return null;
+  // 🛡️ إلا كان محسوباً قبل من رابط مسابقة → ما نعاودوش
+  const already = new Set((await recentReferrals(500).catch(() => [])).map((row) => row.joinerId));
+  if (already.has(joinerId)) return null;
+  // 🆕 عضو ما معروفش: نسجلوه بحال بقية الدخول (بدل ما نعيطو لـ register ديال البوت)
+  if (!(await getUser(joinerId))) {
     await store.set(`user:${joinerId}`, joiner);
     await store.zIncr("users:joined", joinerId, at);
-    if (points > 0) await addPoints(inviterId, points);
-    await store.listPush(
+    await store.sAdd("users:ids", joinerId).catch(() => undefined);
+  }
+  // 📜 السجل كيتكتب قبل النقاط: إلا طاح الإيداع، إعادة العدّ (referrals_recount) كترجّعو
+  await store
+    .listPush(
       "referrals:log",
       [
         JSON.stringify({
@@ -72,10 +74,9 @@ export async function registerGeneralReferral(from: TgUser, inviterId: string) {
           counted: true,
         }),
       ],
-    );
-  } catch {
-    /* السجل ما يعطّلش الحساب */
-  }
+    )
+    .catch(() => undefined);
+  if (points > 0) await creditInvite(inviterId).catch(() => undefined);
   return { inviter, joiner, points };
 }
 
