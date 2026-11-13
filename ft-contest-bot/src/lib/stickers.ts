@@ -160,7 +160,7 @@ async function uploadOne(base: string, item: ManifestItem, userId: string): Prom
         buf = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength) as ArrayBuffer;
       } else {
         if (!base) {
-          error = "ما كاين source للملف (بلا origin)";
+          errs.push(`${step.format}: بلا origin باش نقراو ${step.path}`);
           continue;
         }
         const res = await fetch(`${base}/stickers/${step.path}`, { cache: "force-cache" });
