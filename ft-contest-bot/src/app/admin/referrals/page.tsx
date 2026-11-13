@@ -116,7 +116,7 @@ export default async function ReferralsPage({
             <div className="muted tiny">{c.status === "active" ? "🟢 نشطة" : "⚪️ مسدودة"}</div>
             <h3>{c.title}</h3>
             <p>
-              <b>{c.counted}</b> / {c.target} جهة
+              <b>{c.counted}</b> / {c.target} ضيف
             </p>
             <p className="muted tiny">
               {[...byInviter.keys()].length ? "" : ""}

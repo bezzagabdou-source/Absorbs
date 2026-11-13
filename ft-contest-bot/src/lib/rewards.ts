@@ -266,7 +266,7 @@ export async function creditActivation(inviterId: string): Promise<number> {
   return addPoints(inviterId, cfg.perActivated);
 }
 
-/** ⏱️ شحال من جهة خّدات عليها نقاط المتجر من قبل (باش إعادة الحسبة ما تعدّش مرتين) */
+/** ⏱️ شحال من ضيف خّدات عليها نقاط المتجر من قبل (باش إعادة الحسبة ما تعدّش مرتين) */
 export async function joinedCreditCount(userId: string): Promise<number> {
   const n = Number(await getStore().get<number>(KEY.joined(userId)));
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
@@ -366,7 +366,7 @@ export async function setJoinGroup(chatId: string, title = ""): Promise<GroupTar
 
 /**
  * يجيب رابط دخول للمجموعة من البوت.
- * 1) يحاول createChatInviteLink (رابط دائم/خاص بالعضو مع طلب انضمام ⇒ نعرف صاحب الجهة).
+ * 1) يحاول createChatInviteLink (رابط دائم/خاص بالعضو مع طلب انضمام ⇒ نعرف صاحب الضيف).
  * 2) إلا فشل (البوت ماشي أدمن) ⇒ يرجّع رابط المجموعة العام إذا موجود.
  */
 export async function groupEntryLink(
@@ -377,7 +377,7 @@ export async function groupEntryLink(
   if (!target?.chatId) return { url: "", kind: "none", chatId: "" };
 
   const settings = await getSettings();
-  // اسم الرابط يحمل صاحب الدعوة + المسابقة (حتى لو ضاع التخزين البوت يعرف صاحب الجهة)
+  // اسم الرابط يحمل صاحب الدعوة + المسابقة (حتى لو ضاع التخزين البوت يعرف صاحب الضيف)
   const contest = await activeGroupContest();
   const linkName = `FT-${userId}-${contest?.id || "x"}`.slice(0, 32);
 

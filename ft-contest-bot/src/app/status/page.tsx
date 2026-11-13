@@ -196,7 +196,7 @@ export default async function StatusPage({
             <Link href="/admin/contests" style={{ textDecoration: "underline" }}>
               لوحة التحكم ← المسابقات
             </Link>{" "}
-            (200 جهة مثلاً) وأضف الحسابات للمخزون ثم فعّلها.
+            (200 ضيف مثلاً) وأضف الحسابات للمخزون ثم فعّلها.
           </>
         )}
       </Row>

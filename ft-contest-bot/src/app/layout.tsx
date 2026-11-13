@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "بوت مسابقات FT — اجمع الجهات واربح الحساب",
+  title: "بوت مسابقات FT — اجمع الضيوف واربح الحساب",
   description:
-    "بوت تيليغرام لمسابقات FT: كل مسابقة لها عدد جهات مطلوب، وأول من يكمل العدد يربح الحساب تلقائياً.",
+    "بوت تيليغرام لمسابقات FT: كل مسابقة لها عدد ضيوف مطلوب، وأول من يكمل العدد يربح الحساب تلقائياً.",
 };
 
 export const viewport: Viewport = {

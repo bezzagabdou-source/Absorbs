@@ -264,7 +264,7 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
         const res = r.recount as Recount;
         setRecount(res);
         if (apply) {
-          flash("ok", `♻️ توّا توجّهت النقاط: ${res.credited} جهة → ${res.inviters.length} صاحوب روابط (+${res.perJoin} نقطة لكل جهة)`);
+          flash("ok", `♻️ توّا توجّهت النقاط: ${res.credited} ضيف → ${res.inviters.length} صاحوب روابط (+${res.perJoin} نقطة لكل ضيف)`);
           setCheck(null);
         } else {
           flash(
@@ -303,12 +303,46 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
         setCheck(r.check as RefCheck);
         const f = r.fixed?.fixed ?? 0;
         const notes: string[] = r.fixed?.notes || [];
-        flash("ok", `🔧 الإصلاح: ${f} جهة جديدة ${notes.length ? "— " + notes.join(" • ") : ""}`);
+        flash("ok", `🔧 الإصلاح: ${f} ضيف جديدة ${notes.length ? "— " + notes.join(" • ") : ""}`);
       } else flash("err", String(r.error || "فشل الإصلاح"));
     } catch {
       flash("err", "تعذّر الاتصال");
     }
     setBusy("");
+  }
+  const [stk, setStk] = useState<{ kind: string; ready: boolean; sets: { name: string; title: string; total: number; animated: boolean; ok: boolean }[] }[]>([]);
+  const [stkJson, setStkJson] = useState("");
+  async function loadStickers() {
+    try {
+      const r = await fetch("/api/admin2?what=stickers", { credentials: "same-origin" }).then((x) => x.json());
+      if (r.ok) setStk((r.sets || []) as typeof stk);
+    } catch {
+      /* لا شيء */
+    }
+  }
+  async function saveStickers() {
+    setBusy("sticker");
+    try {
+      const sets = stkJson.trim() ? JSON.parse(stkJson) : {};
+      const r = await api({ action: "stickers_save", sets });
+      const rf = (r.refresh || {}) as { ready?: number; of?: number };
+      flash("ok", `🎭 تمّ الحفظ — ${rf.ready ?? 0}/${rf.of ?? 5} أصناف جاهزة`);
+      void loadStickers();
+    } catch (e) {
+      flash("err", String((e as Error)?.message || "JSON غالط"));
+    }
+    setBusy("");
+  }
+  async function refreshStickers() {
+    setBusy("sticker");
+    try {
+      const r = await api({ action: "stickers_refresh" });
+      const rf = (r.refresh || {}) as { ready?: number; of?: number };
+      flash("ok", `🔄 ${rf.ready ?? 0}/${rf.of ?? 5} صنف جاهز`);
+      void loadStickers();
+    } finally {
+      setBusy("");
+    }
   }
   async function loadEmoji() {
     try {
@@ -324,6 +358,7 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
   useEffect(() => {
     void checkReferrals();
     void loadEmoji();
+    void loadStickers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   async function addEmojiPack() {
@@ -357,7 +392,7 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
             ↻ إعادة الفحص
           </button>
           <button className="btn2 sm gold" onClick={() => void fixReferrals()} disabled={busy === "fix"}>
-            🔧 إصلاح تلقائي (استرجاع الجهات الضايعة)
+            🔧 إصلاح تلقائي (استرجاع الضيوف الضايعة)
           </button>
           <button className="btn2 sm blue" onClick={() => void runRecount(false)} disabled={busy === "recount"}>
             ♻️ فحص نقاط الإحالات
@@ -374,7 +409,7 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
               ♻️ إعادة حساب النقاط{" "}
               <span className="a2-hint">
                 {recount.scanned} إحالة مقروءة · {recount.wouldCredit} ما محسوبةش · {recount.skipped} عندها نقاط من
-                قبل · +{recount.perJoin} نقطة/جهة
+                قبل · +{recount.perJoin} نقطة/ضيف
               </span>
             </h2>
             {recount.notes?.length ? <div className="a2-hint" style={{ marginBottom: 8 }}>{recount.notes.join(" • ")}</div> : null}
@@ -384,7 +419,7 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
                   <thead>
                     <tr>
                       <th>صاحب الرابط</th>
-                      <th>الجهات</th>
+                      <th>الضيوف</th>
                       <th>محسوب من قبل</th>
                       <th>{recount.applied ? "النقاط المضافة" : "النقاط المستحقة"}</th>
                       <th>الرصيد {recount.applied ? "دابا" : "قبل"}</th>
@@ -484,6 +519,39 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
         ) : (
           <p style={{ fontSize: 13, opacity: 0.7 }}>ما كاين حتى حزمة مسجّلة بعد.</p>
         )}
+      </div>
+
+      <div className="a2-card">
+        <h3>🎭 الملصقات المتحرّكة (حيّة، بلا إعدادات)</h3>
+        <p style={{ opacity: 0.75, fontSize: 13, margin: "4px 0 10px" }}>
+          البوت كيصيفط ملصق فكل شاشة (الترحيب، المميزات، المتجر، الخدمات، الربح). اختار النشرات اللي عجباتك —
+          سميها غير الاسم ديال t.me/addstickers/&lt;name&gt;.
+        </p>
+        <div className="a2-row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {stk.map((g) => (
+            <span key={g.kind} className={`a2-pill ${g.ready ? "on" : ""}`}>
+              {g.kind}: {g.sets.filter((x) => x.ok).length ? `${g.sets.find((x) => x.ok)?.title || g.sets[0]?.name} (${g.sets.find((x) => x.ok)?.total || 0})` : "ماكاين"}
+            </span>
+          ))}
+        </div>
+        <textarea
+          value={stkJson}
+          onChange={(e) => setStkJson(e.target.value)}
+          rows={3}
+          placeholder={'{"welcome":["pug","happy_duck"],"more":["Like"],"win":["Confetti"]}'}
+          style={{ width: "100%", fontFamily: "ui-monospace,monospace", fontSize: 12, marginBottom: 8 }}
+        />
+        <div className="a2-row" style={{ gap: 8 }}>
+          <button className="btn2 sm gold" onClick={() => void saveStickers()} disabled={busy === "sticker"}>
+            💾 حفظ النشرات
+          </button>
+          <button className="btn2 sm" onClick={() => void refreshStickers()} disabled={busy === "sticker"}>
+            🔄 أنعش
+          </button>
+          <a className="btn2 sm" href="/api/stickers/gallery" target="_blank" rel="noopener">
+            🖼 معرض الملصقات
+          </a>
+        </div>
       </div>
     </div>
   );

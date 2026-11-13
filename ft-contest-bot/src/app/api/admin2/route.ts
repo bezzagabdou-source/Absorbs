@@ -275,6 +275,38 @@ export async function GET(req: NextRequest) {
       return ok({ fixed: result, check: await referralCheck(chat || undefined) });
     }
 
+    // 🎭 حالة الملصقات الحيّة (النشرات، أي وحدة جاهزة تبان فالبوت) + معرض HTML
+    if (what === "stickers") {
+      const { describeStickers, EMOJI_SETS, stickerFor } = await import("@/lib/stickers");
+      const [sets, preview] = await Promise.all([
+        describeStickers(),
+        Promise.all(
+          (["welcome", "react", "more", "win", "shop"] as const).map(async (kind) => {
+            const one = await stickerFor(kind);
+            return { kind, ready: Boolean(one), setName: one?.setName || "", emoji: one?.emoji || "" };
+          }),
+        ),
+      ]);
+      return ok({
+        sets,
+        preview,
+        emojiPacks: EMOJI_SETS,
+        gallery: "/api/panel/stickers",
+        style: String(process.env.STICKER_STYLE ?? "1") !== "0" ? "on" : "off",
+        note: 'بدّل النشرات بـ {"welcome":["pug"],"more":["Like"]} فـ action=stickers_save — وكلشي بان بلا إعدادات.',
+      });
+    }
+    if (what === "stickers_gallery") {
+      const { stickerGalleryHtml } = await import("@/lib/stickers");
+      return new NextResponse(await stickerGalleryHtml(), {
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+      });
+    }
+    if (what === "stickers_refresh") {
+      const { refreshStickers } = await import("@/lib/stickers");
+      return ok({ refresh: await refreshStickers() });
+    }
+
     // 🎭 حالة الإيموجيات/الملصقات (المينيوم ديال /emojistrans → دابا في اللوحة)
     if (what === "emojis") {
       const { extraMap } = await import("@/lib/emojiAdmin");
@@ -391,6 +423,24 @@ export async function POST(req: NextRequest) {
   if (!(await authed(req))) return bad("ماشي مسجّل", 401);
 
   try {
+    // 🎭 نشر الملصقات: تحديد النشرات + إنعاش + استيراد إيموجي
+    if (action === "stickers_save" || action === "stickers_refresh" || action === "stickers_import") {
+      const st = await import("@/lib/stickers");
+      if (action === "stickers_save") {
+        const sets = (body.sets || {}) as Record<string, string[]>;
+        const saved = await st.saveStickerSets(sets);
+        const refresh = await st.refreshStickers();
+        await pushAdminLog({ at: Date.now(), op: "stickers_save", detail: `${saved.kinds} صنف · ${JSON.stringify(saved.sets)}`, via: "panel" });
+        return ok({ saved, refresh });
+      }
+      if (action === "stickers_refresh") return ok({ refresh: await st.refreshStickers() });
+      const pack = String(body.pack || "").trim().replace(/^@/, "");
+      if (!pack) return bad("جيب اسم النشر: t.me/addemoji/Premium_Icon", 400);
+      const r = await st.importEmojiPack(pack);
+      await pushAdminLog({ at: Date.now(), op: "stickers_import", detail: `${pack}: ${r.message}`, via: "panel" });
+      return r.ok ? ok(r) : bad(r.message, 400);
+    }
+
     // 🎭 إضافة حزمة إيموجي متحرك من اللوحة (بدل /addemoji في المينيوم)
     if (action === "emoji_add") {
       const pack = String(body.pack || "").trim().replace(/^@/, "");

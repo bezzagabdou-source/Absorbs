@@ -39,6 +39,7 @@ import {
 import { getSettings, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
 import { E, fx, reactionStickers, stickerId } from "./emoji";
+import { sendStickers, type StickerKind } from "./stickers";
 import { parseGeneralReferral, registerGeneralReferral } from "./referrals";
 import { getStore } from "./store";
 import {
@@ -202,7 +203,7 @@ async function gateJoin(
 
 function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   // 🏠 أزرار فقط: المسابقات / حسابي / رابط الإحالة — بلا أي زر زايد
-  // 🏠 النسخة المضمونة: المسابقات / حسابي / رابط الإحالة — وزاد غير: خدمات + معلومات + نقاطي
+  // 🏠 النسخة المضمونة: المسابقات / حسابي / رابط الإحالة — وزاد غير: خدمات + معلومات البوت
   const rows: Button[][] = [
     [{ text: "🔥 مميزات وأدوات البوت", callback_data: "more" }],
     [
@@ -225,10 +226,18 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
 
 /** ✨ القائمة الجديدة: مميزات وأدوات البوت (فوق المسابقات/حسابي/إحالة) */
 /** 🎭 ملصقات كيما الصورة (SPAM x Panel): ملصق + «تفاعلات» — كلها بلا كسر إلا كان file_id غالط */
-async function sendStickerPack(chatId: number | string, name: "welcome" | "more"): Promise<void> {
-  const main = stickerId(name);
-  if (main) await sendStickerSafe(chatId, main);
-  for (const extra of reactionStickers()) await sendStickerSafe(chatId, extra);
+async function sendStickerPack(chatId: number | string, name: StickerKind = "welcome", count = 2): Promise<void> {
+  try {
+    const sent = await sendStickers(chatId, name, count);
+    if (sent > 0) return;
+  } catch {
+    /* ما نكسرو والو على الرسالة */
+  }
+  if (name === "welcome" || name === "more") {
+    const main = stickerId(name);
+    if (main) await sendStickerSafe(chatId, main);
+    for (const extra of reactionStickers()) await sendStickerSafe(chatId, extra);
+  }
 }
 
 async function showMore(
@@ -247,12 +256,13 @@ async function showMore(
     `${E.fire()} <b>مميزات وأدوات البوت</b>`,
     "",
     `${E.trophy()} <b>مسابقات مفتوحة:</b> ${active.length}`,
-    `${E.star()} <b>نقاطك:</b> ${points.points}/${POINTS_MAX} — مجموع جهاتك: ${points.invites}`,
+    `${E.star()} <b>نقاطك:</b> ${points.points}/${POINTS_MAX} — كل مسابقة تفرّح بنقطة`,
     `${E.money()} <b>رصيد المتجر:</b> ${balance} نقطة`,
     "",
     "اختر من الأزرار تحت 👇",
   ];
   const rows: Button[][] = [
+    [{ text: "🎭 ملصقات البوت والإيموجي", callback_data: "stickers" }],
     [{ text: "🧩 الخدمات", callback_data: "services" }],
     [
       { text: "🎁 متجر الجوائز", callback_data: "shop" },
@@ -267,7 +277,7 @@ async function showMore(
   if (messageId) await editMessage(chatId, messageId, text, kb);
   else {
     await sendMessage(chatId, text, kb);
-    await sendStickerPack(chatId, "more");
+    await sendStickerPack(chatId, "more", 2);
   }
   void settings;
 }
@@ -289,7 +299,57 @@ async function showServices(chatId: number | string, user: BotUser, messageId?: 
   const kb = keyboard(rows);
   const text = lines.join("\n");
   if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
+  else {
+    await sendMessage(chatId, text, kb);
+    await sendStickerPack(chatId, "react", 1);
+  }
+}
+
+/** 🎭 صفحة الملصقات والإيموجي المخصّصة (ميزة البوت) */
+async function showStickers(chatId: number | string, messageId?: number) {
+  const { describeStickers, EMOJI_SETS, stickerFor } = await import("./stickers");
+  const info = await describeStickers();
+  const ready = info.filter((x) => x.ready);
+  const lines = [
+    "🎭 <b>ملصقات البوت والإيموجي المخصّص</b>",
+    "",
+    ready.length
+      ? `🎭 <b>${ready.length}</b> مجموعات شغّالة — كيبانو أوتوماتيكيا فكل شاشات البوت (الترحيب، المسابقات، المتجر، النقاط، الترتيب) 🏃`
+      : `🎭 الملصقات كيخدمو غير ملي يكون البوت موصول بتيليجرام — عاود جرّب بعد شوية.`,
+    "",
+    "➕ اضغط على المجموعة باش تزيدها لحسابك و تستعملها في أي محادثة:",
+  ];
+  const rows: Button[][] = [];
+  for (const group of info) {
+    const set = group.sets.find((x) => x.ok) || group.sets[0];
+    if (!set) continue;
+    rows.push([
+      {
+        text: `${set.animated ? "✨" : "🖼"} ${set.title.slice(0, 34)}`,
+        url: `https://t.me/addstickers/${encodeURIComponent(set.name)}`,
+      },
+    ]);
+  }
+  if (EMOJI_SETS.length > 0) {
+    rows.push([
+      { text: "😀 إيموجي مخصّص (Premium) — شوف الحزمة", url: `https://t.me/addemoji/${EMOJI_SETS[0]}` },
+    ]);
+  }
+  const origin = await currentOrigin().catch(() => "");
+  if (origin) rows.push([{ text: "🖼 شوف معرض الملصقات كامل", url: `${origin}/api/stickers/gallery` }]);
+  rows.push([{ text: "⭐️ نقاطي", callback_data: "points" }, { text: "🎁 المتجر", callback_data: "shop" }]);
+  rows.push(backRow("more"));
+  const kb = keyboard(rows);
+  const text = lines.join("\n");
+  if (messageId) await editMessage(chatId, messageId, text, kb);
+  else {
+    await sendMessage(chatId, text, kb);
+    // 🎬 عيّنة حيّة: ملصق واحد من كل مجموعة جاهزة (حتى 3)
+    for (const group of ready.slice(0, 3)) {
+      const one = await stickerFor(group.kind as "welcome" | "react" | "more" | "win" | "shop", 0);
+      if (one) await sendStickerSafe(chatId, one.fileId);
+    }
+  }
 }
 
 /** ℹ️ معلومات البوت */
@@ -301,7 +361,7 @@ async function showAbout(chatId: number | string, settings: Settings, messageId?
     `🤖 البوت: ${username ? `@${escapeHtml(username)}` : "—"}`,
     `${E.crown()} المالك: ${escapeHtml(ownerHandle(settings))}`,
     "",
-    `${E.link()} كل شخص يدخل من رابطك = جهة = نقطة`,
+    `${E.link()} ادخل المسابقات، شارك رابطك، وكسب نقاط تبدّلها على جوائز`,
     `${E.gift()} بدّل نقاطك بجوائز من «المسابقات»`,
     `🚫 ممنوع الحسابات الوهمية`,
     "",
@@ -313,7 +373,10 @@ async function showAbout(chatId: number | string, settings: Settings, messageId?
     [{ text: "🏠 القائمة الرئيسية", callback_data: "home" }],
   ]);
   if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
+  else {
+    await sendMessage(chatId, text, kb);
+    await sendStickerPack(chatId, "more", 1);
+  }
 }
 
 /** 🎁 ترتيب العرض كيما الصورة: حسابات بيس (تنازلي) ← النقاط ← الخدمات (تصاعدي) */
@@ -382,7 +445,7 @@ async function showProfile(
     `<b>المعرّف:</b> ${user.username ? `@${escapeHtml(user.username)}` : "بلا يوزر"} • <code>${user.id}</code>`,
     "",
     `💰 <b>نقاطك:</b> <b>${balance}</b> نقطة`,
-    `📥 <b>جهاتك:</b> ${points.invites} — ⭐️ ${points.points}/${POINTS_MAX} نقطة`,
+    `⭐️ <b>نقاطي:</b> ${points.points}/${POINTS_MAX} نقطة`,
   ];
   if (banned) lines.push("", "🚫 حسابك محظور من استعمال البوت — كلّم المالك.");
   for (const c of active.slice(0, 3)) {
@@ -434,14 +497,14 @@ async function showReferralHome(
   }
 
   const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(
-    contest ? `🏆 مسابقة ${contest.title} — أول من يوصل ${contest.target} جهة يربح!` : "🏆 مسابقات FT",
+    contest ? `🏆 مسابقة ${contest.title} — أول من يوصل ${contest.target} يربح!` : "🏆 مسابقات FT",
   )}`;
   const text = [
     "🔗 <b>رابط الإحالة الخاص بك</b>",
     "",
     `<code>${escapeHtml(link)}</code>`,
     "",
-    "كل شخص يفتحه = جهة في رصيدك = نقطة ✅",
+    "كل شخص يفتحه = نقطة في رصيدك ✅",
   ].join("\n");
   const kb = keyboard([
     [{ text: "📣 مشاركة الرابط", url: share }],
@@ -504,7 +567,7 @@ export async function aiContext(user: BotUser, settings: Settings): Promise<stri
   return [
     `المستخدم: ${user.firstName || "صديق"} (${user.username ? "@" + user.username : "بلا معرف"}).`,
     `الاشتراك الإجباري: ${channels.length ? `مطلوب الاشتراك في هذه القنوات قبل استعمال البوت: ${channels.join(" ، ")}` : "غير مفروض"}.`,
-    `النقاط: ${points.points}/${POINTS_MAX} (${points.invites} جهة محسوبة) — كل ${POINTS_STEP} جهة = نقطة، و${POINTS_MAX} نقاط = جائزة عشوائية من المالك.`,
+    `النقاط: ${points.points}/${POINTS_MAX} — كل مسابقة تفرّح بنقطة، و${POINTS_MAX} نقاط = جائزة عشوائية من المالك. ما كاينش نظام آخر للعدّ — هدر غير على المسابقات، النقاط، والجوائز.`,
     `المسابقات: ${rows.length ? rows.join("\n") : "ما فيه مسابقة منشورة."}`,
     `المجموعة: ${group ? "مربوطة ومسابقة أسرع ضيف خدامة" : "ما زالت ما مربوطة"} (الهدف ${settings.groupTarget} ضيف).`,
     `المالك: ${ownerHandle(settings)}.`,
@@ -596,9 +659,9 @@ async function showContest(
   const text = [
     `🎯 <b>${escapeHtml(contest.title)}</b>`,
     `🎁 ${escapeHtml(contest.prize || "حساب FT كامل")}`,
-    isGroupMode(contest) ? "👥 الحساب: كل عضو يدخل المجموعة من رابطك = جهة" : "",
+    isGroupMode(contest) ? "👥 الحساب: كل ضيف كيدخل المجموعة من رابطك كيتحسب" : "",
     "",
-    `📊 جهاتك: <b>${mine}</b> / ${contest.target} — باقي <b>${remaining}</b>`,
+    `${isGroupMode(contest) ? "🏃 الضيوف" : "🔗 الدعوات"}: <b>${mine}</b> / ${contest.target} — باقي <b>${remaining}</b>`,
     progress(mine, contest.target),
     claim ? "✅ أنت فائز — اضغط «ربح الحساب» لاستلام بياناتك." : "",
     `👥 مشاركين: ${participants} • ${statusLabel(contest.status)}`,
@@ -674,7 +737,7 @@ async function showFastest(
   const text = [
     "🏃 <b>أسرع ضيف</b>",
     `🎯 الهدف: <b>${contest.target}</b> عضو في المجموعة`,
-    `📊 جهاتك: <b>${mine}</b> — باقي <b>${remaining}</b>`,
+    `🏃 الضيوف: <b>${mine}</b> — باقي <b>${remaining}</b>`,
     progress(mine, contest.target),
     "",
     `🏅 <b>الترتيب</b>\n${board}`,
@@ -713,7 +776,7 @@ async function showGroupInvite(chatId: number | string, user: BotUser, contest: 
           "🔗 <b>رابط الدعوة الخاص بك</b>",
           `<code>${escapeHtml(link)}</code>`,
           "",
-          "كل شخص يدخل من رابطك = جهة في رصيدك ✅",
+          "كل شخص يدخل من رابطك = نقطة في رصيدك ✅",
         ].join("\n"),
         keyboard([
           [{ text: "📣 مشاركة الرابط", url: share }],
@@ -744,7 +807,7 @@ async function showGroupInvite(chatId: number | string, user: BotUser, contest: 
       "🔗 <b>رابط الدعوة الخاص بك</b>",
       `<code>${escapeHtml(invite.link)}</code>`,
       "",
-      "كل عضو يدخل المجموعة من هذا الرابط = <b>جهة</b> في رصيدك.",
+      "كل ضيف كيدخل المجموعة من هاد الرابط كيتحسب لك.",
       "الطلب يُقبل تلقائياً فوراً ✅",
     ].join("\n"),
     keyboard([
@@ -764,7 +827,7 @@ function pointsLine(state: PointsState): string {
   if (state.reachedMax) {
     return `⭐️ النقاط: <b>${state.points}/${POINTS_MAX}</b> — كاملة 🎉`;
   }
-  return `⭐️ النقاط: <b>${state.points}/${POINTS_MAX}</b> — باقي <b>${state.toNext}</b> جهة للنقطة ${state.nextPoint}`;
+  return `⭐️ النقاط: <b>${state.points}/${POINTS_MAX}</b> — كل مسابقة تفرّح بنقطة`;
 }
 
 function pointsProgress(state: PointsState): string {
@@ -780,14 +843,14 @@ export async function notifyPointsMilestone(user: BotUser, settings: Settings, s
     ? [
         `🎉 <b>مبروك ${nameOf(user)}!</b>`,
         "",
-        `وصلت <b>${state.points}/${POINTS_MAX}</b> نقاط (كل ${POINTS_STEP} جهة = نقطة).`,
+        `وصلت <b>${state.points}/${POINTS_MAX}</b> نقاط 🏆`,
         `🎁 تواصل مع المالك ${owner} باش تستلم <b>جائزة عشوائية</b>.`,
       ].join("\n")
     : [
         `⭐️ <b>نقطة جديدة!</b> ${nameOf(user)}`,
         "",
-        `وصلت <b>${milestone}/${POINTS_MAX}</b> نقطة — كل ${POINTS_STEP} جهة = نقطة.`,
-        `باقي <b>${state.toNext}</b> جهة وتكمل ${POINTS_MAX} نقاط وتاخد جائزة عشوائية من المالك.`,
+        `وصلت <b>${milestone}/${POINTS_MAX}</b> نقطة — كمّل المسابقات باش تزيد نقاطك.`,
+        `من توصل <b>${POINTS_MAX}</b> نقاط تاخد جائزة عشوائية من المالك.`,
       ].join("\n");
   await sendMessage(
     user.id,
@@ -797,14 +860,15 @@ export async function notifyPointsMilestone(user: BotUser, settings: Settings, s
       [{ text: "🏁 المسابقات", callback_data: "home" }],
     ]),
   );
+  await sendStickerPack(user.id, "win", 1);
   await notifyAdmins(
-    `⭐️ <b>${nameOf(user)}</b> (@${escapeHtml(user.username || "—")}) وصل ${milestone} نقطة — ${state.invites} جهة.${
+    `⭐️ <b>${nameOf(user)}</b> (@${escapeHtml(user.username || "—")}) وصل ${milestone} نقطة.${
       maxed ? "\n🎁 جاهز لاستلام جائزة عشوائية." : ""
     }`,
   );
 }
 
-/** نزيد نقطة لصاحب الجهة بعد انضمام عضو للمجموعة (واحد فقط لكل انضمام) */
+/** نزيد نقطة لصاحب الرابط بعد انضمام عضو للمجموعة (واحد فقط لكل انضمام) */
 async function creditPointsForOwner(ownerId: string) {
   try {
     const user = await getUser(ownerId);
@@ -839,34 +903,36 @@ async function showPoints(
     "",
     pointsLine(state),
     pointsProgress(state),
-    `📥 مجموع جهاتك: <b>${state.invites}</b>`,
     "",
     `<b>رصيد المتجر:</b> <b>${await balanceOf(String(user.id))}</b> نقطة 🎁`,
     "",
-    `<b>كيفاش تخدم:</b> كل عضو يجي من رابطك للمجموعة = نقاط في رصيدك.`,
+    `<b>كيفاش تخدم:</b> ادخل المسابقات وشارك رابطك — كل مسابقة تفرّح بنقطة في رصيدك.`,
     `من توصل <b>${POINTS_MAX}</b> نقاط → تواصل مع المالك ${ownerHandle(settings)} لاستلام <b>جائزة عشوائية</b> 🎁`,
   ];
   if (state.reachedMax) {
     lines.push("", "✅ وصلت الحد الأقصى — المالك عندو علم ونستناك.");
   } else {
-    lines.push("", `📈 باقي <b>${state.toNext}</b> جهة للنقطة ${state.nextPoint}.`);
+    lines.push("", "📈 كمّل المسابقات والرابط تاعك — نقاطك غادي تزيد واحد واحد.");
   }
   if (top.length) {
     lines.push("", "<b>🥇 أحسن المشاركين في النقاط</b>");
     top.forEach((row, i) => {
       const name = names[i] ? escapeHtml(names[i]!.firstName) : row.userId;
-      lines.push(`${medals[i] || "▫️"} ${name} — <b>${row.points}</b> نقطة (${row.invites} جهة)`);
+      lines.push(`${medals[i] || "▫️"} ${name} — <b>${row.points}</b> نقطة`);
     });
   }
   const kb = keyboard([
     [{ text: "🎁 متجر الجوائز", callback_data: "shop" }],
     [{ text: "🚪 رابط الدخول للمجموعة", callback_data: "join" }],
     [{ text: `💬 مراسلة المالك ${ownerHandle(settings)}`, url: ownerUrl(settings) }],
-    [{ text: "🏃 اجمع جهات", callback_data: "fastest" }],
+    [{ text: "🏃 أسرع ضيف", callback_data: "fastest" }],
     backRow(),
   ]);
   if (messageId) await editMessage(chatId, messageId, lines.join("\n"), kb);
-  else await sendMessage(chatId, lines.join("\n"), kb);
+  else {
+    await sendMessage(chatId, lines.join("\n"), kb);
+    await sendStickerPack(chatId, "win", 1);
+  }
 }
 
 function isAdminUser(settings: Settings, userId: string | number): boolean {
@@ -953,7 +1019,10 @@ async function showShop(chatId: number | string, user: BotUser, messageId?: numb
   const text = shopText(balance, cfg, rewards);
   const kb = await shopKeyboard(rewards);
   if (messageId) await editMessage(chatId, messageId, text, kb);
-  else await sendMessage(chatId, text, kb);
+  else {
+    await sendMessage(chatId, text, kb);
+    await sendStickerPack(chatId, "shop", 1);
+  }
 }
 
 async function showReward(chatId: number | string, user: BotUser, rewardId: string, messageId?: number) {
@@ -1122,6 +1191,7 @@ async function decideRewardRequest(
     ? `🎉 <b>مبروك!</b>\n\n${req.emoji} <b>${escapeHtml(req.rewardTitle)}</b> تمت الموافقة عليها.\nالمالك راح يتواصل معك للتسليم.`
     : `😕 الطلب تاعك على ${req.emoji} <b>${escapeHtml(req.rewardTitle)}</b> ما تمّش.\nتم إرجاع <b>${req.cost}</b> نقطة لرصيدك.`;
   await sendMessage(req.userId, userMsg);
+  await sendStickerPack(req.userId, "win", 1);
 }
 
 async function showMine(
@@ -1192,11 +1262,11 @@ async function showLink(chatId: number | string, user: BotUser, contest: Contest
   }
   const link = referralLink(username, contest.id, user.id);
   const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(
-    `🏆 مسابقة ${contest.title} — أول من يوصل ${contest.target} جهة يربح!`,
+    `🏆 مسابقة ${contest.title} — أول من يوصل ${contest.target} يربح!`,
   )}`;
   await sendMessage(
     chatId,
-    ["🔗 <b>رابطك</b>", `<code>${link}</code>`, "", "كل شخص يفتحه = جهة في رصيدك ✅"].join("\n"),
+    ["🔗 <b>رابطك</b>", `<code>${link}</code>`, "", "كل شخص يفتحه = نقطة في رصيدك ✅"].join("\n"),
     keyboard([
       [{ text: "📣 مشاركة سريعة", url: share }],
       [{ text: "📊 دعواتي", callback_data: `mine:${contest.id}` }],
@@ -1247,7 +1317,7 @@ async function showTop(
     "",
     lines,
     "",
-    `📊 جهاتك: <b>${mine}</b> / ${target.target}`,
+    `🏃 الضيوف: <b>${mine}</b> / ${target.target}`,
   ].join("\n");
 
   const kb = keyboard([
@@ -1327,6 +1397,7 @@ async function attemptGrant(contest: Contest, user: BotUser): Promise<GrantOutco
       "⚠️ غيّر كلمة السر فوراً.",
     ].join("\n"),
   );
+  await sendStickerPack(user.id, "win", 2);
 
   await notifyAdmins(
     [
@@ -1450,7 +1521,7 @@ async function creditReferral(contest: Contest | null, inviterId: string, newUse
   const count = await store.zIncr(`contest:${contest.id}:score`, inviterId, 1);
   // 🧱 بصمة «تحسبات» حتى هي — باش الإصلاح التلقائي ما يعاودش يحسبها
   await store.set(`refbtot:${contest.id}:${newUser.id}`, Date.now());
-  // 💰 نقاط المتجر: كل جهة دخلت من رابطك = نقاط في رصيدك (كتتحسب هنا، ماشي غير من الويب-هوك
+  // 💰 نقاط المتجر: كل ضيف داخل من رابطك = نقاط في رصيدك (كتتحسب هنا، ماشي غير من الويب-هوك
   //    ديال المجموعة — يعني حتى البوت ماكونش أدمن فالمجموعة النقاط كتنحسب عادي)
   try {
     const { creditInvite } = await import("./rewards");
@@ -1472,7 +1543,7 @@ async function creditReferral(contest: Contest | null, inviterId: string, newUse
   return { counted: true, count };
 }
 
-/** إشعار صاحب الرابط بجهة جديدة (رسالة قصيرة) */
+/** إشعار صاحب الرابط بضيف جديد (رسالة قصيرة) */
 async function notifyOwnerOfReferral(
   contest: Contest,
   owner: BotUser,
@@ -1484,7 +1555,7 @@ async function notifyOwnerOfReferral(
   const text =
     remaining > 0
       ? [
-          `➕ <b>جهة جديدة</b> — ${escapeHtml(joinerName || "عضو")}`,
+          `➕ <b>ضيف جديد</b> — ${escapeHtml(joinerName || "عضو")}`,
           `📊 ${count} / ${contest.target} — باقي <b>${remaining}</b>`,
           progress(count, contest.target),
         ].join("\n")
@@ -1527,7 +1598,7 @@ async function announceGroupLinked(chatId: number | string, settings: Settings, 
       "✅ <b>تم ربط المجموعة بنظام أسرع ضيف</b>",
       `🏆 المسابقة: ${escapeHtml(title)}`,
       "",
-      "كل عضو يضيفه المشارك من رابطه الخاص = جهة في رصيده.",
+      "كل ضيف يضيفه المشارك من رابطه الخاص كيتحسب له.",
       "المشارك يفتح البوت ← «🏃 أسرع ضيف» ← ياخذ رابطه وينشره.",
     ].join("\n"),
     keyboard([
@@ -1611,7 +1682,7 @@ async function handleJoinRequest(
 
   const settingsNow = await getSettings();
   if (result.contest.target <= result.count) {
-    const text = `🎉 <b>هدف «${escapeHtml(result.contest.title)}» اكتمل</b> — صاحب الجهات: ${escapeHtml(
+    const text = `🎉 <b>هدف «${escapeHtml(result.contest.title)}» اكتمل</b> — الرابح: ${escapeHtml(
       owner?.firstName || result.ownerId,
     )}`;
     await notifyAdmins(text);
@@ -1674,7 +1745,7 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
     }
     await sendMessage(
       chat.id,
-      `➕ جهة جديدة لـ ${escapeHtml(owner?.firstName || "مشارك")} — ${credit.count}/${credit.contest.target}`,
+      `➕ ضيف جديد لـ ${escapeHtml(owner?.firstName || "مشارك")} — ${credit.count}/${credit.contest.target}`,
     );
   }
 
@@ -1900,7 +1971,7 @@ async function handleMessageInner(message: TgMessage) {
         await showContest(chatId, user, contest);
         return;
       }
-      // 🛟 رابط ديال مسابقة مشات: نحسبو الجهة على النشطة و نوجهو المستخدم ليها
+      // 🛟 رابط ديال مسابقة مشات: نحسبو الضيف على النشطة و نوجهو المستخدم ليها
       if (inviterId) {
         await creditReferral(null, inviterId, user);
         const actives = (await listContests()).filter((c) => c.status === "active");
@@ -1936,6 +2007,10 @@ async function handleMessageInner(message: TgMessage) {
   }
   if (command === "/fastest") {
     await showFastest(chatId, user, settings);
+    return;
+  }
+  if (command === "/stickers" || command === "/packs" || command === "/emoji") {
+    await showStickers(chatId);
     return;
   }
   if (command === "/owner" || command === "/support") {
@@ -2116,6 +2191,9 @@ async function handleCallback(query: TgCallbackQuery) {
       return;
     case "services":
       await showServices(chatId, user, messageId);
+      return;
+    case "stickers":
+      await showStickers(chatId, messageId);
       return;
     case "about":
       await showAbout(chatId, settings, messageId);

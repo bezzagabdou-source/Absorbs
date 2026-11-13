@@ -16,6 +16,7 @@ export const BOT_COMMANDS = [
   { command: "ref", description: "رابط الإحالة" },
   { command: "rules", description: "الشروط" },
   { command: "ai", description: "المساعد الذكي — اسأل أي حاجة" },
+  { command: "stickers", description: "🎭 ملصقات البوت المتحركة" },
   { command: "owner", description: "مالك البوت" },
 ];
 

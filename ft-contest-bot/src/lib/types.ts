@@ -1,9 +1,9 @@
 export type ContestStatus = "draft" | "active" | "ended";
 
 /**
- * طريقة حساب الجهات:
- *  - referral: كل شخص يفتح رابط البوت = جهة
- *  - group:    كل شخص يدخل المجموعة من رابطك = جهة (مسابقة أسرع ضيف)
+ * طريقة حساب الضيوف:
+ *  - referral: كل شخص يفتح رابط البوت = ضيف
+ *  - group:    كل شخص يدخل المجموعة من رابطك = ضيف (مسابقة أسرع ضيف)
  */
 export type ContestMode = "referral" | "group";
 
@@ -11,7 +11,7 @@ export type Contest = {
   id: string;
   title: string;
   description: string;
-  /** عدد الجهات المطلوب للفوز */
+  /** عدد الضيوف المطلوب للفوز */
   target: number;
   /** وصف الجائزة */
   prize: string;
@@ -99,8 +99,8 @@ export const WELCOME_TEXT = [
 
 export const OWNER_USERNAME = "F_Y_Y_T";
 
-/** كل 100 جهة = نقطة واحدة، و3 نقاط = جائزة عشوائية من المالك */
-/** كم جهة خاصة بيدّ نقطة واحدة (قابل للتغيير بـ POINTS_STEP في متغيّرات البيئة) */
+/** كل 100 ضيف = نقطة واحدة، و3 نقاط = جائزة عشوائية من المالك */
+/** كم ضيف خاصة بيدّ نقطة واحدة (قابل للتغيير بـ POINTS_STEP في متغيّرات البيئة) */
 export const POINTS_STEP = Math.max(1, Number(process.env.POINTS_STEP) || 100);
 /** الحد الأقصى ديال نقاط الإحالة */
 export const POINTS_MAX = Math.max(1, Number(process.env.POINTS_MAX) || 3);
@@ -126,6 +126,6 @@ export const DEFAULT_SETTINGS: Settings = {
   aiEnabled: true,
   aiModel: "",
   welcomeText: WELCOME_TEXT,
-  rulesText: "📜 <b>الشروط</b>\n\n1️⃣ كل شخص جديد من رابطك = جهة\n2️⃣ ممنوع الحسابات الوهمية\n3️⃣ أول من يوصل الهدف يربح\n\nبالتوفيق 🍀",
+  rulesText: "📜 <b>الشروط</b>\n\n1️⃣ كل شخص جديد من رابطك = ضيف\n2️⃣ ممنوع الحسابات الوهمية\n3️⃣ أول من يوصل الهدف يربح\n\nبالتوفيق 🍀",
   webhookSecret: "",
 };

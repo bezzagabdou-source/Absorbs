@@ -2,7 +2,7 @@ import { getStore } from "./store";
 import { POINTS_MAX, POINTS_STEP } from "./types";
 
 /* ══════════════════════════════════════════════════════════════════════════
-   نظام النقاط: كل 100 جهة يضيفها المستخدم = نقطة واحدة.
+   نظام النقاط: كل 100 ضيف يضيفها المستخدم = نقطة واحدة.
    عند 3 نقاط → البوت يقول للمستخدم يتواصل مع المالك لاستلام جائزة عشوائية.
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -11,11 +11,11 @@ const TOP_KEY = "points:top";
 const notifiedKey = (userId: string, points: number) => `points:reward:${userId}:${points}`;
 
 export type PointsState = {
-  /** مجموع الجهات المحسوبة للنقاط */
+  /** مجموع الضيوف المحسوبة للنقاط */
   invites: number;
-  /** عدد النقاط الحالية (كل 100 جهة = نقطة، بحد أقصى 3) */
+  /** عدد النقاط الحالية (كل 100 ضيف = نقطة، بحد أقصى 3) */
   points: number;
-  /** كم جهة باقية للنقطة القادمة */
+  /** كم ضيف باقية للنقطة القادمة */
   toNext: number;
   /** رقم النقطة القادمة (1..3) */
   nextPoint: number;
@@ -44,7 +44,7 @@ export async function getPointsState(userId: string): Promise<PointsState> {
 }
 
 /**
- * نزيد جهة واحدة لرصيد النقاط.
+ * نزيد ضيف واحدة لرصيد النقاط.
  * ترجع `milestone` إذا وصل المستخدم لنقطة جديدة لأول مرة (باش نبعثو رسالة واحدة فقط لكل نقطة).
  */
 export async function creditPoints(userId: string, amount = 1): Promise<{ state: PointsState; milestone: number | null }> {

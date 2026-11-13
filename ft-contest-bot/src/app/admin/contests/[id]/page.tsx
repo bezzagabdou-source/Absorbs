@@ -115,11 +115,11 @@ export default async function ContestDetailPage({
       <div className="stats">
         <div className="stat">
           <b>{participants}</b>
-          <span>مشارك (عندهم جهات)</span>
+          <span>مشارك (عندهم ضيوف)</span>
         </div>
         <div className="stat">
           <b>{topScore}</b>
-          <span>أعلى رصيد جهات</span>
+          <span>أعلى رصيد ضيوف</span>
         </div>
         <div className="stat">
           <b>{stock}</b>
@@ -190,7 +190,7 @@ export default async function ContestDetailPage({
               <input name="title" defaultValue={contest.title} required />
             </label>
             <label className="field">
-              <span>عدد الجهات المطلوب</span>
+              <span>عدد الضيوف المطلوب</span>
               <input name="target" type="number" min={1} defaultValue={contest.target} required />
             </label>
             <label className="field">
@@ -344,7 +344,7 @@ export default async function ContestDetailPage({
                   <th>#</th>
                   <th>المستخدم</th>
                   <th>الآي دي</th>
-                  <th>الجهات</th>
+                  <th>الضيوف</th>
                   <th>التقدّم</th>
                 </tr>
               </thead>

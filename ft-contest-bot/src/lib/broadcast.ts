@@ -84,7 +84,7 @@ function blank(partial: Partial<BcJob> = {}): BcJob {
   };
 }
 
-/** ملخّص صالح للواجهة (بلا لائحة IDs الطويلة) */
+/** ملخّص صالح للوحة (بلا لائحة IDs الطويلة) */
 export function view(job: BcJob | null) {
   if (!job) return null;
   const done = Math.min(job.cursor, job.total);

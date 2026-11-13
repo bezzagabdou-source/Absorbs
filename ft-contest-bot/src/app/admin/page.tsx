@@ -200,12 +200,12 @@ export default async function DashboardPage({
 
       <div className="card">
         <div className="card-title">
-          <h2>⭐ النقاط (كل 100 جهة = نقطة)</h2>
+          <h2>⭐ النقاط (كل 100 ضيف = نقطة)</h2>
           <span className="hint">{pointsReady} جاهز للجائزة</span>
         </div>
         {pointsTop.length === 0 ? (
           <p className="muted">
-            ما كاينش نقاط بعد — كل 100 جهة كتزيدها في المجموعة كتعطي نقطة، ومن يوصل 3 نقاط البوت
+            ما كاينش نقاط بعد — كل 100 ضيف كتزيدها في المجموعة كتعطي نقطة، ومن يوصل 3 نقاط البوت
             كيقولو يتواصل معاك لجائزة عشوائية 🎁
           </p>
         ) : (
@@ -215,7 +215,7 @@ export default async function DashboardPage({
                 const person = pointsNames[i];
                 const name = person?.firstName || row.userId;
                 const handle = person?.username ? ` (@${person.username})` : "";
-                return `${i + 1}. ${name}${handle} — ⭐ ${row.points}/3 (${row.invites} جهة)`;
+                return `${i + 1}. ${name}${handle} — ⭐ ${row.points}/3 (${row.invites} ضيف)`;
               })
               .join("\n")}
           </div>
@@ -235,7 +235,7 @@ export default async function DashboardPage({
         {enriched.length === 0 ? (
           <p className="muted">
             ما فيه مسابقات بعد.{" "}
-            <Link href="/admin/contests">أنشئ أول مسابقة</Link> — حدّد 200 جهة وأضف الحسابات.
+            <Link href="/admin/contests">أنشئ أول مسابقة</Link> — حدّد 200 ضيف وأضف الحسابات.
           </p>
         ) : (
           <div className="table-wrap">
@@ -261,7 +261,7 @@ export default async function DashboardPage({
                     <td>
                       <StatusBadge status={contest.status} />
                     </td>
-                    <td>{contest.target} جهة</td>
+                    <td>{contest.target} ضيف</td>
                     <td>
                       <span className={stock === 0 ? "badge badge-ended" : "badge badge-active"}>
                         {stock}

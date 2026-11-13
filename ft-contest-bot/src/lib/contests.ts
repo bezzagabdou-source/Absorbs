@@ -91,7 +91,7 @@ export async function deleteContest(id: string): Promise<void> {
   );
 }
 
-/* ───────────────────────── الجهات / المتصدّرون ───────────────────────── */
+/* ───────────────────────── الضيوف / المتصدّرون ───────────────────────── */
 
 export async function getReferralCount(contestId: string, userId: string | number): Promise<number> {
   return getStore().zScore(contestKeys(contestId).score, String(userId));

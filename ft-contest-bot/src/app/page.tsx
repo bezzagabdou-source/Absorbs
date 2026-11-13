@@ -64,7 +64,7 @@ export default async function LandingPage() {
           <span className="brand-mark">🏆</span>
           <span>
             مسابقات FT
-            <small>اربح حسابات بالجهات — بوت تيليغرام</small>
+            <small>اربح حسابات بالضيوف — بوت تيليغرام</small>
           </span>
         </div>
         <nav className="row">
@@ -81,15 +81,15 @@ export default async function LandingPage() {
 
       <main className="landing">
         <section className="hero">
-          <span className="eyebrow">⚡️ مسابقة بعدد جهات محدود — أول من يوصل يفوز</span>
+          <span className="eyebrow">⚡️ مسابقة بعدد ضيوف محدود — أول من يوصل يفوز</span>
           <h1>
-            اجمع <span className="gradient-text">200 جهة</span>
+            اجمع <span className="gradient-text">200 ضيف</span>
             <br />
             واربح الحساب كامل 🎁
           </h1>
           <p className="lead">
-            مسابقات FT على تيليغرام: كل شخص يدخل من رابطك = جهة في رصيدك، وكل عضو تضيفه لمجموعتنا
-            = جهة في مسابقة «أسرع ضيف». أول من يوصل الهدف يستلم إيميل وكلمة سر الحساب فوراً.
+            مسابقات FT على تيليغرام: كل شخص يدخل من رابطك = ضيف في رصيدك، وكل عضو تضيفه لمجموعتنا
+            = ضيف في مسابقة «أسرع ضيف». أول من يوصل الهدف يستلم إيميل وكلمة سر الحساب فوراً.
           </p>
           <div className="hero-actions">
             {botLink ? (
@@ -136,7 +136,7 @@ export default async function LandingPage() {
           <div className="card">
             <h3>ما فيه مسابقات بعد 🕒</h3>
             <p className="muted">
-              من لوحة التحكم أضف مسابقة جديدة، حدّد عدد الجهات (مثلاً 200)، أضف الحسابات في
+              من لوحة التحكم أضف مسابقة جديدة، حدّد عدد الضيوف (مثلاً 200)، أضف الحسابات في
               المخزون، ثم فعّل المسابقة وستظهر هنا مباشرة.
             </p>
             <Link className="btn btn-primary btn-sm" href="/admin/contests">
@@ -162,7 +162,7 @@ export default async function LandingPage() {
                   <div className="row" style={{ justifyContent: "space-between" }}>
                     {statusBadge(contest.status)}
                               <span className="badge badge-gold">
-                      {contest.mode === "group" ? "🏃" : "🎯"} {contest.target} جهة
+                      {contest.mode === "group" ? "🏃" : "🎯"} {contest.target} ضيف
                     </span>
                   </div>
                   <h3>{contest.title}</h3>
@@ -198,16 +198,16 @@ export default async function LandingPage() {
           </div>
           <div className="step">
             <b>2</b>
-            <h4>اجمع الجهات</h4>
+            <h4>اجمع الضيوف</h4>
             <p className="small">
-              كل شخص جديد يدخل من رابطك = جهة. البوت يحسبها لك تلقائياً ويعرض رصيدك وترتيبك.
+              كل شخص جديد يدخل من رابطك = ضيف. البوت يحسبها لك تلقائياً ويعرض رصيدك وترتيبك.
             </p>
           </div>
           <div className="step">
             <b>3</b>
             <h4>أسرع ضيف في المجموعة</h4>
             <p className="small">
-              البوت مربوط بمجموعة FT: كل مشارك ياخذ رابط دعوة خاص، وكل عضو يدخل منه = جهة. الطلبات
+              البوت مربوط بمجموعة FT: كل مشارك ياخذ رابط دعوة خاص، وكل عضو يدخل منه = ضيف. الطلبات
               تُقبل تلقائياً والترتيب يتحدّث مباشرة.
             </p>
           </div>

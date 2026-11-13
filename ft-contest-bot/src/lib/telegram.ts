@@ -242,6 +242,23 @@ export async function tgCall<T = unknown>(
         } as unknown as T,
       };
     }
+    if (method === "getStickerSet") {
+      const setName = String(payload.name || "ftmock");
+      return {
+        ok: true,
+        result: {
+          name: setName,
+          title: `FT Mock · ${setName}`,
+          is_animated: true,
+          is_video: false,
+          stickers: [1, 2, 3].map((n) => ({
+            emoji: ["🔥", "⭐️", "🎁"][n - 1],
+            is_video: false,
+            video: { file_id: `mocksticker_${setName}_${n}`, file_unique_id: `u_${setName}_${n}` },
+          })),
+        } as unknown as T,
+      };
+    }
     if (method === "sendSticker") {
       return {
         ok: true,

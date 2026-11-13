@@ -68,7 +68,7 @@ export default async function BroadcastPage({
               rows={6}
               required
               defaultValue={draft?.text || ""}
-              placeholder={"🏆 مسابقة جديدة!\n200 جهة وأول واحد يربح حساب FT كامل.\nافتح البوت واضغط «المسابقات» 👇"}
+              placeholder={"🏆 مسابقة جديدة!\n200 ضيف وأول واحد يربح حساب FT كامل.\nافتح البوت واضغط «المسابقات» 👇"}
             />
           </label>
           <label className="field">

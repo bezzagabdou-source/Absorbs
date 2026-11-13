@@ -1,6 +1,6 @@
 /**
  * طبقة تخزين موحّدة (Key/Value + Sets + Sorted sets + Lists)
- * تدعم ثلاث واجهات خلفية تلقائياً:
+ * تدعم ثلاث واضيوف خلفية تلقائياً:
  *   1. Upstash Redis / Vercel KV  (REST)  → الأسرع والأرخص
  *   2. Postgres (Neon / Supabase / Vercel Postgres)
  *   3. ذاكرة محلية + ملف JSON (للتطوير فقط)

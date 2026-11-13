@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   const target = Number(body.target) > 0 ? Number(body.target) : 200;
   const contest = await createContest({
     title: body.title || "مسابقة FT — حساب بريميوم",
-    description: "أول من يجمع العدد المطلوب من الجهات يربح الحساب فوراً.",
+    description: "أول من يجمع العدد المطلوب من الضيوف يربح الحساب فوراً.",
     target,
     prize: "حساب FT بريميوم — إيميل + كلمة سر",
     status: "active",

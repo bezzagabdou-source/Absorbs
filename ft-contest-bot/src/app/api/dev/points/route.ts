@@ -7,7 +7,7 @@ import { getUser } from "@/lib/users";
 
 export const dynamic = "force-dynamic";
 
-/** محاكاة فقط: نمنح جهات لمستخدم باش نختبرو النقاط (معطل في الإنتاج) */
+/** محاكاة فقط: نمنح ضيوف لمستخدم باش نختبرو النقاط (معطل في الإنتاج) */
 export async function POST(request: NextRequest) {
   if (!isMock()) return NextResponse.json({ ok: false, error: "mock disabled" }, { status: 404 });
   const body = (await request.json().catch(() => ({}))) as {

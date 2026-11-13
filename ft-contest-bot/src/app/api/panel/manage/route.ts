@@ -126,6 +126,16 @@ export async function GET(request: NextRequest) {
       const users = await Promise.all(rows.map((r) => getUser(r.member)));
       return reply({ ok: true, contest: cleanContest(contest), leaderboard: rows.map((r, i) => ({ id: r.member, count: r.score, name: users[i]?.firstName || "", username: users[i]?.username || "" })) });
     }
+    if (view === "stickers") {
+      const st = await import("@/lib/stickers");
+      return reply({
+        ok: true,
+        stickers: await st.describeStickers(),
+        emojiPacks: st.EMOJI_SETS,
+        gallery: "/api/stickers/gallery",
+        note: "الملصقات حيّة فكل شاشات البوت (الترحيب، المميزات، المتجر، الخدمات، النقاط، الترتيب، الربح).",
+      });
+    }
     return fail("عرض غير معروف", 404);
   } catch (error) {
     if (error instanceof Error && error.message === "البث غير موجود") return fail(error.message, 404);
@@ -138,6 +148,28 @@ export async function POST(request: NextRequest) {
   try {
     const body = object(await request.json().catch(() => ({})));
     const op = String(body.op || "");
+    // 🎭 الملصقات والإيموجي المخصّص (نفس اللي فاللوحة الداخلية)
+    if (op === "stickers_save" || op === "stickers_refresh" || op === "emoji_import") {
+      const st = await import("@/lib/stickers");
+      if (op === "stickers_refresh") return reply({ ok: true, refresh: await st.refreshStickers() });
+      if (op === "stickers_save") {
+        const sets = object(body.sets);
+        for (const [kind, raw] of Object.entries(sets)) {
+          const list = Array.isArray(raw) ? (raw as unknown[]) : invalid("قائمة النشرات غير صالحة");
+          if (!/^[a-z_]{3,12}$/.test(kind)) invalid("صنف غير معروف");
+          for (const n of list) if (typeof n !== "string" || !/^[A-Za-z0-9_]{3,64}$/.test(n)) invalid("اسم النشر غير صالح (حروف/أرقام/_ فقط)");
+        }
+        const saved = await st.saveStickerSets(sets as Record<string, string[]>);
+        const refresh = await st.refreshStickers();
+        await pushAdminLog({ at: Date.now(), op: "stickers_save", detail: `${Object.keys(saved.sets).join(",")} · ${refresh.ready}/${refresh.of} جاهز`, via: "panel" });
+        return reply({ ok: true, saved, refresh, stickers: await st.describeStickers() });
+      }
+      const name = str(body.pack || body.name || "", "اسم النشر", 64, true);
+      const res = await st.importEmojiPack(name);
+      await pushAdminLog({ at: Date.now(), op: "emoji_import", detail: `${name}: ${res.message}`, via: "panel" });
+      return reply(res.ok ? { ...res } : { ok: false, error: res.message }, res.ok ? 200 : 400);
+    }
+
     if (op === "contest_save") {
       const input = object(body.contest);
       // 🧩 كامل الكائن كيتقبل (id/imageUrl/التواريخ) — التواريخ كتهمّل

@@ -279,7 +279,7 @@ export async function backfillReferrals(chatId?: string | number): Promise<FixRe
   }
   if (restored) notes.push(`🕰️ استرجعنا ${restored} إحالة قديمة كانت ضايعة (المسابقة تبدلات)`);
 
-  notes.push(`تمّ حساب ${fixed} جهة لـ ${touched.size} مشارك (المسابقة: ${contest.title})`);
+  notes.push(`تمّ حساب ${fixed} ضيف لـ ${touched.size} مشارك (المسابقة: ${contest.title})`);
   if (skipped) notes.push(`${skipped} كانو محسوبين من قبل — ما تبدّل والو`);
   return { fixed, skipped, contests: [contest.id], notes };
 }
@@ -287,7 +287,7 @@ export async function backfillReferrals(chatId?: string | number): Promise<FixRe
 /* ══════════════════════════════════════════════════════════════════════════
    ♻️ إعادة حساب نقاط الإحالات القديمة
    كنقراو سجل الإحالات (referrals:log) + scores ديال المسابقات، وكنديرو لكل
-   واحد نقاط المتجر اللي خاصو (perJoin لكل جهة) — بعلامة refpts:* باش ما تتكررش.
+   واحد نقاط المتجر اللي خاصو (perJoin لكل ضيف) — بعلامة refpts:* باش ما تتكررش.
    ══════════════════════════════════════════════════════════════════════════ */
 
 export type RecountResult = {
@@ -406,7 +406,7 @@ export async function recountReferralPoints(apply = false, maxRows = 4000): Prom
   }
   wouldCredit = totalOwed;
 
-  if (!rows.length) notes.push("سجل الإحالات خاوي — ما كاين حتى جهة مسجلة باش تعاد الحسبة.");
+  if (!rows.length) notes.push("سجل الإحالات خاوي — ما كاين حتى ضيف مسجلة باش تعاد الحسبة.");
   if (apply && !credited) notes.push("كل الإحالات عندها نقاط من قبل — ما كاين ما يعاود يتحسب.");
   seenInRun.clear();
 
@@ -422,5 +422,5 @@ export async function recountReferralPoints(apply = false, maxRows = 4000): Prom
   };
 }
 
-/** بصمة داخل نفس العملية (باش ما نحسبوش نفس الجهة مرتين في نفس الـrun) */
+/** بصمة داخل نفس العملية (باش ما نحسبوش نفس الضيف مرتين في نفس الـrun) */
 const seenInRun = new Set<string>();

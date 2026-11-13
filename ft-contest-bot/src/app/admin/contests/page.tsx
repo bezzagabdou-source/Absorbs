@@ -32,7 +32,7 @@ export default async function ContestsPage({
         <div>
           <h1>المسابقات</h1>
           <p className="muted">
-            كل مسابقة = هدف بعدد الجهات + مخزون حسابات. أول من يكمل الهدف يستلم الحساب.
+            كل مسابقة = هدف بعدد الضيوف + مخزون حسابات. أول من يكمل الهدف يستلم الحساب.
           </p>
         </div>
       </div>
@@ -76,12 +76,12 @@ export default async function ContestsPage({
           <div className="grid-2">
             <label className="field">
               <span>عنوان المسابقة</span>
-              <input name="title" required placeholder="مسابقة FT — 200 جهة" />
+              <input name="title" required placeholder="مسابقة FT — 200 ضيف" />
             </label>
             <label className="field">
-              <span>عدد الجهات المطلوب</span>
+              <span>عدد الضيوف المطلوب</span>
               <input name="target" type="number" min={1} defaultValue={200} required />
-              <small>مثال: 200 — أي أول من يجمع 200 جهة يربح.</small>
+              <small>مثال: 200 — أي أول من يجمع 200 ضيف يربح.</small>
             </label>
             <label className="field">
               <span>الجائزة</span>
@@ -93,9 +93,9 @@ export default async function ContestsPage({
               <small>1 = أول واحد فقط يوصل. أكثر من 1 = كل من يوصل يأخذ حساب.</small>
             </label>
             <label className="field">
-              <span>طريقة حساب الجهات</span>
+              <span>طريقة حساب الضيوف</span>
               <select name="mode" defaultValue="referral">
-                <option value="referral">🔗 رابط البوت (كل شخص يفتحه = جهة)</option>
+                <option value="referral">🔗 رابط البوت (كل شخص يفتحه = ضيف)</option>
                 <option value="group">🏃 أسرع ضيف (أعضاء المجموعة)</option>
               </select>
               <small>«أسرع ضيف» يحسب كل عضو يدخل مجموعتك من رابط دعوة المشارك.</small>
