@@ -548,6 +548,9 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
           <button className="btn2 sm" onClick={() => void refreshStickers()} disabled={busy === "sticker"}>
             🔄 أنعش
           </button>
+          <a className="btn2 sm" href="/api/admin2?what=stickers_test" target="_blank" rel="noopener">
+            🎬 جرّب الملصقات الآن
+          </a>
           <a className="btn2 sm" href="/api/stickers/gallery" target="_blank" rel="noopener">
             🖼 معرض الملصقات
           </a>

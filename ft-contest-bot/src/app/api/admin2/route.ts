@@ -293,7 +293,7 @@ export async function GET(req: NextRequest) {
         emojiPacks: EMOJI_SETS,
         gallery: "/api/panel/stickers",
         style: String(process.env.STICKER_STYLE ?? "1") !== "0" ? "on" : "off",
-        note: 'بدّل النشرات بـ {"welcome":["pug"],"more":["Like"]} فـ action=stickers_save — وكلشي بان بلا إعدادات.',
+        note: 'بدّل النشرات بـ {"welcome":["FredThePug","ChappyBunny"],"more":["HotCherry"]} فـ action=stickers_save — وكلشي بان بلا إعدادات.',
       });
     }
     if (what === "stickers_gallery") {
@@ -305,6 +305,24 @@ export async function GET(req: NextRequest) {
     if (what === "stickers_refresh") {
       const { refreshStickers } = await import("@/lib/stickers");
       return ok({ refresh: await refreshStickers() });
+    }
+    // 🎬 اختبار حيّ: صيفط ملصق حقيقي لشات (المالك بالأساس) وقول آش تصيفط فعلاً
+    if (what === "stickers_test") {
+      const { sendStickers } = await import("@/lib/stickers");
+      const settings0 = await getSettings();
+      const chat =
+        url.searchParams.get("chat") ||
+        String(settings0.adminIds?.[0] || (/^\d+$/.test(String(settings0.ownerUsername || "")) ? settings0.ownerUsername : "")) ||
+        "";
+      if (!chat) return bad("زيد chat=<id> — ما لقيناه حتى معرّف للمالك", 400);
+      const kind = (url.searchParams.get("kind") || "welcome") as "welcome" | "react" | "more" | "win" | "shop";
+      const count = Math.max(1, Math.min(3, Number(url.searchParams.get("count")) || 2));
+      const sent = await sendStickers(chat, kind, count);
+      await pushAdminLog({ at: Date.now(), op: "stickers_test", detail: `chat ${chat} · ${kind} · ${sent}/${count}`, via: "panel" });
+      return ok({
+        test: { chat, kind, requested: count, sent, ok: sent > 0 },
+        hint: sent > 0 ? "✅ الملصقات كتوصل — شوف شاتك فـ تيليجرام" : "⚠️ ما وصل والو: تحقق من التوكن/الشبكة (STICKER_STYLE ماشي 0)",
+      });
     }
 
     // 🎭 حالة الإيموجيات/الملصقات (المينيوم ديال /emojistrans → دابا في اللوحة)

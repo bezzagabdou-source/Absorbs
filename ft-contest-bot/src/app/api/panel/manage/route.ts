@@ -149,9 +149,16 @@ export async function POST(request: NextRequest) {
     const body = object(await request.json().catch(() => ({})));
     const op = String(body.op || "");
     // 🎭 الملصقات والإيموجي المخصّص (نفس اللي فاللوحة الداخلية)
-    if (op === "stickers_save" || op === "stickers_refresh" || op === "emoji_import") {
+    if (op === "stickers_save" || op === "stickers_refresh" || op === "stickers_test" || op === "emoji_import") {
       const st = await import("@/lib/stickers");
       if (op === "stickers_refresh") return reply({ ok: true, refresh: await st.refreshStickers() });
+      if (op === "stickers_test") {
+        const chat = typeof body.chat === "string" || typeof body.chat === "number" ? String(body.chat).trim() : "";
+        if (!/^\d{2,20}$/.test(chat)) invalid("معرّف الشات غير صالح");
+        const kind = str(body.kind || "welcome", "الصنف", 12);
+        const sent = await st.sendStickers(chat, (["welcome", "react", "more", "win", "shop"].includes(kind) ? kind : "welcome") as "welcome");
+        return reply({ ok: true, sent, chat, kind });
+      }
       if (op === "stickers_save") {
         const sets = object(body.sets);
         for (const [kind, raw] of Object.entries(sets)) {
