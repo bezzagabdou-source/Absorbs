@@ -64,7 +64,7 @@ import { getUser, touchUser } from "./users";
 
 /* ───────────────────────────── helpers ───────────────────────────── */
 
-type Button = { text: string; callback_data?: string; url?: string };
+type Button = { text: string; callback_data?: string; url?: string; style?: "danger" | "success" | "primary" };
 
 function keyboard(rows: Button[][]): InlineKeyboard {
   return { inline_keyboard: rows };
@@ -282,17 +282,7 @@ async function showServices(chatId: number | string, user: BotUser, messageId?: 
     "",
     services.length ? "اختر الخدمة:" : "ما زال ماكانش خدمات — المالك يزيدها من اللوحة.",
   ];
-  const rows: Button[][] = services.map((r) => {
-    const soldOut = r.stock !== null && r.stock <= 0;
-    return [
-      {
-        text: soldOut
-          ? `${r.emoji} ${r.title} — ${r.cost} نقطة ( غير متوفر الآن 🚫 )`
-          : `${r.emoji} ${r.title} — ${r.cost} نقطة`,
-        callback_data: `buy:${r.id}`,
-      },
-    ];
-  });
+  const rows: Button[][] = rewardGridRows(services);
   rows.push([{ text: "⬅️ مميزات وأدوات", callback_data: "more" }]);
   rows.push([{ text: "🏠 القائمة الرئيسية", callback_data: "home" }]);
   const kb = keyboard(rows);
@@ -893,11 +883,12 @@ function rewardGridRows(rewards: Reward[]): Button[][] {
   return rewards.map((r) => {
     const soldOut = r.stock !== null && r.stock <= 0;
     return [
+      { text: `⭐️ ${r.cost} نقطة`, callback_data: `buy:${r.id}`, style: "danger" },
       {
         text: soldOut ? `${r.emoji} ${r.title} 🚫` : `${r.emoji} ${r.title}`,
         callback_data: `buy:${r.id}`,
+        style: "success",
       },
-      { text: `${r.cost} نقطة ⭐️`, callback_data: `buy:${r.id}` },
     ];
   });
 }
