@@ -15,7 +15,7 @@ import {
 import { getRuntime, saveCaps } from "./emojiState";
 import { backoffDelay } from "./retry";
 import { logError } from "./errors";
-import { resolveBotToken, resolveSecondBotToken } from "./token";
+import { resolveBotToken, resolveSecondBotToken, preferredBotToken, rememberGoodToken } from "./token";
 
 /**
  * 🧩 تشغيل أكثر من بوت على نفس الكود ونفس البيانات.
@@ -28,7 +28,8 @@ export function runWithBotToken<T>(token: string, fn: () => Promise<T>): Promise
 }
 
 export function currentBotToken(): string {
-  return tokenCtx.getStore()?.token || "";
+  // أولوية: توكن البوت الثاني (سياق النداء) ← التوكن المؤكَّد من تيليغرام ← الأساسي
+  return tokenCtx.getStore()?.token || preferredBotToken() || "";
 }
 
 /** البوت الثاني (اختياري): توكن إضافي عبر TELEGRAM_BOT_TOKEN_2 — نفس المتجر والنقاط */
@@ -203,6 +204,26 @@ export type InlineKeyboard = { inline_keyboard: { text: string; url?: string; ca
  * 🔌 النداء الخام لتيليجرام — المكان الوحيد في المشروع اللي فيه fetch نحو Bot API.
  * ما يتستعملش مباشرة للإرسال: استعمل `tgCall` (كيمر من طبقة الإيموجي).
  */
+/**
+ * نداء تيليغرام بتوكن محدّد (بلا إعدادات ولا تسجيل) — كيتستعمل باش نتأكدو من
+ * صلاحية توكن مرشّح قبل ما نبدّلوه.
+ */
+export async function rawTgWith<T = unknown>(token: string, method: string, payload: Record<string, unknown> = {}): Promise<TgResult<T>> {
+  if (isMock()) return rawTg<T>(method, payload);
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    return (await res.json().catch(() => ({ ok: false, description: `HTTP ${res.status}` }))) as TgResult<T>;
+  } catch (error) {
+    return { ok: false, description: String((error as Error)?.message || error).slice(0, 200) } as TgResult<T>;
+  }
+}
+
 export async function rawTg<T = unknown>(
   method: string,
   payload: Record<string, unknown> = {},

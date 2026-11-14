@@ -61,6 +61,46 @@ export function tokenBotId(token = resolveBotToken()): number {
 }
 
 /**
+ * 🩺 كل التوكنات المرشّحة (غير الفارغة، بالشكل الصحيح) — الأساسي أولاً.
+ * كتستعمل باش نجربو واحد بواحد حتى نلقاو واحد تيليغرام كيقبلو.
+ */
+export function candidateTokens(): Array<{ name: string; token: string }> {
+  const out: Array<{ name: string; token: string }> = [];
+  const seen = new Set<string>();
+  for (const key of [...PRIMARY_KEYS, ...SECOND_KEYS]) {
+    const raw = clean(process.env[key]);
+    if (!raw || !looksLikeToken(raw) || seen.has(raw)) continue;
+    seen.add(raw);
+    out.push({ name: key, token: raw });
+  }
+  return out;
+}
+
+/**
+ * ترتيب التوكنات حسب ما قبله تيليغرام في آخر فحص. كيتخزّن في globalThis باش
+ * ما نعاودوش نجربو توكن ميت في كل نداء (Vercel كيعاود يستعمل نفس النيابة).
+ */
+type TokenPick = { token: string; at: number };
+const tokenGlobal = globalThis as unknown as { __ftGoodToken?: TokenPick };
+const GOOD_FOR_MS = 10 * 60 * 1000;
+
+/** آخر توكن مؤكَّد من تيليغرام (إلا بقا صالح) — وإلا الأساسي */
+export function preferredBotToken(): string {
+  const pick = tokenGlobal.__ftGoodToken;
+  if (pick && Date.now() - pick.at < GOOD_FOR_MS) {
+    const stillExists = candidateTokens().some((c) => c.token === pick.token);
+    if (stillExists) return pick.token;
+  }
+  return resolveBotToken();
+}
+
+/** كنسجّلو التوكن اللي قبله تيليغرام (بلا كشفو) */
+export function rememberGoodToken(token: string): void {
+  if (!token) return;
+  tokenGlobal.__ftGoodToken = { token, at: Date.now() };
+}
+
+/**
  * تشخيص بلا كشف التوكن: شنو موجود وشنو فارغ. كيبان في /api/health.
  * ⚠️ عمرنا ما كنرجّعو التوكن نفسو هنا.
  */

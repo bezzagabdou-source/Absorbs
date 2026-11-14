@@ -1,4 +1,4 @@
-const { redis, getJ, mgetJ, scanKeys } = require('./db');
+const { redis, legacyRedis, getJ, mgetJ, scanKeys } = require('./db');
 
 /**
  * 📦 قراءة بيانات «اللوحة القديمة» (Redis) لتُهاجَر إلى قاعدة بيانات FT-bot.
@@ -22,10 +22,31 @@ const strip = (value) =>
     .trim();
 const idOk = (id) => /^\d{1,20}$/.test(String(id || ''));
 
+const read = () => (legacyRedis() === redis() ? null : legacyRedis());
+
+async function legacyScan(pattern) {
+  const client = read();
+  if (!client) return scanKeys(pattern);
+  const out = []; let cur = '0';
+  do { const res = await client.scan(cur, 'MATCH', pattern, 'COUNT', 1000); cur = res[0]; out.push(...res[1]); } while (cur !== '0');
+  return out;
+}
+
+async function legacyMget(keys) {
+  const client = read();
+  if (!client) return mgetJ(keys);
+  const out = [];
+  for (let i = 0; i < keys.length; i += 200) {
+    const vals = await client.mget(keys.slice(i, i + 200));
+    for (const v of vals) { try { out.push(JSON.parse(v)); } catch { /* skip */ } }
+  }
+  return out;
+}
+
 async function users() {
-  const keys = await scanKeys('u:*');
+  const keys = await legacyScan('u:*');
   const picked = keys.filter((key) => idOk(String(key).slice(2))).slice(0, MAX_USERS);
-  const rows = await mgetJ(picked);
+  const rows = await legacyMget(picked);
   const out = [];
   for (const row of rows) {
     if (!row || !idOk(row.id)) continue;
@@ -42,8 +63,14 @@ async function users() {
   return { rows: out, truncated: keys.length > picked.length, keys: keys.length };
 }
 
+async function legacyGet(key, def = null) {
+  const client = read();
+  if (!client) return getJ(key, def);
+  try { const raw = await client.get(key); if (raw == null) return def; try { return JSON.parse(raw); } catch { return def; } } catch { return def; }
+}
+
 async function prizes() {
-  const list = await getJ('contests', []);
+  const list = await legacyGet('contests', []);
   if (!Array.isArray(list)) return [];
   return list
     .filter((item) => item && strip(item.title))
@@ -61,7 +88,7 @@ async function prizes() {
 async function requests() {
   const ids = await redis().lrange('reqs', 0, 999);
   if (!ids.length) return [];
-  const rows = await mgetJ(ids.map((id) => `req:${id}`));
+  const rows = await legacyMget(ids.map((id) => `req:${id}`));
   return rows
     .filter((row) => row && idOk(row.uid) && strip(row.title))
     .map((row) => ({
@@ -75,7 +102,7 @@ async function requests() {
 }
 
 async function channels() {
-  const list = await getJ('channels', []);
+  const list = await legacyGet('channels', []);
   if (!Array.isArray(list)) return [];
   return list
     .map((item) => ({ chat: String((item && item.chat) || item || '').trim().slice(0, 64), title: String((item && item.title) || '').slice(0, 100) }))
@@ -89,7 +116,7 @@ async function snapshot() {
     prizes(),
     requests(),
     channels(),
-    getJ('settings', {}),
+    legacyGet('settings', {}),
     redis().get('stat:visits'),
   ]);
   const data = {
