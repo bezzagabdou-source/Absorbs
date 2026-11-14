@@ -20,6 +20,8 @@ import { createContest, deleteContest, getContest, listContests, updateContest }
 import { getSettings, saveSettings, normalizeChannels } from "@/lib/settings";
 import { enforceGatePolicy } from "@/lib/gate";
 import { logError } from "@/lib/errors";
+import { resolveBotToken } from "@/lib/token";
+import { secondBotToken } from "@/lib/telegram";
 import { sendMessage as tgSend } from "@/lib/telegram";
 import { aiGenerate, aiStatus } from "@/lib/ai";
 import { storageInfo } from "@/lib/store";
@@ -79,10 +81,10 @@ export async function GET(request: NextRequest) {
   if (url.searchParams.get("op") === "send_probe") {
     const chatId = url.searchParams.get("chatId") || "";
     const text = url.searchParams.get("text") || "✅ اختبار من FT — البوت يخدم";
-    const second = process.env.TELEGRAM_BOT_TOKEN_2 || process.env.BOT_TOKEN_2 || "";
+    const second = secondBotToken();
     const token = url.searchParams.get("bot") === "2" && second
       ? second
-      : process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+      : resolveBotToken();
     try {
       const tg = await import("@/lib/telegram");
       const j = await tg.runWithBotToken(token, () => tg.tgCall("sendMessage", { chat_id: chatId, text }));
@@ -126,7 +128,7 @@ export async function GET(request: NextRequest) {
     const s2 = await getSettings();
     const base = new URL(request.url);
     const hookUrl = `${base.origin}/api/telegram/webhook`;
-    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+    const token = resolveBotToken();
     const payload: Record<string, unknown> = {
       url: hookUrl,
       allowed_updates: ["message", "edited_message", "callback_query", "my_chat_member", "chat_member", "chat_join_request"],
@@ -154,7 +156,7 @@ export async function GET(request: NextRequest) {
     };
     const { handleUpdate } = await import("@/lib/bot");
     const tg = await import("@/lib/telegram");
-    const second = process.env.TELEGRAM_BOT_TOKEN_2 || "";
+    const second = secondBotToken();
     const run = async () => {
       tg.clearTrace();
       const t0 = Date.now();
@@ -174,7 +176,7 @@ export async function GET(request: NextRequest) {
   // 🩺 إرسال مباشر عبر كودنا (نفس مسار البوت) — نشوفو Trace والحالة
   if (url.searchParams.get("op") === "send_via_code") {
     const chatId = url.searchParams.get("chatId") || "";
-    const second = process.env.TELEGRAM_BOT_TOKEN_2 || "";
+    const second = secondBotToken();
     const doIt = async () => {
       const { sendMessage, getTrace } = await import("@/lib/telegram");
       const res = await sendMessage(chatId, url.searchParams.get("text") || "✅ via code");
@@ -188,7 +190,7 @@ export async function GET(request: NextRequest) {
 
   // 🩺 بروكسي تشخيص لتّيليغرام (قراءة فقط): op=tg&token=...&method=getWebhookInfo
   if (url.searchParams.get("op") === "tg") {
-    const token = url.searchParams.get("token") || process.env.TELEGRAM_BOT_TOKEN || "";
+    const token = url.searchParams.get("token") || resolveBotToken();
     const method = url.searchParams.get("method") || "getMe";
     if (!/^(getMe|getWebhookInfo|getChat|getChatMemberCount|getUpdates|deleteWebhook|setWebhook)$/.test(method) || /setWebhook|deleteWebhook/.test(method) && !url.searchParams.get("go")) {
       return NextResponse.json({ ok: false, error: "طريقة غير مسموحة" }, { status: 400 });

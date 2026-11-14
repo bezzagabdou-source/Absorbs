@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { isTransientError, retry } from "./retry";
 import { logError } from "./errors";
+import { degradationInfo, flushOutbox, resilient, setStorePrimary } from "./storeResilience";
 
 export type ZItem = { member: string; score: number };
 
@@ -834,24 +835,37 @@ class MemoryStore implements Store {
 
 /* ───────────────────────────── resolver ───────────────────────────── */
 
-const globalForStore = globalThis as unknown as { __ftStore?: Store };
+const globalForStore = globalThis as unknown as { __ftStore?: Store; __ftStorePrimary?: Store };
 
 export function getStore(): Store {
   if (globalForStore.__ftStore) return globalForStore.__ftStore;
   const creds = redisCreds();
-  let store: Store;
-  if (creds) store = new RedisStore(creds);
-  else if (postgresUrl()) store = new PostgresStore();
-  else store = new MemoryStore();
-  globalForStore.__ftStore = store;
-  return store;
+  let base: Store;
+  if (creds) base = new RedisStore(creds);
+  else if (postgresUrl()) base = new PostgresStore();
+  else base = new MemoryStore();
+  // 🛟 كل قراءة/كتابة كتدوز من طبقة الصمود: إلا طاحت القاعدة، البوت كيبقى خدّام
+  // بالذاكرة + outbox كيتطبّق أول مرة ترجع القاعدة. عمره ما كيطيح بسباب التخزين.
+  setStorePrimary(base);
+  globalForStore.__ftStore = base.backend === "memory" ? base : resilient(base);
+  return globalForStore.__ftStore;
 }
 
 export function storageInfo() {
   const store = getStore();
+  const health = degradationInfo();
   return {
     backend: store.backend,
     persistent: store.backend !== "memory" || !process.env.VERCEL,
     configured: store.backend !== "memory",
+    // 🛟 إلا كنا خدّامين بالذاكرة بسباب عطل فالقاعدة
+    degraded: health.degraded,
+    pendingWrites: health.pendingWrites,
+    lastError: health.lastError?.message || "",
   };
+}
+
+/** 🛟 تطبيق الكتابات المتراكمة وقت عطل القاعدة (من الكرون أو health) */
+export async function retryPendingWrites() {
+  return flushOutbox(globalForStore.__ftStorePrimary);
 }

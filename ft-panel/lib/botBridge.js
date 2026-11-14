@@ -29,15 +29,25 @@ function unseal(raw) {
   return Buffer.concat([c.update(Buffer.from(a.data, 'base64')), c.final()]).toString('utf8');
 }
 async function botKey() {
-  const raw = await redis().get(KEY);
+  // 🛟 مفتاح Vercel هو الأساس: ما كنحتاجوش Redis باش اللوحة تخدم البوت.
+  // (كانت اللوحة كتطيح كاملة إلا كان Redis فاضي حتى لو المفتاح مضبوط في Vercel.)
+  const fromEnv = String(process.env.BOT_PANEL_KEY || '').trim();
+  if (fromEnv) return fromEnv;
+  let raw = null;
+  try {
+    raw = await redis().get(KEY);
+  } catch {
+    raw = null; // Redis طايح؟ نكملو بالمفتاح من البيئة فقط
+  }
   if (raw) {
     try { return unseal(raw); } catch { throw new Error('تعذّر فك ربط البوت؛ أعد ربطه من الإعدادات'); }
   }
-  if (process.env.BOT_PANEL_KEY) return process.env.BOT_PANEL_KEY;
-  throw new Error('اربط FT-bot أولاً من الإعدادات');
+  throw new Error('اربط FT-bot أولاً من الإعدادات (أو اضبط BOT_PANEL_KEY في Vercel)');
 }
 async function connected() {
-  return { configured: !!(process.env.BOT_PANEL_KEY || await redis().get(KEY)), origin: botOrigin() };
+  let saved = false;
+  try { saved = Boolean(await redis().get(KEY)); } catch { saved = false; }
+  return { configured: !!(process.env.BOT_PANEL_KEY || saved), origin: botOrigin() };
 }
 async function call(path, { key, body, timeout = 15000 } = {}) {
   const credential = key || await botKey();

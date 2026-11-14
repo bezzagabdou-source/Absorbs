@@ -2,6 +2,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { handleUpdate } from "@/lib/bot";
 import { logError } from "@/lib/errors";
 import { claimUpdate } from "@/lib/guard";
+import { tokenBotId } from "@/lib/token";
 import { withTimeout } from "@/lib/retry";
 import { getSettings } from "@/lib/settings";
 import { trackBotMessage } from "@/lib/stats";
@@ -63,7 +64,7 @@ async function saveBotMeta() {
     tgCall<{ url?: string; pending_update_count?: number; last_error_message?: string }>("getWebhookInfo", {}),
   ]);
   const payload = {
-    tokenBotId: Number((process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "").split(":")[0]) || 0,
+    tokenBotId: tokenBotId(),
     identity: me.result ? { id: me.result.id, username: me.result.username || "" } : null,
     url: info.result?.url || "",
     pending: info.result?.pending_update_count || 0,

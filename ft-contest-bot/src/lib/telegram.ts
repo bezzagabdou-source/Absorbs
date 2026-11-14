@@ -15,6 +15,7 @@ import {
 import { getRuntime, saveCaps } from "./emojiState";
 import { backoffDelay } from "./retry";
 import { logError } from "./errors";
+import { resolveBotToken, resolveSecondBotToken } from "./token";
 
 /**
  * 🧩 تشغيل أكثر من بوت على نفس الكود ونفس البيانات.
@@ -32,7 +33,7 @@ export function currentBotToken(): string {
 
 /** البوت الثاني (اختياري): توكن إضافي عبر TELEGRAM_BOT_TOKEN_2 — نفس المتجر والنقاط */
 export function secondBotToken(): string {
-  return process.env.TELEGRAM_BOT_TOKEN_2 || process.env.BOT_TOKEN_2 || "";
+  return resolveSecondBotToken();
 }
 
 export type TgUser = {

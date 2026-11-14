@@ -119,7 +119,23 @@ async function loadBot() {
       content.innerHTML = `<p class='scope-note'>آخر عمليات إدارة FT-bot المسجّلة.</p>` + ((data.log || []).length ? data.log.map(item => `<div class='item'><div><b>${esc(item.detail)}</b><small>${esc(item.op)} · ${item.at ? esc(new Date(item.at).toLocaleString('ar-DZ')) : ''}</small></div></div>`).join('') : `<p class='mute'>السجل فارغ.</p>`);
     }
   } catch (error) {
-    content.innerHTML = `<p class='err'>${esc(error.message)}</p><button class='sm' data-act='connect-settings'>إعداد ربط البوت</button>`;
+    // 🛟 الخطأ كيبان بالسبب والحل، ماشي غير سطر أحمر: المالك خاصو يعرف شنو يدير دابا.
+    const message = String(error && error.message ? error.message : error);
+    const hints = [];
+    if (/ربط البوت|PANEL_PUBLIC_KEY|BOT_PANEL_KEY|401|403/.test(message)) {
+      hints.push('اضبط <b>BOT_PANEL_KEY</b> في مشروع ft-panel على نفس قيمة <b>PANEL_PUBLIC_KEY</b> في ft-bot (حالياً ftai-life-7c3e91).');
+    }
+    if (/قاعدة|قاعدة البيانات|database|quota|ECONN|connection|postgres|Neon/i.test(message)) {
+      hints.push('قاعدة البيانات متوقفة أو تجاوزت الحصة. البوت كيبقى خدّام ببيانات مؤقتة؛ جدّد خطة Neon أو بدّل <b>DATABASE_URL</b>.');
+    }
+    if (/قديمة|404|BOT_OUTDATED/.test(message)) {
+      hints.push('نسخة البوت المنشورة قديمة: انشر <b>ft-contest-bot</b> من الفرع الحالي.');
+    }
+    if (/انتهت الجلسة/.test(message)) hints.push('الجلسة انتهت: ادخل من جديد.');
+    if (!hints.length) hints.push('اضغط «تحديث» لإعادة المحاولة. إلا بقا الخطأ، افتح تبويب «الفحص» وشوف التفاصيل.');
+    content.innerHTML = `<div class='card'><h3>⚠️ تعذّر تحميل بيانات البوت</h3><p class='err'>${esc(message)}</p>` +
+      hints.map(h => `<small>• ${h}</small>`).join('') +
+      `</div><div class='acts wrap'><button class='sm' data-act='bot-refresh'>إعادة المحاولة</button><button class='sm' data-act='bot-tab' data-v='health'>الفحص</button><button class='sm' data-act='connect-settings'>إعداد ربط البوت</button></div>`;
   }
 }
 LOAD.bot = loadBot;

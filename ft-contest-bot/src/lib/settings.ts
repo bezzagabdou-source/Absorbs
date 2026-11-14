@@ -1,4 +1,5 @@
 import { getStore } from "./store";
+import { resolveBotToken } from "./token";
 import { enforceGatePolicy, mandatoryChannels } from "./gate";
 import { DEFAULT_SETTINGS, OWNER_USERNAME, WELCOME_TEXT, type Settings } from "./types";
 
@@ -43,7 +44,8 @@ function isOldLongWelcome(text: string): boolean {
 export async function getSettings(): Promise<Settings> {
   const store = getStore();
   const saved = (await store.get<Partial<Settings>>(SETTINGS_KEY)) || {};
-  const envToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+  // 🔑 كل أسماء التوكن + تجاهل الفارغ (كان TELEGRAM_BOT_TOKEN فارغ فويق BOT_TOKEN المعمّر)
+  const envToken = resolveBotToken();
   const savedWelcome = (saved.welcomeText || "").trim();
   const settings: Settings = {
     ...DEFAULT_SETTINGS,

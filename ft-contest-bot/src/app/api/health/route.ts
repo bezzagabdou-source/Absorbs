@@ -5,6 +5,7 @@ import { mandatoryGate } from "@/lib/gate";
 import { isMock, tgCall } from "@/lib/telegram";
 import { readErrors } from "@/lib/errors";
 import { usersCount } from "@/lib/users";
+import { tokenDiagnostics } from "@/lib/token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,13 +20,29 @@ export async function GET() {
   const checks: Record<string, { ok: boolean; detail: string }> = {};
   try {
     const settings = await getSettings().catch(() => null);
+    const tokenInfo = tokenDiagnostics();
     checks.token = {
       ok: isMock() || Boolean(settings?.botToken),
-      detail: settings?.botToken ? "configured" : isMock() ? "mock mode" : "missing TELEGRAM_BOT_TOKEN",
+      detail: settings?.botToken
+        ? `configured (${tokenInfo.source || "settings"})`
+        : isMock()
+          ? "mock mode"
+          : `missing — كل الأسماء فارغة: ${tokenInfo.emptyNames.join(",") || "لا شيء"}`,
     };
-    checks.storage = { ok: true, detail: storageInfo().backend };
+    const storage = storageInfo();
+    checks.storage = {
+      // 🛟 خدّامين بالذاكرة = «خدّام ولكن غير دائم»، ماشي عطل موقّف
+      ok: storage.backend === "memory" || !storage.degraded,
+      detail: storage.degraded
+        ? `${storage.backend} DEGRADED — كنسخدمو بالذاكرة، ${storage.pendingWrites} كتابة فالانتظار: ${storage.lastError}`
+        : storage.backend,
+    };
     const db = await dbHealth();
     checks.database = { ok: db.ok, detail: db.ok ? `${db.backend} ${db.latencyMs}ms` : db.error };
+    if (!db.ok) {
+      // نهربو من فكرة «البوت ميّت»: نبيّنو السبب بالضبط وشنو كيخدم بالنيابة
+      checks.database.detail = `${db.error} — البوت كيبقى خدّام بالذاكرة (بيانات مؤقتة)`;
+    }
     const pg = storageInfo().backend === "postgres";
     // الترحيلات كتعني غير Postgres: في وضع Redis/الذاكرة ما كاينش schema أصلاً.
     const migrations = pg ? await migrationsInfo() : { applied: [], pending: [] };
@@ -64,9 +81,9 @@ export async function GET() {
     };
     checks.users = { ok: true, detail: String(await usersCount().catch(() => 0)) };
 
-    // البوت كيبقى «صحيح» إلا كان التوكن + التخزين + البوابة + الترحيلات سليمة
-    const critical = ["token", "storage", "migrations", "gate", "database", "errors"] as const;
-    const ok = critical.every((key) => checks[key].ok) && (checks.database.ok || getStore().backend !== "postgres");
+    // 🛟 البوت «خدّام» بمجرد ما عندو توكن وبوابة سليمة — القاعدة المتعطّلة كتخلّيه
+    // في وضع degraded (بيانات مؤقتة) ولكن ما كتوقّفوش. هادشي هو المطلوب: ما يطفاش أبداً.
+    const ok = checks.token.ok && checks.gate.ok && checks.errors.ok;
     return NextResponse.json(
       { ok, service: "ft-contest-bot", checks, ms: Date.now() - started, at: new Date().toISOString() },
       { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } },
