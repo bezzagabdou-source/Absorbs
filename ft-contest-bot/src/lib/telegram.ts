@@ -13,6 +13,8 @@ import {
   type EmojiMode,
 } from "./emojiLayer";
 import { getRuntime, saveCaps } from "./emojiState";
+import { backoffDelay } from "./retry";
+import { logError } from "./errors";
 
 /**
  * 🧩 تشغيل أكثر من بوت على نفس الكود ونفس البيانات.
@@ -318,15 +320,49 @@ export async function rawTg<T = unknown>(
 
   if (!token) return { ok: false, description: "لا يوجد توكن للبوت" };
 
+  /* 🔁 إعادة المحاولة مع backoff:
+     - غير الطلبات القابلة للتكرار بأمان (قراءة أو إجابة زر). الإرسال ما كيتعاودش
+       على شبكة/timeout لأنه كيخلّي «غير مؤكد» (uncertain) → مستحيل تيتبعت رسالة مرتين.
+     - 429: نحترمو retry_after اللي طلبو تيليغرام.
+     - 5xx: نعاودو (تيليغرام ما نفّذش).
+     غير القراءة المعروفة (READ_METHODS + editMessageText/answerCallbackQuery) */
+  const idempotent = READ_METHODS.has(method) || method === "editMessageText" || method === "answerCallbackQuery";
+  const maxAttempts = idempotent ? 3 : 2;
 
+  let res: Response | null = null;
+  let lastNetworkError = "";
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch (error) {
+      lastNetworkError = String((error as Error)?.name === "TimeoutError" ? "انتهت مهلة تيليغرام" : "تعذّر الاتصال بتلغرام");
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, backoffDelay(attempt, 200, 1200)));
+        continue;
+      }
+      console.error(`[tg] ${method} network error`, error);
+      pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: lastNetworkError });
+      void logError("telegram", error, { method, chatId: String(payload.chat_id ?? "") }).catch(() => undefined);
+      return { ok: false, description: lastNetworkError, uncertain: true, retryable: false };
+    }
+    // 429 / 5xx: نعاودو بعد التأخير اللي طلبو تيليغرام
+    if ((res.status === 429 || res.status >= 500) && attempt < maxAttempts) {
+      const body = (await res.clone().json().catch(() => ({}))) as { parameters?: { retry_after?: number } };
+      const wait = Math.min(4000, (Number(body?.parameters?.retry_after) || 0) * 1000 || backoffDelay(attempt, 300, 2000));
+      console.warn(`[tg] ${method} HTTP ${res.status}, retry in ${wait}ms`);
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      continue;
+    }
+    break;
+  }
+  if (!res) return { ok: false, description: lastNetworkError || "تعذّر الاتصال بتلغرام", uncertain: true };
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-      signal: AbortSignal.timeout(8000),
-    });
     let json: TgResult<T>;
     try {
       json = (await res.json()) as TgResult<T>;
@@ -347,9 +383,10 @@ export async function rawTg<T = unknown>(
     }
     return json;
   } catch (error) {
-    console.error(`[tg] ${method} network error`, error);
-    pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "تعذّر الاتصال بتلغرام" });
-    return { ok: false, description: "تعذّر الاتصال بتلغرام", uncertain: true, retryable: false };
+    console.error(`[tg] ${method} unexpected error`, error);
+    void logError("telegram", error, { method, kind: "unexpected" }).catch(() => undefined);
+    pushSendError({ at: Date.now(), method, chatId: payload.chat_id, error: "خطأ غير متوقّع في نداء تيليغرام" });
+    return { ok: false, description: "خطأ غير متوقّع في نداء تيليغرام", uncertain: true, retryable: false };
   }
 }
 

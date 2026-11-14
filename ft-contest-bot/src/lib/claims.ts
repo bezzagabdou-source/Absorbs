@@ -1,5 +1,6 @@
 import { contestKeys } from "./contests";
 import { getStore } from "./store";
+import { withLock } from "./locks";
 import type { Claim } from "./types";
 
 export async function getClaim(contestId: string, userId: string): Promise<Claim | null> {
@@ -38,9 +39,13 @@ export async function saveClaim(claim: Claim): Promise<void> {
   await store.zIncr("claims:index", `${claim.contestId}__${claim.userId}`, claim.at);
 }
 
-/** يسحب حساباً من مخزون المسابقة بشكل ذرّي (آمن ضد التسليم المزدوج) */
+/**
+ * يسحب حساباً من مخزون المسابقة بشكل ذرّي (آمن ضد التسليم المزدوج).
+ * 🔒 نفس قفل `pool:<contestId>` اللي كتستعملو اللوحة: بلا هادشي `listPop` كيسحب
+ * حساب في نفس اللحظة اللي اللوحة كتعاود تكتب فيها اللائحة → الحساب كيرجع للمخزون.
+ */
 export async function takeAccount(contestId: string): Promise<{ email: string; password: string } | null> {
-  const entry = await getStore().listPop(contestKeys(contestId).pool);
+  const entry = await withLock(`pool:${contestId}`, () => getStore().listPop(contestKeys(contestId).pool));
   if (!entry) return null;
   const idx = entry.indexOf(":");
   return { email: entry.slice(0, idx), password: entry.slice(idx + 1) };

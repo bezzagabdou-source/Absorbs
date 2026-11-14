@@ -8,12 +8,32 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { isTransientError, retry } from "./retry";
+import { logError } from "./errors";
 
 export type ZItem = { member: string; score: number };
+
+/** 🧾 حركة نقاط: كتخلّي كل تعديل للرصيد قابل للتتبع (بلا أسرار) */
+export type LedgerEntry = {
+  at: number;
+  /** نوع الحركة: points/reward_request/reward_refund/invite/panel_set... */
+  kind: string;
+  userId: string;
+  /** الفرق المطبَّق فعلاً (سالـب = خصم) */
+  delta: number;
+  /** الرصيد بعد الحركة */
+  balance: number;
+  /** مرجع إضافي (معرّف طلب، مسابقة...) */
+  ref?: string;
+};
+
+const LEDGER_KEY = "ledger:log";
 
 export interface Store {
   readonly backend: "redis" | "postgres" | "memory";
   get<T = unknown>(key: string): Promise<T | null>;
+  /** قراءة عدة مفاتيح في نداء واحد (حيث يدعمها المخزن) */
+  getMany?<T = unknown>(keys: string[]): Promise<(T | null)[]>;
   set(key: string, value: unknown): Promise<void>;
   del(key: string): Promise<void>;
   incr(key: string, by?: number): Promise<number>;
@@ -34,6 +54,10 @@ export interface Store {
   delList(key: string): Promise<void>;
   /** ✍️ كتابة مرة واحدة فقط (NX) → true إلا تولّت الكتابة */
   setIfAbsent(key: string, value: unknown): Promise<boolean>;
+  /** 🧾 دفتر حركات النقاط (audit trail) — كيتسجّل ف كل تعديل للرصيد */
+  appendLedger?(entry: LedgerEntry): Promise<void>;
+  /** قراءة آخر حركات النقاط (للوحة/التحقيق) */
+  readLedger?(limit?: number, userId?: string): Promise<LedgerEntry[]>;
   /** 🔒 قفل موقّت (lease) — البثّ ما يتكررش بين الطلبات */
   acquireLease(key: string, token: string, ttlMs: number): Promise<boolean>;
   releaseLease(key: string, token: string): Promise<void>;
@@ -60,24 +84,55 @@ function redisCreds(): RedisCreds | null {
 
 const PREFIX = "ftb:";
 
+/**
+ * نداء Upstash REST واحد. كيدوز عبر retry: الشبكة و429 و5xx كيتعاودو،
+ * وأخطاء الأوامر (WRONGTYPE...) ما كتتعاودش. مهلة صلبة 8 ثواني.
+ */
 async function redisCommand<T = unknown>(
   creds: RedisCreds,
   args: (string | number)[],
 ): Promise<T> {
-  const res = await fetch(creds.url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${creds.token}`,
-      "Content-Type": "application/json",
+  return retry(
+    async (attempt) => {
+      const res = await fetch(creds.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${creds.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(args),
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      });
+      const json = (await res.json().catch(() => ({}))) as { result?: T; error?: string };
+      if (!res.ok || json.error) {
+        const error = new Error(`Redis ${args[0]} failed: ${json.error || res.status}`);
+        (error as Error & { code?: number }).code = res.status;
+        // 429/5xx والخطأ الشبكي عابرين؛ خطأ الأمر نفسه (WRONGTYPE) دائم
+        if (res.status === 429 || res.status >= 500) throw error;
+        if (!json.error && res.ok) return json.result as T;
+        error.name = "PermanentError";
+        throw error;
+      }
+      void attempt;
+      return json.result as T;
     },
-    body: JSON.stringify(args),
-    cache: "no-store",
-  });
-  const json = (await res.json()) as { result?: T; error?: string };
-  if (!res.ok || json.error) {
-    throw new Error(`Redis ${args[0]} failed: ${json.error || res.status}`);
-  }
-  return json.result as T;
+    {
+      attempts: 3,
+      baseMs: 200,
+      maxDelayMs: 1500,
+      budgetMs: 6000,
+      // لا نعاودو إلا العابر: أخطاء الأوامر الدائمة و429/5xx
+      retryable: (error) => {
+        const status = Number((error as { code?: number })?.code) || 0;
+        if (status === 429 || status >= 500) return true;
+        return isTransientError(error) && (error as Error)?.name !== "PermanentError";
+      },
+      onRetry: (error, attempt, delay) => {
+        console.warn(`[redis] retry ${attempt} in ${delay}ms:`, (error as Error)?.message);
+      },
+    },
+  );
 }
 
 class RedisStore implements Store {
@@ -188,23 +243,55 @@ class RedisStore implements Store {
   async delList(key: string) {
     await this.del(key);
   }
+  async appendLedger(entry: LedgerEntry) {
+    await this.cmd(["LPUSH", this.k(LEDGER_KEY), JSON.stringify(entry)]);
+    // سقف: ما نخليوش الدفتر يكبر بلا حد (آخر 5000 حركة كافية للتحقيق)
+    await this.cmd(["LTRIM", this.k(LEDGER_KEY), 0, 4999]).catch(() => undefined);
+  }
+  async readLedger(limit = 200, userId?: string) {
+    const raw = await this.cmd<string[]>(["LRANGE", this.k(LEDGER_KEY), 0, Math.max(0, limit * (userId ? 10 : 1) - 1)]);
+    return (Array.isArray(raw) ? raw : [])
+      .flatMap((line) => {
+        try {
+          const row = JSON.parse(line) as LedgerEntry;
+          return row && typeof row.userId === "string" ? [row] : [];
+        } catch {
+          return [];
+        }
+      })
+      .filter((row) => !userId || row.userId === userId)
+      .slice(0, limit);
+  }
 }
 
 /* ───────────────────────────── Postgres ───────────────────────────── */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PgPool = any;
+type PgQueryable = { query: (sql: string, args?: unknown[]) => Promise<{ rows: unknown[]; rowCount: number | null }> };
 
 const globalForDb = globalThis as unknown as {
   __ftPool?: PgPool;
   __ftPoolReady?: Promise<void>;
+  __ftSchemaTried?: number;
+  __ftDbHealth?: { at: number; ok: boolean; error: string };
 };
 
-function postgresUrl(): string | null {
+/** مهلة معقولة: Vercel كيقتل الدالة بعد 60s، فما نخلّيوش الاتصال يعلق */
+const DB_TIMEOUTS = {
+  connectionTimeoutMillis: 10_000,
+  idleTimeoutMillis: 15_000,
+  queryTimeoutMillis: 15_000,
+  statementTimeout: 15_000,
+  idleInTransactionTimeout: 10_000,
+};
+
+export function postgresUrl(): string | null {
   const raw =
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
     "";
   if (!raw) return null;
   // بعض مزوّدي الاستضافة (Neon) يضيفون channel_binding=require وهو غير مدعوم في node-postgres
@@ -214,229 +301,347 @@ function postgresUrl(): string | null {
     .replace(/\?&/, "?");
 }
 
+function needsSsl(url: string): boolean {
+  return !(/localhost|127\.0\.0\.1/.test(url) || /sslmode=disable/.test(url));
+}
+
+/** يبني Pool جديد (يتستعمل عند إعادة الاتصال) — الفهارس والمهل من مكان واحد */
+async function makePool(url: string): Promise<PgPool> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { Pool } = await import("pg");
+  const pool = new Pool({
+    connectionString: url,
+    max: Number(process.env.PG_POOL_MAX) || 5,
+    connectionTimeoutMillis: DB_TIMEOUTS.connectionTimeoutMillis,
+    idleTimeoutMillis: DB_TIMEOUTS.idleTimeoutMillis,
+    query_timeout: DB_TIMEOUTS.queryTimeoutMillis,
+    statement_timeout: DB_TIMEOUTS.statementTimeout,
+    idle_in_transaction_session_timeout: DB_TIMEOUTS.idleInTransactionTimeout,
+    keepAlive: true,
+    application_name: "ft-contest-bot",
+    ssl: needsSsl(url) ? { rejectUnauthorized: false } : undefined,
+  });
+  // ⚠️ خطأ على pool خامل ما خاصوش يقتل العملية — نسجّلو ونعاودو الاتصال
+  pool.on("error", (error: Error) => {
+    console.error("[db] idle client error", error?.message);
+    globalForDb.__ftPoolReady = undefined;
+    void logError("db", error, { kind: "pool-error" }).catch(() => undefined);
+  });
+  return pool;
+}
+
+/** اتصال مستقر: pool واحد لكل نسخة + إعادة بناء تلقائية بعد أي عطل */
 export async function getPool(): Promise<PgPool> {
   const url = postgresUrl();
   if (!url) throw new Error("Postgres URL not configured");
   if (!globalForDb.__ftPool) {
-    const { Pool } = await import("pg");
-    globalForDb.__ftPool = new Pool({
-      connectionString: url,
-      max: 3,
-      ssl:
-        /localhost|127\.0\.0\.1/.test(url) || /sslmode=disable/.test(url)
-          ? undefined
-          : { rejectUnauthorized: false },
-    });
+    globalForDb.__ftPool = await makePool(url);
   }
   const pool = globalForDb.__ftPool;
   if (!globalForDb.__ftPoolReady) {
-    globalForDb.__ftPoolReady = (async () => {
-      await pool.query(`
-        create table if not exists ft_kv (
-          k text primary key,
-          v jsonb,
-          n bigint not null default 0
-        );
-        create table if not exists ft_set (
-          k text not null,
-          m text not null,
-          primary key (k, m)
-        );
-        create table if not exists ft_zset (
-          k text not null,
-          m text not null,
-          score double precision not null default 0,
-          primary key (k, m)
-        );
-        create table if not exists ft_list (
-          id bigserial primary key,
-          k text not null,
-          v text not null
-        );
-        create index if not exists ft_list_k_idx on ft_list (k, id);
-      `);
-    })();
+    globalForDb.__ftPoolReady = ensureSchema(pool).catch((error) => {
+      // فشل الترحيل ما كيكسرش البوت: نمسحو الوعد باش نعاودو المحاولة في الطلب الجاي
+      globalForDb.__ftPoolReady = undefined;
+      throw error;
+    });
   }
   await globalForDb.__ftPoolReady;
   return pool;
 }
 
+/** إعادة اتصال قسرية (من health-check أو بعد خطأ اتصال) */
+export async function recyclePool(): Promise<void> {
+  const pool = globalForDb.__ftPool;
+  globalForDb.__ftPool = undefined;
+  globalForDb.__ftPoolReady = undefined;
+  try {
+    await pool?.end?.();
+  } catch {
+    /* pool ميّت أصلاً */
+  }
+}
+
+/** ينفّذ كل الترحيلات الناقصة مرة واحدة، ويسجّلها في ft_migrations */
+async function ensureSchema(pool: PgPool): Promise<void> {
+  const { MIGRATIONS } = await import("@/db/schema");
+  // الجداول الأساسية أولاً حتى يقدر جدول الترحيلات يتكتب
+  await pool.query(MIGRATIONS.find((m) => m.id === "0001_core_tables")!.sql);
+  await pool.query(MIGRATIONS.find((m) => m.id === "0003_migrations_table")!.sql);
+  const { rows } = await pool.query("select id from ft_migrations");
+  const applied = new Set((rows as { id: string }[]).map((row) => String(row.id)));
+  for (const migration of MIGRATIONS) {
+    if (applied.has(migration.id)) continue;
+    await pool.query(migration.sql);
+    await pool.query("insert into ft_migrations (id, note) values ($1, $2) on conflict (id) do nothing", [
+      migration.id,
+      migration.note,
+    ]);
+  }
+  globalForDb.__ftSchemaTried = Date.now();
+}
+
+/** حالة الترحيلات — تظهر في /api/panel/health */
+export async function migrationsInfo(): Promise<{ applied: string[]; pending: string[] }> {
+  const { MIGRATIONS } = await import("@/db/schema");
+  const all = MIGRATIONS.map((m) => m.id);
+  try {
+    const pool = await getPool();
+    const { rows } = await pool.query("select id from ft_migrations");
+    const applied = (rows as { id: string }[]).map((row) => String(row.id));
+    return { applied, pending: all.filter((id) => !applied.includes(id)) };
+  } catch {
+    return { applied: [], pending: all };
+  }
+}
+
+/**
+ * معاملة (transaction): كل العمليات الحساسة (النقاط، الإحالات، المتجر) كتدوز هنا.
+ * إعادة المحاولة كتصلح غير أعطال الاتصال — ما كتعاودش معاملة نصفها نجح.
+ */
+export async function transaction<T>(work: (tx: PgQueryable) => Promise<T>): Promise<T> {
+  const pool = await getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await work(client);
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    try {
+      await client.query("rollback");
+    } catch {
+      /* الاتصال طاح — الـ rollback كيديرو السيرفر بوحدو */
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** نداء قاعدة بيانات مع إعادة محاولة + تسجيل عند العطل */
+async function q<T = { rows: unknown[]; rowCount: number | null }>(
+  pool: PgPool,
+  sql: string,
+  args: unknown[] = [],
+  options: { attempts?: number } = {},
+): Promise<T> {
+  return retry(
+    async () => {
+      try {
+        return (await pool.query(sql, args)) as T;
+      } catch (error) {
+        if (!isTransientError(error)) throw error;
+        // أعطال الاتصال: نعاودو نبنيو الـ pool مرة واحدة
+        if (/ECONNRESET|ECONNREFUSED|ENOTFOUND|EPIPE|connection terminated|Connection pool|server closed/i.test(String((error as Error)?.message))) {
+          await recyclePool();
+        }
+        throw error;
+      }
+    },
+    { attempts: options.attempts ?? 3, baseMs: 200, maxDelayMs: 1500, budgetMs: 8000, label: "db" },
+  );
+}
+
+/** فحص صحة سريع للقاعدة (health-check) */
+export async function dbHealth(): Promise<{ ok: boolean; backend: string; error: string; latencyMs: number }> {
+  const started = Date.now();
+  const store = getStore();
+  if (store.backend !== "postgres") {
+    return { ok: true, backend: store.backend, error: "", latencyMs: 0 };
+  }
+  try {
+    const pool = await getPool();
+    await q(pool, "select 1");
+    globalForDb.__ftDbHealth = { at: Date.now(), ok: true, error: "" };
+    return { ok: true, backend: "postgres", error: "", latencyMs: Date.now() - started };
+  } catch (error) {
+    const message = String((error as Error)?.message || error).slice(0, 200);
+    globalForDb.__ftDbHealth = { at: Date.now(), ok: false, error: message };
+    return { ok: false, backend: "postgres", error: message, latencyMs: Date.now() - started };
+  }
+}
+
 class PostgresStore implements Store {
   readonly backend = "postgres" as const;
+  private async db() {
+    return getPool();
+  }
   async get<T>(key: string): Promise<T | null> {
-    const pool = await getPool();
+    const pool = await this.db();
     // ⚠️ `incr` كيكتب في عمود n و `set` في v → خاص القراءة ترجع الاثنين
-    const { rows } = await pool.query("select v, n from ft_kv where k = $1", [key]);
+    const { rows } = await q<{ rows: { v: unknown; n: string | number }[] }>(pool, "select v, n from ft_kv where k = $1", [key]);
     if (!rows.length) return null;
     if (rows[0].v !== null && rows[0].v !== undefined) return rows[0].v as T;
     return (rows[0].n ?? null) as T;
   }
-  async set(key: string, value: unknown) {
-    const pool = await getPool();
-    await pool.query(
-      `insert into ft_kv (k, v) values ($1, $2::jsonb)
-       on conflict (k) do update set v = excluded.v`,
-      [key, JSON.stringify(value)],
+  async getMany<T = unknown>(keys: string[]): Promise<(T | null)[]> {
+    if (!keys.length) return [];
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { k: string; v: unknown; n: string | number }[] }>(
+      pool,
+      "select k, v, n from ft_kv where k = any($1::text[])",
+      [keys],
     );
+    const map = new Map(rows.map((row) => [row.k, row.v !== null && row.v !== undefined ? row.v : row.n]));
+    return keys.map((key) => (map.has(key) ? (map.get(key) as T) : null));
+  }
+  async set(key: string, value: unknown) {
+    const pool = await this.db();
+    // ⚠️ `n` كيتصفّر (0) مع كل `set`: بلا هادشي، `incr` من بعد `set`
+    // كان كيزيد على العدّاد القديم و`get` كان كيرجع قيمة `v` القديمة → قراءة غالطة.
+    await q(pool, `insert into ft_kv (k, v, n) values ($1, $2::jsonb, 0)
+       on conflict (k) do update set v = excluded.v, n = 0`, [key, JSON.stringify(value)]);
   }
   async del(key: string) {
-    const pool = await getPool();
+    const pool = await this.db();
     await Promise.all([
-      pool.query("delete from ft_kv where k = $1", [key]),
-      pool.query("delete from ft_set where k = $1", [key]),
-      pool.query("delete from ft_zset where k = $1", [key]),
-      pool.query("delete from ft_list where k = $1", [key]),
+      q(pool, "delete from ft_kv where k = $1", [key]),
+      q(pool, "delete from ft_set where k = $1", [key]),
+      q(pool, "delete from ft_zset where k = $1", [key]),
+      q(pool, "delete from ft_list where k = $1", [key]),
     ]);
   }
   async incr(key: string, by = 1) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      `insert into ft_kv (k, n) values ($1, $2)
-       on conflict (k) do update set n = ft_kv.n + excluded.n
+    const pool = await this.db();
+    // الأساس = القيمة الحالية: إما JSON رقم في `v` أو العدّاد `n` (أيّهما موجود)
+    const { rows } = await q<{ rows: { n: string | number }[] }>(
+      pool,
+      `insert into ft_kv (k, n, v) values ($1, $2::bigint, null)
+       on conflict (k) do update
+         set n = coalesce(nullif(ft_kv.v #>> '{}', '')::bigint, ft_kv.n, 0) + excluded.n,
+             v = null
        returning n`,
       [key, by],
     );
     return Number(rows[0].n);
   }
   async sAdd(key: string, member: string) {
-    const pool = await getPool();
-    const { rowCount } = await pool.query(
-      "insert into ft_set (k, m) values ($1, $2) on conflict do nothing",
-      [key, member],
-    );
+    const pool = await this.db();
+    const { rowCount } = await q(pool, "insert into ft_set (k, m) values ($1, $2) on conflict do nothing", [key, member]);
     return rowCount === 1;
   }
   async sHas(key: string, member: string) {
-    const pool = await getPool();
-    const { rowCount } = await pool.query(
-      "select 1 from ft_set where k = $1 and m = $2",
-      [key, member],
-    );
+    const pool = await this.db();
+    const { rowCount } = await q(pool, "select 1 from ft_set where k = $1 and m = $2", [key, member]);
     return rowCount === 1;
   }
   async sCard(key: string) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      "select count(*)::int as c from ft_set where k = $1",
-      [key],
-    );
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { c: number }[] }>(pool, "select count(*)::int as c from ft_set where k = $1", [key]);
     return Number(rows[0].c);
   }
   async sDel(key: string, member: string) {
-    const pool = await getPool();
-    await pool.query("delete from ft_set where k = $1 and m = $2", [key, member]);
+    const pool = await this.db();
+    await q(pool, "delete from ft_set where k = $1 and m = $2", [key, member]);
   }
   async sMembers(key: string) {
-    const pool = await getPool();
-    const { rows } = await pool.query("select m from ft_set where k = $1", [key]);
-    return rows.map((r: { m: string }) => String(r.m));
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { m: string }[] }>(pool, "select m from ft_set where k = $1", [key]);
+    return rows.map((r) => String(r.m));
   }
   async zIncr(key: string, member: string, by = 1) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      `insert into ft_zset (k, m, score) values ($1, $2, $3)
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { score: string | number }[] }>(pool, `insert into ft_zset (k, m, score) values ($1, $2, $3)
        on conflict (k, m) do update set score = ft_zset.score + excluded.score
-       returning score`,
-      [key, member, by],
-    );
+       returning score`, [key, member, by]);
     return Number(rows[0].score);
   }
   async zScore(key: string, member: string) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      "select score from ft_zset where k = $1 and m = $2",
-      [key, member],
-    );
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { score: string | number }[] }>(pool, "select score from ft_zset where k = $1 and m = $2", [key, member]);
     return rows.length ? Number(rows[0].score) : 0;
   }
   async zTop(key: string, limit: number): Promise<ZItem[]> {
-    const pool = await getPool();
-    const { rows } = await pool.query(
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { m: string; score: string | number }[] }>(
+      pool,
       "select m, score from ft_zset where k = $1 order by score desc, m asc limit $2",
       [key, limit],
     );
-    return rows.map((r: { m: string; score: number }) => ({
-      member: r.m,
-      score: Number(r.score),
-    }));
+    return rows.map((r) => ({ member: r.m, score: Number(r.score) }));
   }
   async zCount(key: string) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      "select count(*)::int as c from ft_zset where k = $1",
-      [key],
-    );
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { c: number }[] }>(pool, "select count(*)::int as c from ft_zset where k = $1", [key]);
     return Number(rows[0].c);
   }
   async listPush(key: string, values: string[]) {
     if (!values.length) return this.listLen(key);
-    const pool = await getPool();
-    for (const v of values) {
-      await pool.query("insert into ft_list (k, v) values ($1, $2)", [key, v]);
-    }
+    const pool = await this.db();
+    // إدخال دفعة واحدة = كتابة واحدة (أسرع وأأمن من حلقة)
+    const payload = values.map((v) => JSON.stringify(v));
+    await q(pool, "insert into ft_list (k, v) select $1, value from jsonb_array_elements_text($2::jsonb)", [key, payload]);
     return this.listLen(key);
   }
   async listPop(key: string) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      `delete from ft_list where id = (
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { v: string }[] }>(pool, `delete from ft_list where id = (
          select id from ft_list where k = $1 order by id asc limit 1
-       ) returning v`,
-      [key],
-    );
+       ) returning v`, [key]);
     return rows.length ? String(rows[0].v) : null;
   }
   async listLen(key: string) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      "select count(*)::int as c from ft_list where k = $1",
-      [key],
-    );
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { c: number }[] }>(pool, "select count(*)::int as c from ft_list where k = $1", [key]);
     return Number(rows[0].c);
   }
   async listAll(key: string, limit = 1000) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      "select v from ft_list where k = $1 order by id asc limit $2",
-      [key, limit],
-    );
-    return rows.map((r: { v: string }) => String(r.v));
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { v: string }[] }>(pool, "select v from ft_list where k = $1 order by id asc limit $2", [key, limit]);
+    return rows.map((r) => String(r.v));
   }
   async listRecent(key: string, limit = 1000) {
-    const pool = await getPool();
-    const { rows } = await pool.query(
-      "select v from ft_list where k = $1 order by id desc limit $2",
-      [key, Math.max(1, limit)],
-    );
-    return rows.map((r: { v: string }) => String(r.v));
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { v: string }[] }>(pool, "select v from ft_list where k = $1 order by id desc limit $2", [key, Math.max(1, limit)]);
+    return rows.map((r) => String(r.v));
   }
   async setIfAbsent(key: string, value: unknown) {
-    const pool = await getPool();
-    const res = await pool.query(
-      "insert into ft_kv (k, v) values ($1, $2::jsonb) on conflict do nothing returning k",
-      [key, JSON.stringify(value)],
-    );
+    const pool = await this.db();
+    const res = await q(pool, "insert into ft_kv (k, v) values ($1, $2::jsonb) on conflict do nothing returning k", [key, JSON.stringify(value)]);
     return res.rowCount === 1;
   }
   async acquireLease(key: string, token: string, ttlMs: number) {
-    const pool = await getPool();
+    const pool = await this.db();
     const now = Date.now();
-    const res = await pool.query(
-      `insert into ft_kv (k, v, n) values ($1, $2::jsonb, $3)
+    const res = await q(pool, `insert into ft_kv (k, v, n) values ($1, $2::jsonb, $3)
        on conflict (k) do update set v = excluded.v, n = excluded.n
        where ft_kv.n <= $4 or ft_kv.v ->> 'token' = $5
-       returning k`,
-      [key, JSON.stringify({ token }), now + Math.max(1000, ttlMs), now, token],
-    );
+       returning k`, [key, JSON.stringify({ token }), now + Math.max(1000, ttlMs), now, token]);
     return res.rowCount === 1;
   }
   async releaseLease(key: string, token: string) {
-    const pool = await getPool();
-    await pool.query("delete from ft_kv where k = $1 and v ->> 'token' = $2", [key, token]);
+    const pool = await this.db();
+    await q(pool, "delete from ft_kv where k = $1 and v ->> 'token' = $2", [key, token]);
   }
   async delList(key: string) {
-    const pool = await getPool();
-    await pool.query("delete from ft_list where k = $1", [key]);
+    const pool = await this.db();
+    await q(pool, "delete from ft_list where k = $1", [key]);
+  }
+  async appendLedger(entry: LedgerEntry) {
+    const pool = await this.db();
+    await q(
+      pool,
+      "insert into ft_ledger (kind, user_id, delta, balance, ref, meta) values ($1, $2, $3, $4, $5, $6::jsonb)",
+      [entry.kind || "points", entry.userId, entry.delta, entry.balance, entry.ref || "", JSON.stringify({ at: entry.at })],
+    );
+  }
+  async readLedger(limit = 200, userId?: string) {
+    const pool = await this.db();
+    const { rows } = await q<{ rows: { at: string; kind: string; user_id: string; delta: string | number; balance: string | number | null; ref: string | null }[] }>(
+      pool,
+      userId
+        ? "select at, kind, user_id, delta, balance, ref from ft_ledger where user_id = $1 order by at desc, id desc limit $2"
+        : "select at, kind, user_id, delta, balance, ref from ft_ledger order by at desc, id desc limit $1",
+      userId ? [userId, limit] : [limit],
+    );
+    return rows.map((row) => ({
+      at: new Date(row.at).getTime(),
+      kind: String(row.kind),
+      userId: String(row.user_id),
+      delta: Number(row.delta),
+      balance: Number(row.balance ?? 0),
+      ref: row.ref || "",
+    }));
   }
 }
 
@@ -605,6 +810,25 @@ class MemoryStore implements Store {
   async delList(key: string) {
     delete mem().lists[key];
     persist();
+  }
+  async appendLedger(entry: LedgerEntry) {
+    const list = (mem().lists[LEDGER_KEY] ||= []);
+    list.unshift(JSON.stringify(entry));
+    if (list.length > 5000) list.length = 5000;
+    persist();
+  }
+  async readLedger(limit = 200, userId?: string) {
+    return (mem().lists[LEDGER_KEY] || [])
+      .flatMap((line) => {
+        try {
+          const row = JSON.parse(line) as LedgerEntry;
+          return row && typeof row.userId === "string" ? [row] : [];
+        } catch {
+          return [];
+        }
+      })
+      .filter((row) => !userId || row.userId === userId)
+      .slice(0, limit);
   }
 }
 

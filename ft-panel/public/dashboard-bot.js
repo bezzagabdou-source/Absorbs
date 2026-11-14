@@ -7,8 +7,9 @@ let BOT_EDIT = null;
 const BOT_TABS = [
   ['overview', 'نظرة عامة'], ['rewards', 'الجوائز'], ['contests', 'المسابقات'],
   ['users', 'الأعضاء'], ['requests', 'الطلبات'], ['settings', 'الإعدادات'], ['log', 'السجل'],
+  ['errors', 'الأخطاء'], ['health', 'الفحص'], ['ledger', 'دفتر النقاط'],
 ];
-const botView = (view, id) => api('bot_view', { view, id });
+const botView = (view, id, limit) => api('bot_view', { view, id, limit });
 const botOp = (op, input) => api('bot_manage', { op, input });
 const yes = value => value ? 'مفعّل' : 'متوقف';
 const selectOption = (value, label, selected) => `<option value='${esc(value)}' ${value === selected ? 'selected' : ''}>${esc(label)}</option>`;
@@ -16,6 +17,20 @@ const checked = value => value ? 'checked' : '';
 async function botOrigin() {
   if (!BOT_ORIGIN) BOT_ORIGIN = (await api('bot_connection')).origin;
   return BOT_ORIGIN;
+}
+/**
+ * 🔒 الاشتراك الإجباري: عرض للقراءة فقط. القناة مثبّتة في الكود وما كاينش أي زر
+ * كيحيّدها أو كيعطّلها — لا في اللوحة ولا في الـ API تاعها.
+ */
+function gateLockCard(s) {
+  const lock = s.gateLocked || {};
+  const channels = (lock.channels && lock.channels.length ? lock.channels : (s.requiredChannels || [])).filter(Boolean);
+  const url = lock.url || 'https://t.me/mxabdou';
+  return `<div class='card gate-lock'><h3>🔒 الاشتراك الإجباري — شرط ثابت</h3>
+    <small>كل مستخدم خاصو يشترك في هذه القناة قبل ما يستعمل البوت. هذا الشرط مثبّت في كود البوت ومحمي: لا يمكن حذفه ولا تعطيله ولا تغييره من اللوحة ولا من المساعد.</small>
+    <div class='item'><div><b>القناة الإجبارية</b><small dir='ltr'><a href='${esc(url)}' target='_blank' rel='noopener'>${esc(url)}</a></small></div><span class='pill ok'>مقفول</span></div>
+    ${channels.length > 1 ? `<small>قنوات إضافية مطلوبة: ${channels.slice(1).map(c => esc(c)).join(' · ')}</small>` : ''}
+  </div>`;
 }
 function thumb(kind, item) {
   if (!item?.hasImage || !BOT_ORIGIN) return '';
@@ -64,8 +79,7 @@ async function loadBot() {
         <label>يوزر الدعم<input id='bs-support' maxlength='32' value='${esc(s.supportUsername || '')}'></label>
         <label>رسالة الترحيب<textarea id='bs-welcome' rows='4' required maxlength='3500'>${esc(s.welcomeText || '')}</textarea></label>
         <label>القوانين<textarea id='bs-rules' rows='4' required maxlength='3500'>${esc(s.rulesText || '')}</textarea></label>
-        <label>قنوات الاشتراك الإجباري، قناة في كل سطر<textarea id='bs-channels' rows='4'>${esc((s.requiredChannels || []).join('\n'))}</textarea></label>
-        <label class='chk'><input id='bs-gate' type='checkbox' ${checked(s.requireJoin)}> اشتراك القنوات إجباري</label>
+        ${gateLockCard(s)}
         <label class='chk'><input id='bs-maintenance' type='checkbox' ${checked(s.maintenanceMode)}> وضع الصيانة</label>
         <label class='chk'><input id='bs-ai' type='checkbox' ${checked(s.aiEnabled)}> مساعد البوت مفعّل</label>
         <label class='chk'><input id='bs-auto' type='checkbox' ${checked(s.autoApproveJoins)}> قبول طلبات المجموعة تلقائياً</label>
@@ -80,6 +94,26 @@ async function loadBot() {
         <label>مقدمة المتجر<textarea id='bp-intro' rows='3' maxlength='2000'>${esc(p.shopIntro || '')}</textarea></label><button class='btn'>حفظ النقاط</button></form>
         <form id='bot-group-form' class='card'><h3>ربط مجموعة FT-bot</h3><label>معرّف المجموعة أو @username<input id='bg-id' value='${esc(g.chatId || '')}' required></label><label>اسم المجموعة<input id='bg-title' maxlength='100' value='${esc(g.title || '')}'></label><button class='btn'>حفظ المجموعة</button></form>
         <form id='bot-broadcast-form' class='card'><h3>بث لكل أعضاء FT-bot</h3><small>لكل المسجلين عند البدء مع استبعاد المحظورين. الإرسال على دفعات؛ أبقِ الصفحة مفتوحة أو استأنف لاحقاً.</small><textarea id='bb-text' rows='4' maxlength='4000' required placeholder='نص الرسالة'></textarea><button class='btn'>بدء البث بعد التأكيد</button> <button type='button' class='sm' data-act='bot-broadcast-latest'>حالة البث وإعادة محاولة المرفوضين</button></form>`;
+    } else if (selected === 'ledger') {
+      /* 🧾 كل حركة نقاط: شكون، شحال، فعلاش — باش ما تضيعش حتى نقطة. */
+      const data = await botView('ledger', undefined, 150);
+      const rows = data.ledger || [];
+      content.innerHTML = `<div class='bot-heading'><div><h3>دفتر النقاط</h3><small>كل تعديل للرصيد كيتسجّل: العملية، الفرق، والرصيد بعدها. آخر ${rows.length} حركة.</small></div></div>` + (rows.length ? rows.map((e) => `<div class='item'><div><b class='${e.delta > 0 ? 'ok' : 'err'}'>${e.delta > 0 ? '+' : ''}${esc(e.delta)}</b> · <span dir='ltr'>${esc(e.userId)}</span><small>${esc(e.kind)}${e.ref ? ' · ' + esc(e.ref) : ''} · ${e.at ? esc(new Date(e.at).toLocaleString('ar-DZ')) : ''}</small></div><span class='num'>${esc(e.balance)}</span></div>`).join('') : `<p class='mute'>ما كاين حتى حركة مسجّلة بعد.</p>`);
+    } else if (selected === 'errors') {
+      /* 🚨 كل خطأ في البوت كيبان هنا بدل ما يوقّفه. */
+      const data = await botView('errors', undefined, 120);
+      const rows = data.errors || [];
+      content.innerHTML = `<div class='bot-heading'><div><h3>أخطاء البوت</h3><small>كل خطأ كيتسجّل تلقائياً (الويب هوك، تيليغرام، قاعدة البيانات، المساعد) والبوت كيكمّل الخدمة. الأحدث أولاً.</small></div>${rows.length ? "<button class='sm red' data-act='bot-errors-clear'>تفريغ السجل</button>" : ''}</div>` + (rows.length ? rows.map((e) => `<div class='item col'><div><b>${esc(e.scope)} · ${esc(e.message)}</b><small>${e.at ? esc(new Date(e.at).toLocaleString('ar-DZ')) : ''}${e.count > 1 ? ` · تكرّر ${esc(e.count)} مرة` : ''}</small>${e.meta ? `<small dir='ltr'>${esc(e.meta)}</small>` : ''}${e.stack ? `<details><summary>التفاصيل</summary><pre dir='ltr'>${esc(e.stack)}</pre></details>` : ''}</div></div>`).join('') : `<p class='mute'>ما كاين حتى خطأ مسجّل. البوت خدام بلا أخطاء ✅</p>`);
+    } else if (selected === 'health') {
+      /* 🩺 فحص شامل: قاعدة البيانات، الترحيلات، البوابة، الويب هوك، التخزين. */
+      const data = await botView('health');
+      const db = data.db || {}, mi = data.migrations || {}, gate = data.gate || {}, hook = data.webhook || {}, bot = data.bot || {};
+      const dot = (ok) => `<span class='pill ${ok ? 'ok' : 'bad'}'>${ok ? 'سليم' : 'مشكل'}</span>`;
+      content.innerHTML = `<div class='bot-heading'><div><h3>فحص البوت والقاعدة</h3><small>قراءة مباشرة من نسخة البوت المنشورة الآن.</small></div><button class='sm' data-act='bot-refresh'>إعادة الفحص</button></div>
+        <div class='card'><h3>قاعدة البيانات</h3><div class='item'><div><b>${esc(db.backend || '—')}</b><small>${esc(db.ok ? 'متصل · ' + String(db.latencyMs || 0) + 'ms' : db.error || 'غير متصل')}</small></div>${dot(db.ok)}</div>
+        <small>الترحيلات: ${mi.pending && mi.pending.length ? `<span class='err'>ناقصة (${esc(mi.pending.join(', '))})</span>` : 'كلها مطبقة ✅'} · التخزين: ${esc((data.storage && data.storage.backend) || '—')}${data.storage && !data.storage.configured ? " <span class='err'>(غير دائم — أضف قاعدة بيانات)</span>" : ''}</small></div>
+        <div class='card'><h3>الاشتراك الإجباري</h3><div class='item'><div><b>${esc((gate.channels || []).join(' · ') || '@mxabdou')}</b><small>شرط ثابت: إجباري دايماً، غير قابل للتعطيل أو الحذف من اللوحة.</small></div>${dot(gate.required === true)}</div></div>
+        <div class='card'><h3>تيليغرام والويب هوك</h3><div class='item'><div><b>${bot.username ? '@' + esc(bot.username) : 'غير معروف'}</b><small dir='ltr'>${esc(hook.url || 'لا يوجد ويب هوك')}</small><small>معلّق: ${esc(hook.pending ?? 0)}${hook.lastError ? ' · آخر خطأ: ' + esc(hook.lastError) : ''}</small></div>${dot(Boolean(hook.url))}</div></div>`;
     } else if (selected === 'log') {
       const data = await botView('log');
       content.innerHTML = `<p class='scope-note'>آخر عمليات إدارة FT-bot المسجّلة.</p>` + ((data.log || []).length ? data.log.map(item => `<div class='item'><div><b>${esc(item.detail)}</b><small>${esc(item.op)} · ${item.at ? esc(new Date(item.at).toLocaleString('ar-DZ')) : ''}</small></div></div>`).join('') : `<p class='mute'>السجل فارغ.</p>`);
@@ -157,6 +191,13 @@ document.addEventListener('click', async event => {
       broadcastProgress(result.broadcast);
       if (!result.broadcast.done) void resumeBroadcast(result.broadcast.jobId);
     } else if (action === 'open-bot') { BOT_TAB = 'overview'; show('bot'); }
+    else if (action === 'bot-errors-clear') {
+      if (!confirm('تفريغ سجل الأخطاء؟ العمليات نفسها ماشي متأثرة.')) return;
+      button.disabled = true;
+      await botOp('errors_clear', {});
+      toast('تفريغ سجل الأخطاء');
+      await loadBot();
+    }
     else if (action === 'bot-tab') { BOT_TAB = button.dataset.v; loadBot(); }
     else if (action === 'bot-refresh') loadBot();
     else if (action === 'bot-referrals') show('referrals');
@@ -242,8 +283,8 @@ document.addEventListener('submit', async event => {
       if (/^\d{1,20}$/.test(query)) renderBotUsers([(await botView('user', query)).user]);
       else renderBotUsers(BOT_USERS.filter(u => !query || String(u.firstName || '').toLowerCase().includes(query.toLowerCase()) || String(u.username || '').toLowerCase().includes(query.toLowerCase())));
     } else if (form.id === 'bot-settings-form') {
-      const channels = $('#bs-channels').value.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
-      await botOp('settings_save', { settings: { ownerUsername: $('#bs-owner').value, supportUsername: $('#bs-support').value, welcomeText: $('#bs-welcome').value, rulesText: $('#bs-rules').value, requiredChannels: channels, requireJoin: $('#bs-gate').checked, maintenanceMode: $('#bs-maintenance').checked, aiEnabled: $('#bs-ai').checked, autoApproveJoins: $('#bs-auto').checked, groupTarget: Number($('#bs-target').value) } });
+      // 🔒 الاشتراك الإجباري غير مرفوع هنا: البوت كتفرضو على كل حفظ (lib/gate.ts)
+      await botOp('settings_save', { settings: { ownerUsername: $('#bs-owner').value, supportUsername: $('#bs-support').value, welcomeText: $('#bs-welcome').value, rulesText: $('#bs-rules').value, maintenanceMode: $('#bs-maintenance').checked, aiEnabled: $('#bs-ai').checked, autoApproveJoins: $('#bs-auto').checked, groupTarget: Number($('#bs-target').value) } });
       toast('حُفظت إعدادات FT-bot');
     } else if (form.id === 'bot-points-form') {
       await botOp('points_config', { points: { enabled: $('#bp-enabled').checked, perJoin: Number($('#bp-join').value), perActivated: Number($('#bp-activated').value), dailyMin: Number($('#bp-min').value), dailyMax: Number($('#bp-max').value), shopIntro: $('#bp-intro').value } });

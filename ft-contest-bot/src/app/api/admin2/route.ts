@@ -432,10 +432,13 @@ export async function GET(req: NextRequest) {
     // 🔒 بوابة الاشتراك الإجباري: الحالة +_probe_ على كل قناة + (apply=1) تثبيت
     if (what === "gate_pin") {
       const { saveSettings } = await import("@/lib/settings");
-      const { PINNED_CHANNELS } = await import("@/lib/types");
       const apply = ["1", "yes", "true"].includes((url.searchParams.get("apply") || "").toLowerCase());
       const before = await getSettings();
-      if (apply) await saveSettings({ requiredChannels: before.requiredChannels, requireJoin: true });
+      // 🔒 القناة المحمية كتتفرض هنا حتى في المسار القديم (admin2): أي محاولة
+      // لحذفها ولا تعطيل البوابة كتترفض، وما كيتطبّق غير السياسة الثابتة.
+      const { enforceGatePolicy, mandatoryChannels } = await import("@/lib/gate");
+      const policy = enforceGatePolicy({ requiredChannels: before.requiredChannels, requireJoin: true });
+      if (apply) await saveSettings({ requiredChannels: policy.channels, requireJoin: true });
       const settings = await getSettings();
       const ids = await allUserIds(3).catch(() => [] as string[]);
       const probe = [];
@@ -455,15 +458,15 @@ export async function GET(req: NextRequest) {
           error: member.ok ? String(seen.description || "") : String(member.description || seen.description || ""),
         });
       }
-      if (apply) await pushAdminLog({ at: Date.now(), op: "gate_pin", detail: `ثبّتو: ${(PINNED_CHANNELS || []).join(", ")}`, via: "panel" });
+      if (apply) await pushAdminLog({ at: Date.now(), op: "gate_pin", detail: `ثبّتو: ${mandatoryChannels().join(", ")}`, via: "panel" });
       return ok({
         apply,
-        pinned: PINNED_CHANNELS,
+        pinned: mandatoryChannels(),
+        gateLocked: true,
+        tampered: policy.tampered,
         gate: { requireJoin: settings.requireJoin, requiredChannels: settings.requiredChannels },
         probe,
-        message: settings.requireJoin
-          ? `🔒 البوابة شغّالة على ${settings.requiredChannels.length} قناة — كل واحد كيدخل للخاص خاصو يشترك`
-          : "⚠️ البوابة مطفية (GATE_OFF=1)",
+        message: `🔒 البوابة شغّالة دايماً على ${settings.requiredChannels.length} قناة — كل واحد كيدخل للخاص خاصو يشترك (غير قابلة للتعطيل)`,
       });
     }
 

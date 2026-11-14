@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { getStore } from "./store";
+import { withLock } from "./locks";
 import type { Contest, ContestMode, ContestStatus } from "./types";
 
 const IDS_KEY = "contests:ids";
@@ -142,26 +143,41 @@ export async function listAccounts(contestId: string, limit = 200): Promise<stri
   return getStore().listAll(contestKeys(contestId).pool, limit);
 }
 
+/**
+ * 🔒 قراءة-تعديل-كتابة على مخزون الحسابات.
+ *
+ * بلا القفل: البوت كيسحب حساب (listPop) في نفس الوقت اللي اللوحة كتعاود تكتب
+ * اللائحة القديمة → الحساب المسحوب كيرجع (ولا حسابات أخرى كتضيع). القفل كيخلّي
+ * عملية وحدة فقط على المخزون في نفس الوقت.
+ */
+async function mutatePool(contestId: string, mutate: (all: string[]) => string[] | null): Promise<boolean> {
+  return withLock(`pool:${contestId}`, async () => {
+    const store = getStore();
+    const key = contestKeys(contestId).pool;
+    const all = await store.listAll(key, 10000);
+    const next = mutate(all);
+    if (!next) return false;
+    await store.delList(key);
+    if (next.length) await store.listPush(key, next);
+    return true;
+  });
+}
+
 export async function removeAccountAt(contestId: string, index: number): Promise<boolean> {
-  const store = getStore();
-  const key = contestKeys(contestId).pool;
-  const all = await store.listAll(key, 10000);
-  if (index < 0 || index >= all.length) return false;
-  all.splice(index, 1);
-  await store.delList(key);
-  if (all.length) await store.listPush(key, all);
-  return true;
+  return mutatePool(contestId, (all) => {
+    if (index < 0 || index >= all.length) return null;
+    all.splice(index, 1);
+    return all;
+  });
 }
 
 export async function removeAccount(contestId: string, entry: string): Promise<void> {
-  const store = getStore();
-  const key = contestKeys(contestId).pool;
-  const all = await store.listAll(key, 10000);
-  const idx = all.indexOf(entry);
-  if (idx === -1) return;
-  all.splice(idx, 1);
-  await store.delList(key);
-  if (all.length) await store.listPush(key, all);
+  await mutatePool(contestId, (all) => {
+    const idx = all.indexOf(entry);
+    if (idx === -1) return null;
+    all.splice(idx, 1);
+    return all;
+  });
 }
 
 export async function clearAccounts(contestId: string): Promise<void> {

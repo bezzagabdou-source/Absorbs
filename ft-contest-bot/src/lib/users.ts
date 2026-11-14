@@ -79,14 +79,29 @@ export function knownOwnerId(): string {
 }
 
 /** نحوّلو @username ديال المالك لمعرّف رقمي (من المسجّلين في البوت) ونحفظوه */
-export async function resolveOwnerId(ownerUsername: string): Promise<string> {
+/**
+ * 🔁 كل نداء كيشارك نفس الوعد الجاري: بلا هادشي، كل تحديث كيطلق سكان على
+ * 200 ألف مستخدم في نفس الوقت (كلّف CPU وبطّأ الردّ بلا فايدة).
+ */
+let ownerPending: { name: string; promise: Promise<string> } | null = null;
+
+export function resolveOwnerId(ownerUsername: string): Promise<string> {
   const name = String(ownerUsername || "").trim().replace(/^@/, "").toLowerCase();
-  if (!name) return "";
-  if (/^\d+$/.test(name)) return name;
-  if (ownerMemo?.name === name && (ownerMemo.id || Date.now() - ownerMemo.at < 600_000)) return ownerMemo.id;
-  const id = await lookupOwnerId(name);
-  ownerMemo = { name, id, at: Date.now() };
-  return id;
+  if (!name) return Promise.resolve("");
+  if (/^\d+$/.test(name)) return Promise.resolve(name);
+  if (ownerMemo?.name === name && (ownerMemo.id || Date.now() - ownerMemo.at < 600_000)) return Promise.resolve(ownerMemo.id);
+  if (ownerPending?.name === name) return ownerPending.promise;
+  const promise = lookupOwnerId(name)
+    .catch(() => "")
+    .then((id) => {
+      ownerMemo = { name, id, at: Date.now() };
+      return id;
+    })
+    .finally(() => {
+      if (ownerPending?.promise === promise) ownerPending = null;
+    });
+  ownerPending = { name, promise };
+  return promise;
 }
 
 async function lookupOwnerId(name: string): Promise<string> {

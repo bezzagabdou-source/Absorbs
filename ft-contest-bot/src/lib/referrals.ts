@@ -46,9 +46,10 @@ export async function registerGeneralReferral(from: TgUser, inviterId: string) {
   // 🧱 مرة واحدة في العمر: نفس العضو ما كيتحسبش جوج مرات على نفس الرابط
   const firstEver = await store.sAdd("genref:credited", joinerId).catch(() => true);
   if (!firstEver) return null;
-  // 🛡️ إلا كان محسوباً قبل من رابط مسابقة → ما نعاودوش
-  const already = new Set((await recentReferrals(500).catch(() => [])).map((row) => row.joinerId));
-  if (already.has(joinerId)) return null;
+  // 🛡️ إلا كان محسوباً قبل من رابط مسابقة → ما نعاودوش.
+  // ⚠️ كان هنا `recentReferrals(500)` = قراءة 500 سطر JSON في كل دخول جديد.
+  // ولى عندنا مجموعة مستقلة فيها معرّفات المحسوبين (O(1) لكل فحص).
+  if (await store.sHas("genref:credited:ids", joinerId).catch(() => false)) return null;
   // 🆕 عضو ما معروفش: نسجلوه بحال بقية الدخول (بدل ما نعيطو لـ register ديال البوت)
   if (!(await getUser(joinerId))) {
     await store.set(`user:${joinerId}`, joiner);
@@ -76,6 +77,9 @@ export async function registerGeneralReferral(from: TgUser, inviterId: string) {
       ],
     )
     .catch(() => undefined);
+  // 🔒 نعلّمو عليه كمحسوب قبل الإيداع: إلا طاح الإيداع، الإصلاح اليدوي
+  // (referrals_recount) كيتكفّل بالباقي — والمهم ما كيتحسبش مرتين.
+  await store.sAdd("genref:credited:ids", joinerId).catch(() => undefined);
   if (points > 0) await creditInvite(inviterId).catch(() => undefined);
   return { inviter, joiner, points };
 }

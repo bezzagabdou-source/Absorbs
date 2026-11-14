@@ -9,6 +9,13 @@ const PANEL_URL = (process.env.PANEL_URL || "https://ft-panel-blue.vercel.app").
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  // ⚠️ المستودع فيه package-lock.json في الجذر وفـ ft-contest-bot كمان، وNext كان
+  // كيتخبّط في تحديد جذر الـ tracing (تحذير في كل build). كنحدّدوه صراحة.
+  outputFileTracingRoot: __dirname,
+  typescript: {
+    // الفشل في الأنواع كيوقف النشر — وهذا هو المطلوب (بناء نظيف دايماً)
+    ignoreBuildErrors: false,
+  },
   async redirects() {
     return [
       { source: "/admin", destination: PANEL_URL, permanent: false },

@@ -7,7 +7,9 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSettings } from "@/lib/settings";
-import { storageInfo } from "@/lib/store";
+import { dbHealth, migrationsInfo, storageInfo } from "@/lib/store";
+import { mandatoryGate } from "@/lib/gate";
+import { readErrors } from "@/lib/errors";
 import { isMock, tgCall } from "@/lib/telegram";
 import { usersCount } from "@/lib/users";
 
@@ -15,7 +17,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** المسارات التي تعتمد عليها لوحة ft-panel */
-const CAPABILITIES = ["health", "manage", "referrals", "rewards", "agent", "chat", "vision", "stickers", "migrate"];
+const CAPABILITIES = ["health", "manage", "referrals", "rewards", "agent", "chat", "vision", "stickers", "migrate", "errors", "overview"];
 
 const reply = (body: Record<string, unknown>, status = 200) =>
   NextResponse.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -42,12 +44,27 @@ export async function GET(request: NextRequest) {
         webhook: (hook as { result?: { url?: string } }).result?.url || null,
       };
     }
+    const [db, migrations, errors] = await Promise.all([
+      dbHealth().catch(() => ({ ok: false, backend: "unknown", error: "db check failed", latencyMs: 0 })),
+      migrationsInfo().catch(() => ({ applied: [], pending: [] })),
+      readErrors(20).catch(() => []),
+    ]);
     return reply({
       ok: true,
       service: "ft-contest-bot",
       panel: "ft-panel",
       capabilities: CAPABILITIES,
       storage: storageInfo(),
+      db,
+      migrations,
+      gate: mandatoryGate(),
+      errors: errors.map((error) => ({
+        at: error.at,
+        scope: error.scope,
+        message: error.message,
+        count: error.count,
+        meta: error.meta,
+      })),
       telegram,
       users: await usersCount().catch(() => 0),
       commit: process.env.VERCEL_GIT_COMMIT_SHA || "",

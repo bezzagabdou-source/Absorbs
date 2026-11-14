@@ -1,11 +1,13 @@
 import { getStore } from "./store";
-import { DEFAULT_SETTINGS, OWNER_USERNAME, PINNED_CHANNELS, WELCOME_TEXT, type Settings } from "./types";
+import { enforceGatePolicy, mandatoryChannels } from "./gate";
+import { DEFAULT_SETTINGS, OWNER_USERNAME, WELCOME_TEXT, type Settings } from "./types";
 
-/** 🔐 كنضيفو القنوات المثبّتة (بلا تكرار) — ما تسقطش من البوابة */
+/**
+ * 🔐 كنضيفو القنوات المثبّتة (بلا تكرار) — ما تسقطش من البوابة أبداً.
+ * المصدر: lib/gate.ts (البيئة + الثابتة في الكود).
+ */
 export function withPinnedChannels(list: unknown): string[] {
-  const base = normalizeChannels(list);
-  for (const pin of normalizeChannels(PINNED_CHANNELS)) if (!base.includes(pin)) base.unshift(pin);
-  return base;
+  return enforceGatePolicy({ requiredChannels: list }).channels;
 }
 
 /** تطبيع قائمة القنوات: نص أو مصفوفة → مصفوفة @usernames فريدة */
@@ -62,14 +64,8 @@ export async function getSettings(): Promise<Settings> {
         return DEFAULT_SETTINGS.requiredChannels;
       })(),
     ),
-    // 🔒 نسخة الاشتراك الإجباري: البوابة شغّالة افتراضياً (كيما كانت).
-    // تقدر تطفيها من اللوحة (تتخزّن ف gateOn).
-    requireJoin:
-      PINNED_CHANNELS.length && forceGateOn()
-        ? true // 🔒 كاينة قناة مثبّتة → البوابة شغّالة على كل واحد (جديد ولا قديم)
-        : saved.gateOn === undefined
-          ? true
-          : Boolean(saved.gateOn),
+    // 🔒 الاشتراك الإجباري شرط ثابت: عمره ما كيتعطّل (لا من اللوحة ولا من المساعد).
+    requireJoin: true,
     gateV: GATE_VERSION,
     groupTarget: Math.max(1, Number(saved.groupTarget) || DEFAULT_SETTINGS.groupTarget),
     aiEnabled: saved.aiEnabled === undefined ? DEFAULT_SETTINGS.aiEnabled : Boolean(saved.aiEnabled),
@@ -86,23 +82,27 @@ export async function getSettings(): Promise<Settings> {
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
   const next: Settings = { ...current, ...patch, gateV: GATE_VERSION };
-  // 🔐 القنوات المثبّتة ما تسقطش حتى إلا تحيّدتا من اللوحة
-  if (patch.requiredChannels !== undefined) next.requiredChannels = withPinnedChannels(patch.requiredChannels);
-  // أي تعديل صريح على requireJoin = قرار المالك → نثبّتوه
-  if (patch.requireJoin !== undefined) next.gateOn = Boolean(patch.requireJoin);
-  // 🔐 والبوابة كتبقى شغّالة على الكل دام كاينة قناة مثبّتة (المالك يطفيها غير بـ GATE_OFF=1)
-  if (PINNED_CHANNELS.length && forceGateOn()) {
-    next.gateOn = true;
-    next.requireJoin = true;
+  // 🔐 القناة المحمية كتضاف دايماً، وطلب تعطيل البوابة كيتجاهل
+  const policy = enforceGatePolicy({
+    requiredChannels: patch.requiredChannels !== undefined ? patch.requiredChannels : next.requiredChannels,
+    requireJoin: true,
+  });
+  next.requiredChannels = policy.channels;
+  next.requireJoin = true;
+  next.gateOn = true;
+  if (policy.tampered) {
+    console.warn("[gate] ignored an attempt to weaken the mandatory subscription");
   }
   await getStore().set(SETTINGS_KEY, next);
   return next;
 }
 
-/** إلا كان env GATE_OFF=1 → المالك طفا البوابة بيده (واحيدة اللي تقدر) */
+/** البوابة دايماً شغّالة — كاينة للتوافق مع الاستدعاءات القديمة فقط */
 export function forceGateOn(): boolean {
-  return String(process.env.GATE_OFF || "") !== "1";
+  return true;
 }
+
+
 
 /** يوزر المالك بصيغة @handle */
 export function ownerHandle(settings: Settings): string {

@@ -159,13 +159,15 @@ async function photos(ids) {
   return out;
 }
 // The new management route has a fixed allowlist; never proxy arbitrary URLs or the bot's unrestricted AI endpoint.
-const VIEWS = new Set(['catalog', 'overview', 'stats', 'requests', 'log', 'users', 'user', 'leaderboard', 'broadcast']);
-const OPERATIONS = new Set(['reward_save', 'reward_delete', 'contest_save', 'contest_delete', 'user_points', 'user_ban', 'request_decide', 'points_config', 'settings_save', 'set_group', 'send_message', 'broadcast', 'broadcast_start', 'broadcast_step', 'broadcast_retry']);
-async function manageView(view, id, { timeout = 15000 } = {}) {
+const VIEWS = new Set(['catalog', 'overview', 'stats', 'requests', 'log', 'users', 'user', 'leaderboard', 'broadcast', 'errors', 'health', 'ledger']);
+const OPERATIONS = new Set(['reward_save', 'reward_delete', 'contest_save', 'contest_delete', 'user_points', 'user_ban', 'request_decide', 'points_config', 'settings_save', 'set_group', 'send_message', 'broadcast', 'broadcast_start', 'broadcast_step', 'broadcast_retry', 'errors_clear']);
+async function manageView(view, id, { timeout = 15000, limit } = {}) {
   if (!VIEWS.has(view)) throw new Error('عرض البوت غير مسموح');
   if ((['user', 'leaderboard'].includes(view) || (view === 'broadcast' && id)) && !/^[A-Za-z0-9_-]{1,100}$/.test(String(id || ''))) throw new Error('المعرّف غير صالح');
   const query = new URLSearchParams({ view });
   if (id) query.set('id', String(id));
+  // سجل الأخطاء فقط كيحتاج حدّ: كنقيّدو القيمة باش ما تتضخّمش الاستجابة.
+  if (limit != null && view === 'errors') query.set('limit', String(Math.max(1, Math.min(120, Number(limit) || 60))));
   return json(await call(`/api/panel/manage?${query}`, { timeout }));
 }
 async function manageOp(op, input = {}) {

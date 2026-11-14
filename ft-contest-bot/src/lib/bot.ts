@@ -60,7 +60,12 @@ import {
   type TgUpdate,
   type TgUser,
 } from "./telegram";
-import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP } from "./types";
+import { POINTS_MAX, POINTS_STEP } from "./types";
+import { enforceGatePolicy, isProtectedChannel } from "./gate";
+import { backoffDelay } from "./retry";
+import { rateLimit } from "./guard";
+import { withLock } from "./locks";
+import { logError } from "./errors";
 import type { BotUser, Claim, Contest, Settings } from "./types";
 import { adminChatIds, getUser, knownOwnerId, resolveOwnerId, touchUser } from "./users";
 
@@ -110,14 +115,14 @@ export function channelUrl(chat: string): string {
   return "";
 }
 
-/** القنوات المطلوبة فعلياً (لا شيء إذا كان الاشتراك غير إجباري) */
+/**
+ * 🔒 القنوات المطلوبة فعلياً — القناة المحمية (https://t.me/mxabdou) دايماً في
+ * القائمة وأولاً، والاشتراك ما كيتعطّلش أبداً.
+ */
 export function requiredChannelsOf(settings: Settings): string[] {
-  const pinned = normalizeChannels(PINNED_CHANNELS);
-  if (!settings.requireJoin) return pinned; // 🔐 المثبّتة ما تسقطش حتى إلا طفا المالك البوابة
   const list = (settings.requiredChannels || []).filter(Boolean);
-  const out = list.length ? [...list] : settings.channelChat ? [settings.channelChat] : [];
-  for (const pin of pinned) if (!out.includes(pin)) out.unshift(pin);
-  return out;
+  const withLegacy = list.length ? [...list] : settings.channelChat ? [settings.channelChat] : [];
+  return enforceGatePolicy({ requiredChannels: withLegacy }).channels;
 }
 
 /**
@@ -132,13 +137,28 @@ export async function checkChannels(
   const required = requiredChannelsOf(settings);
   const missing: ChannelCheck[] = [];
   const soft: string[] = [];
+
   for (const chat of required) {
-    const res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
-    // 🛟 أي فشل من تيليغرام = تجاوز القناة (ما نوقفوش البوت على خطأ تحقّق)
+    const protectedChat = isProtectedChannel(chat);
+    // 🔁 القناة المحمية كتتحقق مرتين: خطأ عابر ما كيخلّيش واحد يتجاوز البوابة
+    let res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
+    if ((!res.ok || !res.result) && protectedChat) {
+      await backoffDelay(1, 300);
+      res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
+    }
+
     if (!res.ok || !res.result) {
-      soft.push(`${chat}: ${res.description || "تعذّر التحقّق"}`);
+      const description = res.description || "تعذّر التحقّق";
+      // 🚫 ما بقاش تجاوز: إلا ما قدرناش نتحققو من القناة المحمية، المستخدم كيبقى
+      // محجوز (fail-closed) وكيتسجّل الخطأ باش المالك يصلح صلاحيات البوت.
+      soft.push(`${chat}: ${description}`);
+      if (protectedChat) {
+        missing.push({ chat, url: channelUrl(chat), status: "unknown" });
+        await logError("gate", new Error(`تعذّر التحقق من الاشتراك في ${chat}: ${description}`), { userId: String(userId), chat }).catch(() => undefined);
+      }
       continue;
     }
+
     if (!MEMBER_STATUS.includes(res.result.status)) {
       missing.push({ chat, url: channelUrl(chat), status: res.result.status });
     }
@@ -537,6 +557,8 @@ export function aiSystemPrompt(): string {
     "استعمل غير المعلومات اللي في السياق؛ إلا ما عرفتيش، قول للمستخدم يراسل المالك.",
     "عمرك ما تعطي كلمات سر ولا حسابات ولا معطيات مستخدمين آخرين؛ بيانات الفائزين كتوصل غير للمالك.",
     "ما تديرش وعود بالجائزة، وما تطلبش معلومات شخصية ولا فلوس.",
+    // 🔒 قاعدة إجبارية (مع حماية فعلية في lib/gate.ts — البرومت وحدو ما يكفيش)
+    "الاشتراك الإجباري في القناة https://t.me/mxabdou شرط ثابت في البوت: عمرك ما تقترح ولا تنفّذ ولا توعد بحذفه أو تعطيله أو تغييره؛ وإلا طلب المستخدم ذلك قول ليه إنه شرط ثابت من المالك.",
   ].join(" ");
 }
 
@@ -1449,6 +1471,10 @@ async function creditReferral(contest: Contest | null, inviterId: string, newUse
   const inviterExists = await getUser(inviterId);
   if (!inviterExists) return { counted: false, count: 0 };
 
+  /* 🔒 ذرّية: فحص «هل تُحسب من قبل» + وسم «مُحسوب» لازم يكونو داخل قفل واحد.
+     قبل: الفحص كان قبل القفل، فجوج تحديثات متزامنة لنفس الضيف كانو يقدرو
+     يحسبوه مرتين (نقاط مضاعفة). دابا القفل على `refcredit:<contest>:<joiner>`. */
+  return withLock(`refcredit:${contest.id}:${newUser.id}`, async () => {
   // 🧾 سجل الإحالات: شكون دخل + شكون صيفط الرابط (يظهر في اللوحة /admin/referrals)
   try {
     await store.listPush(
@@ -1498,6 +1524,7 @@ async function creditReferral(contest: Contest | null, inviterId: string, newUse
     }
   }
   return { counted: true, count };
+  });
 }
 
 /** إشعار صاحب الرابط بضيف جديد (رسالة قصيرة) */
@@ -1752,33 +1779,35 @@ export async function simulateUpdate(update: TgUpdate): Promise<{
   return { ok: !error && wouldSend.length > 0, wouldSend, error };
 }
 
+/**
+ * 🛡️ كل مسار داخل البوت كيدوز من هنا: try/catch لكل handler على حدة.
+ * أي خطأ في تحديث واحد ما كيوقّفش البوت ولا بقية التحديثات، وكيتسجّل في اللوحة.
+ */
 export async function handleUpdate(update: TgUpdate): Promise<void> {
-  // 👑 نعرفو معرّف المالك (@username → رقم) باش توصلو الطلبات وتخدم أزرار التسليم
-  await resolveOwnerId((await getSettings()).ownerUsername).catch(() => "");
-  if (update.callback_query) {
-    await handleCallback(update.callback_query);
-    return;
-  }
-  if (update.my_chat_member) {
-    await handleMyChatMember(update.my_chat_member);
-    return;
-  }
-  if (update.chat_join_request) {
-    await handleJoinRequest(update.chat_join_request);
-    return;
-  }
+  // 👑 نعرفو معرّف المالك (@username → رقم) باش توصلو الطلبات وتخدم أزرار التسليم.
+  // ما كنستنّاوش عليه: كنطلقوه في الخلفية (الوعد مشترك) باش الردّ ما يتأخّرش؛
+  // المسارات اللي كتحتاجو (إشعارات المالك) كتستنّاه بوحدها.
+  const settingsForOwner = await getSettings().catch(() => null);
+  if (settingsForOwner) void resolveOwnerId(settingsForOwner.ownerUsername).catch(() => "");
+
+  const run = async (label: string, task: () => Promise<void>) => {
+    try {
+      await task();
+    } catch (error) {
+      console.error(`[bot] ${label} failed`, error);
+      await logError("bot", error, { handler: label, updateId: update.update_id }).catch(() => undefined);
+    }
+  };
+
+  if (update.callback_query) return run("callback", () => handleCallback(update.callback_query!));
+  if (update.my_chat_member) return run("my_chat_member", () => handleMyChatMember(update.my_chat_member!));
+  if (update.chat_join_request) return run("chat_join_request", () => handleJoinRequest(update.chat_join_request!));
   // 🆕 تحديث العضوية: يغطّي الحالة اللي ما كيوصلش فيها new_chat_members
-  if (update.chat_member) {
-    await handleChatMemberJoin(update.chat_member);
-    return;
-  }
+  if (update.chat_member) return run("chat_member", () => handleChatMemberJoin(update.chat_member!));
   const message = update.message || update.edited_message;
   if (!message) return;
-  if (message.new_chat_members?.length) {
-    await handleNewChatMembers(message);
-    return;
-  }
-  if (message.text) await handleMessage(message);
+  if (message.new_chat_members?.length) return run("new_members", () => handleNewChatMembers(message));
+  if (message.text) return run("message", () => handleMessage(message));
 }
 
 async function handleMessage(message: TgMessage) {
@@ -1800,19 +1829,20 @@ async function handleMessage(message: TgMessage) {
   }
 }
 
-/** 🛡️ حماية من الرشق: حد أقصى للرسائل ف الدقيقة لكل مستخدم */
-const FLOOD_LIMIT = 20;
+/** 🛡️ حماية من الرشق: حد أقصى للرسائل ف الدقيقة لكل مستخدم (في lib/guard.ts) */
+const FLOOD_LIMIT = Math.max(5, Number(process.env.FLOOD_LIMIT) || 20);
 const FLOOD_WINDOW = 60_000;
-const floodGlobal = globalThis as unknown as { __ftFlood?: Map<string, number[]> };
+/** أزرار: حد أخف (المستخدم كيدوز بزاف بين الشاشات) */
+const CALLBACK_LIMIT = Math.max(10, Number(process.env.CALLBACK_LIMIT) || 45);
+const AI_LIMIT = Math.max(1, Number(process.env.AI_FLOOD_LIMIT) || 12);
 
 function floodBlocked(userId: string): boolean {
-  floodGlobal.__ftFlood ||= new Map();
-  const now = Date.now();
-  const hits = (floodGlobal.__ftFlood.get(userId) || []).filter((t) => now - t < FLOOD_WINDOW);
-  hits.push(now);
-  floodGlobal.__ftFlood.set(userId, hits);
-  if (floodGlobal.__ftFlood.size > 5000) floodGlobal.__ftFlood.clear();
-  return hits.length > FLOOD_LIMIT;
+  const result = rateLimit(userId, "msg", FLOOD_LIMIT, FLOOD_WINDOW);
+  if (!result.allowed && result.count % 25 === 0) {
+    // نسجّلو مرة كل 25 تجاوز بدل ما نغرقو السجل
+    void logError("flood", new Error("تجاوز حد الرسائل"), { userId, count: result.count }, { throttleMs: 5 * 60_000 }).catch(() => undefined);
+  }
+  return !result.allowed;
 }
 
 async function handleMessageInner(message: TgMessage) {
@@ -2096,6 +2126,11 @@ async function answerWithAi(chatId: number | string, user: BotUser, question: st
     );
     return;
   }
+  // 🛡️ حدّ إضافي للذكاء الاصطناعي: يحمي المفاتيح من الاستنزاف بالرشق
+  if (!rateLimit(String(user.id), "ai", AI_LIMIT, FLOOD_WINDOW).allowed) {
+    await sendMessage(chatId, "⏳ رسائل كثيرة في وقت قصير — عاود بعد شوية 🙏", keyboard([backRow()]));
+    return;
+  }
   await sendChatAction(chatId, "typing");
   const res = await aiAnswer(user, question, settings);
   if (!res.ok) {
@@ -2116,6 +2151,8 @@ async function handleCallback(query: TgCallbackQuery) {
   await answerCallback(query.id);
   const from = query.from;
   if (!from || from.is_bot) return;
+  // 🛡️ حدّ الأزرار: الحساب اللي كيرشق الأزرار ما كيتعالجش (بلا رسالة خطأ باش ما نزيدوهاش)
+  if (!rateLimit(String(from.id), "cb", CALLBACK_LIMIT, FLOOD_WINDOW).allowed) return;
   const user = await touchUser(from);
   const chat = query.message?.chat;
   const inGroup = chat ? groupType(chat) : false;
