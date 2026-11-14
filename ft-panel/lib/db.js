@@ -61,6 +61,10 @@ function memClient() {
       return 'OK';
     },
     async del(...keys) { const m = mem(); let n = 0; for (const k of keys.flat()) if (m.kv.delete(k)) n += 1; return n; },
+    /* نفس واجهة RedisClient باش الكود اللي كيسدّي الاتصال ما يطيحش في وضع الذاكرة */
+    async quit() { return 'OK'; },
+    disconnect() { /* بلا اتصال أصلاً */ },
+    on() { /* بلا أحداث في الذاكرة */ },
     async mget(...keys) { const m = mem(); return keys.flat().map((k) => (m.kv.has(k) ? m.kv.get(k) : null)); },
     async lindex(key, index) { const m = mem(); const list = m.lists.get(key) || []; const i = Number(index) < 0 ? list.length + Number(index) : Number(index); return list[i] ?? null; },
     async lrange(key, start, stop) { const m = mem(); const list = m.lists.get(key) || []; const end = Number(stop) < 0 ? list.length : Number(stop) + 1; return list.slice(Number(start), end); },
@@ -94,9 +98,28 @@ function memClient() {
         set: (k, v, ...r) => { ops.push(['set', [k, v, ...r]]); return b; },
         del: (...k) => { ops.push(['del', k.flat()]); return b; },
         lpush: (k, ...v) => { ops.push(['lpush', [k, ...v.flat()]]); return b; },
-        exec: async () => Promise.all(ops.map(([fn, args]) => self[fn](...args))),
+        lrem: (k, count, value) => { ops.push(['lrem', [k, count, value]]); return b; },
+        lpop: (k) => { ops.push(['lpop', [k]]); return b; },
+        /* نفس عقد ioredis: exec() كيرجّع [error, reply] لكل أمر */
+        exec: async () => {
+          const out = [];
+          for (const [fn, args] of ops) {
+            try { out.push([null, await self[fn](...args)]); }
+            catch (error) { out.push([error, null]); }
+          }
+          return out;
+        },
       };
       return b;
+    },
+    async lpop(key) { const m = mem(); const list = m.lists.get(key) || []; const value = list.shift() ?? null; m.lists.set(key, list); return value; },
+    async lrem(key, count, value) {
+      const m = mem(); const list = m.lists.get(key) || [];
+      const target = String(value); let removed = 0;
+      for (let i = list.length - 1; i >= 0; i -= 1) {
+        if (list[i] === target) { list.splice(i, 1); removed += 1; if (count > 0 && removed >= count) break; }
+      }
+      m.lists.set(key, list); return removed;
     },
     ping() { return 'PONG'; },
   };

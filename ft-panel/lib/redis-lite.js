@@ -70,6 +70,17 @@ class RedisClient {
     this.queue = [];
     this.closed = false;
     this.listeners = { error: [], ready: [] };
+    // 🔌 دعم unix sockets: '/path/to.sock' أو 'unix:///path/to.sock' (نفس عادة ioredis)
+    if (url.startsWith('/') || url.startsWith('unix://')) {
+      this.path = url.startsWith('unix://') ? url.slice('unix://'.length) : url;
+      this.host = '';
+      this.port = 0;
+      this.username = '';
+      this.password = '';
+      this.secure = false;
+      this.db = 0;
+      return;
+    }
     const parsed = new URL(url);
     this.host = parsed.hostname;
     this.port = Number(parsed.port || 6379);
@@ -96,7 +107,9 @@ class RedisClient {
     this.connecting = new Promise((resolve, reject) => {
       const socket = this.secure
         ? tls.connect({ host: this.host, port: this.port, servername: this.host, timeout: CONNECT_TIMEOUT })
-        : net.connect({ host: this.host, port: this.port, timeout: CONNECT_TIMEOUT });
+        : this.path
+          ? net.connect({ path: this.path, timeout: CONNECT_TIMEOUT })
+          : net.connect({ host: this.host, port: this.port, timeout: CONNECT_TIMEOUT });
       let settled = false;
       const fail = (error) => {
         if (settled) return;
@@ -217,7 +230,7 @@ class RedisClient {
     return this.send(['SCAN', cursor, ...args]);
   }
 
-  /** multi() كيتنفّذ كسلسلة أوامر داخل MULTI/EXEC */
+  /** multi() كيتنفّذ كسلسلة أوامر داخل MULTI/EXEC — بنفس عقد ioredis: exec() كيرجّع [error, reply] */
   multi() {
     const client = this;
     const ops = [];
@@ -225,13 +238,24 @@ class RedisClient {
       set: (k, v, ...rest) => { ops.push(['SET', k, v, ...rest.filter((x) => x != null)]); return builder; },
       del: (...keys) => { ops.push(['DEL', ...keys.flat()]); return builder; },
       lpush: (k, ...vals) => { ops.push(['LPUSH', k, ...vals.flat()]); return builder; },
+      lrem: (k, count, value) => { ops.push(['LREM', k, count, value]); return builder; },
+      lpop: (k) => { ops.push(['LPOP', k]); return builder; },
       exec: async () => {
-        const results = [];
-        const begin = await client.send(['MULTI']);
-        void begin;
-        for (const op of ops) results.push(await client.send(op));
-        await client.send(['EXEC']);
-        return results;
+        try {
+          const begin = await client.send(['MULTI']);
+          if (begin instanceof Error) throw begin;
+          for (const op of ops) {
+            const ack = await client.send(op); // +QUEUED
+            if (ack instanceof Error) throw ack;
+          }
+          const replies = await client.send(['EXEC']);
+          if (replies instanceof Error) throw replies;
+          const list = Array.isArray(replies) ? replies : [];
+          return ops.map((_, i) => (list[i] instanceof Error ? [list[i], null] : [null, list[i] ?? null]));
+        } catch (error) {
+          // فشل الاتصال ولا الترانزاكشن كاملة: كل العمليات كتعتابر فاشلة
+          return ops.map(() => [error, null]);
+        }
       },
     };
     return builder;
