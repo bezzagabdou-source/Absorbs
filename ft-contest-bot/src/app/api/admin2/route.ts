@@ -368,6 +368,17 @@ export async function GET(req: NextRequest) {
       return ok({ purge: result, own: await st.ownStickers(true) });
     }
 
+    // 🔎 كشف نشرة معينة عند تيليجرام (نفس الاسم، الخطأ الحقيقي)
+    if (what === "stickers_probe") {
+      const st = await import("@/lib/stickers");
+      const names = (url.searchParams.get("name") || "ftfire_by_ftmosaba9atbot,ftfire_webm_by_ftmosaba9atbot")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const raw = await Promise.all(names.map(async (n) => ({ name: n, raw: await st.rawStickerSet(n) })));
+      return ok({ probe: raw });
+    }
+
     // 🪓 فضّى النشرات القديمة (تيليجرام ما كيسمحش بمحو النشرة العادية كاملا)
     if (what === "stickers_gut") {
       const st = await import("@/lib/stickers");
