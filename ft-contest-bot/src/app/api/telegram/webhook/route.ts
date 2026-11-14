@@ -158,8 +158,15 @@ async function firstRunEmojiDiscovery() {
 }
 
 export async function POST(request: NextRequest) {
-  const settings = await getSettings();
-  const secret = settings.webhookSecret;
+  // 🛟 قاعدة البيانات طايحة؟ ما خاصناش نرجّعو 500 لتيليغرام: كان كيعاود
+  // يصيفط نفس التحديث بلا نهاية، والمستخدم ما كيوصلو جواب. كنسجّلو ونكملو.
+  let settings: Awaited<ReturnType<typeof getSettings>> | null = null;
+  try {
+    settings = await getSettings();
+  } catch (error) {
+    void logError("webhook", error, { step: "getSettings" }).catch(() => undefined);
+  }
+  const secret = settings?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || "";
 
   if (secret) {
     const headerSecret = request.headers.get("x-telegram-bot-api-secret-token");
@@ -182,9 +189,14 @@ export async function POST(request: NextRequest) {
   // 🧩 أي بوت؟ البوت الثاني كيتسجّل على نفس الرابط بعلامة ?bot=2 — نفس المتجر والبيانات
   const which = new URL(request.url).searchParams.get("bot");
   const second = secondBotToken();
-  if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update, "2"));
-
-  return await handleWebhook(update);
+  try {
+    if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update, "2"));
+    return await handleWebhook(update);
+  } catch (error) {
+    // ⛔ عمرنا ما نرجّعو 500 لتيليغرام — كيعاود الإرسال للأبد ويحبس البوت.
+    void logError("webhook", error, { step: "handleWebhook" }).catch(() => undefined);
+    return NextResponse.json({ ok: true, recovered: true });
+  }
 }
 
 /**
