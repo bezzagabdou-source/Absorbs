@@ -368,6 +368,14 @@ export async function GET(req: NextRequest) {
       return ok({ purge: result, own: await st.ownStickers(true) });
     }
 
+    // 🪓 فضّى النشرات القديمة (تيليجرام ما كيسمحش بمحو النشرة العادية كاملا)
+    if (what === "stickers_gut") {
+      const st = await import("@/lib/stickers");
+      const gut = await st.gutOwn();
+      await pushAdminLog({ at: Date.now(), op: "stickers_gut", detail: gut.note, via: "panel" });
+      return ok({ gut });
+    }
+
     // 🎬 اختبار حيّ: صيفط ملصق حقيقي لشات (المالك بالأساس) وقول آش تصيفط فعلاً
     if (what === "stickers_test") {
       const st = await import("@/lib/stickers");

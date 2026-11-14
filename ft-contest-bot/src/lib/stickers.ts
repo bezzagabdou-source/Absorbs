@@ -286,6 +286,77 @@ export async function purgeOwn(): Promise<{ ok: boolean; deleted: string[]; fail
 /** أسماء النشرات اللي تولّت من قبل (للمسح حتى إلا تحيّد المولّد) */
 const PACK_IDS = ["ftfire", "ftstars", "ftpower", "ftparty", "ftwin"];
 
+/**
+ * 🪓 فضّى النشرات: تيليجرام ما كيقبلش للبوت يمحي نشرة ملصقات عادية
+ * (deleteStickerSet خاصة غير custom emoji) — لكن نقدرو نبدّلو العنوان
+ * ونحيّدو الملصقات واحد بواحد حتى يبقى الملصق الأخير.
+ */
+export async function gutOwn(title = "⛔️ معطّلة — FT"): Promise<{
+  ok: boolean;
+  sets: { name: string; renamed: boolean; removed: number; left: number; note: string }[];
+  note: string;
+}> {
+  let botName = "";
+  try {
+    const me = await tgCall<{ username?: string }>("getMe");
+    botName = String(me.result?.username || "");
+  } catch {
+    /* لا شيء */
+  }
+  const who = (botName.split("@").pop() || "ftbot").replace(/[^a-z0-9_]/g, "");
+  const names = new Set<string>();
+  for (const id of PACK_IDS) {
+    names.add(`${id}_by_${who}`.slice(0, 64));
+    names.add(`${id}_webm_by_${who}`.slice(0, 64));
+  }
+  const out: { name: string; renamed: boolean; removed: number; left: number; note: string }[] = [];
+  let flood = 0;
+  for (const name of Array.from(names)) {
+    if (flood > 30) break;
+    const rec = { name, renamed: false, removed: 0, left: 0, note: "" };
+    const set = await fetchSet(name);
+    if (!set) {
+      rec.note = "ما تلقاتش (محيولا ولا ما كانتش)";
+      out.push(rec);
+      continue;
+    }
+    rec.left = set.stickers.length;
+    if (set.stickers.length >= 5) {
+      const r = await tgCall("setStickerSetTitle", { name, title: title.slice(0, 64) });
+      rec.renamed = Boolean(r.ok);
+      if (!r.ok) rec.note = String(r.description || "العنوان ما تبدّلش").slice(0, 90);
+    }
+    // نحيّد كل الملصقات غير الواحد الأخير (تيليجرام ما كيسمحش بالفراغ الكامل)
+    const ids = set.stickers.map((x) => x.fileId).slice(0, Math.max(0, set.stickers.length - 1));
+    for (const fileId of ids) {
+      if (flood > 30) break;
+      const d = await tgCall("deleteStickerFromSet", { sticker: fileId });
+      if (d.ok) {
+        rec.removed += 1;
+        rec.left = Math.max(0, rec.left - 1);
+        flood = 0;
+      } else {
+        const desc = String(d.description || "فشل");
+        const m = desc.match(/retry after\s+(\d+)/i);
+        if (m) {
+          flood = Number(m[1] || 60);
+          rec.note = `مهلة ${flood}ث — كمل من بعد`;
+          break;
+        }
+        rec.note = desc.slice(0, 90);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, flood > 30 ? 1500 : 420));
+    }
+    out.push(rec);
+  }
+  return {
+    ok: out.every((x) => x.note === "" || /ما تلقاتش/.test(x.note)),
+    sets: out,
+    note: `فضّينا ${out.reduce((n, x) => n + x.removed, 0)} ملصق من ${out.length} نشرة (تيليجرام كيسمح بملصق واحد على الأقل فكل نشرة)`,
+  };
+}
+
 export async function repairOwn(botNameHint = ""): Promise<{ ok: boolean; kinds: string[]; note: string }> {
   void botNameHint;
   if (!stickersEnabled()) return { ok: false, kinds: [], note: "الملصقات مطفية" };
