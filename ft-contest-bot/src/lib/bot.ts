@@ -38,8 +38,8 @@ import {
 } from "./rewards";
 import { getSettings, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
-import { E, fx, reactionStickers, stickerId } from "./emoji";
-import { sendStickers, type StickerKind } from "./stickers";
+import { E, fx } from "./emoji";
+import type { StickerKind } from "./stickers";
 import { parseGeneralReferral, registerGeneralReferral } from "./referrals";
 import { getStore } from "./store";
 import {
@@ -224,20 +224,11 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   return keyboard(rows);
 }
 
-/** 🎭 ملصقات البوت المتحركة (ملصقاتنا TGS) — ملصق + تفاعل، بلا كسر على الرسالة */
+/** ⛔️ الملصقات مطفية قاع (طلب المالك): ما كيتبعت حتى ملصق فحتى شاشة. */
 async function sendStickerPack(chatId: number | string, name: StickerKind = "welcome", count = 2): Promise<void> {
-  try {
-    const origin = await currentOrigin().catch(() => "");
-    const sent = await sendStickers(chatId, name, count, origin);
-    if (sent > 0) return;
-  } catch {
-    /* ما نكسرو والو على الرسالة */
-  }
-  if (name === "welcome" || name === "more") {
-    const main = stickerId(name);
-    if (main) await sendStickerSafe(chatId, main);
-    for (const extra of reactionStickers()) await sendStickerSafe(chatId, extra);
-  }
+  void chatId;
+  void name;
+  void count;
 }
 
 async function showMore(
@@ -262,7 +253,6 @@ async function showMore(
     "اختر من الأزرار تحت 👇",
   ];
   const rows: Button[][] = [
-    [{ text: "🎭 ملصقات البوت والإيموجي", callback_data: "stickers" }],
     [{ text: "🧩 الخدمات", callback_data: "services" }],
     [
       { text: "🎁 متجر الجوائز", callback_data: "shop" },
@@ -305,52 +295,14 @@ async function showServices(chatId: number | string, user: BotUser, messageId?: 
   }
 }
 
-/** 🎭 صفحة الملصقات والإيموجي المخصّصة (ميزة البوت) */
+/** ⛔️ الملصقات تحيّدو قاع — هاد الصفحة غير إخبار بلا زر ولا ملصق */
 async function showStickers(chatId: number | string, messageId?: number) {
-  const { describeStickers, EMOJI_SETS, stickerFor } = await import("./stickers");
-  const info = await describeStickers();
-  const ready = info.filter((x) => x.ready);
-  const lines = [
-    "🎭 <b>ملصقات البوت والإيموجي المخصّص</b>",
-    "",
-    ready.length
-      ? `🎭 <b>${ready.length}</b> مجموعات شغّالة — كيبانو أوتوماتيكيا فكل شاشات البوت (الترحيب، المسابقات، المتجر، النقاط، الترتيب) 🏃`
-      : `🎭 الملصقات كيخدمو غير ملي يكون البوت موصول بتيليجرام — عاود جرّب بعد شوية.`,
-    "",
-    "➕ اضغط على المجموعة باش تزيدها لحسابك و تستعملها في أي محادثة:",
-  ];
-  const rows: Button[][] = [];
-  for (const group of info) {
-    const ownMeta = (group as { own?: { link?: string; created?: boolean } }).own;
-    const set = group.sets[0];
-    if (ownMeta?.created && ownMeta.link && set) {
-      rows.push([{ text: `⚡️ زيد ${String(set.title || group.kind).slice(0, 30)}`, url: ownMeta.link }]);
-      continue;
-    }
-    if (!set || group.source !== "public") continue;
-    rows.push([{ text: `${set.animated ? "✨" : "🖼"} ${set.title.slice(0, 34)}`, url: `https://t.me/addstickers/${encodeURIComponent(set.name)}` }]);
-  }
-  if (EMOJI_SETS.length > 0) {
-    rows.push([
-      { text: "😀 إيموجي مخصّص (Premium) — شوف الحزمة", url: `https://t.me/addemoji/${EMOJI_SETS[0]}` },
-    ]);
-  }
-  const origin = await currentOrigin().catch(() => "");
-  if (origin) rows.push([{ text: "🖼 شوف معرض الملصقات كامل", url: `${origin}/api/stickers/gallery` }]);
-  rows.push([{ text: "⭐️ نقاطي", callback_data: "points" }, { text: "🎁 المتجر", callback_data: "shop" }]);
-  rows.push(backRow("more"));
+  const text = ["⛔️ <b>الملصقات مطفية</b>", "", "تحيّدو قاع الملصقات بقرار من المالك: البوت ما كيبعث حتى ملصق فحتى شاشة."];
+  const rows: Button[][] = [[{ text: "⭐️ نقاطي", callback_data: "points" }, { text: "🎁 المتجر", callback_data: "shop" }], backRow("home")];
   const kb = keyboard(rows);
-  const text = lines.join("\n");
-  if (messageId) await editMessage(chatId, messageId, text, kb);
-  else {
-    await sendMessage(chatId, text, kb);
-    // 🎬 عيّنة حيّة: ملصق واحد من كل مجموعة جاهزة (حتى 3)
-    for (const group of ready.slice(0, 3)) {
-      const origin2 = await currentOrigin().catch(() => "");
-      const one = await stickerFor(group.kind as "welcome" | "react" | "more" | "win" | "shop", 0, origin2);
-      if (one) await sendStickerSafe(chatId, one.fileId);
-    }
-  }
+  const body = text.join("\n");
+  if (messageId) await editMessage(chatId, messageId, body, kb);
+  else await sendMessage(chatId, body, kb);
 }
 
 /** ℹ️ معلومات البوت */

@@ -27,11 +27,11 @@ const KINDS: StickerKind[] = ["welcome", "react", "more", "win", "shop"];
  * تيليجرام الرسمية) — كيتستعملو غير غير ما تولّاش ملصقاتنا مرفوعة.
  */
 const PUBLIC_SETS: Record<StickerKind, string[]> = {
-  welcome: ["AppleStickers", "AndroidStickerSet"],
-  react: ["AppleStickers"],
-  more: ["AndroidStickerSet", "AppleStickers"],
-  win: ["AppleStickers", "AndroidStickerSet"],
-  shop: ["AndroidStickerSet", "AppleStickers"],
+  welcome: [],
+  react: [],
+  more: [],
+  win: [],
+  shop: [],
 };
 
 /** نشرات إيموجي مخصّصة عمومية (t.me/addemoji/<name>) — قلوب/نجوم/احتفال، بلا حيوانات */
@@ -219,7 +219,76 @@ export function expectedSetName(packId: string, botName: string, animated: boole
  * 🔧 رمّم الحالة من تيليجرام بلا رفع: كيجرّب النشرة المتحركة ولا الثابتة
  * (بأسمائها المتوقعة) ويعمّر file_ids الأحياء. كيعاود الحالة إلا ضاعت.
  */
+/**
+ * 🧹 محا النشرات ديال البوت من تيليجرام وحى الحالة من المخزن.
+ * كيجرّب الاسم الثابت + الاسم المتحرك + كل اسم مسجّل، و كيعطي التقرير.
+ */
+export async function purgeOwn(): Promise<{ ok: boolean; deleted: string[]; failed: { name: string; error: string }[]; note: string }> {
+  const store = getStore();
+  let botName = "";
+  try {
+    const me = await tgCall<{ username?: string }>("getMe");
+    botName = String(me.result?.username || "");
+  } catch {
+    /* لا شيء */
+  }
+  const who = (botName.split("@").pop() || "ftbot").replace(/[^a-z0-9_]/g, "");
+  const ids = Array.from(new Set([...STICKER_ASSETS.map((x) => String(x.id || "")), ...PACK_IDS].filter(Boolean)));
+  const names = new Set<string>();
+  for (const id of ids) {
+    names.add(`${id}_by_${who}`.slice(0, 64));
+    names.add(`${id}_webm_by_${who}`.slice(0, 64));
+  }
+  try {
+    for (const st of (await ownStickers(true))?.sets || []) if (st?.name) names.add(String(st.name));
+  } catch {
+    /* لا شيء */
+  }
+  const deleted: string[] = [];
+  const failed: { name: string; error: string }[] = [];
+  for (const name of Array.from(names)) {
+    if (!name) continue;
+    try {
+      const r = await tgCall("deleteStickerSet", { name });
+      if (r.ok) deleted.push(name);
+      else failed.push({ name, error: String(r.description || "فشل").slice(0, 120) });
+    } catch (e) {
+      failed.push({ name, error: String((e as Error)?.message || e).slice(0, 120) });
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  // 🧽 صفّر الحالة + التجاوزات ديال اللوحة
+  const empty: OwnState = { at: Date.now(), byKind: {}, sets: [] };
+  own = empty;
+  try {
+    await store.set(OWN_KEY, empty);
+  } catch {
+    /* cache */
+  }
+  try {
+    await store.del(OVERRIDES_KEY);
+  } catch {
+    /* لا شيء */
+  }
+  try {
+    await store.del("sticker_publish_lock");
+  } catch {
+    /* لا شيء */
+  }
+  return {
+    ok: failed.length === 0,
+    deleted,
+    failed,
+    note: deleted.length ? `تمحاو ${deleted.length} نشرة من تيليجرام` : "ما لقيناش نشرة تمحا (ولا ما كانتش)",
+  };
+}
+
+/** أسماء النشرات اللي تولّت من قبل (للمسح حتى إلا تحيّد المولّد) */
+const PACK_IDS = ["ftfire", "ftstars", "ftpower", "ftparty", "ftwin"];
+
 export async function repairOwn(botNameHint = ""): Promise<{ ok: boolean; kinds: string[]; note: string }> {
+  void botNameHint;
+  if (!stickersEnabled()) return { ok: false, kinds: [], note: "الملصقات مطفية" };
   const store = getStore();
   let botName = botNameHint;
   if (!botName) {
@@ -260,6 +329,16 @@ export async function repairOwn(botNameHint = ""): Promise<{ ok: boolean; kinds:
 }
 
 export async function publishOwn(opts: { apply?: boolean; origin?: string; userId?: string; only?: string[]; force?: boolean; prefer?: string } = {}) {
+  void opts;
+  if (!stickersEnabled())
+    return {
+      ok: true,
+      disabled: true,
+      uploaded: 0,
+      created: [] as string[],
+      message: "⛔️ الملصقات مطفية — ما كاين حتى رفع (STICKER_STYLE=on باش ترجّعهوم).",
+      planned: [] as unknown[],
+    };
   const apply = Boolean(opts.apply);
   const { packs, base } = await loadManifest(opts.origin || "");
   if (packs.length === 0)
@@ -458,6 +537,8 @@ export async function ownStickers(force = false): Promise<OwnState | null> {
 
 /** 🔄 شغّل الرفع فالخلفية مرة وحدة كل 10د (بلا ما نبطّو الرسالة) */
 export async function ensureOwn(origin = ""): Promise<void> {
+  void origin;
+  if (!stickersEnabled()) return; // ⛔️ طفّاء
   if (!(await token()) || String(process.env.STICKER_AUTO_PUBLISH ?? "1") === "0") return;
   if (Date.now() - lastTry < TTL_MS) return;
   lastTry = Date.now();
@@ -552,7 +633,12 @@ function pickFromPack(p: Pack, offset: number): Sticker | null {
   return null;
 }
 
-export const stickersEnabled = () => String(process.env.STICKER_STYLE ?? "1") !== "0";
+/**
+ * ⛔️ الملصقات مطفية على طول (طلب المالك: «نحي قاع الملصقات»).
+ * ما كيتصيفط حتى ملصق، ما كيتولّد حتى ملف، وما كاين حتى رفع لـ تيليجرام.
+ * للإرجاع مستقبلاً: STICKER_STYLE=on
+ */
+export const stickersEnabled = () => String(process.env.STICKER_STYLE || "") === "on";
 
 /** 🎭 ملصق جاهز لصنف: ملصقاتنا أولًا، ومن بعد النشرات العلنية */
 export async function stickerFor(kind: StickerKind, offset = 0, origin = ""): Promise<{ fileId: string; setName: string; emoji: string; title: string } | null> {
@@ -590,6 +676,7 @@ export async function sendStickers(chatId: number | string, kind: StickerKind, c
 /* ─────────────────────────── اللوحة / التشخيص ─────────────────────────── */
 
 export async function describeStickers() {
+  if (!stickersEnabled()) return [];
   const state = await ownStickers();
   return Promise.all(
     KINDS.map(async (kind) => {
@@ -663,6 +750,7 @@ export async function importEmojiPack(name: string) {
 /** 🗂 الـ file_ids اللي كنستعملوهم (للمعرض/للوسيط) */
 export async function knownStickerIds(): Promise<Set<string>> {
   const out = new Set<string>();
+  if (!stickersEnabled()) return out;
   const state = await ownStickers();
   for (const list of Object.values(state?.byKind || {})) for (const s of list) out.add(s.fileId);
   for (const kind of KINDS) for (const pack of await packsFor(kind)) for (const st of pack?.stickers || []) out.add(st.fileId);
@@ -671,6 +759,10 @@ export async function knownStickerIds(): Promise<Set<string>> {
 
 /** معرض HTML: ملصقاتنا (PNG بوستر) + النشرات العلنية + حزم الإيموجي */
 export async function stickerGalleryHtml(emojiSets: string[] = [], origin = ""): Promise<string> {
+  if (!stickersEnabled())
+    return `<!doctype html><html dir="rtl" lang="ar"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>🎭 الملصقات</title><body style="margin:0;background:#0b0d12;color:#e8ecf4;font:15px/1.7 system-ui,Tahoma,sans-serif;padding:26px"><h1 style="font-size:20px;margin:0 0 6px">⛔️ الملصقات مطفية</h1><p style="color:#8b93a7;margin:0">تحت أمر المالك: تحيّدو الملصقات قاع — لا نشرة، لا رفع، ولا ملصق كيتبعت. (لإرجاعهم: <code>STICKER_STYLE=on</code>)</p></body></html>`;
+  void emojiSets;
+  void origin;
   const labels: Record<StickerKind, string> = { welcome: "🏠 الترحيب", react: "💬 التفاعلات", more: "⭐️ المميزات", win: "🏆 الربح", shop: "🛒 المتجر" };
   const sections: string[] = [];
   const { packs } = await loadManifest(origin);
@@ -682,12 +774,19 @@ export async function stickerGalleryHtml(emojiSets: string[] = [], origin = ""):
       const tiles = pack.items
         .slice(0, GALLERY_PER_SET)
         .map((it) => {
-          const img = it.png ? `<img loading="lazy" src="/stickers/${it.png}" alt="${esc(it.emoji)}">` : it.json ? `<img loading="lazy" src="/stickers/${it.png || it.tgs}" alt="${esc(it.emoji)}">` : `<div class="ph">🎭</div>`;
-          return `<figure>${img}<figcaption>${esc(it.emoji)}</figcaption></figure>`;
+          const m = it as { webm?: string | null; png?: string | null; json?: string | null; tgs?: string };
+          const media = m.webm
+            ? `<video src="/stickers/${m.webm}" autoplay muted loop playsinline preload="metadata" poster="${m.png ? `/stickers/${m.png}` : ""}"></video>`
+            : m.png
+              ? `<img loading="lazy" src="/stickers/${m.png}" alt="${esc(it.emoji)}">`
+              : m.json
+                ? `<img loading="lazy" src="/stickers/${m.png || m.tgs}" alt="${esc(it.emoji)}">`
+                : `<div class="ph">🎭</div>`;
+          return `<figure>${media}<figcaption>${esc(it.emoji)}</figcaption></figure>`;
         })
         .join("");
       sections.push(
-        `<section><h3>${labels[kind]} <small>✨ متحرّك (TGS) · ${pack.items.length} ملصق · ${live ? "مرفوع لـ تيليجرام ✓" : "مازال ما انرفعش"}</small></h3><div class="g">${tiles}</div><a class="lnk" href="/stickers/index.html">🎬 شوف التحريك (Lottie)</a></section>`,
+        `<section><h3>${labels[kind]} <small>${pack.format === "webm" ? "🎞 متحرّك (WEBM/VP9 · 30fps)" : "✨ متحرّك (TGS)"} · ${pack.items.length} ملصق · ${live ? "مرفوع لـ تيليجرام ✓" : "مازال ما انرفعش"}</small></h3><div class="g">${tiles}</div><a class="lnk" href="/stickers/index.html">🎬 معاينة التحريك</a></section>`,
       );
       continue;
     }
@@ -722,5 +821,5 @@ export async function stickerGalleryHtml(emojiSets: string[] = [], origin = ""):
       `<section><h3>😀 <b>${esc(p.title)}</b> <small>إيموجي مخصّص · ${p.total}</small></h3><div class="g">${tiles}</div><a class="lnk" href="https://t.me/addemoji/${encodeURIComponent(p.name)}" target="_blank" rel="noopener">⚡️ زيد الإيموجي</a></section>`,
     );
   }
-  return `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>🎭 ملصقات البوت</title><style>body{margin:0;background:#0b0d12;color:#e8ecf4;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding:18px}h1{font-size:20px;margin:0 0 2px}.sub{color:#8b93a7;margin:0 0 18px}section{background:#121620;border:1px solid #1e2431;border-radius:16px;padding:14px 16px;margin:0 0 14px}h3{margin:0 0 10px;font-size:16px}small{color:#8b93a7;font-weight:400}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px}figure{margin:0;background:#0f131b;border:1px solid #1e2431;border-radius:12px;padding:6px;text-align:center}figure.emo{max-width:64px}figure img{width:100%;aspect-ratio:1;object-fit:contain;display:block;border-radius:8px}.ph{display:grid;place-items:center;aspect-ratio:1;font-size:26px}figcaption{font-size:12px;color:#8b93a7}.lnk{display:inline-block;margin-top:10px;color:#ffb547;text-decoration:none;font-size:13px}.none{color:#8b93a7;margin:0}</style></head><body><h1>🎭 ملصقات البوت المتحركة</h1><p class="sub">قلوب · نجوم · طاقة · احتفال · كؤوس — بلا حيوانات. مولّدة داخلياً (Lottie TGS 512×512).</p>${sections.join("")}</body></html>`;
+  return `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>🎭 ملصقات البوت</title><style>body{margin:0;background:#0b0d12;color:#e8ecf4;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding:18px}h1{font-size:20px;margin:0 0 2px}.sub{color:#8b93a7;margin:0 0 18px}section{background:#121620;border:1px solid #1e2431;border-radius:16px;padding:14px 16px;margin:0 0 14px}h3{margin:0 0 10px;font-size:16px}small{color:#8b93a7;font-weight:400}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px}figure{margin:0;background:#0f131b;border:1px solid #1e2431;border-radius:12px;padding:6px;text-align:center}figure.emo{max-width:64px}figure img,figure video{width:100%;aspect-ratio:1;object-fit:contain;display:block;border-radius:8px;background:#0b0d12}.ph{display:grid;place-items:center;aspect-ratio:1;font-size:26px}figcaption{font-size:12px;color:#8b93a7}.lnk{display:inline-block;margin-top:10px;color:#ffb547;text-decoration:none;font-size:13px}.none{color:#8b93a7;margin:0}</style></head><body><h1>🎭 ملصقات البوت المتحركة</h1><p class="sub">قلوب · نجوم · طاقة · احتفال · كؤوس — بلا حيوانات. مولّدة داخلياً (WEBM/VP9 · 512×512 · 30fps · شفافية).</p>${sections.join("")}</body></html>`;
 }

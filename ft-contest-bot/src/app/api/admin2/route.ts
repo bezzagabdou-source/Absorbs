@@ -357,6 +357,17 @@ export async function GET(req: NextRequest) {
       return ok({ publish: result, own: await st.ownStickers(true) });
     }
 
+    // 🧹 محا كل نشرة ملصقات من تيليجرام + صفّر الحالة (طلب المالك: الملصقات مطفية)
+    if (what === "stickers_purge") {
+      const st = await import("@/lib/stickers");
+      const apply = ["1", "yes", "true"].includes((url.searchParams.get("apply") || "").toLowerCase());
+      if (!apply)
+        return ok({ purge: { dry: true, note: "دوس apply=1 باش تمحا النشرات قاع من تيليجرام وتتصفّر الحالة" }, own: await st.ownStickers(true) });
+      const result = await st.purgeOwn();
+      await pushAdminLog({ at: Date.now(), op: "stickers_purge", detail: `محيت ${result.deleted.length} نشرة · فاشل ${result.failed.length}`, via: "panel" });
+      return ok({ purge: result, own: await st.ownStickers(true) });
+    }
+
     // 🎬 اختبار حيّ: صيفط ملصق حقيقي لشات (المالك بالأساس) وقول آش تصيفط فعلاً
     if (what === "stickers_test") {
       const st = await import("@/lib/stickers");

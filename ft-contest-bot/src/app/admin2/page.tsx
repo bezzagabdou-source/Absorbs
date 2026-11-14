@@ -312,15 +312,16 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
   }
   const [stk, setStk] = useState<{ kind: string; ready: boolean; sets: { name: string; title: string; total: number; animated: boolean; ok: boolean }[] }[]>([]);
   const [stkJson, setStkJson] = useState("");
-  async function publishStickers() {
-    setBusy("publish");
+  async function purgeStickers() {
+    setBusy("purge");
     try {
-      const r = await api({ action: "stickers_publish", apply: true });
-      const up = Number((r.publish as { uploaded?: number } | undefined)?.uploaded ?? 0);
-      flash("ok", `🚀 ${up} ملصق متحرك مرفوع ومربوط بالبوت — بان فكل الشاشات`);
+      const r = await api({ action: "stickers_purge", apply: true });
+      const pr = (r.purge || {}) as { deleted?: string[]; failed?: { name: string; error: string }[]; note?: string };
+      const bad = (pr.failed || []).filter((x) => !/STICKERSET_NOT_FOUND|not found/i.test(x.error || ""));
+      flash(bad.length ? "err" : "ok", `🧹 ${pr.note || "تمّت المحو"}${bad.length ? ` · ${bad.length} فشل` : ""}`);
       void loadStickers();
     } catch (e) {
-      flash("err", String((e as Error)?.message || "الرفع ما تمشاش"));
+      flash("err", String((e as Error)?.message || "المحو ما تمشاش"));
     }
     setBusy("");
   }
@@ -505,7 +506,7 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
       </div>
 
       <div className="a2-card">
-        <h3>🎭 الإيموجي المتحرك والملصقات</h3>
+        <h3>😀 الإيموجي المخصّص</h3>
         <p style={{ opacity: 0.75, fontSize: 13, margin: "4px 0 10px" }}>
           {emojiCount} إيموجي محمّل في {Object.keys(packs).length} حزمة. زيد حزمة جديدة مباشرة — بلا أوامر في المينيوم.
         </p>
@@ -534,42 +535,22 @@ function DiagTab({ flash }: { flash: (k: "ok" | "err", t: string) => void }) {
       </div>
 
       <div className="a2-card">
-        <h3>🎭 الملصقات المتحرّكة (حيّة، بلا إعدادات)</h3>
+        <h3>⛔️ الملصقات مطفية</h3>
         <p style={{ opacity: 0.75, fontSize: 13, margin: "4px 0 10px" }}>
-          البوت كيصيفط ملصق فكل شاشة (الترحيب، المميزات، المتجر، الخدمات، الربح). اختار النشرات اللي عجباتك —
-          سميها غير الاسم ديال t.me/addstickers/&lt;name&gt;.
+          بقرار من المالك تحيّدو قاع الملصقات: البوت ما كيبعث حتى ملصق، وما كاينش حتى نشرة مربوطة بيه.
+          إلا بغيتي تمحا النشرات اللي مازال موجودة فحساب البوت فـ تيليجرام — دوس الزر تحت.
         </p>
-        <div className="a2-row" style={{ flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-          {stk.map((g) => (
-            <span key={g.kind} className={`a2-pill ${g.ready ? "on" : ""}`}>
-              {g.kind}: {g.sets.filter((x) => x.ok).length ? `${g.sets.find((x) => x.ok)?.title || g.sets[0]?.name} (${g.sets.find((x) => x.ok)?.total || 0})` : "ماكاين"}
-            </span>
-          ))}
-        </div>
-        <textarea
-          value={stkJson}
-          onChange={(e) => setStkJson(e.target.value)}
-          rows={3}
-          placeholder={'{"welcome":["pug","happy_duck"],"more":["Like"],"win":["Confetti"]}'}
-          style={{ width: "100%", fontFamily: "ui-monospace,monospace", fontSize: 12, marginBottom: 8 }}
-        />
         <div className="a2-row" style={{ gap: 8 }}>
-          <button className="btn2 sm gold" onClick={() => void saveStickers()} disabled={busy === "sticker"}>
-            💾 حفظ النشرات
+          <button className="btn2 sm" onClick={() => void purgeStickers()} disabled={busy === "purge"}>
+            🧹 محا النشرات من تيليجرام
           </button>
-          <button className="btn2 sm" onClick={() => void refreshStickers()} disabled={busy === "sticker"}>
-            🔄 أنعش
-          </button>
-          <a className="btn2 sm" href="/api/admin2?what=stickers_test" target="_blank" rel="noopener">
-            🎬 جرّب الملصقات الآن
-          </a>
-          <button className="btn2 sm gold" onClick={() => void publishStickers()} disabled={busy === "publish"}>
-            🚀 ارفع الملصقات للبوت
-          </button>
-          <a className="btn2 sm" href="/api/stickers/gallery" target="_blank" rel="noopener">
-            🖼 معرض الملصقات
+          <a className="btn2 sm" href="/api/admin2?what=stickers" target="_blank" rel="noopener">
+            🔎 الحالة
           </a>
         </div>
+        <p style={{ fontSize: 13, opacity: 0.7, margin: "10px 0 0" }}>
+          للحلّ مؤقتاً بلا مسح: <code>STICKER_STYLE=on</code> (ما نصحش بيه إلا ما بغيتي الملصقات ترجع).
+        </p>
       </div>
     </div>
   );
