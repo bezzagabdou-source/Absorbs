@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-13T23:13:38.136Z",
+  "generatedAt": "2026-11-14T00:03:57.768Z",
   "size": 512,
   "fps": 30,
   "frames": 90,
@@ -9,55 +9,67 @@
       "kind": "welcome",
       "title": "FT 🔥 قلوب منّينة",
       "setName": "ftfire_by_bot",
-      "format": "tgs",
+      "format": "webm",
       "items": [
         {
           "emoji": "❤️",
           "tgs": "ftfire/01.tgs",
+          "webm": "ftfire/01.webm",
+          "webmBytes": 54274,
           "png": "ftfire/01.png",
           "webp": "ftfire/01.webp",
           "json": "ftfire/01.json",
-          "bytes": 1033
+          "bytes": 1046
         },
         {
           "emoji": "🧡",
           "tgs": "ftfire/02.tgs",
+          "webm": "ftfire/02.webm",
+          "webmBytes": 53505,
           "png": "ftfire/02.png",
           "webp": "ftfire/02.webp",
           "json": "ftfire/02.json",
-          "bytes": 1031
+          "bytes": 1043
         },
         {
           "emoji": "💜",
           "tgs": "ftfire/03.tgs",
+          "webm": "ftfire/03.webm",
+          "webmBytes": 50851,
           "png": "ftfire/03.png",
           "webp": "ftfire/03.webp",
           "json": "ftfire/03.json",
-          "bytes": 1045
+          "bytes": 1060
         },
         {
           "emoji": "💙",
           "tgs": "ftfire/04.tgs",
+          "webm": "ftfire/04.webm",
+          "webmBytes": 53701,
           "png": "ftfire/04.png",
           "webp": "ftfire/04.webp",
           "json": "ftfire/04.json",
-          "bytes": 1032
+          "bytes": 1044
         },
         {
           "emoji": "💛",
           "tgs": "ftfire/05.tgs",
+          "webm": "ftfire/05.webm",
+          "webmBytes": 50983,
           "png": "ftfire/05.png",
           "webp": "ftfire/05.webp",
           "json": "ftfire/05.json",
-          "bytes": 1036
+          "bytes": 1048
         },
         {
           "emoji": "🤍",
           "tgs": "ftfire/06.tgs",
+          "webm": "ftfire/06.webm",
+          "webmBytes": 58456,
           "png": "ftfire/06.png",
           "webp": "ftfire/06.webp",
           "json": "ftfire/06.json",
-          "bytes": 1034
+          "bytes": 1046
         }
       ]
     },
@@ -66,35 +78,43 @@
       "kind": "more",
       "title": "FT ⭐️ نجوم وشرارات",
       "setName": "ftstars_by_bot",
-      "format": "tgs",
+      "format": "webm",
       "items": [
         {
           "emoji": "⭐️",
           "tgs": "ftstars/01.tgs",
+          "webm": "ftstars/01.webm",
+          "webmBytes": 54032,
           "png": "ftstars/01.png",
           "webp": "ftstars/01.webp",
           "json": "ftstars/01.json",
-          "bytes": 632
+          "bytes": 640
         },
         {
           "emoji": "🌟",
           "tgs": "ftstars/02.tgs",
+          "webm": "ftstars/02.webm",
+          "webmBytes": 52580,
           "png": "ftstars/02.png",
           "webp": "ftstars/02.webp",
           "json": "ftstars/02.json",
-          "bytes": 629
+          "bytes": 635
         },
         {
           "emoji": "✨",
           "tgs": "ftstars/03.tgs",
+          "webm": "ftstars/03.webm",
+          "webmBytes": 59877,
           "png": "ftstars/03.png",
           "webp": "ftstars/03.webp",
           "json": "ftstars/03.json",
-          "bytes": 629
+          "bytes": 631
         },
         {
           "emoji": "💫",
           "tgs": "ftstars/04.tgs",
+          "webm": "ftstars/04.webm",
+          "webmBytes": 55613,
           "png": "ftstars/04.png",
           "webp": "ftstars/04.webp",
           "json": "ftstars/04.json",
@@ -103,10 +123,12 @@
         {
           "emoji": "🌠",
           "tgs": "ftstars/05.tgs",
+          "webm": "ftstars/05.webm",
+          "webmBytes": 57491,
           "png": "ftstars/05.png",
           "webp": "ftstars/05.webp",
           "json": "ftstars/05.json",
-          "bytes": 657
+          "bytes": 667
         }
       ]
     },
@@ -115,47 +137,57 @@
       "kind": "react",
       "title": "FT ⚡️ طاقة وتفاعلات",
       "setName": "ftpower_by_bot",
-      "format": "tgs",
+      "format": "webm",
       "items": [
         {
           "emoji": "⚡️",
           "tgs": "ftpower/01.tgs",
+          "webm": "ftpower/01.webm",
+          "webmBytes": 30230,
           "png": "ftpower/01.png",
           "webp": "ftpower/01.webp",
           "json": "ftpower/01.json",
-          "bytes": 600
+          "bytes": 599
         },
         {
           "emoji": "🔥",
           "tgs": "ftpower/02.tgs",
+          "webm": "ftpower/02.webm",
+          "webmBytes": 30230,
           "png": "ftpower/02.png",
           "webp": "ftpower/02.webp",
           "json": "ftpower/02.json",
-          "bytes": 609
+          "bytes": 608
         },
         {
           "emoji": "💪",
           "tgs": "ftpower/03.tgs",
+          "webm": "ftpower/03.webm",
+          "webmBytes": 51956,
           "png": "ftpower/03.png",
           "webp": "ftpower/03.webp",
           "json": "ftpower/03.json",
-          "bytes": 507
+          "bytes": 510
         },
         {
           "emoji": "🚀",
           "tgs": "ftpower/04.tgs",
+          "webm": "ftpower/04.webm",
+          "webmBytes": 30230,
           "png": "ftpower/04.png",
           "webp": "ftpower/04.webp",
           "json": "ftpower/04.json",
-          "bytes": 608
+          "bytes": 605
         },
         {
           "emoji": "👍",
           "tgs": "ftpower/05.tgs",
+          "webm": "ftpower/05.webm",
+          "webmBytes": 50795,
           "png": "ftpower/05.png",
           "webp": "ftpower/05.webp",
           "json": "ftpower/05.json",
-          "bytes": 525
+          "bytes": 528
         }
       ]
     },
@@ -164,11 +196,13 @@
       "kind": "shop",
       "title": "FT 🎉 احتفال وهدايا",
       "setName": "ftparty_by_bot",
-      "format": "tgs",
+      "format": "webm",
       "items": [
         {
           "emoji": "🎉",
           "tgs": "ftparty/01.tgs",
+          "webm": "ftparty/01.webm",
+          "webmBytes": 58593,
           "png": "ftparty/01.png",
           "webp": "ftparty/01.webp",
           "json": "ftparty/01.json",
@@ -177,34 +211,42 @@
         {
           "emoji": "🎁",
           "tgs": "ftparty/02.tgs",
+          "webm": "ftparty/02.webm",
+          "webmBytes": 57514,
           "png": "ftparty/02.png",
           "webp": "ftparty/02.webp",
           "json": "ftparty/02.json",
-          "bytes": 559
+          "bytes": 546
         },
         {
           "emoji": "🥳",
           "tgs": "ftparty/03.tgs",
+          "webm": "ftparty/03.webm",
+          "webmBytes": 56946,
           "png": "ftparty/03.png",
           "webp": "ftparty/03.webp",
           "json": "ftparty/03.json",
-          "bytes": 913
+          "bytes": 921
         },
         {
           "emoji": "🪅",
           "tgs": "ftparty/04.tgs",
+          "webm": "ftparty/04.webm",
+          "webmBytes": 56821,
           "png": "ftparty/04.png",
           "webp": "ftparty/04.webp",
           "json": "ftparty/04.json",
-          "bytes": 560
+          "bytes": 547
         },
         {
           "emoji": "✨",
           "tgs": "ftparty/05.tgs",
+          "webm": "ftparty/05.webm",
+          "webmBytes": 59877,
           "png": "ftparty/05.png",
           "webp": "ftparty/05.webp",
           "json": "ftparty/05.json",
-          "bytes": 629
+          "bytes": 631
         }
       ]
     },
@@ -213,55 +255,67 @@
       "kind": "win",
       "title": "FT 🏆 فوز وكؤوس",
       "setName": "ftwin_by_bot",
-      "format": "tgs",
+      "format": "webm",
       "items": [
         {
           "emoji": "🏆",
           "tgs": "ftwin/01.tgs",
+          "webm": "ftwin/01.webm",
+          "webmBytes": 52986,
           "png": "ftwin/01.png",
           "webp": "ftwin/01.webp",
           "json": "ftwin/01.json",
-          "bytes": 865
+          "bytes": 718
         },
         {
           "emoji": "🥇",
           "tgs": "ftwin/02.tgs",
+          "webm": "ftwin/02.webm",
+          "webmBytes": 55968,
           "png": "ftwin/02.png",
           "webp": "ftwin/02.webp",
           "json": "ftwin/02.json",
-          "bytes": 587
+          "bytes": 580
         },
         {
           "emoji": "💰",
           "tgs": "ftwin/03.tgs",
+          "webm": "ftwin/03.webm",
+          "webmBytes": 56980,
           "png": "ftwin/03.png",
           "webp": "ftwin/03.webp",
           "json": "ftwin/03.json",
-          "bytes": 608
+          "bytes": 603
         },
         {
           "emoji": "💯",
           "tgs": "ftwin/04.tgs",
+          "webm": "ftwin/04.webm",
+          "webmBytes": 54618,
           "png": "ftwin/04.png",
           "webp": "ftwin/04.webp",
           "json": "ftwin/04.json",
-          "bytes": 504
+          "bytes": 507
         },
         {
           "emoji": "👑",
           "tgs": "ftwin/05.tgs",
+          "webm": "ftwin/05.webm",
+          "webmBytes": 53902,
           "png": "ftwin/05.png",
           "webp": "ftwin/05.webp",
           "json": "ftwin/05.json",
-          "bytes": 881
+          "bytes": 739
         },
         {
           "emoji": "✅",
           "tgs": "ftwin/06.tgs",
+          "webm": "ftwin/06.webm",
+          "webmBytes": 52187,
           "png": "ftwin/06.png",
           "webp": "ftwin/06.webp",
           "json": "ftwin/06.json",
-          "bytes": 521
+          "bytes": 523
         }
       ]
     }

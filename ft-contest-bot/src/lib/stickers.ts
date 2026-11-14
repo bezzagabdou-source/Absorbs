@@ -107,12 +107,16 @@ function bakedPacks(): ManifestPack[] {
     id: p.id,
     kind: p.kind,
     title: p.title,
-    format: "tgs",
+    format:
+      (p as { format?: string }).format === "webm" || (p.items.length > 0 && p.items.every((x) => Boolean(x.webm)))
+        ? "webm"
+        : "tgs",
     items: p.items.map((it) => ({
       emoji: it.emoji,
       tgs: `${p.id}/${it.emoji}`,
       png: it.png,
       webp: it.webp,
+      webm: it.webm,
       json: "",
       bytes: Math.round((it.tgsB64 || "").length * 0.75),
       tgsB64: it.tgsB64,
@@ -156,7 +160,7 @@ async function ownerUserId(forced = ""): Promise<string> {
 }
 
 /** رفع ملف واحد → file_id (TGS، وإلا PNG ثابت) */
-async function uploadOne(base: string, item: ManifestItem, userId: string): Promise<{ fileId: string; how: string; error: string }> {
+async function uploadOne(base: string, item: ManifestItem, userId: string, prefer = ""): Promise<{ fileId: string; how: string; error: string }> {
   const t = await token();
   if (!t) return { fileId: "", how: "", error: "ما كاينش توكن البوت" };
   // 🎬 الصيغ اللي قبلها تيليجرام دابا: webm متحرك (animated) و webp/png ثابت (static).
@@ -166,8 +170,10 @@ async function uploadOne(base: string, item: ManifestItem, userId: string): Prom
     { path: item.webp || item.png || null, format: "static", upload: "static", type: item.webp ? "image/webp" : "image/png", file: item.webp ? "s.webp" : "s.png" },
     { path: item.tgs, format: "tgs", upload: "animated", type: "application/gzip", file: "s.tgs" },
   ];
+  const want = prefer === "webm" ? tries.filter((x) => x.format === "webm") : prefer === "static" ? tries.filter((x) => x.format !== "webm") : tries;
+  const list = want.length ? want : tries;
   const errs: string[] = [];
-  for (const step of tries) {
+  for (const step of list) {
     if (!step.path) continue;
     try {
       let buf: ArrayBuffer;
@@ -263,7 +269,7 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
         fmtTag ||= tag;
         continue;
       }
-      const up = await uploadOne(base, item, userId);
+      const up = await uploadOne(base, item, userId, pack.format === "webm" ? "webm" : pack.format === "tgs" && pack.items.every((x) => x.webm) ? "webm" : "static");
       if (up.fileId) {
         items.push({ fileId: up.fileId, emoji: item.emoji, fmt: up.how === "static" ? "png" : up.how });
         fmtTag ||= up.how;

@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
+import { renderFrames, encodeWebm, mkTmp, rmTmp, ffmpegPath } from "./render-lottie.mjs";
 
 const OUT = path.resolve("public/stickers");
 const SIZE = 512;
@@ -55,18 +56,12 @@ function boltPts(s = 1) {
   const p = [[26, -150], [-72, 20], [-8, 20], [-38, 150], [82, -34], [12, -34]];
   return p.map(([x, y]) => [+(x * s).toFixed(2), +(y * s).toFixed(2)]);
 }
-/** كاس الجائزة (تقريب): قوس + قاعدة */
+/** كاس الجائزة: حافة عريضة + جسم متقلّص (بلا تقاطع = كيبان مزيان فكل إطار) */
 function cupPts(s = 1) {
-  const pts = [];
-  for (let i = 0; i <= 20; i++) {
-    const a = Math.PI * (0.08 + (0.84 * i) / 20);
-    pts.push([+(Math.cos(a) * 120 * s).toFixed(2), +(Math.sin(a) * 100 * s - 40).toFixed(2)]);
-  }
-  for (let i = 20; i >= 0; i--) {
-    const a = Math.PI * (0.16 + (0.68 * i) / 20);
-    pts.push([+(Math.cos(a) * 70 * s).toFixed(2), +(Math.sin(a) * 52 * s + 20).toFixed(2)]);
-  }
-  return pts;
+  const raw = [
+    [-124, -96], [124, -96], [112, -46], [92, 8], [62, 44], [-62, 44], [-92, 8], [-112, -46],
+  ];
+  return raw.map(([x, y]) => [+(x * s).toFixed(2), +(y * s).toFixed(2)]);
 }
 
 /* ────────────────────────── Lottie builders ────────────────────────── */
@@ -88,9 +83,17 @@ const fill = (hex, o = 100) => ({ ty: "fl", c: { a: 0, k: rgb(hex) }, o: { a: 0,
 const stroke = (hex, w, o = 100) => ({ ty: "st", c: { a: 0, k: rgb(hex) }, o: { a: 0, k: o }, w: { a: 0, k: w }, lc: 2, lj: 2, ml: 4, nm: "s" });
 const ellipse = (sx, sy) => ({ ty: "el", p: { a: 0, k: [0, 0] }, s: { a: 0, k: [sx, sy] }, nm: "e" });
 const rect = (w, h, r = 0) => ({ ty: "rc", p: { a: 0, k: [0, 0] }, s: { a: 0, k: [w, h] }, r: { a: 0, k: r }, nm: "r" });
+/** تحويلات المجموعة — كيطبّع القيم المختصرة ({p:[0,40]}) لقاعدة Lottie {a:0,k:[…]} */
+const normTr = (v, dflt) => (v === undefined ? dflt : Array.isArray(v) || typeof v === "number" ? { a: 0, k: v } : v);
 const transform = (extra = {}) => ({
-  p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] },
-  r: { a: 0, k: 0 }, o: { a: 0, k: 100 }, sk: { a: 0, k: 0 }, sa: { a: 0, k: 0 }, ...extra,
+  ty: "tr",
+  p: normTr(extra.p, { a: 0, k: [0, 0] }),
+  a: normTr(extra.a, { a: 0, k: [0, 0] }),
+  s: normTr(extra.s, { a: 0, k: [100, 100] }),
+  r: normTr(extra.r, { a: 0, k: 0 }),
+  o: normTr(extra.o, { a: 0, k: 100 }),
+  sk: normTr(extra.sk, { a: 0, k: 0 }),
+  sa: normTr(extra.sa, { a: 0, k: 0 }),
 });
 const group = (items, nm = "g", tr = {}) => ({ ty: "gr", it: [...items, transform(tr)], nm });
 
@@ -120,7 +123,12 @@ function shapeLayer({ ind, name, groups, pos = [C, C], opacity = 100, scale, rot
     ao: 0, shapes: groups, ip: start, op: out, st: start, bm: 0,
   };
 }
-const doc = (nm, layers) => ({ v: "5.7.4", fr: FPS, ip: 0, op: FRAMES, w: SIZE, h: SIZE, nm, ddd: 0, assets: [], layers, markers: [] });
+/** 📄 مستند Lottie — الهالة «glow» دايماً فالاخير فاللائحة = فالخلفية (معيار Lottie: اللي أولاً فوق) */
+const doc = (nm, layers) => {
+  const back = layers.filter((l) => l && l.nm === "glow");
+  const rest = layers.filter((l) => !(l && l.nm === "glow"));
+  return { v: "5.7.4", fr: FPS, ip: 0, op: FRAMES, w: SIZE, h: SIZE, nm, ddd: 0, assets: [], layers: [...rest, ...back], markers: [] };
+};
 
 /* ────────────────────────── تصاميم الملصقات ────────────────────────── */
 
@@ -223,10 +231,12 @@ function trophy(hex, accent) {
       ind: 9, name: "cup",
       groups: [
         group([pathShape(cupPts(1)), fill(hex)]),
-        group([rect(150, 30, 8), fill(hex)], { p: [0, 116] }),
-        group([rect(210, 34, 10), fill(accent)], { p: [0, 150] }),
-        group([ellipse(96, 96), stroke("#ffffff", 12, 70)], { p: [-124, -6] }),
-        group([ellipse(96, 96), stroke("#ffffff", 12, 70)], { p: [124, -6] }),
+        group([rect(276, 34, 12), fill(accent)], { p: [0, -104] }),
+        group([rect(56, 52, 8), fill(hex)], { p: [0, 70] }),
+        group([rect(196, 32, 10), fill(hex)], { p: [0, 106] }),
+        group([rect(268, 40, 14), fill(accent)], { p: [0, 146] }),
+        group([ellipse(102, 102), stroke("#ffffff", 13, 76)], { p: [-156, -46] }),
+        group([ellipse(102, 102), stroke("#ffffff", 13, 76)], { p: [156, -46] }),
       ],
       scale: anim([[0, [98, 98]], [45, [108, 108]], [FRAMES, [98, 98]]]),
     }),
@@ -313,12 +323,14 @@ function pngFor(packId, item, idx) {
       `-fill ${JSON.stringify(rgba(c2, 1))} -stroke none -draw "ellipse ${C + 46},${C - 104} 37,37 0,360"`,
     );
   } else {
+    d.push(`-fill ${JSON.stringify(rgba(c2, 1))} -stroke none -draw "roundrectangle ${C - 138},${C - 121} ${C + 138},${C - 87} 12,12"`);
     fillPoly(cupPts(1), c1);
     d.push(
-      `-fill ${JSON.stringify(rgba(c2, 1))} -stroke none -draw "roundrectangle ${C - 75},${C + 116} ${C + 75},${C + 146} 8,8"`,
-      `-fill ${JSON.stringify(rgba(c2, 1))} -stroke none -draw "roundrectangle ${C - 105},${C + 146} ${C + 105},${C + 182} 10,10"`,
-      `-fill none -stroke ${JSON.stringify(rgba("#ffffff", 0.7))} -strokewidth 12 -draw "ellipse ${C - 124},${C - 46} 48,48 0,360"`,
-      `-fill none -stroke ${JSON.stringify(rgba("#ffffff", 0.7))} -strokewidth 12 -draw "ellipse ${C + 124},${C - 46} 48,48 0,360"`,
+      `-fill ${JSON.stringify(rgba(c1, 1))} -stroke none -draw "roundrectangle ${C - 28},${C + 44} ${C + 28},${C + 96} 8,8"`,
+      `-fill ${JSON.stringify(rgba(c1, 1))} -stroke none -draw "roundrectangle ${C - 98},${C + 90} ${C + 98},${C + 122} 10,10"`,
+      `-fill ${JSON.stringify(rgba(c2, 1))} -stroke none -draw "roundrectangle ${C - 134},${C + 126} ${C + 134},${C + 166} 14,14"`,
+      `-fill none -stroke ${JSON.stringify(rgba("#ffffff", 0.75))} -strokewidth 13 -draw "ellipse ${C - 156},${C - 46} 51,51 0,360"`,
+      `-fill none -stroke ${JSON.stringify(rgba("#ffffff", 0.75))} -strokewidth 13 -draw "ellipse ${C + 156},${C - 46} 51,51 0,360"`,
       `-fill ${JSON.stringify(rgba("#ffffff", 0.95))} -stroke none -draw "polygon ${polyStr(sparklePts(52, 13).map(([x, y]) => [x - 88, y - 86]))}"`,
     );
   }
@@ -356,9 +368,31 @@ for (const pack of PACKS) {
     fs.writeFileSync(path.join(dir, `${String(i + 1).padStart(2, "0")}.json`), json);
     try { pngFor(pack.id, item, String(i + 1).padStart(2, "0")); } catch (e) { console.warn("✗ بوستر PNG فشل:", String(e.stderr || e).slice(0, 260)); }
     const webpName = pngName.replace(/\.png$/, ".webp");
+    // 🎬 WEBM متحرك (VP9 + شفافية) — الصيغة الوحيدة اللي كيقبلها تيليجرام للمتحرك دابا
+    let webmName = null;
+    let webmBytes = 0;
+    if (ffmpegPath()) {
+      const stem = String(i + 1).padStart(2, "0");
+      const tmp = mkTmp(stem);
+      try {
+        const VFPS = 10, VFRAMES = 30; // 3 ثواني (تيليجرام: ≤30fps)
+        renderFrames(lottie, { frames: VFRAMES, size: SIZE, tmpDir: tmp });
+        const enc = encodeWebm({ tmpDir: tmp, frames: VFRAMES, fps: VFPS, out: path.join(dir, `${stem}.webm`), size: SIZE });
+        if (enc.ok && !enc.over) {
+          webmName = `${pack.id}/${stem}.webm`;
+          webmBytes = enc.bytes;
+        } else console.warn(`⚠ ${stem}.webm: ${enc.over ? `كبير (${Math.round(enc.bytes / 1024)}KB)` : enc.note}`);
+      } catch (e) {
+        console.warn("⚠ WEBM فشل:", String(e.stderr || e.message || e).slice(0, 200));
+      } finally {
+        rmTmp(tmp);
+      }
+    }
     items.push({
       emoji,
       tgs: `${pack.id}/${tgsName}`,
+      webm: webmName && fs.existsSync(path.join(OUT, webmName)) ? webmName : null,
+      webmBytes: webmName ? webmBytes : 0,
       png: fs.existsSync(path.join(dir, pngName)) ? `${pack.id}/${pngName}` : null,
       webp: fs.existsSync(path.join(dir, webpName)) ? `${pack.id}/${webpName}` : null,
       json: `${pack.id}/${String(i + 1).padStart(2, "0")}.json`,
@@ -366,7 +400,15 @@ for (const pack of PACKS) {
     });
     count++;
   });
-  manifest.packs.push({ id: pack.id, kind: pack.kind, title: pack.title, setName: `${pack.id}_by_bot`, format: "tgs", items });
+  // ⚖️ النشرة إما كلها متحركة ولا كلها ثابتة — تيليجرام ما كيخلطش الصيغ فـ نشرة وحدة
+  const LIM = 60 * 1024;
+  if (!items.every((x) => x.webm && x.webmBytes > 0 && x.webmBytes <= LIM)) {
+    items.forEach((x) => {
+      x.webm = null;
+      x.webmBytes = 0;
+    });
+  }
+  manifest.packs.push({ id: pack.id, kind: pack.kind, title: pack.title, setName: `${pack.id}_by_bot`, format: items.every((x) => x.webm) ? "webm" : "tgs", items });
 }
 fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
@@ -381,6 +423,8 @@ const baked = manifest.packs.map((p) => ({
     tgsB64: fs.existsSync(path.join(OUT, it.tgs)) ? fs.readFileSync(path.join(OUT, it.tgs)).toString("base64") : "",
     webp: it.webp || null,
     png: it.png || null,
+    webm: it.webm || null,
+    webmBytes: it.webmBytes || 0,
   })),
 }));
 const TS_OUT = path.resolve("src/lib/stickerAssets.ts");
@@ -390,7 +434,7 @@ fs.writeFileSync(
     "/* ⚠️ مولّد بـ scripts/gen-stickers.mjs — ما تعدّلو بيدك. */",
     "/* 🎭 ملصقات البوت المتحركة (Lottie TGS · 512×512 · 3s) مضمّنة base64. */",
     "",
-    `export type BakedItem = { emoji: string; tgsB64: string; webp: string | null; png: string | null };`,
+    `export type BakedItem = { emoji: string; tgsB64: string; webp: string | null; png: string | null; webm: string | null; webmBytes: number };`,
     `export type BakedPack = { id: string; kind: "welcome" | "react" | "more" | "win" | "shop"; title: string; items: BakedItem[] };`,
     "",
     `export const STICKER_ASSETS: BakedPack[] = ${JSON.stringify(baked)};`,
