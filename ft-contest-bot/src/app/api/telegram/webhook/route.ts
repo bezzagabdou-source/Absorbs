@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
   // 🧩 أي بوت؟ البوت الثاني كيتسجّل على نفس الرابط بعلامة ?bot=2 — نفس المتجر والبيانات
   const which = new URL(request.url).searchParams.get("bot");
   const second = secondBotToken();
-  if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update));
+  if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update, "2"));
 
   return await handleWebhook(update);
 }
@@ -193,11 +193,11 @@ export async function POST(request: NextRequest) {
  */
 const UPDATE_BUDGET_MS = 50_000;
 
-async function handleWebhook(update: TgUpdate) {
+async function handleWebhook(update: TgUpdate, botTag: "1" | "2" = "1") {
 
   /* 🔁 منع التكرار: تيليغرام كيعاود يصيفط نفس update_id إلا تأخّر الرد.
      معالجة نفس التحديث مرتين = إحالة محسوبة مرتين. */
-  if (!(await claimUpdate(update.update_id))) {
+  if (!(await claimUpdate(update.update_id, botTag))) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 

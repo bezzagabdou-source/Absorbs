@@ -17,21 +17,28 @@ const memoryGlobal = globalThis as unknown as {
 
 const SEEN_TTL_MS = 10 * 60_000;
 
-/** يرجّع true إلا كان التحديث جديد (ما تعالجش قبل) */
-export async function claimUpdate(updateId: number | undefined | null): Promise<boolean> {
+/**
+ * يرجّع true إلا كان التحديث جديد (ما تعالجش قبل).
+ *
+ * ⚠️ `update_id` فريد **لكل بوت**، ماشي لكل بوتّات الحساب. البوت التاني كيتسجّل
+ * على نفس الرابط بـ `?bot=2` وكيقدر يجيب نفس الأرقام، فبلا ما نفصلو بالمفتاح
+ * تحديثات البوت التاني كانت غادي تتIgnore كـ «مكرّرة».
+ */
+export async function claimUpdate(updateId: number | undefined | null, bot = "1"): Promise<boolean> {
   const id = Number(updateId);
   if (!Number.isFinite(id) || id <= 0) return true; // بلا معرّف: ما نمنعوش
+  const key = Number(`${bot === "2" ? 2 : 1}${String(id).padStart(12, "0")}`);
   memoryGlobal.__ftSeenUpdates ||= new Map();
   const seen = memoryGlobal.__ftSeenUpdates;
   const now = Date.now();
-  for (const [key, at] of seen) if (now - at > SEEN_TTL_MS) seen.delete(key);
-  if (seen.has(id)) return false;
-  seen.set(id, now);
+  for (const [k, at] of seen) if (now - at > SEEN_TTL_MS) seen.delete(k);
+  if (seen.has(key)) return false;
+  seen.set(key, now);
   try {
     // مصدر الحقيقة: المخزن المشترك (Redis/Postgres) باش حتى النسخ الأخرى تعرف
     const field = new Date().toISOString().slice(0, 10);
-    const added = await getStore().sAdd(`updates:seen:${field}`, String(id));
-    return added || !seen.has(id);
+    const added = await getStore().sAdd(`updates:seen:${bot === "2" ? "b2:" : ""}${field}`, String(id));
+    return added;
   } catch (error) {
     void logError("store", error, { kind: "claimUpdate" }).catch(() => undefined);
     return true; // فشل التخزين ما يمنعش خدمة المستخدم
