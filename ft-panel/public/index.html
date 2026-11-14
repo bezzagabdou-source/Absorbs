@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>لوحة تحكم مسابقات FT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600&family=Reem+Kufi:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="login" class="login">
+      <form id="lf">
+        <h1>مسابقات FT</h1>
+        <p>لوحة التحكم</p>
+        <input
+          id="pw"
+          type="password"
+          placeholder="كلمة السر"
+          autocomplete="current-password"
+        /><button class="btn">دخول</button>
+        <div id="lerr" class="err"></div>
+      </form>
+    </div>
+    <div id="app" hidden>
+      <header>
+        <h2 id="ttl">المساعد</h2>
+        <span id="bot" class="pill">…</span>
+      </header>
+      <main>
+        <div id="broadcast-progress" class="card" role="status" aria-live="polite" hidden></div>
+        <section id="t-ai">
+          <div class="agent-toolbar" aria-label="أدوات الوكيل">
+            <button class="sm" type="button" id="agent-diff">الفرق</button>
+            <button class="sm ok" type="button" id="agent-deploy">نشر المسودات</button>
+            <button class="sm" type="button" id="agent-undo">تراجع آخر تعديل</button>
+            <button class="sm" type="button" id="agent-history">السجل</button>
+            <button class="sm" type="button" id="agent-clear">محادثة جديدة</button>
+          </div>
+          <small class="privacy-note">الكود يُحفظ كمسودة أولاً. النشر يبدأ بناءً، والتراجع الآلي لا يشمل كل عمليات الإدارة أو الرسائل.</small>
+          <div id="chat" aria-live="polite"></div>
+          <div class="chips">
+            <button data-q="اعرض إحصائيات FT-bot">الإحصائيات</button
+            ><button data-q="اعرض جوائز ومسابقات FT-bot">المتجر والمسابقات</button
+            ><button data-q="اعرض طلبات FT-bot المعلقة">الطلبات</button>
+          </div>
+          <div id="ai-attachment" class="attachment" hidden>
+            <img id="ai-preview" alt="الصورة المرفقة" />
+            <span>صورة مرفقة · للتحليل أو إضافتها مباشرة للجائزة</span>
+            <button class="sm" type="button" id="ai-remove">إزالة</button>
+          </div>
+          <form id="af" class="bar">
+            <label class="sm upload-label ai-upload" title="إرفاق صورة">
+              <input id="ai-image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+              <span>📎 صورة</span>
+            </label>
+            <textarea id="aq" rows="2" placeholder="اكتب طلبك للبوت أو تطويره…" aria-label="طلبك للمساعد"></textarea>
+            <button class="btn">إرسال</button>
+          </form>
+          <small class="privacy-note">لا ترفق كلمات سر أو رموز وصول في الصور.</small>
+        </section>
+        <section id="t-instructions" hidden>
+          <form id="instructions-form" class="card">
+            <h3>تعليمات المساعد الدائمة</h3>
+            <small>تُطبّق على محادثات المساعد التالية، دون تجاوز الحماية أو صلاحيات الأدوات. لا تضع كلمات مرور أو توكنات؛ تُرسل التعليمات لمزوّد الذكاء الاصطناعي.</small>
+            <label>التعليمات<textarea id="instructions-text" rows="12" maxlength="12000" placeholder="اكتب تعليماتك الدائمة للمساعد…"></textarea></label>
+            <button class="btn" type="submit">حفظ التعليمات</button>
+            <small id="instructions-status"></small>
+          </form>
+        </section>
+        <section id="t-bot" hidden></section>
+                                        <section id="t-referrals" hidden></section>
+        <section id="t-set" hidden></section>
+      </main>
+      <nav id="nav">
+        <button data-t="ai" class="on">المساعد</button
+        ><button data-t="bot">FT-bot</button
+        ><button data-t="referrals">الإحالات</button
+        ><button data-t="set">الإعدادات</button
+        ><button data-t="instructions">تعليمات المساعد</button>
+      </nav>
+    </div>
+    <dialog id="bot-dlg"><form id="bot-df"></form></dialog>
+    <div id="toast"></div>
+    <script defer src="/dashboard.js"></script>
+    <script defer src="/dashboard-bot.js"></script>
+  </body>
+</html>
