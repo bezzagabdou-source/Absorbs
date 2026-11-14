@@ -12,11 +12,8 @@ type Msg = { message_id?: number; entities?: unknown[]; reply_markup?: unknown }
 
 /** الأدمين اللي كيستقبل الاختبارات (من الإعدادات في قاعدة البيانات) */
 export async function adminTargets(): Promise<string[]> {
-  const settings = await getSettings();
-  const ids = [...(settings.adminIds || [])].map(String).filter((id) => /^\d{4,20}$/.test(id));
-  const owner = String(settings.ownerUsername || "");
-  if (/^\d{4,20}$/.test(owner) && !ids.includes(owner)) ids.push(owner);
-  return ids;
+  const { adminChatIds } = await import("./users");
+  return adminChatIds(await getSettings());
 }
 
 function tag(emoji: string, id: string): string {

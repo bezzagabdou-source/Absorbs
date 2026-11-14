@@ -62,7 +62,7 @@ import {
 } from "./telegram";
 import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP } from "./types";
 import type { BotUser, Claim, Contest, Settings } from "./types";
-import { getUser, touchUser } from "./users";
+import { adminChatIds, getUser, knownOwnerId, resolveOwnerId, touchUser } from "./users";
 
 /* ───────────────────────────── helpers ───────────────────────────── */
 
@@ -901,6 +901,7 @@ function isAdminUser(settings: Settings, userId: string | number): boolean {
   const id = String(userId);
   return (
     settings.adminIds.map(String).includes(id) ||
+    (Boolean(knownOwnerId()) && knownOwnerId() === id) ||
     (Boolean(settings.ownerUsername) && /^\d+$/.test(settings.ownerUsername) && settings.ownerUsername === id)
   );
 }
@@ -1090,13 +1091,7 @@ async function buyReward(chatId: number | string, user: BotUser, rewardId: strin
       { text: "↩️ رفض وإرجاع النقاط", callback_data: `rqno:${res.request.id}` },
     ],
   ]);
-  const ids = [
-    ...new Set(
-      [...(owner.adminIds || []), owner.ownerUsername]
-        .map((x) => String(x || "").trim().replace(/^@/, ""))
-        .filter((x) => /^\d+$/.test(x)),
-    ),
-  ];
+  const ids = await adminChatIds(owner);
   for (const id of ids) await sendMessage(id, note, notifyKb);
 }
 
@@ -1311,7 +1306,7 @@ type GrantOutcome =
 async function notifyAdmins(text: string) {
   const settings = await getSettings();
   const targets = [
-    ...new Set([...settings.adminIds.filter(Boolean), settings.logChatId].filter(Boolean)),
+    ...new Set([...(await adminChatIds(settings)), settings.logChatId].filter(Boolean)),
   ];
   await Promise.all(targets.map((id) => sendMessage(id, text).catch(() => undefined)));
 }
@@ -1758,6 +1753,8 @@ export async function simulateUpdate(update: TgUpdate): Promise<{
 }
 
 export async function handleUpdate(update: TgUpdate): Promise<void> {
+  // 👑 نعرفو معرّف المالك (@username → رقم) باش توصلو الطلبات وتخدم أزرار التسليم
+  await resolveOwnerId((await getSettings()).ownerUsername).catch(() => "");
   if (update.callback_query) {
     await handleCallback(update.callback_query);
     return;
