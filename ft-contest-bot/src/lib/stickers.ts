@@ -208,12 +208,65 @@ async function uploadOne(base: string, item: ManifestItem, userId: string, prefe
 }
 
 /** 🚀 ارفع ملصقاتنا لـ تيليجرام وخزّن file_ids (apply=1 للرفع الحقيقي) */
-export async function publishOwn(opts: { apply?: boolean; origin?: string; userId?: string; only?: string[]; force?: boolean } = {}) {
+/** اسم النشرة المتوقع: ftfire_by_bot (ثابت) / ftfire_webm_by_bot (متحرك) */
+export function expectedSetName(packId: string, botName: string, animated: boolean): string {
+  const who = String(botName || "").split("@").pop() || "ftbot";
+  const tag = animated ? "_webm" : "";
+  return `${packId}${tag}_by_${who.replace(/[^a-z0-9_]/g, "")}`.slice(0, 64);
+}
+
+/**
+ * 🔧 رمّم الحالة من تيليجرام بلا رفع: كيجرّب النشرة المتحركة ولا الثابتة
+ * (بأسمائها المتوقعة) ويعمّر file_ids الأحياء. كيعاود الحالة إلا ضاعت.
+ */
+export async function repairOwn(botNameHint = ""): Promise<{ ok: boolean; kinds: string[]; note: string }> {
+  const store = getStore();
+  let botName = botNameHint;
+  if (!botName) {
+    const me = await tgCall<{ username?: string }>("getMe");
+    botName = String(me.result?.username || "");
+  }
+  if (!botName) return { ok: false, kinds: [], note: "ما تجاوبش getMe (توكن؟)" };
+  const packs = bakedPacks();
+  const byKind: Record<string, StickerItem[]> = {};
+  const sets: OwnSet[] = [];
+  for (const pack of packs) {
+    const animatedName = expectedSetName(pack.id, botName, true);
+    const staticName = expectedSetName(pack.id, botName, false);
+    const live = (await fetchSet(animatedName)) || (await fetchSet(staticName));
+    const isAnimated = Boolean(live && live.name === animatedName);
+    if (!live) continue;
+    byKind[pack.kind] = live.stickers.map((x) => ({ fileId: x.fileId, emoji: x.emoji, fmt: isAnimated ? "webm" : "png" }));
+    sets.push({
+      kind: pack.kind,
+      pack: pack.id,
+      title: pack.title,
+      name: live.name,
+      link: `https://t.me/addstickers/${live.name}`,
+      created: true,
+      note: isAnimated ? "النشرة المتحركة (webm) مربوطة" : "النشرة الثابتة مربوطة (webp)",
+    });
+  }
+  const kinds = Object.keys(byKind);
+  if (kinds.length === 0) return { ok: false, kinds, note: "حتى نشرة ما تلقات عند تيليجرام" };
+  const state: OwnState = { at: Date.now(), byKind, sets };
+  try {
+    await store.set(OWN_KEY, state);
+  } catch {
+    /* cache */
+  }
+  own = state;
+  return { ok: kinds.length === packs.length, kinds, note: `${kinds.length}/${packs.length} صنف مربوط` };
+}
+
+export async function publishOwn(opts: { apply?: boolean; origin?: string; userId?: string; only?: string[]; force?: boolean; prefer?: string } = {}) {
   const apply = Boolean(opts.apply);
   const { packs, base } = await loadManifest(opts.origin || "");
   if (packs.length === 0)
     return {
       ok: false,
+      uploaded: 0,
+      created: [] as string[],
       message: "ما لقيناه حتى ملصق مضمّن — سير `node scripts/gen-stickers.mjs` ومن بعدعاود المحاولة",
       planned: [] as unknown[],
     };
@@ -227,25 +280,30 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
       total: usable.reduce((n, p) => n + p.items.length, 0),
     };
   }
-  if (!(await token())) return { ok: false, message: "ما كاينش توكن البوت" };
+  if (!(await token())) return { ok: false, uploaded: 0, created: [] as string[], message: "ما كاينش توكن البوت" };
   const userId = await ownerUserId(opts.userId);
-  if (!userId) return { ok: false, message: "ما لقيناه حتى معرّف مستخدم (خاص اللوحة تكون فيها مستخدم واحد)" };
+  if (!userId)
+    return { ok: false, uploaded: 0, created: [] as string[], message: "ما لقيناه حتى معرّف مستخدم (خاص اللوحة تكون فيها مستخدم واحد)" };
   const bot = await tgCall<{ username?: string; id?: number }>("getMe");
   const botName = String(bot.result?.username || "").toLowerCase();
   if (!bot.ok || !botName)
     return {
       ok: false,
+      uploaded: 0,
+      created: [] as string[],
       message: `تيليجرام رفض التوكن: ${String(bot.description || "getMe فشل").slice(0, 120)}`,
       planned: [] as unknown[],
     };
   const byKind: Record<string, StickerItem[]> = {};
   const sets: OwnSet[] = [];
   const errors: string[] = [];
+  let floodWait = 0;
 
   // ♻️ الملفات اللي ترفعات من قبل: ما نعاودوش نرفعوه (file_id صالح للأبد)
   const prevIds = new Map<string, string>();
+  let prev: OwnState | null = null;
   try {
-    const prev = await ownStickers(true);
+    prev = await ownStickers(true);
     for (const [k, list] of Object.entries(prev?.byKind || {}))
       for (const it of list || []) if (it?.emoji && it?.fileId) prevIds.set(`${k}:${it.emoji}`, `${it.fileId}::${it.fmt || "png"}`);
   } catch {
@@ -269,12 +327,21 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
         fmtTag ||= tag;
         continue;
       }
-      const up = await uploadOne(base, item, userId, pack.format === "webm" ? "webm" : pack.format === "tgs" && pack.items.every((x) => x.webm) ? "webm" : "static");
+      if (floodWait > 0) {
+        errors.push(`${pack.id}/${item.emoji}: مهلة من تيليجرام (${floodWait}ث) — غادي نكمل من بعد`);
+        continue;
+      }
+      const prefer = opts.prefer === "static" ? "static" : pack.format === "webm" ? "webm" : "static";
+      const up = await uploadOne(base, item, userId, prefer);
+      if (up.error && /Too Many|retry after/i.test(up.error)) {
+        const m = up.error.match(/retry after\s+(\d+)/i);
+        floodWait = Math.max(floodWait, Number(m?.[1] || 60));
+      }
       if (up.fileId) {
         items.push({ fileId: up.fileId, emoji: item.emoji, fmt: up.how === "static" ? "png" : up.how });
         fmtTag ||= up.how;
       } else if (up.error) errors.push(`${pack.id}/${item.emoji}: ${up.error}`);
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, floodWait ? 1200 : 900));
     }
     const animated = fmtTag === "webm";
     const tag = animated ? "webm" : "";
@@ -344,14 +411,35 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
     });
   }
 
-  const state: OwnState = { at: Date.now(), byKind, sets };
+  // 🛡️ ما نرجعش للحالة الخاوية: اللي خدّام من قبل كيتبقا، واللي tolّد كيتبدّل
+  const merged: OwnState = { at: Date.now(), byKind: { ...((prev?.byKind || {}) as Record<string, StickerItem[]>) }, sets: [] };
+  for (const k of Object.keys(byKind)) if ((byKind[k] || []).length) merged.byKind[k] = byKind[k];
+  const prevSets = new Map<string, OwnSet>((prev?.sets || []).map((x: OwnSet) => [x.kind, x]));
+  for (const k of KINDS) {
+    const fresh = sets.find((x) => x.kind === k);
+    const old = prevSets.get(k);
+    if (fresh?.created) merged.sets.push(fresh);
+    else if ((merged.byKind[k] || []).length && old) merged.sets.push(old);
+    else if (fresh) merged.sets.push(fresh);
+  }
+  const state: OwnState = merged;
   try {
     await getStore().set(OWN_KEY, state);
   } catch {
     /* cache المحلي خدام */
   }
   own = state;
-  return { ok: true, uploaded: Object.values(byKind).reduce((n, l) => n + l.length, 0), bot: botName, sets, errors: errors.slice(0, 8), base };
+  const uploaded = Object.values(state.byKind).reduce((n, l) => n + (l?.length || 0), 0);
+  return {
+    ok: uploaded > 0,
+    uploaded,
+    created: sets.filter((x) => x.created).map((x) => x.name),
+    bot: botName,
+    sets: state.sets,
+    errors: errors.slice(0, 8),
+    ...(floodWait ? { retryAfter: floodWait, message: `تيليجرام عطى مهلة — عاود من بعد ${floodWait} ثانية (اللي ترفع محفوظ)` } : {}),
+    base,
+  };
 }
 
 /** حالة ملصقاتنا (من التخزين) */

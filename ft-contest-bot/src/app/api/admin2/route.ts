@@ -299,6 +299,13 @@ export async function GET(req: NextRequest) {
     }
     // 🔍 تحقّق بلا ما نزعجو حتى واحد: getFile على كل file_id ديالنا — إلا رجع file_path
     // ملّي البوت يقدر يبعث الملصق (نفس الملف، نفس الصلاحية).
+    // 🔧 رمّم الربط من تيليجرام بلا رفع (كيستعمل النشرات اللي كاينين بأسمائهم)
+    if (what === "stickers_repair") {
+      const st = await import("@/lib/stickers");
+      const rep = await st.repairOwn();
+      await pushAdminLog({ at: Date.now(), op: "stickers_repair", detail: rep.note, via: "panel" });
+      return ok({ repair: rep, own: await st.ownStickers(true) });
+    }
     if (what === "stickers_verify") {
       const st = await import("@/lib/stickers");
       const own = await st.ownStickers(true);
@@ -343,7 +350,9 @@ export async function GET(req: NextRequest) {
       const st = await import("@/lib/stickers");
       const apply = ["1", "yes", "true"].includes((url.searchParams.get("apply") || "").toLowerCase());
       const force = ["1", "yes", "true"].includes((url.searchParams.get("force") || "").toLowerCase());
-      const result = await st.publishOwn({ apply, origin: req.nextUrl.origin, force });
+      const only = (url.searchParams.get("only") || "").split(",").map((x) => x.trim()).filter(Boolean);
+      const prefer = url.searchParams.get("prefer") || "";
+      const result = await st.publishOwn({ apply, origin: req.nextUrl.origin, force, only, prefer });
       if (apply) await pushAdminLog({ at: Date.now(), op: "stickers_publish", detail: `uploaded ${result.uploaded ?? 0} · ${result.ok ? "ok" : String((result as { message?: string }).message || "")}`, via: "panel" });
       return ok({ publish: result, own: await st.ownStickers(true) });
     }
