@@ -455,3 +455,10 @@ nav button { min-width: 52px; white-space: nowrap; }
 .agent-history-row { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .agent-history-row small { display: block; color: var(--mute); }
 @media (max-width: 440px) { .ai-upload { font-size: 12px; padding-inline: 7px; } #af .btn { padding-inline: 10px; } .agent-toolbar .sm { font-size: 12px; } }
+
+/* صفحة الإيموجي */
+#t-emoji .card.bad { border-color: #c0392b; }
+#t-emoji details { margin-top: 8px; }
+#t-emoji summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+#emoji-map .item b { font-size: 1.25rem; }
+#nav { overflow-x: auto; }

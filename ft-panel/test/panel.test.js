@@ -52,6 +52,14 @@ before(async () => {
       if (input.op === 'broadcast_start') return res.end(JSON.stringify({ ok: true, jobId: input.jobId, total: 140, sent: 0, failed: 0, excludedBanned: 0, unknown: 0, remaining: 140, done: false, scope: 'all_registered_at_start' }));
       return res.end(JSON.stringify({ ok: true, reward: { id: input.id || 'r2', ...input.reward }, contest: { id: input.id || 'c2', ...input.contest } }));
     }
+    if (url.pathname === '/api/panel/emoji') {
+      res.setHeader('content-type', 'application/json');
+      if (req.method === 'GET') return res.end(JSON.stringify({ ok: true, mode: 'animated', q: url.searchParams.get('q') || '', map: [] }));
+      let raw = ''; for await (const chunk of req) raw += chunk; const input = JSON.parse(raw);
+      if (input.op === 'test_caps') return res.end(JSON.stringify({ ok: true, op: input.op, text: true, button: false, buttonNote: 'Bad Request: mock' }));
+      if (input.op === 'add_pack') { res.writeHead(400); return res.end(JSON.stringify({ ok: false, op: input.op, message: 'تيليجرام رفض الباقة «' + input.link + '»: Bad Request: STICKERSET_INVALID' })); }
+      return res.end(JSON.stringify({ ok: true, op: input.op, echo: input }));
+    }
     if (url.pathname === '/api/admin2') { let raw = ''; for await (const chunk of req) raw += chunk; calls.push(JSON.parse(raw)); res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true })); }
     res.writeHead(404); res.end();
   });
@@ -188,6 +196,26 @@ test('real bot management is authenticated and allowlisted', async () => {
   const saved = await api('bot_manage', { op: 'reward_save', input: { id: 'r1', reward: { cost: 12 } } }, token, '10');
   assert.equal(saved.statusCode, 200);
   assert.deepEqual(manageCalls.at(-1), { op: 'reward_save', id: 'r1', reward: { cost: 12 } });
+});
+
+test('emoji page proxy is authenticated, allowlisted and keeps literal Telegram errors', async () => {
+  const token = (await api('login', { password: 'new-password-long' }, '', '30')).body.token;
+  assert.equal((await api('emoji_view', {}, '', '31')).statusCode, 401);
+  const view = await api('emoji_view', { q: '🔥' }, token, '31');
+  assert.equal(view.statusCode, 200);
+  assert.equal(view.body.data.mode, 'animated');
+  assert.equal(view.body.data.q, '🔥');
+  assert.equal((await api('emoji_op', { op: 'eval', input: {} }, token, '31')).statusCode, 400);
+  assert.equal((await api('emoji_op', { op: 'mode', input: [] }, token, '31')).statusCode, 400);
+  const caps = await api('emoji_op', { op: 'test_caps', input: {} }, token, '31');
+  assert.equal(caps.body.data.text, true);
+  assert.equal(caps.body.data.button, false);
+  const mode = await api('emoji_op', { op: 'mode', input: { mode: 'plain' } }, token, '31');
+  assert.deepEqual(mode.body.data.echo, { mode: 'plain', op: 'mode' });
+  const rejected = await api('emoji_op', { op: 'add_pack', input: { link: 'NoSuchPack' } }, token, '31');
+  assert.equal(rejected.statusCode, 200);
+  assert.equal(rejected.body.data.ok, false);
+  assert.match(rejected.body.data.message, /STICKERSET_INVALID/);
 });
 
 test('AI sends real image to vision, can attach it to a bot reward, and does not leak image to text model', async () => {

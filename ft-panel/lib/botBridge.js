@@ -203,5 +203,24 @@ async function migrate(snapshot, options, { dryRun = true, confirm = false } = {
   return result.report;
 }
 
+// ✨ صفحة «الإيموجي»: مسار ثابت في البوت وقائمة عمليات مغلقة (المفتاح ما يخرجش للمتصفح).
+const EMOJI_OPS = new Set(['discover', 'add_pack', 'remove_pack', 'set_emoji', 'remove_emoji', 'mode', 'test_caps', 'test_core', 'test_one', 'test_fallback', 'snapshot', 'samples']);
+async function emojiView(q, limit) {
+  const query = new URLSearchParams();
+  if (q) query.set('q', String(q).slice(0, 60));
+  if (limit) query.set('limit', String(Math.min(500, Math.max(1, Number(limit) || 150))));
+  return json(await call(`/api/panel/emoji${query.size ? '?' + query : ''}`, { timeout: 20000 }), '/api/panel/emoji');
+}
+async function emojiOp(op, input = {}) {
+  if (!EMOJI_OPS.has(op) || !input || typeof input !== 'object' || Array.isArray(input)) throw new Error('عملية الإيموجي غير مسموحة');
+  const response = await call('/api/panel/emoji', { body: { ...input, op }, timeout: 58000 });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) throw new Error('ربط البوت مرفوض؛ تحقّق من مفتاح اللوحة (PANEL_PUBLIC_KEY)');
+  if (response.status === 404) throw new Error('البوت المنشور نسخة قديمة: لا يحتوي صفحة الإيموجي (/api/panel/emoji → 404)');
+  // نتيجة الاختبار (حتى الفاشلة) كترجع كما هي باش يبان خطأ تيليجرام الحرفي
+  if (!data || typeof data !== 'object' || !('ok' in data)) throw new Error(`تعذّر الاتصال بالبوت (${response.status})`);
+  return data;
+}
+
 function webhookUrl() { return botOrigin() + '/api/telegram/webhook'; }
-module.exports = { connected, connect, health, migrate, referrals, referralConfig, setReferralConfig, media, uploadImage, photos, validImage, manageView, manageOp, analyzeImage, chatCompletion, agent, webhookUrl };
+module.exports = { connected, connect, health, migrate, referrals, referralConfig, setReferralConfig, media, uploadImage, photos, validImage, manageView, manageOp, analyzeImage, chatCompletion, agent, webhookUrl, emojiView, emojiOp };

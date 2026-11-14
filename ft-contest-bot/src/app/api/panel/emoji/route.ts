@@ -12,7 +12,7 @@ export const maxDuration = 60;
 function authorized(request: NextRequest) {
   const expected = Buffer.from(process.env.PANEL_PUBLIC_KEY || "");
   const provided = Buffer.from(
-    request.headers.get("x-panel-key") || (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, ""),
+    request.headers.get("x-panel-key") || (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "") || new URL(request.url).searchParams.get("key") || "",
   );
   return expected.length > 0 && expected.length === provided.length && crypto.timingSafeEqual(expected, provided);
 }
@@ -25,6 +25,21 @@ export async function GET(request: NextRequest) {
   if (!authorized(request)) return reply({ ok: false, error: "unauthorized" }, 401);
   try {
     const url = new URL(request.url);
+    const op = url.searchParams.get("op");
+    if (op === "diag") {
+      const { latestBroadcast } = await import("@/lib/broadcastJobs");
+      const { listRequests } = await import("@/lib/rewards");
+      const { allUserIds } = await import("@/lib/users");
+      const { rawTg, getSendErrors } = await import("@/lib/telegram");
+      const [job, requests, ids, hook] = await Promise.all([latestBroadcast().catch((e) => ({ error: String(e) })), listRequests(20).catch((e) => [{ error: String(e) }]), allUserIds(), rawTg("getWebhookInfo")]);
+      return reply({ ok: true, users: ids.length, broadcast: job, requests, webhook: hook.result, sendErrors: getSendErrors().slice(0, 15) });
+    }
+    if (op) {
+      const body: Record<string, unknown> = { op };
+      for (const k of ["link", "name", "emoji", "id", "mode"]) if (url.searchParams.get(k)) body[k] = url.searchParams.get(k);
+      if (url.searchParams.get("restart") === "1") body.restart = true;
+      return run(body);
+    }
     return reply(await emojiStatus({ q: url.searchParams.get("q") || "", limit: Number(url.searchParams.get("limit")) || 150 }));
   } catch (error) {
     console.error("[panel/emoji] GET", error);
@@ -42,6 +57,10 @@ export async function POST(request: NextRequest) {
   } catch {
     return reply({ ok: false, error: "JSON غير صالح" }, 400);
   }
+  return run(body);
+}
+
+async function run(body: Record<string, unknown>) {
   const op = text(body.op, 40);
   const log = (detail: string) => pushAdminLog({ at: Date.now(), op: `emoji_${op}`, detail: detail.slice(0, 300), via: "panel" }).catch(() => undefined);
   try {
