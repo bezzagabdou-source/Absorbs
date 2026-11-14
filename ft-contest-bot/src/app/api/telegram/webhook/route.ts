@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 import { handleUpdate } from "@/lib/bot";
 import { getSettings } from "@/lib/settings";
 import { trackBotMessage } from "@/lib/stats";
@@ -133,6 +133,26 @@ export async function GET() {
   });
 }
 
+let emojiBootAt = 0;
+async function firstRunEmojiDiscovery() {
+  if (process.env.TELEGRAM_MOCK === "1" || Date.now() - emojiBootAt < 60_000) return;
+  emojiBootAt = Date.now();
+  try {
+    const { getRuntime } = await import("@/lib/emojiState");
+    const rt = await getRuntime();
+    if (rt.cfg.discovery.finishedAt) return;
+    const { discoveryStep } = await import("@/lib/emojiDiscovery");
+    const step = await discoveryStep({ budgetMs: 25_000 });
+    if (step.done && step.ok) {
+      const { testCapabilities, testCore } = await import("@/lib/emojiOps");
+      const caps = await testCapabilities();
+      if (caps.text) await testCore();
+    }
+  } catch (error) {
+    console.error("[emoji] first-run discovery", error);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const settings = await getSettings();
   const secret = settings.webhookSecret;
@@ -144,6 +164,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
   }
+
+  // ✨ أول تشغيل: نكتشفو باقات الإيموجي المتحرك في الخلفية (بعد الرد — ما كيبطّأش البوت)
+  after(firstRunEmojiDiscovery);
 
   let update: TgUpdate;
   try {

@@ -183,7 +183,7 @@ async function pump(job: BcJob, budgetMs: number) {
       batch.map(async (id) => {
         for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
           try {
-            const r = await sendMessage(id, job!.text);
+            const r = await sendMessage(id, job!.text, undefined, { __ctx: "bulk" });
             if (r.ok) return "ok" as const;
             const d = String(r.description || "");
             if (/blocked the bot|user is deactivated|bot was blocked|kicked/i.test(d)) return "blocked" as const;

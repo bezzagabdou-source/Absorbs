@@ -1,6 +1,18 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getSettings, saveSettings } from "./settings";
-import { fx, hydrate, stripCustomEmoji } from "./emoji";
+import {
+  CONTENT_METHODS,
+  acceptedCustomEmoji,
+  acceptedIcons,
+  buildAttempts,
+  lookupFrom,
+  normEmoji,
+  shouldDowngrade,
+  stickerCue,
+  type Attempt,
+  type EmojiMode,
+} from "./emojiLayer";
+import { getRuntime, saveCaps } from "./emojiState";
 
 /**
  * 🧩 تشغيل أكثر من بوت على نفس الكود ونفس البيانات.
@@ -184,7 +196,11 @@ export function setMockChannelState(next: { left?: string[]; broken?: string[] }
 
 export type InlineKeyboard = { inline_keyboard: { text: string; url?: string; callback_data?: string }[][] };
 
-export async function tgCall<T = unknown>(
+/**
+ * 🔌 النداء الخام لتيليجرام — المكان الوحيد في المشروع اللي فيه fetch نحو Bot API.
+ * ما يتستعملش مباشرة للإرسال: استعمل `tgCall` (كيمر من طبقة الإيموجي).
+ */
+export async function rawTg<T = unknown>(
   method: string,
   payload: Record<string, unknown> = {},
 ): Promise<TgResult<T>> {
@@ -207,6 +223,10 @@ export async function tgCall<T = unknown>(
     mockGlobal.__ftMockLog.unshift({ at: Date.now(), method, payload });
     if (mockGlobal.__ftMockLog.length > 400) mockGlobal.__ftMockLog.length = 400;
     mockGlobal.__ftMockSeq = (mockGlobal.__ftMockSeq || 0) + 1;
+    // 🧪 محاكاة رفض تيليجرام لـ ID غالط (اختبار سلّم الاحتياط)
+    if (method !== "getStickerSet" && JSON.stringify(payload).includes("MOCKBAD")) {
+      return { ok: false, error_code: 400, description: "Bad Request: mock invalid custom emoji identifier" };
+    }
     if (method === "getMe") {
       return {
         ok: true,
@@ -244,6 +264,23 @@ export async function tgCall<T = unknown>(
     }
     if (method === "getStickerSet") {
       const setName = String(payload.name || "ftmock");
+      // 🧪 باقة إيموجي مخصص وهمية (اسمها فيه Emoji) — «MockBadEmoji» كتعطي IDs مرفوضة
+      if (/emoji/i.test(setName)) {
+        const bad = /bad/i.test(setName);
+        return {
+          ok: true,
+          result: {
+            name: setName,
+            title: `FT Mock · ${setName}`,
+            sticker_type: "custom_emoji",
+            stickers: ["🔥", "⭐️", "🎁", "🏆", "✅", "🏠", "👤", "🔗", "🛍", "💰"].map((emoji, n) => ({
+              emoji,
+              is_animated: true,
+              custom_emoji_id: bad ? `MOCKBAD${n}` : `77000000000000${String(n).padStart(2, "0")}`,
+            })),
+          } as unknown as T,
+        };
+      }
       return {
         ok: true,
         result: {
@@ -342,82 +379,164 @@ export function escapeHtml(value: string): string {
 }
 
 
-/* ───────────── ✨ أزرار بإيموجي متحرك (icon_custom_emoji_id) ───────────── */
-import { baseOfId, idFor } from "./emoji";
+/* ══════════════ ✨ الطبقة الوسطية الإجبارية للإيموجي المتحرك ══════════════
+   كل إرسال/تعديل في المشروع يدوز من `tgCall`:
+     (0) نص متحرك <tg-emoji> + أيقونات أزرار icon_custom_emoji_id
+     (1) نص متحرك + أزرار عادية
+     (2) النص والأزرار كما كتبهم الكود
+     (3) نص خام بلا تنسيق
+   المستخدم ما كيشوف حتى خطأ. الخريطة من ذاكرة النسخة — بلا نداء إضافي لكل رسالة. */
 
-type AnyButton = { text?: string; callback_data?: string; url?: string; icon_custom_emoji_id?: string };
+export type EmojiOutcome = {
+  at: number;
+  method: string;
+  chatId: string;
+  level: number;
+  tries: number;
+  animated: number;
+  accepted: number;
+  icons: number;
+  iconsAccepted: number;
+  ok: boolean;
+  firstError: string;
+  error: string;
+};
+const outcomeGlobal = globalThis as unknown as { __ftEmojiOutcomes?: EmojiOutcome[] };
+export function getEmojiOutcomes(since = 0): EmojiOutcome[] {
+  return (outcomeGlobal.__ftEmojiOutcomes || []).filter((o) => o.at >= since);
+}
+function pushOutcome(item: EmojiOutcome) {
+  outcomeGlobal.__ftEmojiOutcomes ||= [];
+  outcomeGlobal.__ftEmojiOutcomes.unshift(item);
+  if (outcomeGlobal.__ftEmojiOutcomes.length > 120) outcomeGlobal.__ftEmojiOutcomes.length = 120;
+}
 
-/** ياخذ أول إيموجي في نص الزر → icon_custom_emoji_id ونحيّد الإيموجي من النص (بلا كسر أي زر) */
-export function decorateKeyboard<T>(keyboard: T): T {
-  const kb = keyboard as unknown as { inline_keyboard?: AnyButton[][] } | undefined;
-  if (!kb || !Array.isArray(kb.inline_keyboard)) return keyboard;
-  try {
-    kb.inline_keyboard = kb.inline_keyboard.map((row) =>
-      (row || []).map((btn) => {
-        if (!btn || btn.icon_custom_emoji_id) return btn;
-        const text = String(btn.text || "");
-        const m = text.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*(.*)$/u);
-        if (!m) return btn;
-        const id = idFor(m[1]);
-        if (!id) return btn;
-        // نخليو الإيموجي في النص (باش الزر ما يبقاش خاوي عند غير البريميوم)
-        return { ...btn, icon_custom_emoji_id: id };
-      }),
-    );
-  } catch {
-    /* أي مشكل: نرجعو الأزرار كيفما كانت */
+const BREAKER_MS = 10 * 60_000;
+const BREAKER_AFTER = 3;
+
+function simulated(): boolean {
+  return isMock() || process.env.TG_DRY_RUN === "1";
+}
+
+/** ننفّذو سلّم المحاولات: ننزلو درجة غير عند خطأ محتوى (400) */
+export async function runLadder<T = unknown>(method: string, attempts: Attempt[]) {
+  let res: TgResult<T> = { ok: false, description: "لا توجد محاولة" };
+  let used = attempts[0];
+  let firstError = "";
+  let tries = 0;
+  const errors: { level: number; error: string }[] = [];
+  for (let i = 0; i < attempts.length; i++) {
+    used = attempts[i];
+    tries += 1;
+    res = await rawTg<T>(method, used.payload);
+    if (!res.ok) errors.push({ level: used.level, error: String(res.description || "") });
+    if (res.ok || i === attempts.length - 1 || !shouldDowngrade(res)) break;
+    if (!firstError) firstError = String(res.description || "");
   }
-  return keyboard;
+  return { res, used, tries, firstError, errors };
 }
 
-/** احتياط: نححيّد الأيقونات ونرجّع الإيموجي في النص (إلا رفض تيليجرام الأيقونة) */
-export function plainKeyboard<T>(keyboard: T): T {
-  const kb = keyboard as unknown as { inline_keyboard?: AnyButton[][] } | undefined;
-  if (!kb || !Array.isArray(kb.inline_keyboard)) return keyboard;
-  kb.inline_keyboard = kb.inline_keyboard.map((row) =>
-    (row || []).map((btn) => {
-      if (!btn || !btn.icon_custom_emoji_id) return btn;
-      const base = baseOfId(btn.icon_custom_emoji_id);
-      const next = { ...btn };
-      delete next.icon_custom_emoji_id;
-      const text = String(btn.text || "");
-      const hasEmoji = /^\p{Extended_Pictographic}/u.test(text);
-      next.text = `${hasEmoji || !base ? "" : `${base} `}${text}`.trim();
-      return next;
-    }),
-  );
-  return keyboard;
-}
+export async function tgCall<T = unknown>(
+  method: string,
+  payload: Record<string, unknown> = {},
+): Promise<TgResult<T>> {
+  if (!CONTENT_METHODS.has(method)) return rawTg<T>(method, payload);
 
-/* 🔌 قاطع أمان: إلا تيليجرام رفض الإيموجي المخصص 3 مرات → نطفّيه 10 دقائق (بلا بطء) */
-let emojiFails = 0;
-let emojiOffUntil = 0;
-function emojiBlocked(): boolean {
-  return Date.now() < emojiOffUntil;
-}
-function noteEmojiFailure(): void {
-  emojiFails += 1;
-  if (emojiFails >= 3) {
-    emojiOffUntil = Date.now() + 10 * 60_000;
-    emojiFails = 0;
-    console.warn("[emoji] تم إطفاء الإيموجي المخصص مؤقتاً (رفض متكرر)");
+  const rt = await getRuntime();
+  const now = Date.now();
+  const mode: EmojiMode = process.env.EMOJI_OFF === "1" ? "plain" : rt.cfg.mode;
+  const chatNum = Number(payload.chat_id);
+  const privateChat = Number.isFinite(chatNum) && chatNum > 0;
+  const bulk = payload.__ctx === "bulk";
+  const attempts = buildAttempts(method, payload, lookupFrom(rt.map), {
+    mode,
+    text: rt.cfg.caps.text !== false && now >= rt.textOffUntil,
+    icons: rt.cfg.caps.button !== false && now >= rt.iconsOffUntil,
+    strip: rt.cfg.caps.button === true,
+    bulk,
+    privateChat,
+  });
+
+  // 🎭 الخطة البديلة: ملصق متحرك حقيقي قبل الرسائل المهمة (غير إلا اختار المالك وضع «ملصقات»)
+  if (mode === "stickers" && method === "sendMessage" && privateChat && !bulk) {
+    const cue = stickerCue(String(payload.text || "")).map(normEmoji).find((e) => rt.stickers[e]);
+    if (cue) await rawTg("sendSticker", { chat_id: payload.chat_id, sticker: rt.stickers[cue].fileId }).catch(() => undefined);
   }
-}
-function noteEmojiSuccess(): void {
-  emojiFails = 0;
-}
 
-/* 🎭 ندمجو إضافات /addemoji مرة واحدة (بدون ما نعطّلو أي طلب) */
-let hydrated = false;
-async function ensureEmojiHydrated(): Promise<void> {
-  if (hydrated) return;
-  hydrated = true;
-  try {
-    const { extraMap } = await import("./emojiAdmin");
-    hydrate(await extraMap());
-  } catch {
-    /* بلا إضافات */
+  const { res, used, tries, firstError } = await runLadder<T>(method, attempts);
+
+  const first = attempts[0];
+  const real = !simulated() && res.ok && typeof res.result === "object" && res.result !== null;
+  const accepted = real ? acceptedCustomEmoji(res.result).length : 0;
+  const iconsAccepted = real ? acceptedIcons(res.result).length : 0;
+  if (first.animated || first.icons || firstError) {
+    pushOutcome({
+      at: now,
+      method,
+      chatId: String(payload.chat_id ?? ""),
+      level: used.level,
+      tries,
+      animated: used.animated,
+      accepted,
+      icons: used.icons,
+      iconsAccepted,
+      ok: res.ok,
+      firstError,
+      error: res.ok ? "" : String(res.description || ""),
+    });
   }
+
+  if (!simulated()) {
+    // ❌ رفض صريح (400): قاطع أمان في الذاكرة — ما نبطّؤوش المستخدمين بمحاولات فاشلة
+    if (firstError && res.ok) {
+      if (first.icons && used.level === 1) {
+        if (++rt.iconDrops >= BREAKER_AFTER) {
+          rt.iconDrops = 0;
+          rt.iconsOffUntil = Date.now() + BREAKER_MS;
+          console.warn("[emoji] أيقونات الأزرار مطفية 10 دقائق:", firstError);
+          void saveCaps({ buttonNote: `رفض: ${firstError}`.slice(0, 200) });
+        }
+      } else if (first.animated && used.level >= 2) {
+        if (++rt.textDrops >= BREAKER_AFTER) {
+          rt.textDrops = 0;
+          rt.textOffUntil = Date.now() + BREAKER_MS;
+          console.warn("[emoji] الإيموجي المتحرك مطفي 10 دقائق:", firstError);
+          void saveCaps({ textNote: `رفض: ${firstError}`.slice(0, 200) });
+        }
+      }
+    }
+    // 🫥 قبول مع إسقاط صامت: تيليجرام رجّع الرسالة بلا custom_emoji → الحساب ما مؤهلش
+    if (real && used.level === 0) {
+      const result = res.result as { reply_markup?: unknown };
+      if (used.animated > 0) {
+        if (accepted > 0) {
+          rt.textDrops = 0;
+          if (rt.cfg.caps.text !== true) {
+            rt.cfg.caps.text = true;
+            void saveCaps({ text: true, textNote: "" });
+          }
+        } else if (++rt.textDrops >= BREAKER_AFTER) {
+          rt.textDrops = 0;
+          rt.cfg.caps.text = false;
+          void saveCaps({ text: false, textNote: "تيليجرام قبل الرسالة ولكن حيّد الإيموجي المتحرك (مالك البوت خاصو Telegram Premium)" });
+        }
+      }
+      if (used.icons > 0 && result.reply_markup) {
+        if (iconsAccepted > 0) {
+          rt.iconDrops = 0;
+          if (rt.cfg.caps.button !== true) {
+            rt.cfg.caps.button = true;
+            void saveCaps({ button: true, buttonNote: "" });
+          }
+        } else if (++rt.iconDrops >= BREAKER_AFTER) {
+          rt.iconDrops = 0;
+          rt.cfg.caps.button = false;
+          void saveCaps({ button: false, buttonNote: "تيليجرام قبل الأزرار ولكن حيّد الأيقونات المتحركة" });
+        }
+      }
+    }
+  }
+  return res;
 }
 
 export async function sendMessage(
@@ -426,31 +545,14 @@ export async function sendMessage(
   keyboard?: InlineKeyboard,
   extra: Record<string, unknown> = {},
 ) {
-  await ensureEmojiHydrated();
-  const payload = {
+  return tgCall("sendMessage", {
     chat_id: chatId,
-    text: emojiBlocked() ? String(text) : fx(text),
+    text: String(text ?? ""),
     parse_mode: "HTML",
     disable_web_page_preview: true,
-    ...(keyboard ? { reply_markup: decorateKeyboard(keyboard) } : {}),
+    ...(keyboard ? { reply_markup: keyboard } : {}),
     ...extra,
-  };
-  let res = await tgCall("sendMessage", payload);
-  // ✨ أيقونة زر ماشي متاحة؟ نعاودو بأزرار عادية
-  if (!res.ok && keyboard) {
-    res = await tgCall("sendMessage", { ...payload, reply_markup: plainKeyboard(decorateKeyboard(keyboard)) });
-  }
-  // ✨ احتياط: إلا رفض تيليجرام الإيموجي المخصص → نعاودو بالإيموجي العادي
-  if (!res.ok && String(payload.text).includes("<tg-emoji")) {
-    noteEmojiFailure();
-    res = await tgCall("sendMessage", {
-      ...payload,
-      text: stripCustomEmoji(payload.text),
-      ...(keyboard ? { reply_markup: plainKeyboard(decorateKeyboard(keyboard)) } : {}),
-    });
-  }
-  if (res.ok) noteEmojiSuccess();
-  return res;
+  });
 }
 
 export async function editMessage(
@@ -459,49 +561,32 @@ export async function editMessage(
   text: string,
   keyboard?: InlineKeyboard,
 ) {
-  await ensureEmojiHydrated();
-  const payload = {
+  const res = await tgCall("editMessageText", {
     chat_id: chatId,
     message_id: messageId,
-    text: emojiBlocked() ? String(text) : fx(text),
+    text: String(text ?? ""),
     parse_mode: "HTML",
     disable_web_page_preview: true,
-    ...(keyboard ? { reply_markup: decorateKeyboard(keyboard) } : {}),
-  };
-  let res = await tgCall("editMessageText", payload);
-  if (!res.ok && keyboard) {
-    res = await tgCall("editMessageText", { ...payload, reply_markup: plainKeyboard(decorateKeyboard(keyboard)) });
-  }
-  // ✨ احتياط: إيموجي مخصص ماشي متاح → نعاودو بالإيموجي العادي
-  if (!res.ok && String(payload.text).includes("<tg-emoji")) {
-    noteEmojiFailure();
-    res = await tgCall("editMessageText", { ...payload, text: stripCustomEmoji(payload.text) });
-  }
-  if (!res.ok) {
-    return sendMessage(chatId, text, keyboard);
-  }
+    ...(keyboard ? { reply_markup: keyboard } : {}),
+  });
+  if (!res.ok) return sendMessage(chatId, text, keyboard);
   return res;
 }
 
-/** 🖼️ صورة + كابشن: نفس fx على الكابشن */
+/** 🖼️ صورة + كابشن (نفس الطبقة: كابشن متحرك + أيقونات أزرار + احتياط) */
 export async function sendPhoto(
   chatId: number | string,
   photo: string,
   caption = "",
   keyboard?: InlineKeyboard,
 ) {
-  const payload = {
+  return tgCall("sendPhoto", {
     chat_id: chatId,
     photo,
-    caption: fx(caption).slice(0, 1024),
+    caption: String(caption ?? "").slice(0, 1024),
     parse_mode: "HTML",
     ...(keyboard ? { reply_markup: keyboard } : {}),
-  };
-  let res = await tgCall("sendPhoto", payload);
-  if (!res.ok && String(payload.caption).includes("<tg-emoji")) {
-    res = await tgCall("sendPhoto", { ...payload, caption: stripCustomEmoji(payload.caption) });
-  }
-  return res;
+  });
 }
 
 export async function sendSticker(chatId: number | string, sticker: string) {

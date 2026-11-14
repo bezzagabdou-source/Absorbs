@@ -82,14 +82,9 @@ export async function GET(request: NextRequest) {
       ? second
       : process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
     try {
-      const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text }),
-        cache: "no-store",
-      });
-      const j = (await r.json()) as Record<string, unknown>;
-      return NextResponse.json({ ok: true, status: r.status, tg: j, chatId });
+      const tg = await import("@/lib/telegram");
+      const j = await tg.runWithBotToken(token, () => tg.tgCall("sendMessage", { chat_id: chatId, text }));
+      return NextResponse.json({ ok: true, status: j.ok ? 200 : j.error_code || 502, tg: j, chatId });
     } catch (e) {
       return NextResponse.json({ ok: false, error: String((e as Error).message || e) }, { status: 502 });
     }
@@ -105,21 +100,15 @@ export async function GET(request: NextRequest) {
     const hookUrl = `${base.origin}/api/telegram/webhook?bot=2`;
     const { getSettings } = await import("@/lib/settings");
     const s2 = await getSettings();
-    const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`, { cache: "no-store" });
-    const me = (await meRes.json()) as { ok: boolean; result?: { id: number; username?: string }; description?: string };
+    const tg = await import("@/lib/telegram");
+    const me = await tg.runWithBotToken(token, () => tg.rawTg<{ id: number; username?: string }>("getMe"));
     if (!me.ok) return NextResponse.json({ ok: false, error: `تيليغرام رفض التوكن: ${me.description || ""}` }, { status: 400 });
     const payload: Record<string, unknown> = {
       url: hookUrl,
       allowed_updates: ["message", "edited_message", "callback_query", "my_chat_member", "chat_member", "chat_join_request"],
     };
     if (s2.webhookSecret) payload.secret_token = s2.webhookSecret;
-    const r = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-    const j = (await r.json()) as Record<string, unknown>;
+    const j = await tg.runWithBotToken(token, () => tg.rawTg("setWebhook", payload));
     return NextResponse.json({
       ok: true,
       bot: { id: me.result?.id, username: me.result?.username },
@@ -141,14 +130,9 @@ export async function GET(request: NextRequest) {
       allowed_updates: ["message", "edited_message", "callback_query", "my_chat_member", "chat_member", "chat_join_request"],
     };
     if (s2.webhookSecret) payload.secret_token = s2.webhookSecret;
-    const r = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-    const j = (await r.json()) as Record<string, unknown>;
-    return NextResponse.json({ ok: true, status: r.status, tg: j, hookUrl, secretUsed: Boolean(s2.webhookSecret) });
+    const tg = await import("@/lib/telegram");
+    const j = await tg.runWithBotToken(token, () => tg.rawTg("setWebhook", payload));
+    return NextResponse.json({ ok: true, status: j.ok ? 200 : j.error_code || 502, tg: j, hookUrl, secretUsed: Boolean(s2.webhookSecret) });
   }
 
   // 🩺 إعادة تنفيذ تحديث حقيقي عبر نفس مسار البوت (للتأكد أن الرد كيخرج)
@@ -208,9 +192,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "طريقة غير مسموحة" }, { status: 400 });
     }
     try {
-      const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { cache: "no-store" });
-      const j = (await r.json()) as Record<string, unknown>;
-      return NextResponse.json({ ok: true, status: r.status, tg: j });
+      const tg = await import("@/lib/telegram");
+      const j = await tg.runWithBotToken(token, () => tg.rawTg(method));
+      return NextResponse.json({ ok: true, status: j.ok ? 200 : j.error_code || 502, tg: j });
     } catch (e) {
       return NextResponse.json({ ok: false, error: String((e as Error).message || e) }, { status: 502 });
     }

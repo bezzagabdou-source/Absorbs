@@ -2025,19 +2025,21 @@ async function handleMessageInner(message: TgMessage) {
       await sendMessage(chatId, "⛔️ هذا الأمر للمالك فقط.");
       return;
     }
-    const { loadedEmojis, allIds } = await import("./emoji");
-    const rows = loadedEmojis();
-    const lines = rows.length
-      ? rows.map((r) => `${r.base} → ${r.count} نسخة`).join("\n")
-      : "الخريطة خاوية — شغّل: node scripts/emoji.mjs sync";
+    const { loadData, loadCfg } = await import("./emojiState");
+    const [data, cfg] = await Promise.all([loadData(), loadCfg()]);
+    const entries = Object.entries(data.map);
+    const packs = Object.values(data.packs).filter((p) => p.type === "custom_emoji");
+    const yes = (v: boolean | null) => (v === true ? "✅" : v === false ? "❌" : "⏳ ما تجرّبش");
     await sendMessage(
       chatId,
       [
-        "<b>✨ الإيموجيات المتحركة المحمّلة</b>",
+        "<b>✨ الإيموجيات المتحركة</b>",
         "",
-        lines,
+        entries.slice(0, 80).map(([emoji]) => emoji).join(" ") || "الخريطة خاوية — افتح صفحة «الإيموجي» في اللوحة ودير «اكتشاف».",
         "",
-        `📦 ${rows.length} إيموجي • ${allIds().length} ID`,
+        `📦 ${entries.length} إيموجي من ${packs.length} باقة متحقَّق منها`,
+        `الوضع: <b>${cfg.mode}</b>`,
+        `نص متحرك: ${yes(cfg.caps.text)} • أيقونة زر: ${yes(cfg.caps.button)}`,
       ].join("\n"),
       keyboard([[{ text: "🏠 القائمة الرئيسية", callback_data: "home" }]]),
     );
@@ -2052,7 +2054,7 @@ async function handleMessageInner(message: TgMessage) {
     }
     const name = text.slice(rawCommand.length).trim();
     if (!name) {
-      await sendMessage(chatId, "➕ اكتب اسم الحزمة: <code>/addemoji PackName</code>");
+      await sendMessage(chatId, "➕ اكتب اسم الحزمة ولا الرابط: <code>/addemoji PackName</code>");
       return;
     }
     const { addPack } = await import("./emojiAdmin");

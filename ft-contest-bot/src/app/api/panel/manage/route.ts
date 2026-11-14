@@ -349,7 +349,7 @@ export async function POST(request: NextRequest) {
       const id = userId(body.userId);
       if (!await getUser(id)) return fail("المستخدم غير موجود", 404);
       const text = str(body.text, "الرسالة", 4000, true);
-      const result = await sendMessage(id, text, undefined, { parse_mode: undefined });
+      const result = await sendMessage(id, text, undefined, { parse_mode: undefined, __ctx: "bulk" });
       if (!result.ok) return fail("تعذّر إرسال الرسالة عبر تيليغرام", 502);
       await log(op, `إرسال رسالة إلى ${id}`);
       return reply({ ok: true, userId: id, sent: true });

@@ -82,7 +82,7 @@ export async function sendWithSecondaryOnMissingChat(
   return first;
 }
 async function sendBroadcastMessage(user: string, text: string): Promise<TgResult> {
-  const send = () => sendMessage(user, text, undefined, { parse_mode: undefined });
+  const send = () => sendMessage(user, text, undefined, { parse_mode: undefined, __ctx: "bulk" });
   const first = await send(), second = secondBotToken();
   if (!second || first.ok || first.uncertain || first.error_code !== 400 || !/chat not found/i.test(first.description || "")) return first;
   const primary = (await getSettings()).botToken;
