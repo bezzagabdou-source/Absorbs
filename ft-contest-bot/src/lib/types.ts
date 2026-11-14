@@ -27,6 +27,13 @@ export type Contest = {
   endedAt?: number;
 };
 
+/**
+ * 🔒 قنوات الاشتراك الإجباري المثبّتة (بقرار من المالك) — كترزّن على كل قائمة
+ * فأي بلايص (إلا تحيّدت من اللوحة كترجع)، والبوابة كتطبق على كل واحد كيدخل
+ * للخاص (جديد كان ولا قديم) فكل رسالة وزر.
+ */
+export const PINNED_CHANNELS = ["@mxabdou"];
+
 export type Settings = {
   botToken: string;
   botUsername: string;
@@ -111,12 +118,12 @@ export const DEFAULT_SETTINGS: Settings = {
   botId: null,
   channelChat: "",
   channelUrl: "",
-  requiredChannels: ["@F_5_5_T", "@Ft_efootbal", "@F_M_M_T"],
+  requiredChannels: ["@mxabdou", "@F_5_5_T", "@Ft_efootbal", "@F_M_M_T"],
   supportUsername: OWNER_USERNAME,
   ownerUsername: OWNER_USERNAME,
   logChatId: "",
   adminIds: [],
-  requireJoin: false,
+  requireJoin: true,
   autoGrant: false,
   groupChat: "",
   groupTitle: "",

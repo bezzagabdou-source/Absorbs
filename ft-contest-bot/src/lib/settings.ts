@@ -1,5 +1,12 @@
 import { getStore } from "./store";
-import { DEFAULT_SETTINGS, OWNER_USERNAME, WELCOME_TEXT, type Settings } from "./types";
+import { DEFAULT_SETTINGS, OWNER_USERNAME, PINNED_CHANNELS, WELCOME_TEXT, type Settings } from "./types";
+
+/** 🔐 كنضيفو القنوات المثبّتة (بلا تكرار) — ما تسقطش من البوابة */
+export function withPinnedChannels(list: unknown): string[] {
+  const base = normalizeChannels(list);
+  for (const pin of normalizeChannels(PINNED_CHANNELS)) if (!base.includes(pin)) base.unshift(pin);
+  return base;
+}
 
 /** تطبيع قائمة القنوات: نص أو مصفوفة → مصفوفة @usernames فريدة */
 export function normalizeChannels(input: unknown): string[] {
@@ -46,16 +53,23 @@ export async function getSettings(): Promise<Settings> {
       !savedWelcome || savedWelcome === "مرحبا بكم في بوت مسابقات FT" || isOldLongWelcome(savedWelcome)
         ? WELCOME_TEXT
         : savedWelcome,
-    requiredChannels: (() => {
-      const list = normalizeChannels(saved.requiredChannels);
-      if (list.length) return list;
-      const legacy = normalizeChannels(saved.channelChat);
-      if (legacy.length) return legacy;
-      return DEFAULT_SETTINGS.requiredChannels;
-    })(),
+    requiredChannels: withPinnedChannels(
+      (() => {
+        const list = normalizeChannels(saved.requiredChannels);
+        if (list.length) return list;
+        const legacy = normalizeChannels(saved.channelChat);
+        if (legacy.length) return legacy;
+        return DEFAULT_SETTINGS.requiredChannels;
+      })(),
+    ),
     // 🔒 نسخة الاشتراك الإجباري: البوابة شغّالة افتراضياً (كيما كانت).
     // تقدر تطفيها من اللوحة (تتخزّن ف gateOn).
-    requireJoin: saved.gateOn === undefined ? true : Boolean(saved.gateOn),
+    requireJoin:
+      PINNED_CHANNELS.length && forceGateOn()
+        ? true // 🔒 كاينة قناة مثبّتة → البوابة شغّالة على كل واحد (جديد ولا قديم)
+        : saved.gateOn === undefined
+          ? true
+          : Boolean(saved.gateOn),
     gateV: GATE_VERSION,
     groupTarget: Math.max(1, Number(saved.groupTarget) || DEFAULT_SETTINGS.groupTarget),
     aiEnabled: saved.aiEnabled === undefined ? DEFAULT_SETTINGS.aiEnabled : Boolean(saved.aiEnabled),
@@ -72,10 +86,22 @@ export async function getSettings(): Promise<Settings> {
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   const current = await getSettings();
   const next: Settings = { ...current, ...patch, gateV: GATE_VERSION };
+  // 🔐 القنوات المثبّتة ما تسقطش حتى إلا تحيّدتا من اللوحة
+  if (patch.requiredChannels !== undefined) next.requiredChannels = withPinnedChannels(patch.requiredChannels);
   // أي تعديل صريح على requireJoin = قرار المالك → نثبّتوه
   if (patch.requireJoin !== undefined) next.gateOn = Boolean(patch.requireJoin);
+  // 🔐 والبوابة كتبقى شغّالة على الكل دام كاينة قناة مثبّتة (المالك يطفيها غير بـ GATE_OFF=1)
+  if (PINNED_CHANNELS.length && forceGateOn()) {
+    next.gateOn = true;
+    next.requireJoin = true;
+  }
   await getStore().set(SETTINGS_KEY, next);
   return next;
+}
+
+/** إلا كان env GATE_OFF=1 → المالك طفا البوابة بيده (واحيدة اللي تقدر) */
+export function forceGateOn(): boolean {
+  return String(process.env.GATE_OFF || "") !== "1";
 }
 
 /** يوزر المالك بصيغة @handle */

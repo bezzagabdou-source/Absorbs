@@ -429,6 +429,44 @@ export async function GET(req: NextRequest) {
       return ok({ map, packs, count: packs.reduce((n, k) => n + (map[k] || []).length, 0) });
     }
 
+    // 🔒 بوابة الاشتراك الإجباري: الحالة +_probe_ على كل قناة + (apply=1) تثبيت
+    if (what === "gate_pin") {
+      const { saveSettings } = await import("@/lib/settings");
+      const { PINNED_CHANNELS } = await import("@/lib/types");
+      const apply = ["1", "yes", "true"].includes((url.searchParams.get("apply") || "").toLowerCase());
+      const before = await getSettings();
+      if (apply) await saveSettings({ requiredChannels: before.requiredChannels, requireJoin: true });
+      const settings = await getSettings();
+      const ids = await allUserIds(3).catch(() => [] as string[]);
+      const probe = [];
+      for (const chat of settings.requiredChannels || []) {
+        const seen = await tgCall<{ title?: string; type?: string; id?: number }>("getChat", { chat_id: chat });
+        const member = ids.length
+          ? await tgCall<{ status?: string }>("getChatMember", { chat_id: chat, user_id: Number(ids[0]) })
+          : { ok: false, description: "ما كاين حتى مستخدم للـ اختبار" };
+        probe.push({
+          chat,
+          url: chat.startsWith("@") ? `https://t.me/${chat.slice(1)}` : "",
+          visible: Boolean(seen.ok),
+          title: seen.result?.title || "",
+          chat_type: seen.result?.type || "",
+          can_check_member: Boolean(member.ok),
+          sample_status: member.result?.status || "",
+          error: member.ok ? String(seen.description || "") : String(member.description || seen.description || ""),
+        });
+      }
+      if (apply) await pushAdminLog({ at: Date.now(), op: "gate_pin", detail: `ثبّتو: ${(PINNED_CHANNELS || []).join(", ")}`, via: "panel" });
+      return ok({
+        apply,
+        pinned: PINNED_CHANNELS,
+        gate: { requireJoin: settings.requireJoin, requiredChannels: settings.requiredChannels },
+        probe,
+        message: settings.requireJoin
+          ? `🔒 البوابة شغّالة على ${settings.requiredChannels.length} قناة — كل واحد كيدخل للخاص خاصو يشترك`
+          : "⚠️ البوابة مطفية (GATE_OFF=1)",
+      });
+    }
+
     if (what === "log") return ok({ log: await readAdminLog(150) });
 
     if (what === "health") {

@@ -1411,7 +1411,47 @@ function GateTab({ data, flash, onDone }: { data: Data; flash: (k: "ok" | "err",
       <h2>
         🔒 الاشتراك الإجباري <span className="a2-hint">إذا فشل التحقق من قناة، تتخطّاها ولا توقّف البوت</span>
       </h2>
+      <div className="a2-muted" style={{ marginBottom: 12, lineHeight: 1.7 }}>
+        🔒 <b>القنوات المثبّتة:</b> <code>@mxabdou</code> — هادي كترزّن ديما فالبوابة، وكل واحد كيدخل للخاص
+        (جديد كان ولا قديم) كتخرج ليه شاشة الاشتراك حتى يتحقق. خاص البوت يكون <b>أدمين</b> فالقناة باش يخدم التحقق.
+      </div>
       <div className="a2-row" style={{ marginBottom: 14 }}>
+        <button
+          className="btn2"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            const r = await fetch("/api/admin2?what=gate_pin", { credentials: "same-origin" })
+              .then((x) => x.json())
+              .catch(() => ({}));
+            setBusy(false);
+            if (!r?.ok) return flash("err", String(r?.error || "خدمة"));
+            const bad: { chat: string }[] = (r.probe || []).filter((c: { can_check_member: boolean }) => !c.can_check_member);
+            flash(
+              bad.length ? "err" : "ok",
+              String(r.message) + (bad.length ? ` — ⚠️ دير البوت أدمين فـ: ${bad.map((c) => c.chat).join(", ")}` : ""),
+            );
+          }}
+        >
+          🔎 تحقّق من البوابة
+        </button>
+        <button
+          className="btn2 gold"
+          disabled={busy}
+          onClick={async () => {
+            if (!confirm("نبقاو نطبّقو الاشتراك الإجباري على كل من كيدخل للبوت؟")) return;
+            setBusy(true);
+            const r = await fetch("/api/admin2?what=gate_pin&apply=1", { credentials: "same-origin" })
+              .then((x) => x.json())
+              .catch(() => ({}));
+            setBusy(false);
+            if (!r?.ok) return flash("err", String(r?.error || "خدمة"));
+            onDone();
+            flash("ok", String(r.message || "🔒 تثبّتات"));
+          }}
+        >
+          🔐 ثبّت على الكل
+        </button>
         <button
           className={`btn2 ${on ? "green" : "red"}`}
           onClick={() => {

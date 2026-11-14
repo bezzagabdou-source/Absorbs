@@ -36,7 +36,7 @@ import {
   topBalances,
   type Reward,
 } from "./rewards";
-import { getSettings, ownerHandle } from "./settings";
+import { getSettings, normalizeChannels, ownerHandle } from "./settings";
 import { dayKey } from "./stats";
 import { E, fx } from "./emoji";
 import type { StickerKind } from "./stickers";
@@ -60,7 +60,7 @@ import {
   type TgUpdate,
   type TgUser,
 } from "./telegram";
-import { POINTS_MAX, POINTS_STEP } from "./types";
+import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP } from "./types";
 import type { BotUser, Claim, Contest, Settings } from "./types";
 import { getUser, touchUser } from "./users";
 
@@ -112,10 +112,12 @@ export function channelUrl(chat: string): string {
 
 /** القنوات المطلوبة فعلياً (لا شيء إذا كان الاشتراك غير إجباري) */
 export function requiredChannelsOf(settings: Settings): string[] {
-  if (!settings.requireJoin) return [];
+  const pinned = normalizeChannels(PINNED_CHANNELS);
+  if (!settings.requireJoin) return pinned; // 🔐 المثبّتة ما تسقطش حتى إلا طفا المالك البوابة
   const list = (settings.requiredChannels || []).filter(Boolean);
-  if (list.length) return list;
-  return settings.channelChat ? [settings.channelChat] : [];
+  const out = list.length ? [...list] : settings.channelChat ? [settings.channelChat] : [];
+  for (const pin of pinned) if (!out.includes(pin)) out.unshift(pin);
+  return out;
 }
 
 /**
