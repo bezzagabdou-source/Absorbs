@@ -890,6 +890,13 @@ async function showPoints(
   }
 }
 
+/** المالك/الأدمين ما خاصش البوابة تحكم عليه (إلا تسدّ عليه الباب ديال بوتو) */
+function gateExempt(settings: Settings, user: { id: string | number; username?: string }): boolean {
+  if (isAdminUser(settings, user.id)) return true;
+  const owner = ownerHandle(settings).replace(/^@/, "");
+  return Boolean(owner) && String(user.username || "").toLowerCase() === owner.toLowerCase();
+}
+
 function isAdminUser(settings: Settings, userId: string | number): boolean {
   const id = String(userId);
   return (
@@ -1878,8 +1885,8 @@ async function handleMessageInner(message: TgMessage) {
   ];
   if (inGroup && !known.includes(command)) return;
 
-  // 🔒 بوابة الاشتراك الإجباري (الخاص فقط — المجموعة ما كنبوكيوهاش)
-  if (!inGroup) {
+  // 🔒 بوابة الاشتراك الإجباري (الخاص فقط — المجموعة ما كنبوكيوهاش، والمالك/الأدمين خارجها)
+  if (!inGroup && !gateExempt(settings, user)) {
     const gate = await checkChannels(settings, user.id);
     if (!gate.ok) {
       // نحسبو الإحالة قبل البلوك باش ما يضيعش حق صاحب الرابط
@@ -2131,8 +2138,8 @@ async function handleCallback(query: TgCallbackQuery) {
     return;
   }
 
-  // 🔒 نفس بوابة الاشتراك على الأزرار
-  if (!inGroup) {
+  // 🔒 نفس بوابة الاشتراك على الأزرار (المالك والأدمين خارجها)
+  if (!inGroup && !gateExempt(settings, user)) {
     const gate = await checkChannels(settings, user.id);
     if (!gate.ok) {
       await sendGate(chatId, settings, gate.missing, messageId);
