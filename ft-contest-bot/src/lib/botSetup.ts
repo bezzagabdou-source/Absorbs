@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { getSettings, saveSettings } from "./settings";
-import { getMockLog, isMock, tgCall } from "./telegram";
+import { candidateTokens, rememberGoodToken } from "./token";
+import { currentBotToken, getMockLog, isMock, tgCall, rawTgWith } from "./telegram";
 
 export const BOT_COMMANDS = [
   { command: "start", description: "مرحبا بكم في بوت مسابقات FT" },
@@ -102,6 +103,8 @@ async function fetchStatus(expectedUrl: string): Promise<BotStatus> {
     return status;
   }
   status.botOk = true;
+  // ✅ تيليغرام قبل هاد التوكن — نسجّلوه باش كل النداءات تمشي بيه بلا ما نعاودو نجربو
+  rememberGoodToken(currentBotToken() || settings.botToken);
   status.botUsername = me.result.username || settings.botUsername;
   status.botName = me.result.first_name || "";
   if (status.botUsername !== settings.botUsername || me.result.id !== settings.botId) {
@@ -152,7 +155,30 @@ export async function ensureBotReady(
   const settings = await getSettings();
   const origin = options.origin || (await currentOrigin());
   const expectedUrl = `${origin}/api/telegram/webhook`;
-  const status = await fetchStatus(expectedUrl);
+  let status = await fetchStatus(expectedUrl);
+
+  // 🩺 إلا رفض تيليغرام التوكن الحالي، كنجرّبو باقي المرشّحين واحد بواحد وكنسجّلو
+  // اللي قبلوه في الإعدادات. هاكا البوت كيرجع لراسو خدّام بلا تدخّل يدوي.
+  if (!status.botOk) {
+    for (const candidate of candidateTokens()) {
+      if (candidate.token === (settings.botToken || "")) continue;
+      const probe = await rawTgWith(candidate.token, "getMe");
+      if (!probe.ok || !probe.result) continue;
+      const result = probe.result as { id?: number; username?: string; first_name?: string };
+      await saveSettings({
+        botToken: candidate.token,
+        botUsername: String(result.username || settings.botUsername || ""),
+        botId: Number(result.id) || settings.botId,
+      });
+      rememberGoodToken(candidate.token);
+      status = await fetchStatus(expectedUrl);
+      status.details.push(`تم التبديل تلقائياً إلى توكن صالح من ${candidate.name} ✅`);
+      break;
+    }
+    if (!status.botOk) {
+      status.details.push("كل التوكنات الموجودة رفضها تيليغرام — بدّل التوكن من @BotFather ثم أعد النشر.");
+    }
+  }
 
   if (status.botOk && settings.botToken && (!status.webhookMatches || !status.updatesOk)) {
     const res = await tgCall("setWebhook", {

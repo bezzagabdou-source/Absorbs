@@ -8,7 +8,8 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "simulate": "node scripts/simulate.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "next": "16.2.6",

@@ -3,6 +3,7 @@ const bot = require('./botBridge');
 const agent = require('./agentTools');
 const repo = require('./agentRepo');
 const audit = require('./agentAudit');
+const gate = require('./gateGuard');
 const SYSTEM = require('./agentPrompt');
 const instructions = require('./agentInstructions');
 const S = { type: 'string' }, N = { type: 'number' }, B = { type: 'boolean' };
@@ -226,6 +227,8 @@ function unseenImageReply(actions, attachmentRequested, visionFailed) {
 async function runAI(prompt, history, image, options = {}) {
   const text = String(prompt || '').trim();
   if (!text && !image) throw new Error('اكتب طلبك أو أرفق صورة');
+  // 🔒 طلب صريح لتعطيل/حذف الاشتراك الإجباري؟ ما كيوصلش حتى للمزوّد.
+  if (gate.blockedRequest(text)) return { reply: gate.MESSAGE, actions: [], retainImage: false };
   if (text.length > 30000) throw new Error('الطلب أطول من 30000 حرف؛ قسّمه إلى رسالتين');
   if (image && !bot.validImage(image)) throw new Error('الصورة غير صالحة أو أكبر من 1.4 ميغا');
   // This project has Fluid Compute; leave headroom inside its 300-second function.
@@ -311,6 +314,8 @@ async function runAI(prompt, history, image, options = {}) {
         try {
           args = JSON.parse(tc.function?.arguments || '{}');
           if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('معاملات الأداة غير صالحة');
+          // 🔒 حماية فعلية (ماشي برومت): ترفض أو تنقّي أي محاولة تمسّ الاشتراك الإجباري
+          args = gate.guardTool(name, args);
           Object.keys(args).forEach(k => { if (args[k] === null && k !== 'stock') delete args[k]; });
           const impl = Object.hasOwn(IMPL, name) ? IMPL[name] : null;
           if (typeof impl !== 'function') throw new Error('أداة غير مسموحة: ' + name);

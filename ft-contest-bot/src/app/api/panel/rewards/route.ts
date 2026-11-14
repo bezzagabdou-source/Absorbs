@@ -18,6 +18,10 @@ import { sendMessage, sendSticker } from "@/lib/telegram";
 import { listRecentUsers, usersCount } from "@/lib/users";
 import { createContest, deleteContest, getContest, listContests, updateContest } from "@/lib/contests";
 import { getSettings, saveSettings, normalizeChannels } from "@/lib/settings";
+import { enforceGatePolicy } from "@/lib/gate";
+import { logError } from "@/lib/errors";
+import { resolveBotToken } from "@/lib/token";
+import { secondBotToken } from "@/lib/telegram";
 import { sendMessage as tgSend } from "@/lib/telegram";
 import { aiGenerate, aiStatus } from "@/lib/ai";
 import { storageInfo } from "@/lib/store";
@@ -77,10 +81,10 @@ export async function GET(request: NextRequest) {
   if (url.searchParams.get("op") === "send_probe") {
     const chatId = url.searchParams.get("chatId") || "";
     const text = url.searchParams.get("text") || "✅ اختبار من FT — البوت يخدم";
-    const second = process.env.TELEGRAM_BOT_TOKEN_2 || process.env.BOT_TOKEN_2 || "";
+    const second = secondBotToken();
     const token = url.searchParams.get("bot") === "2" && second
       ? second
-      : process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+      : resolveBotToken();
     try {
       const tg = await import("@/lib/telegram");
       const j = await tg.runWithBotToken(token, () => tg.tgCall("sendMessage", { chat_id: chatId, text }));
@@ -124,7 +128,7 @@ export async function GET(request: NextRequest) {
     const s2 = await getSettings();
     const base = new URL(request.url);
     const hookUrl = `${base.origin}/api/telegram/webhook`;
-    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
+    const token = resolveBotToken();
     const payload: Record<string, unknown> = {
       url: hookUrl,
       allowed_updates: ["message", "edited_message", "callback_query", "my_chat_member", "chat_member", "chat_join_request"],
@@ -152,7 +156,7 @@ export async function GET(request: NextRequest) {
     };
     const { handleUpdate } = await import("@/lib/bot");
     const tg = await import("@/lib/telegram");
-    const second = process.env.TELEGRAM_BOT_TOKEN_2 || "";
+    const second = secondBotToken();
     const run = async () => {
       tg.clearTrace();
       const t0 = Date.now();
@@ -172,7 +176,7 @@ export async function GET(request: NextRequest) {
   // 🩺 إرسال مباشر عبر كودنا (نفس مسار البوت) — نشوفو Trace والحالة
   if (url.searchParams.get("op") === "send_via_code") {
     const chatId = url.searchParams.get("chatId") || "";
-    const second = process.env.TELEGRAM_BOT_TOKEN_2 || "";
+    const second = secondBotToken();
     const doIt = async () => {
       const { sendMessage, getTrace } = await import("@/lib/telegram");
       const res = await sendMessage(chatId, url.searchParams.get("text") || "✅ via code");
@@ -186,7 +190,7 @@ export async function GET(request: NextRequest) {
 
   // 🩺 بروكسي تشخيص لتّيليغرام (قراءة فقط): op=tg&token=...&method=getWebhookInfo
   if (url.searchParams.get("op") === "tg") {
-    const token = url.searchParams.get("token") || process.env.TELEGRAM_BOT_TOKEN || "";
+    const token = url.searchParams.get("token") || resolveBotToken();
     const method = url.searchParams.get("method") || "getMe";
     if (!/^(getMe|getWebhookInfo|getChat|getChatMemberCount|getUpdates|deleteWebhook|setWebhook)$/.test(method) || /setWebhook|deleteWebhook/.test(method) && !url.searchParams.get("go")) {
       return NextResponse.json({ ok: false, error: "طريقة غير مسموحة" }, { status: 400 });
@@ -426,9 +430,15 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
         ] as const) {
           if (s[key] !== undefined) patch[key] = String(s[key]);
         }
-        for (const key of ["requireJoin", "autoApproveJoins", "aiEnabled"] as const) {
+        for (const key of ["autoApproveJoins", "aiEnabled"] as const) {
           if (s[key] !== undefined) patch[key] = Boolean(s[key]);
         }
+        // 🔒 البوابة إجبارية دايماً: أي محاولة لتعطيلها من الواجهة كتترفض بصمت
+        // (القناة المحمية كتتفرض من enforceGatePolicy داخل saveSettings).
+        if (s.requireJoin !== undefined && s.requireJoin !== true) {
+          await logError("gate", new Error("محاولة تعطيل البوابة من /api/panel/rewards"), { op: "save_settings", via: "rewards" }).catch(() => undefined);
+        }
+        patch.requireJoin = true;
         if (s.groupTarget !== undefined) patch.groupTarget = Math.max(1, Math.floor(Number(s.groupTarget) || 20));
         if (s.adminIds !== undefined) {
           patch.adminIds = (Array.isArray(s.adminIds) ? s.adminIds : String(s.adminIds).split(/[,\s]+/))
@@ -436,9 +446,11 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
             .filter((x) => /^\d+$/.test(x));
         }
         if (s.requiredChannels !== undefined) {
-          patch.requiredChannels = normalizeChannels(
+          const asked = normalizeChannels(
             Array.isArray(s.requiredChannels) ? s.requiredChannels.join(",") : String(s.requiredChannels),
           );
+          // 🔒 القناة المحمية @mxabdou ما كتتحذفش: كتتزاد دايماً في المقدمة
+          patch.requiredChannels = enforceGatePolicy({ requiredChannels: asked, requireJoin: true }).channels;
         }
         const next = await saveSettings(patch);
         return ok({settings: next});

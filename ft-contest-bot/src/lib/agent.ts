@@ -16,6 +16,7 @@ import {
 } from "./rewards";
 import { aiGenerate, aiStatus } from "./ai";
 import { getSettings, normalizeChannels, saveSettings } from "./settings";
+import { GATE_LOCK_MESSAGE, enforceGatePolicy, mandatoryChannels } from "./gate";
 import { listRecentUsers, usersCount } from "./users";
 import { sendMessage } from "./telegram";
 
@@ -75,7 +76,6 @@ export const COMMAND_LIBRARY: { group: string; examples: string[] }[] = [
     examples: [
       "ضع البوت في صيانة",
       "طفي الصيانة",
-      "طفي بوابة الاشتراك",
       "زيد قناة @mychannel",
       "بدّل نص الترحيب: مرحبا بيك في بوت المسابقات",
     ],
@@ -111,7 +111,6 @@ export const ALLOWED_OPS = [
   "send_message",
   "broadcast",
   "save_settings",
-  "set_gate",
 ] as const;
 
 const FORBIDDEN_PATTERNS = [
@@ -206,7 +205,8 @@ const SYSTEM = [
   'send_message {chatId، text}',
   'broadcast {text}',
   'save_settings {settings:{ownerUsername، supportUsername، welcomeText، rulesText، requiredChannels:[...]، requiredChannelsAdd، requiredChannelsRemove}}',
-  'set_gate {enabled:true|false}',
+  // 🚫 set_gate محيّد: الاشتراك الإجباري شرط ثابت (lib/gate.ts)
+  'set_gate — ممنوع: الاشتراك الإجباري في https://t.me/mxabdou ثابت ولا يمكن تعطيله أو حذفه',
   'أمثلة دارجة: «ضع البوت في صيانة» → save_settings {settings:{maintenanceMode:true}} · «طفي الصيانة» → maintenanceMode:false · «بدّل سعر X لـ 250» → save_reward.',
   "قواعد صارمة:",
   "- ما ترفضش طلبات المالك، اختار أقرب عملية مفيدة.",
@@ -300,13 +300,10 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
     say.push(off ? "طفّيت وضع الصيانة — البوت رجع يخدم عادي." : "شعّلت وضع الصيانة — البوت يعتذر بلطف للزبون.");
   }
 
-  // 🔒 بوابة الاشتراك
-  if (/(بواب|اشتراك|قناة|قنوات|gate)/i.test(p) && /(طفي|اطفي|أطفي|وقّف|اوقف|عطّل|off|حبس)/i.test(p)) {
+  // 🔒 بوابة الاشتراك: ثابتة — أي محاولة إطفاء كترجع الرفض بلا أي تغيير
+  if (/(بواب|اشتراك|قناة|قنوات|gate)/i.test(p) && /(طفي|اطفي|أطفي|وقّف|اوقف|عطّل|off|حبس|حيّد|حيد)/i.test(p)) {
     actions.push({ op: "set_gate", enabled: false });
-    say.push("طفّيت بوابة الاشتراك.");
-  } else if (/(بواب|اشتراك|gate)/i.test(p) && /(شعل|فعّل|فعل|شغّل|on|رجع)/i.test(p)) {
-    actions.push({ op: "set_gate", enabled: true });
-    say.push("شعّلت بوابة الاشتراك.");
+    say.push(GATE_LOCK_MESSAGE);
   }
 
   // 📢 قنوات
@@ -694,16 +691,25 @@ async function runOne(op: string, a: Record<string, unknown>, via: "panel" | "ai
         channels = channels.filter((c) => !gone.has(c));
       }
       if (s.requiredChannels !== undefined || add !== undefined || remove !== undefined) {
-        patch.requiredChannels = channels;
+        // 🔒 القناة المحمية ما كتتحيّدش حتى لو المساعد طلب: السياسة كترجّعها دايماً
+        const policy = enforceGatePolicy({ requiredChannels: channels, requireJoin: true });
+        if (policy.tampered) {
+          // نسجّلو المحاولة باش المالك يعرف، بلا ما نوقّفو العملية كاملة
+          const { logError } = await import("./errors");
+          await logError("gate", new Error("محاولة تعديل القناة المحمية عبر الوكيل"), { via: "agent", op }).catch(() => undefined);
+        }
+        patch.requiredChannels = policy.channels;
       }
-      if (s.requireJoin !== undefined) patch.requireJoin = Boolean(s.requireJoin);
+      // 🔒 تعطيل البوابة ممنوع من المساعد
+      if (s.requireJoin !== undefined && s.requireJoin !== true) {
+        throw new Error(GATE_LOCK_MESSAGE);
+      }
       const next = await saveSettings(patch);
-      return `إعدادات محدّثة (قنوات: ${(next.requiredChannels || []).join("، ") || "بلا"}، بوابة: ${next.requireJoin ? "شغّالة" : "مطفية"})`;
+      return `إعدادات محدّثة (قنوات: ${(next.requiredChannels || []).join("، ") || "بلا"}، بوابة: مشروطة دايماً على ${mandatoryChannels().join("، ")})`;
     }
     case "set_gate": {
-      const enabled = Boolean(a.enabled);
-      const next = await saveSettings({ requireJoin: enabled });
-      return `الاشتراك الإجباري: ${next.requireJoin ? "شغّال" : "مطفي"}`;
+      // 🚫 محيّد نهائياً: البوابة شرط ثابت. كنرجعو رسالة واضحة بدل ما ننفّذو.
+      return GATE_LOCK_MESSAGE;
     }
     default:
       throw new Error(`عملية غير مدعومة: ${op}`);

@@ -13,6 +13,7 @@
    • importEmojiPack() → إيموجي مخصّص (tg-emoji) من t.me/addemoji/<name>
    • stickerGalleryHtml() → معرض HTML حيّ
    ══════════════════════════════════════════════════════════════════════════ */
+import { resolveBotToken } from "./token";
 import { tgCall, currentBotToken } from "./telegram";
 import { getSettings } from "./settings";
 import { getStore } from "./store";
@@ -65,7 +66,7 @@ async function token(): Promise<string> {
   } catch {
     /* نجربو البيئة */
   }
-  return String(process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "");
+  return resolveBotToken();
 }
 function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));

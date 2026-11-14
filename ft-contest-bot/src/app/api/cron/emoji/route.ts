@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { discoveryDue, discoveryStep } from "@/lib/emojiDiscovery";
 import { testCapabilities, testCore } from "@/lib/emojiOps";
 import { loadCfg } from "@/lib/emojiState";
+import { cleanupSeenUpdates } from "@/lib/guard";
+import { logError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,10 +25,12 @@ function authorized(request: NextRequest) {
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const started = Date.now();
+  // 🧹 تنظيف أقفال منع التكرار القديمة (كيخلّي المجموعات ما تكبرش بلا حد)
+  const cleaned = await cleanupSeenUpdates(2).catch(() => 0);
   const due = await discoveryDue();
   if (!due) {
     const cfg = await loadCfg();
-    return NextResponse.json({ ok: true, skipped: true, nextAfter: cfg.discovery.finishedAt + 7 * 24 * 3600_000 });
+    return NextResponse.json({ ok: true, skipped: true, cleaned, nextAfter: cfg.discovery.finishedAt + 7 * 24 * 3600_000 });
   }
   // دفعات قصيرة تحت مهلة الدالة (60 ثانية)
   let step = await discoveryStep({ restart: due !== "resume", budgetMs: 20_000 });
@@ -41,5 +45,6 @@ export async function GET(request: NextRequest) {
       core = await testCore().catch((e) => ({ ok: false, error: String(e) }));
     }
   }
-  return NextResponse.json({ ok: step.ok, due, step, caps, core, ms: Date.now() - started });
+  if (!step.ok) await logError("cron", new Error(String(step.error || "discovery failed")), { job: "emoji" }).catch(() => undefined);
+  return NextResponse.json({ ok: step.ok, due, cleaned, step, caps, core, ms: Date.now() - started });
 }

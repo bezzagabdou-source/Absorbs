@@ -3,6 +3,8 @@ import { getStore } from "./store";
 import { getSettings } from "./settings";
 import { approveJoinRequest, createChatInviteLink, getChatInfo } from "./telegram";
 import { activeGroupContest } from "./groups";
+import { withLock } from "./locks";
+import { logError } from "./errors";
 
 /* ══════════════════════════════════════════════════════════════════════════
    نظام النقاط والجوائز (متجر) — إضافة على البوت بدون تغيير نظام المسابقات.
@@ -220,22 +222,48 @@ export async function balanceOf(userId: string): Promise<number> {
   return Math.max(0, Number(raw) || 0);
 }
 
-export async function addPoints(userId: string, amount: number): Promise<number> {
+/**
+ * ➕ تعديل الرصيد — 🔒 تحت قفل لكل مستخدم.
+ * بلا القفل: جوج عمليات متزامنة كيقراو نفس الرصيد وكيكتبو فوق بعضهم (نقاط تضيع).
+ */
+/**
+ * النسخة الداخلية بلا قفل: كتستعمل غير من داخل `withLock(\`points:<id>\`)`.
+ * (لو خدّمنا addPoints المحمية جوّا قفل، كنستنّاو قفلنا الخاص → جمود.)
+ */
+async function addPointsLocked(userId: string, delta: number, ref = ""): Promise<number> {
   const store = getStore();
-  const next = Math.max(0, (await balanceOf(userId)) + Math.trunc(amount));
+  const before = await balanceOf(userId);
+  const next = Math.max(0, before + delta);
+  // كنكتبو الفرق الفعلي (بعد التحديد بـ 0) باش ترتيب النقاط يبقى مطابق للرصيد
+  const applied = next - before;
   await store.set(KEY.points(userId), next);
-  await store.zIncr(KEY.top, userId, Math.trunc(amount));
+  if (applied) await store.zIncr(KEY.top, userId, applied);
+  // 🧾 دفتر يومية: كل حركة نقاط بقات مكتوبة (شكون، شحال، شكون السبب).
+  // كيتسجّل بعد الكتابة وما كيعطّلش العملية إلا طاح.
+  if (applied && typeof store.appendLedger === "function") {
+    await store
+      .appendLedger({ at: Date.now(), kind: ref || "adjust", userId, delta: applied, balance: next, ref })
+      .catch(() => undefined);
+  }
   return next;
 }
 
-/** تعديل الرصيد المطلق (للوحة التحكم) */
+export async function addPoints(userId: string, amount: number): Promise<number> {
+  const delta = Math.trunc(amount) || 0;
+  if (!delta) return balanceOf(userId);
+  return withLock(`points:${userId}`, () => addPointsLocked(userId, delta));
+}
+
+/** تعديل الرصيد المطلق (للوحة التحكم) — 🔒 تحت نفس القفل */
 export async function setBalance(userId: string, value: number): Promise<number> {
-  const store = getStore();
-  const before = await balanceOf(userId);
-  const next = Math.max(0, Math.trunc(value));
-  await store.set(KEY.points(userId), next);
-  await store.zIncr(KEY.top, userId, next - before);
-  return next;
+  const next = Math.max(0, Math.trunc(value) || 0);
+  return withLock(`points:${userId}`, async () => {
+    const store = getStore();
+    const before = await balanceOf(userId);
+    await store.set(KEY.points(userId), next);
+    if (next !== before) await store.zIncr(KEY.top, userId, next - before);
+    return next;
+  });
 }
 
 export async function topBalances(limit = 10): Promise<{ userId: string; points: number }[]> {
@@ -250,20 +278,27 @@ export async function topBalances(limit = 10): Promise<{ userId: string; points:
 
 /* ─────────────── تسجيل الدعوات المؤكدة (تُستدعى من webhook المجموعة) ─────────────── */
 
+/**
+ * محاسبة الدعوات — 🔒 مقفولة على الداعي: العدّاد والرصيد كيتبدّلو مع بعض،
+ * فما كاينش حالة «العدّاد زاد والرصيد ما زادش» (اللي كانت كتخلّي الإحالات تضيع).
+ */
+async function credit(kind: "joined" | "activated", inviterId: string, points: number): Promise<number> {
+  return withLock(`invite:${inviterId}`, async () => {
+    await getStore().incr(KEY[kind](inviterId), 1);
+    return points ? addPoints(inviterId, points) : balanceOf(inviterId);
+  });
+}
+
 export async function creditInvite(inviterId: string): Promise<number> {
   const cfg = await getPointsConfig();
   if (!cfg.enabled) return 0;
-  const store = getStore();
-  await store.incr(KEY.joined(inviterId), 1);
-  return addPoints(inviterId, cfg.perJoin);
+  return credit("joined", inviterId, cfg.perJoin);
 }
 
 export async function creditActivation(inviterId: string): Promise<number> {
   const cfg = await getPointsConfig();
   if (!cfg.enabled) return 0;
-  const store = getStore();
-  await store.incr(KEY.activated(inviterId), 1);
-  return addPoints(inviterId, cfg.perActivated);
+  return credit("activated", inviterId, cfg.perActivated);
 }
 
 /** ⏱️ شحال من ضيف خّدات عليها نقاط المتجر من قبل (باش إعادة الحسبة ما تعدّش مرتين) */
@@ -283,6 +318,16 @@ export async function invitesOf(userId: string): Promise<{ joined: number; activ
 
 /* ─────────────── الطلبات ─────────────── */
 
+/**
+ * 🛒 طلب استبدال جائزة.
+ *
+ * 🔒 الأقفال: قفل على المستخدم (الرصيد) + قفل على الجائزة (المخزون). بجوجهم
+ * ضروريين: بلا قفل المخزون جوج مستخدمين كياخدو آخر قطعة، وبلا قفل الرصيد
+ * واحد يقدر يصرف نفس النقاط مرتين بالضغط المزدوج.
+ *
+ * كلشي كيتنفّذ على مرحلتين: الأول خصم الرصيد وإنقاص المخزون (وهما اللي كيمنعو
+ * الإفراط)، من بعد تسجيل الطلب. إلا فشل التسجيل كنرجعو الرصيد والمخزون.
+ */
 export async function createRequest(input: {
   userId: string;
   userName: string;
@@ -290,32 +335,70 @@ export async function createRequest(input: {
   reward: Reward;
 }): Promise<{ ok: boolean; error?: string; request?: RewardRequest; balance: number }> {
   const store = getStore();
-  const balance = await balanceOf(input.userId);
-  if (!input.reward.active) return { ok: false, error: "هذه الجائزة غير متوفرة حالياً", balance };
-  if (input.reward.stock !== null && input.reward.stock <= 0) return { ok: false, error: "نفدت الكمية", balance };
-  if (balance < input.reward.cost) return { ok: false, error: `تحتاج ${input.reward.cost - balance} نقطة زيادة`, balance };
-
-  await addPoints(input.userId, -input.reward.cost);
-  const request: RewardRequest = {
-    id: `rq_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-    userId: input.userId,
-    userName: input.userName,
-    username: input.username,
-    rewardId: input.reward.id,
-    rewardTitle: input.reward.title,
-    emoji: input.reward.emoji,
-    cost: input.reward.cost,
-    status: "pending",
-    at: Date.now(),
-  };
-  await store.set(KEY.req(request.id), request);
-  await store.listPush(KEY.requests, [request.id]);
-  if (input.reward.stock !== null) {
-    const list = await ensureRewards();
-    const next = list.map((r) => (r.id === input.reward.id ? { ...r, stock: Math.max(0, (r.stock ?? 1) - 1) } : r));
-    await saveRewards(next);
+  if (!input.reward.active) {
+    return { ok: false, error: "هذه الجائزة غير متوفرة حالياً", balance: await balanceOf(input.userId) };
   }
-  return { ok: true, request, balance: await balanceOf(input.userId) };
+  if (input.reward.stock !== null && input.reward.stock <= 0) {
+    return { ok: false, error: "نفدت الكمية", balance: await balanceOf(input.userId) };
+  }
+
+  return withLock(`reward:${input.reward.id}`, async () => {
+    // نعاودو نقراو الجائزة داخل القفل: ممكن تكون تبدّلت من اللوحة
+    const fresh = (await ensureRewards()).find((r) => r.id === input.reward.id);
+    if (!fresh || !fresh.active) {
+      return { ok: false, error: "هذه الجائزة غير متوفرة حالياً", balance: await balanceOf(input.userId) };
+    }
+    if (fresh.stock !== null && fresh.stock <= 0) {
+      return { ok: false, error: "نفدت الكمية", balance: await balanceOf(input.userId) };
+    }
+
+    return withLock(`points:${input.userId}`, async () => {
+      const balance = await balanceOf(input.userId);
+      if (balance < fresh.cost) {
+        return { ok: false, error: `تحتاج ${fresh.cost - balance} نقطة زيادة`, balance };
+      }
+
+      // 1️⃣ خصم الرصيد (كنستعملو النسخة الداخلية — حنا أصلاً داخل قفل points:<id>)
+      await addPointsLocked(input.userId, -fresh.cost, "reward_request");
+
+      // 2️⃣ إنقاص المخزون
+      if (fresh.stock !== null) {
+        const list = (await ensureRewards()).map((r) =>
+          r.id === fresh.id ? { ...r, stock: Math.max(0, (r.stock ?? 1) - 1) } : r,
+        );
+        await saveRewards(list);
+      }
+
+      // 3️⃣ تسجيل الطلب — إلا فشل كنرجعو كلشي
+      const request: RewardRequest = {
+        id: `rq_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        userId: input.userId,
+        userName: input.userName,
+        username: input.username,
+        rewardId: fresh.id,
+        rewardTitle: fresh.title,
+        emoji: fresh.emoji,
+        cost: fresh.cost,
+        status: "pending",
+        at: Date.now(),
+      };
+      try {
+        await store.set(KEY.req(request.id), request);
+        await store.listPush(KEY.requests, [request.id]);
+      } catch (error) {
+        await addPointsLocked(input.userId, fresh.cost, "reward_refund").catch(() => undefined);
+        if (fresh.stock !== null) {
+          const back = (await ensureRewards()).map((r) =>
+            r.id === fresh.id && r.stock !== null ? { ...r, stock: r.stock + 1 } : r,
+          );
+          await saveRewards(back).catch(() => undefined);
+        }
+        await logError("rewards", error, { op: "create_request", userId: input.userId, rewardId: fresh.id }).catch(() => undefined);
+        return { ok: false, error: "تعذّر تسجيل الطلب — ما تخمّناش حتى نقطة. عاود المحاولة.", balance: await balanceOf(input.userId) };
+      }
+      return { ok: true, request, balance: await balanceOf(input.userId) };
+    });
+  });
 }
 
 export async function listRequests(limit = 100): Promise<RewardRequest[]> {
@@ -325,18 +408,37 @@ export async function listRequests(limit = 100): Promise<RewardRequest[]> {
   return items.filter((x): x is RewardRequest => Boolean(x));
 }
 
+/**
+ * ✅/❌ قرار على الطلب — 🔒 مقفول على الطلب نفسه.
+ * بلا القفل: جوج ضغطات «رفض» = استرجاع النقاط مرتين (نقاط من الهوا).
+ */
 export async function decideRequest(
   id: string,
   status: "approved" | "rejected",
   note = "",
 ): Promise<RewardRequest | null> {
-  const store = getStore();
-  const request = await store.get<RewardRequest>(KEY.req(id));
-  if (!request || request.status !== "pending") return request;
-  const next: RewardRequest = { ...request, status, decidedAt: Date.now(), note };
-  if (status === "rejected") await addPoints(request.userId, request.cost);
-  await store.set(KEY.req(id), next);
-  return next;
+  return withLock(`req:${id}`, async () => {
+    const store = getStore();
+    const request = await store.get<RewardRequest>(KEY.req(id));
+    if (!request) return null;
+    // القرار كيتاخد مرة وحدة فقط — أي قرار جديد على طلب مقرَّر كيرجع بلا تغيير
+    if (request.status !== "pending") return request;
+    // كنكتبو الحالة الجديدة قبل الاسترجاع: حتى إلا طاح السيرفر بعد الكتابة،
+    // ما كيتعاودش الاسترجاع (فشل لصالح المالك: نقاط ما كتتضاعفش).
+    const next: RewardRequest = { ...request, status, decidedAt: Date.now(), note };
+    await store.set(KEY.req(id), next);
+    if (status === "rejected") {
+      try {
+        await addPoints(request.userId, request.cost);
+      } catch (error) {
+        // ما نقدرش نخلّيو المستخدم خاسر: كنرجعو الطلب pending باش المالك يعاود
+        await store.set(KEY.req(id), request).catch(() => undefined);
+        await logError("rewards", error, { op: "refund", requestId: id, userId: request.userId }).catch(() => undefined);
+        throw error;
+      }
+    }
+    return next;
+  });
 }
 
 /* ─────────────── إضافة البوت للمجموعة تلقائياً عند /start ─────────────── */

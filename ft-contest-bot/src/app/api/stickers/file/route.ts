@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveBotToken } from "@/lib/token";
 import { tgCall } from "@/lib/telegram";
 import { knownStickerIds } from "@/lib/stickers";
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     const res = await tgCall<{ file_path?: string }>("getFile", { file_id: id });
     const filePath = String(res.result?.file_path || "");
     if (!res.ok || !filePath) return NextResponse.json({ ok: false, error: res.description || "getFile فشل" }, { status: 404 });
-    const token = String(process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "");
+    const token = resolveBotToken();
     const up = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`, { cache: "force-cache" });
     if (!up.ok) return NextResponse.json({ ok: false, error: `HTTP ${up.status}` }, { status: 502 });
     const body = await up.arrayBuffer();

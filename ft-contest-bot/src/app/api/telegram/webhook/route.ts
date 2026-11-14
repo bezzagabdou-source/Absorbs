@@ -1,5 +1,9 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { handleUpdate } from "@/lib/bot";
+import { logError } from "@/lib/errors";
+import { claimUpdate } from "@/lib/guard";
+import { tokenBotId } from "@/lib/token";
+import { withTimeout } from "@/lib/retry";
 import { getSettings } from "@/lib/settings";
 import { trackBotMessage } from "@/lib/stats";
 import { getTrace, rememberSticker, runWithBotToken, secondBotToken, type TgUpdate } from "@/lib/telegram";
@@ -60,7 +64,7 @@ async function saveBotMeta() {
     tgCall<{ url?: string; pending_update_count?: number; last_error_message?: string }>("getWebhookInfo", {}),
   ]);
   const payload = {
-    tokenBotId: Number((process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "").split(":")[0]) || 0,
+    tokenBotId: tokenBotId(),
     identity: me.result ? { id: me.result.id, username: me.result.username || "" } : null,
     url: info.result?.url || "",
     pending: info.result?.pending_update_count || 0,
@@ -154,8 +158,15 @@ async function firstRunEmojiDiscovery() {
 }
 
 export async function POST(request: NextRequest) {
-  const settings = await getSettings();
-  const secret = settings.webhookSecret;
+  // 🛟 قاعدة البيانات طايحة؟ ما خاصناش نرجّعو 500 لتيليغرام: كان كيعاود
+  // يصيفط نفس التحديث بلا نهاية، والمستخدم ما كيوصلو جواب. كنسجّلو ونكملو.
+  let settings: Awaited<ReturnType<typeof getSettings>> | null = null;
+  try {
+    settings = await getSettings();
+  } catch (error) {
+    void logError("webhook", error, { step: "getSettings" }).catch(() => undefined);
+  }
+  const secret = settings?.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || "";
 
   if (secret) {
     const headerSecret = request.headers.get("x-telegram-bot-api-secret-token");
@@ -178,13 +189,30 @@ export async function POST(request: NextRequest) {
   // 🧩 أي بوت؟ البوت الثاني كيتسجّل على نفس الرابط بعلامة ?bot=2 — نفس المتجر والبيانات
   const which = new URL(request.url).searchParams.get("bot");
   const second = secondBotToken();
-  if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update));
-
-  return await handleWebhook(update);
+  try {
+    if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update, "2"));
+    return await handleWebhook(update);
+  } catch (error) {
+    // ⛔ عمرنا ما نرجّعو 500 لتيليغرام — كيعاود الإرسال للأبد ويحبس البوت.
+    void logError("webhook", error, { step: "handleWebhook" }).catch(() => undefined);
+    return NextResponse.json({ ok: true, recovered: true });
+  }
 }
 
-async function handleWebhook(update: TgUpdate) {
-  const settings = await getSettings();
+/**
+ * ⏱️ مهلة معالجة التحديث: أقل من maxDuration (60s) بهامش أمان.
+ * إلا تجاوزناها كنسجّلو الخطأ ونرجّعو 200 باش تيليغرام ما يعاودش يصيفط
+ * (إعادة الإرسال معالجة نصفها تمّ كتخلّي النقاط تتضاعف).
+ */
+const UPDATE_BUDGET_MS = 50_000;
+
+async function handleWebhook(update: TgUpdate, botTag: "1" | "2" = "1") {
+
+  /* 🔁 منع التكرار: تيليغرام كيعاود يصيفط نفس update_id إلا تأخّر الرد.
+     معالجة نفس التحديث مرتين = إحالة محسوبة مرتين. */
+  if (!(await claimUpdate(update.update_id, botTag))) {
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
 
   // 🩺 نسجّلو هوية البوت + حالة الويب هوك ف كل تحديث (باش نعرفو واش الإرسال يخدم)
   try {
@@ -193,7 +221,7 @@ async function handleWebhook(update: TgUpdate) {
     /* ما نعطّلوش الردّ */
   }
 
-  await trackBotMessage();
+  await trackBotMessage().catch(() => undefined);
 
   // 🎭 إلا وصّل ملصق: نحفظو file_id باش المالك يستعملو في الواجهة (بلا ما يردّ عليه)
   if (update.message?.sticker?.file_id) {
@@ -209,10 +237,12 @@ async function handleWebhook(update: TgUpdate) {
   const detail = describeUpdate(update);
   let error: string | null = null;
   try {
-    await handleUpdate(update);
+    await withTimeout(() => handleUpdate(update), UPDATE_BUDGET_MS, "handleUpdate");
   } catch (e) {
     error = String((e as Error)?.message || e);
     console.error("[webhook] failed to handle update", e);
+    // 🚨 كل خطأ كيبان في لوحة التحكم (قسم الأخطاء) — البوت ما كيوقفش
+    await logError("webhook", e, { kind: detail.kind, userId: String(detail.userId), text: detail.text.slice(0, 80) }, { throttleMs: 0 });
   }
   try {
     await pushAudit({ at: Date.now(), ...detail, error });

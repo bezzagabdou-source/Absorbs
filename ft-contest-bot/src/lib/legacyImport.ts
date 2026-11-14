@@ -335,6 +335,7 @@ export async function migrateLegacy(raw: unknown, options: MigrationOptions = {}
     const missing = snapshot.channels!.map((c) => c.chat).filter((chat) => !current.some((c) => c.toLowerCase() === chat.toLowerCase()));
     report.channels.existing = snapshot.channels!.length - missing.length;
     report.channels.added = missing;
+    // 🔒 القناة المحمية كتضاف دايماً (saveSettings كتفرضها حتى لو المصدر ناقصها)
     if (!dryRun && missing.length) await saveSettings({ requiredChannels: [...current, ...missing] });
   }
 

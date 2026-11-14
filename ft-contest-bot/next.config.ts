@@ -9,6 +9,10 @@ const PANEL_URL = (process.env.PANEL_URL || "https://ft-panel-blue.vercel.app").
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  typescript: {
+    // الفشل في الأنواع كيوقف النشر — وهذا هو المطلوب (بناء نظيف دايماً)
+    ignoreBuildErrors: false,
+  },
   async redirects() {
     return [
       { source: "/admin", destination: PANEL_URL, permanent: false },

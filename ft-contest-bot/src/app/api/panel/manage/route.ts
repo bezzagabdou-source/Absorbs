@@ -9,6 +9,7 @@ import {
   saveRewards, setBalance, setBanned, setJoinGroup, topBalances, type PointsConfig, type Reward, type SectionId,
 } from "@/lib/rewards";
 import { getSettings, normalizeChannels, saveSettings } from "@/lib/settings";
+import { GATE_LOCK_MESSAGE, enforceGatePolicy, mandatoryGate } from "@/lib/gate";
 import { getStats } from "@/lib/stats";
 import { storageInfo } from "@/lib/store";
 import { sendMessage } from "@/lib/telegram";
@@ -64,7 +65,8 @@ function cleanSettings(s: Settings) {
   return { ownerUsername: s.ownerUsername, supportUsername: s.supportUsername, welcomeText: s.welcomeText,
     rulesText: s.rulesText, requiredChannels: s.requiredChannels, requireJoin: s.requireJoin,
     aiEnabled: s.aiEnabled, maintenanceMode: Boolean(s.maintenanceMode), autoApproveJoins: s.autoApproveJoins,
-    groupChat: s.groupChat, groupTitle: s.groupTitle, groupUrl: s.groupUrl, groupTarget: s.groupTarget };
+    groupChat: s.groupChat, groupTitle: s.groupTitle, groupUrl: s.groupUrl, groupTarget: s.groupTarget,
+    gateLocked: mandatoryGate() };
 }
 async function log(op: string, detail: string) {
   // A logging outage cannot turn a completed operation into a reported failure/retry.
@@ -90,6 +92,50 @@ export async function GET(request: NextRequest) {
     }
     if (view === "stats") return reply({ ok: true, stats: await panelStats(), activity: await getStats(7), top: await topBalances(20), storage: storageInfo() });
     if (view === "requests") return reply({ ok: true, requests: await listRequests(100) });
+    /* 🧾 دفتر النقاط: كل حركة رصيد (شكون، شحال، علاش) — للتحقيق ومنع الضياع. */
+    if (view === "ledger") {
+      const { getStore } = await import("@/lib/store");
+      const store = getStore();
+      const limit = Math.max(1, Math.min(300, Number(query.get("limit")) || 100));
+      const userId = String(query.get("id") || "").trim();
+      if (userId && !/^\d+$/.test(userId)) return fail("المعرّف غير صالح", 400);
+      const entries = store.readLedger ? await store.readLedger(limit, userId || undefined) : [];
+      return reply({ ok: true, ledger: entries, userId: userId || null });
+    }
+    /* 🚨 الأخطاء: كل خطأ سجّلو البوت (webhook/تيليغرام/قاعدة/مساعد) — للعرض في اللوحة.
+       الأخطاء خفيفة على القاعدة ومحفوظة في نفس المخزن، فالبوت ما كيوقفش أبداً. */
+    if (view === "errors") {
+      const { readErrors } = await import("@/lib/errors");
+      const limit = Math.max(1, Math.min(120, Number(query.get("limit")) || 60));
+      return reply({ ok: true, errors: await readErrors(limit) });
+    }
+    /* 🩺 الفحص الشامل: قاعدة البيانات + الترحيلات + البوابة + الويب هوك */
+    if (view === "health") {
+      const { dbHealth, migrationsInfo } = await import("@/lib/store");
+      const { mandatoryGate } = await import("@/lib/gate");
+      const { getSettings: readSettings } = await import("@/lib/settings");
+      const [db, migrations, settings, identity] = await Promise.all([
+        dbHealth(),
+        migrationsInfo(),
+        readSettings(),
+        (await import("@/lib/telegram")).getBotIdentity(),
+      ]);
+      const hook = await (await import("@/lib/telegram")).tgCall<{ url?: string; pending_update_count?: number; last_error_message?: string }>("getWebhookInfo").catch(() => ({ ok: false }) as { ok: boolean });
+      return reply({
+        ok: true,
+        db,
+        migrations,
+        gate: mandatoryGate(),
+        storage: storageInfo(),
+        bot: identity,
+        webhook: {
+          url: (hook as { result?: { url?: string } }).result?.url || "",
+          pending: (hook as { result?: { pending_update_count?: number } }).result?.pending_update_count ?? 0,
+          lastError: (hook as { result?: { last_error_message?: string } }).result?.last_error_message || "",
+        },
+        settings: cleanSettings(settings),
+      });
+    }
     if (view === "log") return reply({ ok: true, log: await readAdminLog(100) });
     if (view === "users") {
       // 👥 جميع المستخدمين منذ إنشاء البوت (ما غير 100 الأخيرين) — مع بحث/حد اختياري
@@ -313,6 +359,12 @@ export async function POST(request: NextRequest) {
       await log(op, "تعديل إعدادات نقاط المتجر");
       return reply({ ok: true, points });
     }
+    if (op === "errors_clear") {
+      const { clearErrors } = await import("@/lib/errors");
+      const removed = await clearErrors();
+      await log(op, `تفريغ سجل الأخطاء (${removed})`);
+      return reply({ ok: true, cleared: removed });
+    }
     if (op === "settings_save") {
       const input = object(body.settings);
       onlyKeys(input, ["ownerUsername", "supportUsername", "welcomeText", "rulesText", "requiredChannels", "requireJoin", "aiEnabled", "maintenanceMode", "autoApproveJoins", "groupTarget"]);
@@ -325,13 +377,19 @@ export async function POST(request: NextRequest) {
           patch[key] = value;
         }
       for (const key of ["welcomeText", "rulesText"] as const) if (input[key] !== undefined) patch[key] = str(input[key], key, 3500, true);
-      for (const key of ["requireJoin", "aiEnabled", "maintenanceMode", "autoApproveJoins"] as const) if (input[key] !== undefined) patch[key] = bool(input[key], key);
+      for (const key of ["aiEnabled", "maintenanceMode", "autoApproveJoins"] as const) if (input[key] !== undefined) patch[key] = bool(input[key], key);
       if (input.groupTarget !== undefined) patch.groupTarget = number(input.groupTarget, "هدف المجموعة", 1, 1_000_000);
+      /* 🔒 الاشتراك الإجباري محمي:
+         - requireJoin: أي قيمة غير true كترفض صراحةً (ما كتتعطلش البوابة).
+         - requiredChannels: كنضيفو المحمية بالقوة ونرفضو أي محاولة تحييدها. */
+      if (input.requireJoin !== undefined && input.requireJoin !== true) return fail(GATE_LOCK_MESSAGE, 403);
       if (input.requiredChannels !== undefined) {
         if (!Array.isArray(input.requiredChannels) || input.requiredChannels.length > 20 || input.requiredChannels.some((v) => typeof v !== "string")) return fail("قائمة القنوات غير صالحة");
         const channels = normalizeChannels(input.requiredChannels);
         if (channels.some((c) => !/^@[A-Za-z0-9_]{4,32}$/.test(c) && !/^-\d{5,20}$/.test(c))) return fail("استعمل @username أو معرّف قناة صالح");
-        patch.requiredChannels = channels;
+        const policy = enforceGatePolicy({ requiredChannels: channels });
+        if (policy.blocked.length) return fail(GATE_LOCK_MESSAGE, 403);
+        patch.requiredChannels = policy.channels;
       }
       const settings = await saveSettings(patch);
       await log(op, "تعديل إعدادات البوت");

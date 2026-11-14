@@ -48,10 +48,14 @@ export function recentDays(count = 7): string[] {
   return out;
 }
 
-/** يقرأ عدّاداً بدون تغييره (incr بمقدار 0 يرجّع القيمة الحالية) */
+/**
+ * يقرأ عدّاداً بدون تغييره.
+ * ⚠️ كان كيستعمل `incr(key, 0)` = كتابة (UPDATE) في كل قراءة → قفل صف + WAL زايد
+ * مع كل تحميل للوحة. دابا قراءة خالصة: `get` العادي (العدّادات في نفس المخزن).
+ */
 async function readCounter(key: string): Promise<number> {
   try {
-    return Number(await getStore().incr(key, 0)) || 0;
+    return Math.max(0, Number(await getStore().get<number>(key)) || 0);
   } catch {
     return 0;
   }
