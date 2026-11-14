@@ -1438,64 +1438,62 @@ async function handleClaim(
 /* ───────────────────────── الإحالة عبر رابط البوت ───────────────────────── */
 
 async function creditReferral(contest: Contest | null, inviterId: string, newUser: BotUser) {
+  // 🔗 الإحالة = نقاط فقط: كل شخص يدخل من الرابط يتحسب مرة واحدة، بلا مسابقة وبلا مجموعة.
   const store = getStore();
-  if (!/^\d+$/.test(inviterId) || inviterId === newUser.id) return { counted: false, count: 0 };
-  // 🛟 الرابط قديم/المسابقة تبدّلات؟ نحسبو على المسابقة النشطة دابا (باش الإحالات ما تضيعش أبدًا)
+  if (!/^\d+$/.test(inviterId) || inviterId === String(newUser.id)) return { counted: false, count: 0 };
+  const inviter = await getUser(inviterId);
+  if (!inviter) return { counted: false, count: 0 };
   if (!contest || contest.status !== "active") {
     const actives = (await listContests()).filter((c) => c.status === "active");
     contest = actives.find((c) => c.mode === "group") || actives[0] || null;
   }
-  if (!contest) return { counted: false, count: 0 };
-  const inviterExists = await getUser(inviterId);
-  if (!inviterExists) return { counted: false, count: 0 };
+  // مرة واحدة لكل داخل (عالمياً) + احترام من تحسب قبل هذا التحديث
+  const first = await store.sAdd("ref:credited:all", String(newUser.id));
+  const freshInContest = contest ? await store.sAdd(`contest:${contest.id}:credited`, String(newUser.id)) : true;
+  if (!first || !freshInContest) return { counted: false, count: 0 };
 
-  // 🧾 سجل الإحالات: شكون دخل + شكون صيفط الرابط (يظهر في اللوحة /admin/referrals)
+  let earned = 0;
   try {
-    await store.listPush(
-      "referrals:log",
-      [
-        JSON.stringify({
-          at: Date.now(),
-          contestId: contest.id,
-          contestTitle: contest.title,
-          inviterId,
-          inviterName: inviterExists.firstName,
-          inviterUsername: inviterExists.username || "",
-          joinerId: newUser.id,
-          joinerName: newUser.firstName,
-          joinerUsername: newUser.username || "",
-          counted: true,
-        }),
-      ],
-    );
-  } catch {
-    /* السجل ما يعطّلش */
-  }
-
-  const added = await store.sAdd(`contest:${contest.id}:credited`, newUser.id);
-  if (!added) return { counted: false, count: await getReferralCount(contest.id, inviterId) };
-
-  const count = await store.zIncr(`contest:${contest.id}:score`, inviterId, 1);
-  // 🧱 بصمة «تحسبات» حتى هي — باش الإصلاح التلقائي ما يعاودش يحسبها
-  await store.set(`refbtot:${contest.id}:${newUser.id}`, Date.now());
-  // 💰 نقاط المتجر: كل ضيف داخل من رابطك = نقاط في رصيدك (كتتحسب هنا، ماشي غير من الويب-هوك
-  //    ديال المجموعة — يعني حتى البوت ماكونش أدمن فالمجموعة النقاط كتنحسب عادي)
-  try {
-    const { creditInvite } = await import("./rewards");
+    const { creditInvite, getPointsConfig } = await import("./rewards");
     await creditInvite(inviterId);
-    await store.set(`refpts:${contest.id}:${newUser.id}`, Date.now());
+    earned = (await getPointsConfig()).perJoin;
   } catch (error) {
     console.error("[rewards] creditInvite في creditReferral فشل", error);
   }
-  await notifyOwnerOfReferral(contest, inviterExists, count, newUser.firstName);
-  const settings = await getSettings();
-  const points = await creditPoints(inviterId);
-  if (points.milestone) {
-    try {
-      await notifyPointsMilestone(inviterExists, settings, points.state, points.milestone);
-    } catch (error) {
-      console.error("[points] milestone failed", error);
-    }
+  let count = 0;
+  if (contest) {
+    count = await store.zIncr(`contest:${contest.id}:score`, inviterId, 1);
+    await store.set(`refbtot:${contest.id}:${newUser.id}`, Date.now());
+    await store.set(`refpts:${contest.id}:${newUser.id}`, Date.now());
+  }
+  try {
+    await store.listPush("referrals:log", [
+      JSON.stringify({
+        at: Date.now(),
+        contestId: contest?.id || "",
+        contestTitle: contest?.title || "",
+        inviterId,
+        inviterName: inviter.firstName,
+        inviterUsername: inviter.username || "",
+        joinerId: newUser.id,
+        joinerName: newUser.firstName,
+        joinerUsername: newUser.username || "",
+        points: earned,
+        counted: true,
+      }),
+    ]);
+  } catch {
+    /* السجل ما يعطّلش */
+  }
+  try {
+    const { balanceOf } = await import("./rewards");
+    await sendMessage(
+      inviterId,
+      `➕ <b>إحالة جديدة</b> — ${escapeHtml(newUser.firstName || "عضو")}\n💰 +${earned} نقطة · رصيدك: <b>${await balanceOf(inviterId)}</b>`,
+      keyboard([[{ text: "🎁 المتجر", callback_data: "shop" }]]),
+    );
+  } catch {
+    /* الإشعار ما يعطّلش */
   }
   return { counted: true, count };
 }

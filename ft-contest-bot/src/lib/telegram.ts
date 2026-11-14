@@ -452,7 +452,7 @@ export async function tgCall<T = unknown>(
     mode,
     text: rt.cfg.caps.text !== false && now >= rt.textOffUntil,
     icons: rt.cfg.caps.button !== false && now >= rt.iconsOffUntil,
-    strip: rt.cfg.caps.button === true,
+    strip: rt.cfg.caps.button === true && rt.cfg.caps.text === true, // ما نحيّدوش الإيموجي العادي إلا إذا تأكّد أن المتحرك يظهر فعلاً
     bulk,
     privateChat,
   });

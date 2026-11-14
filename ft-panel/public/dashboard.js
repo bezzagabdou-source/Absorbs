@@ -164,15 +164,20 @@ function show(t) {
 function fail(el, e) {
   el.innerHTML = "<p class=err>" + esc(e.message) + "</p>";
 }
+const ST = { pending: "قيد الانتظار", approved: "مقبول", rejected: "مرفوض", delivered: "مُسلَّم" };
+function referralPerson(id, name, username) {
+  const label = String(name || username || id || "عضو");
+  return `<div class='item'><div class='avatar' data-avatar-id='${esc(id)}'><img alt='' hidden><span>${esc([...label][0] || "؟")}</span></div><div><b>${esc(label)}</b><small>${username ? "@" + esc(username) + " · " : ""}${esc(id)}</small></div></div>`;
+}
 async function loadReferrals() {
   const el = $("#t-referrals");
   el.innerHTML = "<p class='mute'>جارٍ تحميل الإحالات…</p>";
   try {
     const rows = await api("referrals", { limit: 50 });
-    el.innerHTML = `<div class='card'><h3>الإحالات</h3><small>الأحدث أولاً · الصور تظهر عند توفرها من تيليغرام</small></div>` + (rows.length ? rows.map((row) => `
+    el.innerHTML = `<div class='card'><h3>الإحالات</h3><small>كل شخص يدخل البوت من رابط الإحالة = نقاط لصاحب الرابط · الأحدث أولاً</small></div>` + (rows.length ? rows.map((row) => `
       <div class='card'>${referralPerson(row.joinerId, row.joinerName, row.joinerUsername)}
       <div class='ref-arrow'>انضمّ بدعوة من ↓</div>${referralPerson(row.inviterId, row.inviterName, row.inviterUsername)}
-      <small>${esc(row.contestTitle || "رابط البوت")} · ${row.at ? esc(new Date(row.at).toLocaleString("ar-DZ")) : ""}</small></div>`).join("") : `<p class='mute'>لا توجد إحالات مسجّلة بعد.</p>`);
+      <small>+${esc(row.points ?? 1)} نقطة · ${row.at ? esc(new Date(row.at).toLocaleString("ar-DZ")) : ""}</small></div>`).join("") : `<p class='mute'>لا توجد إحالات مسجّلة بعد.</p>`);
     const ids = [...new Set(rows.flatMap((row) => [String(row.inviterId), String(row.joinerId)]))];
     const batches = [];
     for (let i = 0; i < ids.length; i += 8) batches.push(ids.slice(i, i + 8));
