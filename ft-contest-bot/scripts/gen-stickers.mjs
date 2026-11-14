@@ -375,7 +375,7 @@ for (const pack of PACKS) {
       const stem = String(i + 1).padStart(2, "0");
       const tmp = mkTmp(stem);
       try {
-        const VFPS = 10, VFRAMES = 30; // 3 ثواني (تيليجرام: ≤30fps)
+        const VFPS = 30, VFRAMES = 90; // 3 ثواني بـ 30 FPS (شرط تيليجرام لملصقات الفيديو)
         renderFrames(lottie, { frames: VFRAMES, size: SIZE, tmpDir: tmp });
         const enc = encodeWebm({ tmpDir: tmp, frames: VFRAMES, fps: VFPS, out: path.join(dir, `${stem}.webm`), size: SIZE });
         if (enc.ok && !enc.over) {
@@ -401,7 +401,7 @@ for (const pack of PACKS) {
     count++;
   });
   // ⚖️ النشرة إما كلها متحركة ولا كلها ثابتة — تيليجرام ما كيخلطش الصيغ فـ نشرة وحدة
-  const LIM = 60 * 1024;
+  const LIM = 250 * 1024; // حد تيليجرام لملصق الفيديو (WEBM)
   if (!items.every((x) => x.webm && x.webmBytes > 0 && x.webmBytes <= LIM)) {
     items.forEach((x) => {
       x.webm = null;
@@ -444,19 +444,23 @@ fs.writeFileSync(
   ].join("\n"),
 );
 
-/* معرض HTML: كيستعمل lottie-player (LottieFiles CDN) على JSON اللي فالبوت */
+/* معرض HTML: فيديو WEBM (نفس اللي كيبان فالتيليگرام) + lottie-player fallback */
 const cards = manifest.packs
   .map(
-    (p) => `<section><h3>${p.title} <small>${p.items.length} ملصق · TGS متحرك</small></h3><div class="g">${p.items
-      .map(
-        (it) =>
-          `<figure><lottie-player src="/stickers/${it.json}" autoplay loop mode="normal"></lottie-player><figcaption>${it.emoji} <b>${Math.round(it.bytes / 1024)}KB</b></figcaption></figure>`,
-      )
-      .join("")}</div></section>`,
+    (p) =>
+      `<section><h3>${p.title} <small>${p.items.length} ملصق · ${p.format === "webm" ? "WEBM متحرك (فيديو)" : "TGS متحرك"}</small></h3><div class="g">${p.items
+        .map((it) => {
+          const kb = it.webm ? Math.round(it.webmBytes / 1024) : Math.round(it.bytes / 1024);
+          const media = it.webm
+            ? `<video src="/stickers/${it.webm}" autoplay muted loop playsinline poster="/stickers/${it.png || it.webp || ""}"></video>`
+            : `<lottie-player src="/stickers/${it.json}" autoplay loop mode="normal"></lottie-player>`;
+          return `<figure>${media}<figcaption>${it.emoji} <b>${kb}KB</b></figcaption></figure>`;
+        })
+        .join("")}</div></section>`,
   )
   .join("");
 fs.writeFileSync(
   path.join(OUT, "index.html"),
-  `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>🎭 ملصقات البوت المتحركة</title><script src="https://cdn.jsdelivr.net/npm/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js"></script><style>body{margin:0;background:#0b0d12;color:#e8ecf4;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding:20px}h1{font-size:22px;margin:0 0 4px}.sub{color:#8b93a7;margin:0 0 20px}section{background:#121620;border:1px solid #1e2431;border-radius:18px;padding:16px;margin:0 0 16px}h3{margin:0 0 12px}small{color:#8b93a7;font-weight:400}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}figure{margin:0;background:#0f131b;border:1px solid #1e2431;border-radius:14px;padding:8px;text-align:center}lottie-player{width:100%;aspect-ratio:1}figcaption{font-size:12px;color:#8b93a7}</style></head><body><h1>🎭 ملصقات البوت المتحركة</h1><p class="sub">ملفات TGS حقيقية (Lottie 512×512 · 3s) — مولّدة بـ <code>scripts/gen-stickers.mjs</code>، بلا حقوق.</p>${cards}</body></html>`,
+  `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>🎭 ملصقات البوت المتحركة</title><script src="https://cdn.jsdelivr.net/npm/@lottiefiles/lottie-player@2.0.12/dist/lottie-player.js"></script><style>body{margin:0;background:#0b0d12;color:#e8ecf4;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;padding:20px}h1{font-size:22px;margin:0 0 4px}.sub{color:#8b93a7;margin:0 0 20px}section{background:#121620;border:1px solid #1e2431;border-radius:18px;padding:16px;margin:0 0 16px}h3{margin:0 0 12px}small{color:#8b93a7;font-weight:400}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}figure{margin:0;background:#0f131b;border:1px solid #1e2431;border-radius:14px;padding:8px;text-align:center}lottie-player,video{width:100%;aspect-ratio:1;border-radius:10px;background:#0b0d12}figcaption{font-size:12px;color:#8b93a7}</style></head><body><h1>🎭 ملصقات البوت المتحركة</h1><p class="sub">ملصقات WEBM/VP9 حقيقية (512×512 · 30fps · 3s · شفافية) — مولّدة بـ <code>scripts/gen-stickers.mjs</code>، بلا حقوق.</p>${cards}</body></html>`,
 );
 console.log(`✓ ${count} ملصق متحرك فـ ${manifest.packs.length} نشرة → ${OUT}`);

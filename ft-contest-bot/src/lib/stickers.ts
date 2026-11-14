@@ -163,10 +163,10 @@ async function ownerUserId(forced = ""): Promise<string> {
 async function uploadOne(base: string, item: ManifestItem, userId: string, prefer = ""): Promise<{ fileId: string; how: string; error: string }> {
   const t = await token();
   if (!t) return { fileId: "", how: "", error: "ما كاينش توكن البوت" };
-  // 🎬 الصيغ اللي قبلها تيليجرام دابا: webm متحرك (animated) و webp/png ثابت (static).
+  // 🎬 تيليجرام: .WEBM/VP9 (مع ألفا) كيمشي بـ sticker_format="video"، و"animated" غير لـ .TGS.
   // .tgs ما عادتش مقبولة لنشرات جدد («invalid sticker format specified») — غير fallback.
   const tries: { path: string | null; format: string; upload: string; type: string; file: string }[] = [
-    { path: item.webm || null, format: "webm", upload: "animated", type: "video/webm", file: "s.webm" },
+    { path: item.webm || null, format: "webm", upload: "video", type: "video/webm", file: "s.webm" },
     { path: item.webp || item.png || null, format: "static", upload: "static", type: item.webp ? "image/webp" : "image/png", file: item.webp ? "s.webp" : "s.png" },
     { path: item.tgs, format: "tgs", upload: "animated", type: "application/gzip", file: "s.tgs" },
   ];
@@ -244,7 +244,7 @@ export async function repairOwn(botNameHint = ""): Promise<{ ok: boolean; kinds:
       name: live.name,
       link: `https://t.me/addstickers/${live.name}`,
       created: true,
-      note: isAnimated ? "النشرة المتحركة (webm) مربوطة" : "النشرة الثابتة مربوطة (webp)",
+      note: isAnimated ? "نشرة الفيديو (WEBM/VP9) مربوطة" : "النشرة الثابتة مربوطة (webp)",
     });
   }
   const kinds = Object.keys(byKind);
@@ -343,8 +343,8 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
       } else if (up.error) errors.push(`${pack.id}/${item.emoji}: ${up.error}`);
       await new Promise((r) => setTimeout(r, floodWait ? 1200 : 900));
     }
-    const animated = fmtTag === "webm";
-    const tag = animated ? "webm" : "";
+    const isVideo = fmtTag === "webm";
+    const tag = isVideo ? "webm" : "";
     if (items.length === 0) {
       sets.push({ kind: pack.kind, pack: pack.id, title: pack.title, name: "", link: "", created: false, note: "ما تولّا حتى ملف مرفوع" });
       continue;
@@ -363,12 +363,11 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
         user_id: userId,
         name: setName,
         title: pack.title.slice(0, 50),
-        ...(animated ? {} : { sticker_type: "regular" as const }),
+        sticker_type: "regular" as const,
         needs_repainting: false,
-        ...(animated ? { format: "animated" as const } : {}),
         stickers: items.map((s) => ({
           sticker: s.fileId,
-          format: animated ? "animated" : "regular",
+          format: (isVideo ? "video" : "regular") as "video" | "regular",
           ...(mode === "list" ? { emoji_list: [s.emoji || "⭐️"] } : { emoji: s.emoji || "⭐️" }),
         })),
       });
@@ -397,7 +396,7 @@ export async function publishOwn(opts: { apply?: boolean; origin?: string; userI
     if (created) {
       const live = await fetchSet(setName);
       if (live && live.stickers.length > 0)
-        byKind[pack.kind] = live.stickers.map((x) => ({ fileId: x.fileId, emoji: x.emoji, fmt: animated ? "webm" : "png" }));
+        byKind[pack.kind] = live.stickers.map((x) => ({ fileId: x.fileId, emoji: x.emoji, fmt: isVideo ? "webm" : "png" }));
       else note = `${note} · ما تجاوبش getStickerSet (نفس file_ids ديال الرفع غادي يخدمو)`;
     }
     sets.push({
@@ -699,7 +698,14 @@ export async function stickerGalleryHtml(emojiSets: string[] = [], origin = ""):
     }
     const tiles = p.stickers
       .slice(0, GALLERY_PER_SET)
-      .map((s) => `<figure><img loading="lazy" src="/api/stickers/file?id=${encodeURIComponent(s.fileId)}" alt="${esc(s.emoji)}"><figcaption>${esc(s.emoji) || "🎭"}</figcaption></figure>`)
+      .map((s) => {
+        const src = `/api/stickers/file?id=${encodeURIComponent(s.fileId)}`;
+        const media =
+          p.video || s.video
+            ? `<video src="${src}" autoplay muted loop playsinline preload="metadata"></video>`
+            : `<img loading="lazy" src="${src}" alt="${esc(s.emoji)}">`;
+        return `<figure>${media}<figcaption>${esc(s.emoji) || "🎭"}</figcaption></figure>`;
+      })
       .join("");
     sections.push(
       `<section><h3>${labels[kind]} <small>${p.video ? "🎞 فيديو" : p.animated ? "✨ متحرّك" : "🖼 ثابت"} · ${p.total}</small></h3><div class="g">${tiles}</div><a class="lnk" href="https://t.me/addstickers/${encodeURIComponent(p.name)}" target="_blank" rel="noopener">⚡️ ${esc(p.title)}</a></section>`,

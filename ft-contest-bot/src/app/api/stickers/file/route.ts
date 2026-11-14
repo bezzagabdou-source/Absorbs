@@ -24,7 +24,15 @@ export async function GET(req: NextRequest) {
     const up = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`, { cache: "force-cache" });
     if (!up.ok) return NextResponse.json({ ok: false, error: `HTTP ${up.status}` }, { status: 502 });
     const body = await up.arrayBuffer();
-    const type = filePath.endsWith(".webp") ? "image/webp" : filePath.endsWith(".tgs") ? "application/x-tgs" : "application/octet-stream";
+    const type = filePath.endsWith(".webp")
+      ? "image/webp"
+      : filePath.endsWith(".webm")
+        ? "video/webm"
+        : filePath.endsWith(".png")
+          ? "image/png"
+          : filePath.endsWith(".tgs")
+            ? "application/x-tgs"
+            : "application/octet-stream";
     return new NextResponse(body, {
       headers: {
         "content-type": type,

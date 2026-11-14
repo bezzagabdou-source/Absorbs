@@ -191,16 +191,16 @@ export function renderFrames(doc, { frames = 45, size = 512, tmpDir }) {
  * ترميز WEBM/VP9 مع قناة الشفافية (yuva420p) — الملصق المتحرك ديال تيليجرام.
  * @returns { bytes, ok, note }
  */
-export function encodeWebm({ tmpDir, frames = 30, fps = 10, out, size = 512, maxBytes = 60 * 1024 }) {
+export function encodeWebm({ tmpDir, frames = 90, fps = 30, out, size = 512, maxBytes = 250 * 1024 }) {
   const ff = ffmpegPath();
   if (!ff) return { ok: false, bytes: 0, note: "ما كاينش ffmpeg فالمحيط (تثبت: pip install imageio-ffmpeg)" };
   let best = null;
-  for (const crf of [30, 36, 42, 48, 54, 60]) {
+  for (const crf of [24, 30, 36, 42, 48, 56]) {
     const tmp = out + ".tmp.webm";
     const cmd =
       `${JSON.stringify(ff)} -y -loglevel error -framerate ${fps} -i ${JSON.stringify(path.join(tmpDir, "f%03d.png"))} ` +
       `-frames:v ${frames} -vf "scale=${size}:${size}:flags=lanczos,format=yuva420p" ` +
-      `-c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf ${crf} -an -metadata title="ft-sticker" ${JSON.stringify(tmp)}`;
+      `-r 30 -c:v libvpx-vp9 -pix_fmt yuva420p -auto-alt-ref 0 -b:v 0 -crf ${crf} -an -metadata title="ft-sticker" ${JSON.stringify(tmp)}`;
     try {
       execFileSync("bash", ["-c", cmd], { stdio: "pipe" });
     } catch (e) {
