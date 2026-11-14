@@ -5,7 +5,7 @@ import { mandatoryGate } from "@/lib/gate";
 import { isMock, tgCall } from "@/lib/telegram";
 import { readErrors } from "@/lib/errors";
 import { usersCount } from "@/lib/users";
-import { tokenDiagnostics } from "@/lib/token";
+import { tokenDiagnostics, resolveBotToken } from "@/lib/token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,13 +21,16 @@ export async function GET() {
   try {
     const settings = await getSettings().catch(() => null);
     const tokenInfo = tokenDiagnostics();
+    // ⚠️ التشخيص خاصو يعكس الواقع: الإعدادات فيها توكن قديم/ميت، فالمصدر
+    // الحقيقي هو المتغيّرات (اللي كيتفحّصها candidateTokens/getMe تحت).
+    const envToken = tokenDiagnostics();
     checks.token = {
-      ok: isMock() || Boolean(settings?.botToken),
-      detail: settings?.botToken
-        ? `configured (${tokenInfo.source || "settings"})`
-        : isMock()
-          ? "mock mode"
-          : `missing — كل الأسماء فارغة: ${tokenInfo.emptyNames.join(",") || "لا شيء"}`,
+      ok: isMock() || envToken.configured,
+      detail: isMock()
+        ? "mock mode"
+        : envToken.configured
+          ? `configured (${envToken.source}${settings?.botToken && settings.botToken !== resolveBotToken() ? " · settings fallback" : ""})`
+          : `missing — كل الأسماء فارغة: ${envToken.emptyNames.join(",") || "لا شيء"}`,
     };
     const storage = storageInfo();
     checks.storage = {

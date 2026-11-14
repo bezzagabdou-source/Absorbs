@@ -27,6 +27,8 @@ type Fallback = {
 };
 
 const globalForFallback = globalThis as unknown as {
+  __ftBreakerUntil?: number; // ⚡ القاطع: إلا طاحت القاعدة، ما نعاودوهاش فكل نداء
+  __ftBreakerStrikes?: number;
   __ftFallback?: Fallback;
   __ftOutbox?: OutboxItem[];
   __ftDegradedSince?: number;
@@ -226,6 +228,27 @@ function noteSuccess() {
 /**
  * كتلفّ المخزن الحقيقي. ما كتبدّلش الشكل: نفس الواجهة بالضبط.
  */
+/**
+ * ⚡ قاطع دائرة: أول عطل كيوقف المحاولات لمدة قصيرة، بعدها محاولة استكشاف
+ * وحدة. بلا هادشي كل رسالة كتسنّى 15 ثانية ديال مهلة Postgres قبل ما ترجع
+ * للذاكرة → البوت كيبان بطيء/ميّت. دابا: أول رسالة كتخلص بسرعة، والباقي فوراً.
+ */
+const BREAKER_MS = 30_000;
+
+function breakerOpen(): boolean {
+  const until = globalForFallback.__ftBreakerUntil || 0;
+  return Date.now() < until;
+}
+
+function tripBreaker() {
+  globalForFallback.__ftBreakerUntil = Date.now() + BREAKER_MS;
+}
+
+function resetBreaker() {
+  globalForFallback.__ftBreakerUntil = 0;
+  globalForFallback.__ftBreakerStrikes = 0;
+}
+
 export function resilient(primary: Store): Store {
   /** كتغلّف كل نداء: كتجرّب الأساسي، وإلا كتنزل على الذاكرة */
   async function call<T>(op: keyof Store, ...args: unknown[]): Promise<T> {
@@ -233,13 +256,23 @@ export function resilient(primary: Store): Store {
     if (typeof fn !== "function") {
       return memoryFallback<T>(op, args);
     }
+    // ⚡ القاطع مفتوح = القاعدة معروفة طايحة دابا: ما كنسنّاوش عليها أصلاً
+    if (breakerOpen()) {
+      if (WRITE_OPS.has(op)) {
+        outbox().push({ op, args, at: Date.now() });
+        if (outbox().length > 500) outbox().splice(0, outbox().length - 500);
+      }
+      return memoryFallback<T>(op, args);
+    }
     try {
       const result = await (fn as (...a: unknown[]) => Promise<T>).apply(primary, args);
+      resetBreaker();
       noteSuccess();
       // رجع المخزن؟ كنفرّغو الـ outbox (الكتابات اللي فاتت)
       if (outbox().length) void flushOutbox(primary).catch(() => undefined);
       return result;
     } catch (error) {
+      tripBreaker();
       noteFailure(op, error);
       if (WRITE_OPS.has(op)) {
         // كنحفظوها باش تتطبّق أول مرة يرجع المخزن — وما كنخسّروش الطلب
