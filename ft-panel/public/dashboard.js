@@ -166,6 +166,14 @@ function show(t) {
 function fail(el, e) {
   el.innerHTML = "<p class=err>" + esc(e.message) + "</p>";
 }
+function referralPerson(id, name, username) {
+  const label = String(name || username || id || "?").trim();
+  const initial = esc(Array.from(label.replace(/^@/, ""))[0] || "?");
+  const handle = username ? "@" + String(username).replace(/^@/, "") : "";
+  return `<div class='row' style='display:flex;gap:10px;align-items:center;margin:6px 0'>
+    <div class='avatar' data-avatar-id='${esc(String(id))}'><img alt='' hidden><span>${initial}</span></div>
+    <div><b>${esc(label)}</b><br><small>${esc(handle)}${handle ? " · " : ""}${esc(String(id))}</small></div></div>`;
+}
 async function loadReferrals() {
   const el = $("#t-referrals");
   el.innerHTML = "<p class='mute'>جارٍ تحميل الإحالات…</p>";
