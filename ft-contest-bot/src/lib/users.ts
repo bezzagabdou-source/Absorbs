@@ -30,7 +30,9 @@ export async function getUser(id: string): Promise<BotUser | null> {
 export async function listRecentUsers(limit = 200): Promise<BotUser[]> {
   const store = getStore();
   const top = await store.zTop(JOINED_KEY, limit);
-  const users = await Promise.all(top.map((t) => store.get<BotUser>(`user:${t.member}`)));
+  const users = store.getMany
+    ? await store.getMany<BotUser>(top.map((t) => `user:${t.member}`))
+    : await Promise.all(top.map((t) => store.get<BotUser>(`user:${t.member}`)));
   return users.filter((u): u is BotUser => Boolean(u));
 }
 
@@ -66,7 +68,10 @@ export async function allUserIds(limit = 200_000): Promise<string[]> {
 export async function listAllUsers(limit = 5_000): Promise<BotUser[]> {
   const store = getStore();
   const ids = await allUserIds(limit);
-  const users = await Promise.all(ids.map((id) => store.get<BotUser>(`user:${id}`)));
+  // سؤال واحد بدل آلاف الاستعلامات (كان سبب "The operation was aborted due to timeout")
+  const users = store.getMany
+    ? await store.getMany<BotUser>(ids.map((id) => `user:${id}`))
+    : await Promise.all(ids.map((id) => store.get<BotUser>(`user:${id}`)));
   return users.filter((u): u is BotUser => Boolean(u));
 }
 

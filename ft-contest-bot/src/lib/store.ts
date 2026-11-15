@@ -14,6 +14,8 @@ export type ZItem = { member: string; score: number };
 export interface Store {
   readonly backend: "redis" | "postgres" | "memory";
   get<T = unknown>(key: string): Promise<T | null>;
+  /** قراءة عدّة مفاتيح بسؤال واحد (اختياري؛ Postgres فقط) — يمنع N+1 والـtimeout */
+  getMany?<T = unknown>(keys: string[]): Promise<(T | null)[]>;
   set(key: string, value: unknown): Promise<void>;
   del(key: string): Promise<void>;
   incr(key: string, by?: number): Promise<number>;
@@ -221,12 +223,20 @@ export async function getPool(): Promise<PgPool> {
     const { Pool } = await import("pg");
     globalForDb.__ftPool = new Pool({
       connectionString: url,
-      max: 3,
+      max: 5,
+      // ⏱️ مهل صريحة: بدونها يبقى الطلب معلّقاً حتى يقتله Vercel بعد 60 ثانية
+      connectionTimeoutMillis: 8_000,
+      idleTimeoutMillis: 20_000,
+      query_timeout: 15_000,
+      statement_timeout: 15_000,
+      allowExitOnIdle: true,
       ssl:
         /localhost|127\.0\.0\.1/.test(url) || /sslmode=disable/.test(url)
           ? undefined
           : { rejectUnauthorized: false },
     });
+    // اتصال خامل يسقط (Supabase pooler) ما يجب أن يُسقط العملية
+    globalForDb.__ftPool.on("error", (e: Error) => console.error("[store] pool error", e.message));
   }
   const pool = globalForDb.__ftPool;
   if (!globalForDb.__ftPoolReady) {
@@ -256,6 +266,10 @@ export async function getPool(): Promise<PgPool> {
         create index if not exists ft_list_k_idx on ft_list (k, id);
       `);
     })();
+    // فشل التهيئة (انقطاع مؤقت) لا يجب أن يبقى مخزّناً للأبد
+    globalForDb.__ftPoolReady.catch(() => {
+      globalForDb.__ftPoolReady = undefined;
+    });
   }
   await globalForDb.__ftPoolReady;
   return pool;
@@ -270,6 +284,14 @@ class PostgresStore implements Store {
     if (!rows.length) return null;
     if (rows[0].v !== null && rows[0].v !== undefined) return rows[0].v as T;
     return (rows[0].n ?? null) as T;
+  }
+  async getMany<T>(keys: string[]): Promise<(T | null)[]> {
+    if (!keys.length) return [];
+    const pool = await getPool();
+    const { rows } = await pool.query("select k, v, n from ft_kv where k = any($1::text[])", [keys]);
+    const map = new Map<string, T>();
+    for (const r of rows) map.set(r.k, (r.v !== null && r.v !== undefined ? r.v : r.n ?? null) as T);
+    return keys.map((k) => (map.has(k) ? (map.get(k) as T) : null));
   }
   async set(key: string, value: unknown) {
     const pool = await getPool();

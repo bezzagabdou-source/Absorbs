@@ -53,7 +53,8 @@ async function head(cfg) {
 }
 async function readWorkspace(cfg) {
   const raw = await redis().get(workspaceKey(cfg));
-  return raw ? audit.open(raw) : null;
+  if (!raw) return null;
+  try { return audit.open(raw); } catch { return null; } // مسودات بمفتاح قديم: غير قابلة للقراءة، تُتجاهل
 }
 async function remoteFile(cfg, path, ref, cache) {
   const cacheKey = ref + ':' + path;

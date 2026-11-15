@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     if (view === "log") return reply({ ok: true, log: await readAdminLog(100) });
     if (view === "users") {
       // 👥 جميع المستخدمين منذ إنشاء البوت (ما غير 100 الأخيرين) — مع بحث/حد اختياري
-      const limit = Math.max(1, Math.min(5000, Number(query.get("limit")) || 2000));
+      const limit = Math.max(1, Math.min(5000, Number(query.get("limit")) || 1000));
       const q = (query.get("q") || "").trim().toLowerCase();
       const [all, banned, totals] = await Promise.all([listAllUsers(limit), bannedIds(), topBalances(Math.max(400, limit))]);
       const bannedSet = new Set(banned);
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
       const pool = q ? all.filter((u) => `${u.id} ${u.firstName || ""} ${u.username || ""}`.toLowerCase().includes(q)) : all;
       const picked = pool.slice(0, limit);
       // 🎯 القوائم الصغيرة: الرصيد الحقيقي بالضبط؛ الكبيرة: خريطة النقاط (سؤال واحد) بلا timeout
-      const exact = picked.length <= 400;
+      const exact = picked.length <= 40;
       const result = await Promise.all(
         picked.map(async (u) => ({
           ...u,

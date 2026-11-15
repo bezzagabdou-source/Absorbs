@@ -19,10 +19,15 @@ async function runAIOnce(b, token, onProgress) {
   if (!claimed) {
     const saved = await redis().get(key);
     if (saved && saved !== 'running') {
-      const parsed = JSON.parse(saved);
-      const value = parsed.v === 1 && parsed.iv ? agentAudit.open(saved) : parsed;
-      if (value.error) throw new Error(value.error);
-      return value.data;
+      let value = null;
+      try { const parsed = JSON.parse(saved); value = parsed.v === 1 && parsed.iv ? agentAudit.open(saved) : parsed; } catch { value = null; }
+      if (value) {
+        if (value.error) throw new Error(value.error);
+        return value.data;
+      }
+      // نتيجة قديمة بمفتاح تشفير مختلف: لا فائدة منها، نمسحها ونعيد المحاولة مرة واحدة.
+      await redis().del(key);
+      if (!b.__retried) return runAIOnce({ ...b, __retried: true }, token, onProgress);
     }
     const e = new Error('الطلب قيد التنفيذ أو نتيجته غير مؤكدة؛ راجع النتائج قبل إعادة الطلب');
     e.status = 409;
@@ -46,7 +51,12 @@ async function runAgentOnce(b, token, operation) {
   const key = 'ft-panel:agent-request:' + crypto.createHash('sha256').update(token + ':' + b.action + ':' + id).digest('hex');
   if (!await redis().set(key, 'running', 'EX', 86400, 'NX')) {
     const raw = await redis().get(key);
-    if (raw && raw !== 'running') { const value = agentAudit.open(raw); if (value.error) throw new Error(value.error); return value.data; }
+    if (raw && raw !== 'running') {
+      let value = null;
+      try { value = agentAudit.open(raw); } catch { await redis().del(key); }
+      if (value) { if (value.error) throw new Error(value.error); return value.data; }
+      if (!b.__retried) return runAgentOnce({ ...b, __retried: true }, token, operation);
+    }
     const e = new Error('العملية جارية أو نتيجتها غير مؤكدة؛ راجع السجل قبل إعادة المحاولة'); e.status = 409; throw e;
   }
   let completed = false;
