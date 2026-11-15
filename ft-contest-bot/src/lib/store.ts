@@ -11,6 +11,7 @@ import path from "node:path";
 import { isTransientError, retry } from "./retry";
 import { logError } from "./errors";
 import { degradationInfo, flushOutbox, resilient, setStorePrimary } from "./storeResilience";
+import { tcpRedisExecutor } from "./redisTcp";
 
 export type ZItem = { member: string; score: number };
 
@@ -136,14 +137,22 @@ async function redisCommand<T = unknown>(
   );
 }
 
+type RedisExec = <T = unknown>(args: (string | number)[]) => Promise<T>;
+
 class RedisStore implements Store {
   readonly backend = "redis" as const;
-  constructor(private creds: RedisCreds) {}
+  private exec: RedisExec;
+  constructor(
+    creds: RedisCreds | RedisExec,
+    private prefix: string = PREFIX,
+  ) {
+    this.exec = typeof creds === "function" ? creds : <T,>(args: (string | number)[]) => redisCommand<T>(creds, args);
+  }
   private k(key: string) {
-    return PREFIX + key;
+    return this.prefix + key;
   }
   private cmd<T = unknown>(args: (string | number)[]) {
-    return redisCommand<T>(this.creds, args);
+    return this.exec<T>(args);
   }
   async get<T>(key: string): Promise<T | null> {
     const raw = await this.cmd<string | null>(["GET", this.k(key)]);
@@ -570,8 +579,10 @@ class PostgresStore implements Store {
     if (!values.length) return this.listLen(key);
     const pool = await this.db();
     // إدخال دفعة واحدة = كتابة واحدة (أسرع وأأمن من حلقة)
-    const payload = values.map((v) => JSON.stringify(v));
-    await q(pool, "insert into ft_list (k, v) select $1, value from jsonb_array_elements_text($2::jsonb)", [key, payload]);
+    // ⚠️ المصفوفة تُمرَّر كنص JSON واحد: node-postgres يحوّل مصفوفة JS إلى مصفوفة
+    // Postgres ('{...}') لا إلى JSON، فكان كل listPush يفشل بـ «invalid input syntax
+    // for type json» ويُسقِط المخزن كله على الاحتياط. القيم تُخزَّن كما هي (بلا تنصيص إضافي).
+    await q(pool, "insert into ft_list (k, v) select $1, value from jsonb_array_elements_text($2::jsonb) with ordinality as t(value, ord) order by ord", [key, JSON.stringify(values.map(String))]);
     return this.listLen(key);
   }
   async listPop(key: string) {
@@ -837,6 +848,31 @@ class MemoryStore implements Store {
 
 const globalForStore = globalThis as unknown as { __ftStore?: Store; __ftStorePrimary?: Store };
 
+/**
+ * 🛟 مخزن احتياطي **دائم** يُستعمل فقط حين تتعطّل القاعدة الأساسية، بدل ذاكرة
+ * العملية (التي تضيع مع كل إعادة تشغيل). مساحة مفاتيح مستقلة `ftb:fb:` حتى لا
+ * تختلط مع أي بيانات أخرى في نفس Redis.
+ *
+ *   FALLBACK_REDIS_REST_URL + FALLBACK_REDIS_REST_TOKEN  → Upstash REST
+ *   FALLBACK_REDIS_URL أو REDIS_URL (redis:// / rediss://) → TCP
+ */
+export const FALLBACK_PREFIX = "ftb:fb:";
+export function durableFallbackStore(): Store | null {
+  const restUrl = String(process.env.FALLBACK_REDIS_REST_URL || "").trim().replace(/\/$/, "");
+  const restToken = String(process.env.FALLBACK_REDIS_REST_TOKEN || "").trim();
+  if (restUrl && restToken) return new RedisStore({ url: restUrl, token: restToken }, FALLBACK_PREFIX);
+  const tcp = String(process.env.FALLBACK_REDIS_URL || process.env.REDIS_URL || "").trim();
+  if (/^rediss?:\/\//i.test(tcp)) {
+    try {
+      new URL(tcp);
+      return new RedisStore(tcpRedisExecutor(tcp) as RedisExec, FALLBACK_PREFIX);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export function getStore(): Store {
   if (globalForStore.__ftStore) return globalForStore.__ftStore;
   const creds = redisCreds();
@@ -847,7 +883,7 @@ export function getStore(): Store {
   // 🛟 كل قراءة/كتابة كتدوز من طبقة الصمود: إلا طاحت القاعدة، البوت كيبقى خدّام
   // بالذاكرة + outbox كيتطبّق أول مرة ترجع القاعدة. عمره ما كيطيح بسباب التخزين.
   setStorePrimary(base);
-  globalForStore.__ftStore = base.backend === "memory" ? base : resilient(base);
+  globalForStore.__ftStore = base.backend === "memory" ? base : resilient(base, durableFallbackStore());
   return globalForStore.__ftStore;
 }
 
@@ -860,6 +896,7 @@ export function storageInfo() {
     configured: store.backend !== "memory",
     // 🛟 إلا كنا خدّامين بالذاكرة بسباب عطل فالقاعدة
     degraded: health.degraded,
+    fallback: health.fallback,
     pendingWrites: health.pendingWrites,
     lastError: health.lastError?.message || "",
   };

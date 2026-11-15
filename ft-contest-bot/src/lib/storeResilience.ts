@@ -34,9 +34,14 @@ const globalForFallback = globalThis as unknown as {
   __ftDegradedSince?: number;
   __ftLastStoreError?: { at: number; message: string };
   __ftHealthyAt?: number;
+  __ftDurable?: Store | null;
+  __ftJournalDirty?: boolean;
+  __ftFlushing?: Promise<FlushResult> | null;
+  __ftLastFlush?: FlushResult & { at: number };
+  __ftFallbackError?: { at: number; message: string };
 };
 
-type OutboxItem = { op: keyof Store; args: unknown[]; at: number };
+type OutboxItem = { id: string; op: keyof Store; args: unknown[]; at: number };
 
 function mem(): Fallback {
   globalForFallback.__ftFallback ||= {
@@ -226,14 +231,10 @@ function noteSuccess() {
 }
 
 /**
- * كتلفّ المخزن الحقيقي. ما كتبدّلش الشكل: نفس الواجهة بالضبط.
- */
-/**
  * ⚡ قاطع دائرة: أول عطل كيوقف المحاولات لمدة قصيرة، بعدها محاولة استكشاف
- * وحدة. بلا هادشي كل رسالة كتسنّى 15 ثانية ديال مهلة Postgres قبل ما ترجع
- * للذاكرة → البوت كيبان بطيء/ميّت. دابا: أول رسالة كتخلص بسرعة، والباقي فوراً.
+ * وحدة. بلا هادشي كل رسالة كتسنّى مهلة Postgres قبل ما ترجع للاحتياط.
  */
-const BREAKER_MS = 30_000;
+const BREAKER_MS = Number(process.env.STORE_BREAKER_MS) || 30_000;
 
 function breakerOpen(): boolean {
   const until = globalForFallback.__ftBreakerUntil || 0;
@@ -249,37 +250,270 @@ function resetBreaker() {
   globalForFallback.__ftBreakerStrikes = 0;
 }
 
-export function resilient(primary: Store): Store {
-  /** كتغلّف كل نداء: كتجرّب الأساسي، وإلا كتنزل على الذاكرة */
+/**
+ * هل الخطأ «عطل قاعدة» (اتصال/حصة/مهلة) أم خطأ في الاستعلام نفسه؟
+ * أخطاء البيانات/الصياغة (SQLSTATE 22/23/42/0A/21 أو WRONGTYPE في Redis) ليست عطلاً:
+ * تحويلها للاحتياط كان يُخفي الخطأ ويُظهر «قاعدة فارغة». هذه تُرمى كما هي.
+ */
+export function isOutageError(error: unknown): boolean {
+  const code = String((error as { code?: unknown })?.code || "");
+  if (/^(22|23|42|0A|21|2B|3F|44)/.test(code) && code.length === 5) return false;
+  const message = String((error as Error)?.message || "");
+  if ((error as Error)?.name === "PermanentError" || /WRONGTYPE|invalid input syntax|violates .* constraint/i.test(message)) return false;
+  return true;
+}
+
+/* ─────────────────────── السجلّ الدائم للكتابات (journal) ───────────────────────
+ *
+ * وقت عطل القاعدة الأساسية:
+ *   • القراءة والكتابة تمرّان على مخزن احتياطي **دائم** (Redis، مساحة ftb:fb:)
+ *     إن كان مهيّأ؛ وإلا على ذاكرة العملية كحلّ أخير (ويظهر ذلك في /api/health).
+ *   • كل كتابة تُسجَّل في قائمة دائمة (journal) لتُعاد حين ترجع القاعدة.
+ *
+ * ⚠️ قاعدة الأمان عند الإعادة: **لا نكتب أبداً فوق سجلّ موجود في القاعدة الأساسية**.
+ * الكتابات المحسوبة وقت العطل انطلقت من حالة فارغة (مستخدم «جديد» برصيد 0…)،
+ * فإعادتها كما هي كانت ستمحو البيانات الحقيقية. لذلك:
+ *   – العمليات التراكمية (incr / zIncr / sAdd / listPush / appendLedger) تُعاد كما هي.
+ *   – set / setIfAbsent تُطبَّق فقط إن كان المفتاح غير موجود (NX).
+ *   – set على مفتاح موجود، و del / sDel / listPop / delList → لا تُطبَّق، وتُحفظ في
+ *     `recovery:conflicts` للمراجعة والدمج اليدوي. لا شيء يُحذف ولا شيء يضيع.
+ */
+const JOURNAL_KEY = "journal";
+export const CONFLICTS_KEY = "recovery:conflicts";
+const MEMORY_JOURNAL_CAP = 5000;
+const NOT_JOURNALED = new Set<keyof Store>(["acquireLease", "releaseLease"]);
+const ADDITIVE = new Set<keyof Store>(["incr", "zIncr", "sAdd", "listPush", "appendLedger"]);
+
+export type FlushResult = { applied: number; conflicts: number; skipped: number; pending: number };
+
+function durable(): Store | null {
+  return globalForFallback.__ftDurable || null;
+}
+
+function newId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function noteFallbackError(error: unknown) {
+  globalForFallback.__ftFallbackError = { at: Date.now(), message: String((error as Error)?.message || error).slice(0, 200) };
+}
+
+/** عملية على الاحتياط: الدائم أولاً، والذاكرة فقط إن فشل هو الآخر (البوت لا يسقط أبداً) */
+async function fallbackCall<T>(op: keyof Store, args: unknown[]): Promise<T> {
+  const store = durable();
+  if (store) {
+    const fn = (store as unknown as Record<string, unknown>)[op as string];
+    if (typeof fn === "function") {
+      try {
+        return await (fn as (...a: unknown[]) => Promise<T>).apply(store, args);
+      } catch (error) {
+        noteFallbackError(error);
+      }
+    }
+  }
+  return memoryFallback<T>(op, args);
+}
+
+async function journalPush(op: keyof Store, args: unknown[]) {
+  if (NOT_JOURNALED.has(op)) return;
+  const item: OutboxItem = { id: newId(), op, args, at: Date.now() };
+  globalForFallback.__ftJournalDirty = true;
+  const store = durable();
+  if (store) {
+    try {
+      await store.listPush(JOURNAL_KEY, [JSON.stringify(item)]);
+      return;
+    } catch (error) {
+      noteFallbackError(error);
+    }
+  }
+  const box = outbox();
+  box.push(item);
+  // الذاكرة محدودة: نحتفظ بالأحدث (الاحتياط الدائم لا سقف له)
+  if (box.length > MEMORY_JOURNAL_CAP) box.splice(0, box.length - MEMORY_JOURNAL_CAP);
+}
+
+function sameJson(a: unknown, b: unknown) {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+type Outcome = "applied" | "conflict" | "skipped";
+
+/** تطبيق كتابة واحدة على القاعدة الأساسية وفق قاعدة الأمان. يرمي إن كانت القاعدة ما زالت معطّلة. */
+async function applyEntry(primary: Store, item: OutboxItem): Promise<{ outcome: Outcome; reason?: string }> {
+  const fn = (primary as unknown as Record<string, unknown>)[item.op as string];
+  if (typeof fn !== "function" || NOT_JOURNALED.has(item.op)) return { outcome: "skipped" };
+  const key = String(item.args[0] ?? "");
+  const run = () => (fn as (...a: unknown[]) => Promise<unknown>).apply(primary, item.args);
+  if (ADDITIVE.has(item.op)) {
+    await run();
+    return { outcome: "applied" };
+  }
+  // مفتاح أُنشئ بهذه الإعادة نفسها (لم يكن موجوداً قبل العطل) → تحديثاته اللاحقة آمنة
+  const ownKey = `journal:own:${key}`;
+  if (item.op === "set" || item.op === "setIfAbsent") {
+    const created = await primary.setIfAbsent(key, item.args[1]);
+    if (created) {
+      await primary.set(ownKey, 1);
+      return { outcome: "applied" };
+    }
+    if (item.op === "setIfAbsent") return { outcome: "skipped" };
+    if (await primary.get(ownKey)) {
+      await primary.set(key, item.args[1]);
+      return { outcome: "applied" };
+    }
+    if (sameJson(await primary.get(key), item.args[1])) return { outcome: "skipped" };
+    return { outcome: "conflict", reason: "المفتاح موجود في القاعدة الأساسية — لم يُكتب فوقه" };
+  }
+  if (item.op === "del" && (await primary.get(ownKey))) {
+    await run();
+    return { outcome: "applied" };
+  }
+  // حذف مفتاح غير موجود أصلاً في الأساسية = لا شيء يُراجَع
+  if (item.op === "del" && (await primary.get(key)) === null) return { outcome: "skipped" };
+  // del / sDel / listPop / delList: حذف محسوب على حالة فارغة → لا يُنفَّذ تلقائياً
+  return { outcome: "conflict", reason: "عملية حذف وقت العطل — تحتاج مراجعة" };
+}
+
+async function readJournal(limit: number): Promise<{ items: OutboxItem[]; source: "durable" | "memory" }> {
+  const store = durable();
+  if (store) {
+    try {
+      // LPUSH يضع الأحدث في الرأس؛ listRecent يرجّع الذيل (الأقدم) مرتّباً من الأقدم
+      const lines = await store.listRecent(JOURNAL_KEY, limit);
+      const items = lines.flatMap((line) => {
+        try {
+          const row = JSON.parse(line) as OutboxItem;
+          return row && typeof row.op === "string" && Array.isArray(row.args) ? [row] : [{ id: newId(), op: "noop" as keyof Store, args: [], at: 0 }];
+        } catch {
+          return [{ id: newId(), op: "noop" as keyof Store, args: [], at: 0 }];
+        }
+      });
+      if (items.length) return { items, source: "durable" };
+    } catch (error) {
+      noteFallbackError(error);
+    }
+  }
+  return { items: outbox().slice(0, limit), source: "memory" };
+}
+
+async function flushOnce(primary: Store): Promise<FlushResult> {
+  const result: FlushResult = { applied: 0, conflicts: 0, skipped: 0, pending: 0 };
+  // 🔒 نسخة واحدة فقط تعيد السجلّ (القفل على القاعدة الأساسية؛ فشله = القاعدة ما زالت معطّلة)
+  const token = newId();
+  if (!(await primary.acquireLease("journal:flush", token, 120_000))) {
+    result.pending = await journalLength();
+    return result;
+  }
+  try {
+    const deadline = Date.now() + 20_000;
+    for (;;) {
+      const { items, source } = await readJournal(200);
+      if (!items.length) break;
+      for (const item of items) {
+        const marker = `journal:applied:${item.id}`;
+        if (!(await primary.get(marker))) {
+          let applied: { outcome: Outcome; reason?: string };
+          try {
+            applied = await applyEntry(primary, item);
+          } catch (error) {
+            // القاعدة ما زالت معطّلة → نتوقف ونترك السطر. خطأ في السطر نفسه → تعارض (لا يسدّ الطابور).
+            if (isOutageError(error)) throw error;
+            applied = { outcome: "conflict", reason: `فشل التطبيق: ${String((error as Error)?.message || error).slice(0, 160)}` };
+          }
+          const { outcome, reason } = applied;
+          if (outcome === "conflict") {
+            await primary.listPush(CONFLICTS_KEY, [JSON.stringify({ ...item, reason })]);
+            result.conflicts += 1;
+          } else if (outcome === "applied") result.applied += 1;
+          else result.skipped += 1;
+          await primary.set(marker, item.at || Date.now());
+        }
+        // لا نزيل السطر إلا بعد تطبيقه وتسجيل علامته
+        if (source === "durable") await durable()!.listPop(JOURNAL_KEY);
+        else outbox().shift();
+      }
+      if (Date.now() > deadline) break;
+    }
+  } finally {
+    await primary.releaseLease("journal:flush", token).catch(() => undefined);
+  }
+  result.pending = await journalLength();
+  if (!result.pending) globalForFallback.__ftJournalDirty = false;
+  globalForFallback.__ftLastFlush = { ...result, at: Date.now() };
+  return result;
+}
+
+/**
+ * إعادة الكتابات المتراكمة وقت العطل إلى القاعدة الأساسية (تلقائياً عند أول نجاح،
+ * ومن الكرون). تتوقف عند أول فشل وتترك الباقي في السجلّ — لا شيء يُحذف قبل تطبيقه.
+ */
+export async function flushOutbox(primary?: Store): Promise<FlushResult> {
+  const target = primary || globalForStorePrimary();
+  if (!target) return { applied: 0, conflicts: 0, skipped: 0, pending: await journalLength() };
+  if (globalForFallback.__ftFlushing) return globalForFallback.__ftFlushing;
+  const job = flushOnce(target)
+    .catch(async () => ({ applied: 0, conflicts: 0, skipped: 0, pending: await journalLength() }))
+    .finally(() => {
+      globalForFallback.__ftFlushing = null;
+    });
+  globalForFallback.__ftFlushing = job;
+  return job;
+}
+
+export async function journalLength(): Promise<number> {
+  let n = outbox().length;
+  const store = durable();
+  if (store) {
+    try {
+      n += await store.listLen(JOURNAL_KEY);
+    } catch (error) {
+      noteFallbackError(error);
+    }
+  }
+  return n;
+}
+
+/**
+ * كتلفّ المخزن الحقيقي. ما كتبدّلش الشكل: نفس الواجهة بالضبط.
+ * `fallback` = مخزن احتياطي دائم (اختياري)؛ بدونه نرجع لذاكرة العملية.
+ */
+export function resilient(primary: Store, fallback: Store | null = null): Store {
+  globalForFallback.__ftDurable = fallback;
+
+  async function degradedCall<T>(op: keyof Store, args: unknown[]): Promise<T> {
+    if (WRITE_OPS.has(op)) await journalPush(op, args);
+    return fallbackCall<T>(op, args);
+  }
+
   async function call<T>(op: keyof Store, ...args: unknown[]): Promise<T> {
     const fn = (primary as unknown as Record<string, unknown>)[op as string];
-    if (typeof fn !== "function") {
-      return memoryFallback<T>(op, args);
-    }
-    // ⚡ القاطع مفتوح = القاعدة معروفة طايحة دابا: ما كنسنّاوش عليها أصلاً
-    if (breakerOpen()) {
-      if (WRITE_OPS.has(op)) {
-        outbox().push({ op, args, at: Date.now() });
-        if (outbox().length > 500) outbox().splice(0, outbox().length - 500);
-      }
-      return memoryFallback<T>(op, args);
-    }
+    if (typeof fn !== "function") return fallbackCall<T>(op, args);
+    // ⚡ القاطع مفتوح = القاعدة معروفة معطّلة الآن: لا ننتظرها أصلاً
+    if (breakerOpen()) return degradedCall<T>(op, args);
     try {
       const result = await (fn as (...a: unknown[]) => Promise<T>).apply(primary, args);
+      const wasDegraded = Boolean(globalForFallback.__ftDegradedSince);
       resetBreaker();
       noteSuccess();
-      // رجع المخزن؟ كنفرّغو الـ outbox (الكتابات اللي فاتت)
-      if (outbox().length) void flushOutbox(primary).catch(() => undefined);
+      // رجعت القاعدة؟ نعيد الكتابات التي فاتت (بقاعدة الأمان: بلا كتابة فوق الموجود)
+      if (wasDegraded || globalForFallback.__ftJournalDirty || outbox().length) {
+        void flushOutbox(primary).catch(() => undefined);
+      }
       return result;
     } catch (error) {
+      if (!isOutageError(error)) {
+        // خطأ استعلام حقيقي: لا قاطع ولا احتياط — يظهر في السجل ويُرمى للمنادي
+        void logError("store", error, { kind: `query:${String(op)}` }, { throttleMs: 30_000 }).catch(() => undefined);
+        throw error;
+      }
       tripBreaker();
       noteFailure(op, error);
-      if (WRITE_OPS.has(op)) {
-        // كنحفظوها باش تتطبّق أول مرة يرجع المخزن — وما كنخسّروش الطلب
-        outbox().push({ op, args, at: Date.now() });
-        if (outbox().length > 500) outbox().splice(0, outbox().length - 500);
-      }
-      return memoryFallback<T>(op, args);
+      return degradedCall<T>(op, args);
     }
   }
 
@@ -289,58 +523,32 @@ export function resilient(primary: Store): Store {
     getMany: <T = unknown>(keys: string[]) => call<(T | null)[]>("getMany", keys),
     set: (key: string, value: unknown) => call<void>("set", key, value),
     del: (key: string) => call<void>("del", key),
-    incr: (key: string, by?: number) => call<number>("incr", key, by),
+    incr: (key: string, by?: number) => call<number>("incr", key, by ?? 1),
     sAdd: (key: string, member: string) => call<boolean>("sAdd", key, member),
     sHas: (key: string, member: string) => call<boolean>("sHas", key, member),
     sCard: (key: string) => call<number>("sCard", key),
     sDel: (key: string, member: string) => call<void>("sDel", key, member),
     sMembers: (key: string) => call<string[]>("sMembers", key),
-    zIncr: (key: string, member: string, by?: number) => call<number>("zIncr", key, member, by),
+    zIncr: (key: string, member: string, by?: number) => call<number>("zIncr", key, member, by ?? 1),
     zScore: (key: string, member: string) => call<number>("zScore", key, member),
     zTop: (key: string, limit: number) => call<ZItem[]>("zTop", key, limit),
     zCount: (key: string) => call<number>("zCount", key),
     listPush: (key: string, values: string[]) => call<number>("listPush", key, values),
     listPop: (key: string) => call<string | null>("listPop", key),
     listLen: (key: string) => call<number>("listLen", key),
-    listAll: (key: string, limit?: number) => call<string[]>("listAll", key, limit),
-    listRecent: (key: string, limit?: number) => call<string[]>("listRecent", key, limit),
+    listAll: (key: string, limit?: number) => call<string[]>("listAll", key, limit ?? 1000),
+    listRecent: (key: string, limit?: number) => call<string[]>("listRecent", key, limit ?? 1000),
     delList: (key: string) => call<void>("delList", key),
     setIfAbsent: (key: string, value: unknown) => call<boolean>("setIfAbsent", key, value),
     appendLedger: (entry: LedgerEntry) => call<void>("appendLedger", entry),
-    readLedger: (limit?: number, userId?: string) => call<LedgerEntry[]>("readLedger", limit, userId),
+    readLedger: (limit?: number, userId?: string) => call<LedgerEntry[]>("readLedger", limit ?? 200, userId),
     acquireLease: (key: string, token: string, ttlMs: number) => call<boolean>("acquireLease", key, token, ttlMs),
     releaseLease: (key: string, token: string) => call<void>("releaseLease", key, token),
   };
-  // الدوال الاختيارية: نطيّحوها غير إلا كانت موجودة في الأساسي أو كنديرو الاحتياط
   if (!primary.getMany) delete wrapper.getMany;
   if (!primary.appendLedger) delete wrapper.appendLedger;
   if (!primary.readLedger) delete wrapper.readLedger;
   return wrapper;
-}
-
-/**
- * تطبيق الكتابات المتراكمة وقت العطل. كتستدعى تلقائياً أول نداء ناجح، ويمكن
- * استدعاؤها من الكرون. ما كتعاودش أي عملية فشلت (كتخلّيها في الـ outbox).
- */
-export async function flushOutbox(primary?: Store): Promise<{ applied: number; pending: number }> {
-  const target = primary || globalForStorePrimary();
-  if (!target) return { applied: 0, pending: outbox().length };
-  const items = outbox().splice(0, outbox().length);
-  let applied = 0;
-  for (const item of items) {
-    const fn = (target as unknown as Record<string, unknown>)[item.op as string];
-    if (typeof fn !== "function") continue;
-    try {
-      await (fn as (...a: unknown[]) => Promise<unknown>).apply(target, item.args);
-      applied++;
-    } catch {
-      // باقي طايح: نرجّعوها للـ outbox ونوقفو باش ما نضغطوش على القاعدة
-      outbox().push(item);
-      outbox().push(...items.slice(items.indexOf(item) + 1));
-      break;
-    }
-  }
-  return { applied, pending: outbox().length };
 }
 
 const globalForStorePrimary = (): Store | undefined =>
@@ -353,7 +561,11 @@ export function degradationInfo() {
   return {
     degraded: Boolean(since),
     since,
+    /** أين تذهب البيانات وقت العطل: redis = دائم، memory = مؤقت يضيع */
+    fallback: durable() ? ("redis" as const) : ("memory" as const),
+    fallbackError: globalForFallback.__ftFallbackError?.message || "",
     pendingWrites: outbox().length,
+    lastFlush: globalForFallback.__ftLastFlush || null,
     lastError: last ? { at: last.at, message: last.message } : null,
     healthyAt: globalForFallback.__ftHealthyAt || null,
   };

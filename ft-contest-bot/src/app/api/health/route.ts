@@ -37,14 +37,14 @@ export async function GET() {
       // 🛟 خدّامين بالذاكرة = «خدّام ولكن غير دائم»، ماشي عطل موقّف
       ok: storage.backend === "memory" || !storage.degraded,
       detail: storage.degraded
-        ? `${storage.backend} DEGRADED — كنسخدمو بالذاكرة، ${storage.pendingWrites} كتابة فالانتظار: ${storage.lastError}`
+        ? `${storage.backend} DEGRADED — ${storage.fallback === "redis" ? "احتياط دائم (Redis)" : "ذاكرة مؤقتة (غير دائمة — اضبط REDIS_URL)"}، ${storage.pendingWrites} كتابة فالذاكرة: ${storage.lastError}`
         : storage.backend,
     };
     const db = await dbHealth();
     checks.database = { ok: db.ok, detail: db.ok ? `${db.backend} ${db.latencyMs}ms` : db.error };
     if (!db.ok) {
       // نهربو من فكرة «البوت ميّت»: نبيّنو السبب بالضبط وشنو كيخدم بالنيابة
-      checks.database.detail = `${db.error} — البوت كيبقى خدّام بالذاكرة (بيانات مؤقتة)`;
+      checks.database.detail = `${db.error} — ${storage.fallback === "redis" ? "البوت خدّام على الاحتياط الدائم، والكتابات مسجّلة للإعادة" : "البوت خدّام بالذاكرة (بيانات مؤقتة)"}`;
     }
     const pg = storageInfo().backend === "postgres";
     // الترحيلات كتعني غير Postgres: في وضع Redis/الذاكرة ما كاينش schema أصلاً.
