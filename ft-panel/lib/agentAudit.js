@@ -7,24 +7,45 @@ const PREFIX = 'ft-panel:agent:v1:';
 const HISTORY = PREFIX + 'history';
 const UNDO = PREFIX + 'undo';
 const LOCK = PREFIX + 'lock';
-function key() {
-  const secret = process.env.AGENT_BACKUP_KEY || process.env.SESSION_SECRET || '';
-  if (!secret) throw new Error('مفتاح تشفير النسخ الاحتياطية غير مهيأ');
+function key(secret) {
   return crypto.createHmac('sha256', secret).update('ft-panel agent backup v1').digest();
 }
+function writeKey() {
+  const secret = process.env.AGENT_BACKUP_KEY || process.env.SESSION_SECRET || '';
+  if (!secret) throw new Error('مفتاح تشفير النسخ الاحتياطية غير مهيأ');
+  return key(secret);
+}
+function readKeys() {
+  // During key rotation, keep the former key temporarily so existing encrypted
+  // AI results and undo snapshots remain readable. Writes always use the current key.
+  const values = [
+    process.env.AGENT_BACKUP_KEY,
+    process.env.AGENT_BACKUP_KEY_PREVIOUS,
+    process.env.SESSION_SECRET,
+    process.env.SESSION_SECRET_PREVIOUS,
+  ].filter((value, index, all) => value && all.indexOf(value) === index);
+  if (!values.length) throw new Error('مفتاح تشفير النسخ الاحتياطية غير مهيأ');
+  return values.map(key);
+}
 function seal(value) {
-  const iv = crypto.randomBytes(12), cipher = crypto.createCipheriv('aes-256-gcm', key(), iv);
+  const iv = crypto.randomBytes(12), cipher = crypto.createCipheriv('aes-256-gcm', writeKey(), iv);
   const data = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
   return JSON.stringify({ v: 1, iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: data.toString('base64') });
 }
 function open(raw) {
-  try {
-    const a = JSON.parse(raw);
-    if (a.v !== 1) throw new Error('unsupported backup');
-    const cipher = crypto.createDecipheriv('aes-256-gcm', key(), Buffer.from(a.iv, 'base64'));
-    cipher.setAuthTag(Buffer.from(a.tag, 'base64'));
-    return JSON.parse(Buffer.concat([cipher.update(Buffer.from(a.data, 'base64')), cipher.final()]).toString('utf8'));
-  } catch { throw new Error('تعذّر فك النسخة الاحتياطية؛ تحقّق من مفتاح التشفير'); }
+  let envelope;
+  try { envelope = JSON.parse(raw); } catch { throw new Error('النسخة الاحتياطية تالفة أو بصيغة غير صالحة'); }
+  if (!envelope || envelope.v !== 1 || typeof envelope.iv !== 'string' || typeof envelope.tag !== 'string' || typeof envelope.data !== 'string') {
+    throw new Error('النسخة الاحتياطية تالفة أو بصيغة غير مدعومة');
+  }
+  for (const candidate of readKeys()) {
+    try {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', candidate, Buffer.from(envelope.iv, 'base64'));
+      decipher.setAuthTag(Buffer.from(envelope.tag, 'base64'));
+      return JSON.parse(Buffer.concat([decipher.update(Buffer.from(envelope.data, 'base64')), decipher.final()]).toString('utf8'));
+    } catch { /* Try a configured previous key; never overwrite or discard the backup. */ }
+  }
+  throw new Error('تعذّر فك النسخة الاحتياطية بمفاتيح AGENT_BACKUP_KEY الحالية أو السابقة؛ النسخة محفوظة دون تغيير');
 }
 function meta(fields) {
   // Never log prompts, tool arguments, image bytes, file contents or credentials.

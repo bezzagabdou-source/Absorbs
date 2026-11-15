@@ -81,3 +81,39 @@ test('deploy refuses concurrent changes and non-force publishes, then prepares a
   assert.equal(reversed.restored, false, 'a queued Vercel rollback is not claimed as already live');
   assert.equal(reversed.deployments[0].state, 'QUEUED');
 });
+
+test('agent backups remain decryptable while rotating to a dedicated stable backup key', async () => {
+  await reset();
+  const original = {
+    backup: process.env.AGENT_BACKUP_KEY,
+    previous: process.env.AGENT_BACKUP_KEY_PREVIOUS,
+    session: process.env.SESSION_SECRET,
+    oldSession: process.env.SESSION_SECRET_PREVIOUS,
+  };
+  try {
+    delete process.env.AGENT_BACKUP_KEY;
+    delete process.env.AGENT_BACKUP_KEY_PREVIOUS;
+    process.env.SESSION_SECRET = 'legacy-session-key-for-backup-test';
+    const legacySessionBackup = audit.seal({ value: 'saved under session key' });
+
+    process.env.AGENT_BACKUP_KEY = 'new-dedicated-backup-key';
+    assert.deepEqual(audit.open(legacySessionBackup), { value: 'saved under session key' });
+    const currentBackup = audit.seal({ value: 'saved under dedicated key' });
+    assert.deepEqual(audit.open(currentBackup), { value: 'saved under dedicated key' });
+
+    process.env.AGENT_BACKUP_KEY_PREVIOUS = 'older-dedicated-backup-key';
+    delete process.env.SESSION_SECRET;
+    const cipher = require('node:crypto');
+    const iv = cipher.randomBytes(12);
+    const key = cipher.createHmac('sha256', process.env.AGENT_BACKUP_KEY_PREVIOUS).update('ft-panel agent backup v1').digest();
+    const encrypt = cipher.createCipheriv('aes-256-gcm', key, iv);
+    const data = Buffer.concat([encrypt.update(JSON.stringify({ value: 'saved under prior key' }), 'utf8'), encrypt.final()]);
+    const priorBackup = JSON.stringify({ v: 1, iv: iv.toString('base64'), tag: encrypt.getAuthTag().toString('base64'), data: data.toString('base64') });
+    assert.deepEqual(audit.open(priorBackup), { value: 'saved under prior key' });
+  } finally {
+    for (const [key, value] of Object.entries(original)) {
+      const name = { backup: 'AGENT_BACKUP_KEY', previous: 'AGENT_BACKUP_KEY_PREVIOUS', session: 'SESSION_SECRET', oldSession: 'SESSION_SECRET_PREVIOUS' }[key];
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
+});

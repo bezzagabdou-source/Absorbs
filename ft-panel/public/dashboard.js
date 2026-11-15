@@ -171,6 +171,13 @@ function show(t) {
 function fail(el, e) {
   el.innerHTML = "<p class=err>" + esc(e.message) + "</p>";
 }
+function referralPerson(id, name, username) {
+  const userId = /^\d{1,20}$/.test(String(id || "")) ? String(id) : "";
+  const displayName = String(name || "عضو");
+  const initial = Array.from(displayName.trim())[0] || "؟";
+  const handle = String(username || "").replace(/^@/, "");
+  return `<div class="person"><div class="avatar"${userId ? ` data-avatar-id="${esc(userId)}"` : ""}><img alt="" hidden><span>${esc(initial)}</span></div><div><b>${esc(displayName)}</b><small>${handle ? `@${esc(handle)}` : userId ? `ID ${esc(userId)}` : "—"}</small></div></div>`;
+}
 async function loadReferrals() {
   const el = $("#t-referrals");
   el.innerHTML = "<p class='mute'>جارٍ تحميل الإحالات…</p>";

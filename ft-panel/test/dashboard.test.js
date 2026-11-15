@@ -17,6 +17,43 @@ test('legacy data migration is no longer exposed as a dashboard action', () => {
   assert.doesNotMatch(dashboard, /legacy-scan|legacy-preview|legacy-apply|نقل بيانات اللوحة القديمة/);
 });
 
+test('referrals screen renders inviter and joiner without a missing helper error', async () => {
+  const errors = [];
+  let html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  html = html.replace('<script defer src="/dashboard.js"></script>', `<script>${fs.readFileSync(path.join(root, 'dashboard.js'), 'utf8')}</script>`)
+    .replace('<script defer src="/dashboard-bot.js"></script>', `<script>${fs.readFileSync(path.join(root, 'dashboard-bot.js'), 'utf8')}</script>`);
+  const vc = new VirtualConsole();
+  vc.on('jsdomError', error => errors.push(error.message));
+  const dom = new JSDOM(html, {
+    url: 'https://panel.example/', runScripts: 'dangerously', virtualConsole: vc,
+    beforeParse(window) {
+      window.localStorage.setItem('ftp', 'test-session');
+      window.HTMLElement.prototype.scrollIntoView = function () {};
+      window.fetch = async (_url, options) => {
+        const body = JSON.parse(options.body);
+        let data = {};
+        if (body.action === 'health') data = { bot: '@test' };
+        else if (body.action === 'referrals') data = [{
+          inviterId: '101', inviterName: 'Inviter', inviterUsername: 'owner',
+          joinerId: '202', joinerName: 'New member', joinerUsername: 'guest',
+          contestTitle: 'Referral test', at: 1760000000000,
+        }];
+        else if (body.action === 'referral_photos') data = {};
+        return { status: 200, json: async () => ({ ok: true, data }) };
+      };
+    },
+  });
+  try {
+    const { document } = dom.window;
+    document.querySelector('[data-t="referrals"]').click();
+    await waitFor(() => document.querySelectorAll('#t-referrals .person').length === 2, 'referral people');
+    assert.match(document.querySelector('#t-referrals').textContent, /Inviter/);
+    assert.match(document.querySelector('#t-referrals').textContent, /New member/);
+    assert.match(document.querySelector('#t-referrals').textContent, /Referral test/);
+    assert.deepEqual(errors, []);
+  } finally { dom.window.close(); }
+});
+
 test('dashboard edits real bot items with image retry and sends an AI image', async () => {
   const calls = [], errors = [];
   let imageFails = true;
