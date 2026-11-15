@@ -26,6 +26,7 @@ let AI_IMAGE = "";
 const TITLES = {
   ai: "المساعد",
   control: "مركز التحكم",
+  analytics: "التحليلات",
   instructions: "تعليمات المساعد",
   bot: "إدارة FT-bot",
   referrals: "الإحالات",
