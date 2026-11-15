@@ -89,9 +89,9 @@ async function handle(b, token) {
     case 'bot_manage': return { data: await bot.manageOp(b.op, b.input) };
     case 'emoji_view': return { data: await bot.emojiView(b.q, b.limit) };
     case 'emoji_op': return { data: await bot.emojiOp(b.op, b.input) };
-    // 👁️ صفحة «مراقب الذكاء الاصطناعي الخفي»: عرض التقارير أو الحضور/فك الحظر/إخفاء
+    // 👁️ صفحة «مراقب الذكاء الاصطناعي الخفي»: عرض التقارير أو الحضور/فك الحظر/إخفاء/فحص
     case 'monitor_view': return { data: await bot.monitorView(b.limit) };
-    case 'monitor_op': return { data: await bot.monitorOp(b.op, { userId: b.userId }) };
+    case 'monitor_op': return { data: await bot.monitorOp(b.op, { userId: b.userId, ...(b.limit !== undefined ? { limit: b.limit } : {}) }) };
     // ── ترحيل اللوحة القديمة إلى FT-bot ──
     case 'legacy_scan': return { data: await legacy.snapshot() };
     case 'legacy_import': {

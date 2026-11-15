@@ -1,7 +1,7 @@
 /**
  * 👁️ مراقب الذكاء الاصطناعي الخفي (AI Monitor) — يراقب كل عضو يدخل البوت:
  *   • يجمع صورته (صورة بروفايل) واسماه (@username) وبايو (bio) إن توفّر.
- *   • يفحصهم بمزوّد ذكاء اصطناعي (Gemini رؤية أولاً، ثم Groq/OpenRouter).
+ *   • يفحصهم بمزوّد ذكاء اصطناعي (Gemini رؤية أولاً، ثم Groq/OpenRouter + محلّل الأسماء والبايو).
  *   • إلا وُجد دليل أن العضو امرأة، يسجّل تقريراً ويرسل للمالك عبر لوحة
  *     التحكم صفحة مخصصة (مراقب الذكاء الاصطناعي) مع زر «حضر».
  *
@@ -9,11 +9,11 @@
  * كل العملية محفوظة في التخزين الموحّد (Redis / Postgres / ذاكرة).
  */
 
-import { rawTg, sendMessage, banChatMember, isMock, type TgUser } from "./telegram";
+import { rawTg, sendMessage, banChatMember, getChatInfo, isMock } from "./telegram";
 import { getStore } from "./store";
 import { getSettings } from "./settings";
 import { getJoinGroup, pushAdminLog, setBanned } from "./rewards";
-import { adminChatIds } from "./users";
+import { adminChatIds, getUser, listRecentUsers } from "./users";
 import type { Settings } from "./types";
 
 export type MonitorStatus = "pending" | "banned" | "unbanned" | "dismissed";
@@ -43,7 +43,7 @@ const SEEN_KEY = (userId: string) => `monitor:seen:${userId}`;
 const USER_KEY = (userId: string) => `monitor:user:${userId}`;
 const REPORT_CAP = 200; // عدد التقارير المحفوظة (الأحدث أولاً)
 const PHOTO_MAX = 200_000; // حد حجم الصورة المحفوظة (بايت)
-const CLASSIFY_TIMEOUT_MS = 12_000;
+const CLASSIFY_TIMEOUT_MS = 9_000;
 
 /** المراقبة مفعّلة إلا أُطلِق MONITOR_DISABLED=1. */
 export function monitorEnabled(): boolean {
@@ -53,7 +53,7 @@ export function monitorEnabled(): boolean {
 /** مزوّدون الذكاء الاصطناعي المتوفّرون للمراقب (أسماء فقط — لا مفاتيح). */
 export function monitorConfigured(): { gemini: boolean; others: boolean } {
   const gemini = Boolean(
-    envKey("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY")
+    envKey("GEMINI_API_KEY", "GEMINI_API_KEY_FALLBACK", "GEMINI_FALLBACK_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY")
   );
   const others = Boolean(envKey("GROQ_API_KEY") || envKey("OPENROUTER_API_KEY") || envKey("OPENAI_API_KEY"));
   return { gemini, others };
@@ -67,8 +67,20 @@ function envKey(...names: string[]): string {
   return "";
 }
 
+function envAllKeys(...names: string[]): string[] {
+  const out: string[] = [];
+  for (const name of names) {
+    const raw = process.env[name] || "";
+    for (const part of raw.split(/[,;\s]+/)) {
+      const k = part.trim();
+      if (k.length > 8 && !out.includes(k)) out.push(k);
+    }
+  }
+  return out;
+}
+
 /* ───────────────────────────────────────────────────────────────────────── */
-/* جمع صورة البروفايل                                                       */
+/* جمع صورة البروفايل وبيانات العضو                                           */
 /* ───────────────────────────────────────────────────────────────────────── */
 
 type ProfilePhotosResult = {
@@ -92,12 +104,11 @@ export async function fetchProfilePhoto(userId: string | number): Promise<string
   const token = (process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "").split(":").slice(0, 2).join(":");
   if (!token) return null;
   try {
-    const res = await fetch(`https://api.telegram.org/file/bot${token}/${path}`, { signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`https://api.telegram.org/file/bot${token}/${path}`, { signal: AbortSignal.timeout(7000) });
     if (!res.ok) return null;
     const bytes = Buffer.from(await res.arrayBuffer());
     if (!bytes.length || bytes.length > PHOTO_MAX) return null;
     const type = (res.headers.get("content-type") || "image/jpeg").split(";")[0];
-    const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : type.includes("gif") ? "gif" : "jpeg";
     return `data:${type};base64,${bytes.toString("base64")}`;
   } catch {
     return null;
@@ -105,7 +116,7 @@ export async function fetchProfilePhoto(userId: string | number): Promise<string
 }
 
 /* ───────────────────────────────────────────────────────────────────────── */
-/* تصنيف الجنس بالذكاء الاصطناعي                                            */
+/* تصنيف الجنس بالذكاء الاصطناعي + محلّل الأسماء والبايو الاحتياطي             */
 /* ───────────────────────────────────────────────────────────────────────── */
 
 export type ClassifyResult = {
@@ -141,6 +152,85 @@ function parseClassifyText(raw: string): { gender: ClassifyResult["gender"]; con
   }
 }
 
+const FEMALE_ARABIC_NAMES = new Set([
+  "فاطمة", "فاطمه", "سارة", "ساره", "مريم", "خديجة", "خديجه", "عائشة", "عائشه", "نور",
+  "آية", "اية", "أية", "سلمى", "شيماء", "مروة", "مروى", "إكرام", "اكرام", "نسرين",
+  "ياسمين", "ياسمينة", "منال", "إيمان", "ايمان", "سعاد", "حنان", "نادية", "ناديه", "ليلى",
+  "زهراء", "الزهراء", "ملاك", "لينا", "رانيا", "داليا", "أسماء", "اسماء", "حفصة", "حبيبة",
+  "زينب", "رقية", "حليمة", "سميرة", "كريمة", "لطيفة", "جميلة", "نوال", "فريدة", "سمية",
+  "وفاء", "سهام", "ابتسام", "إبتسام", "كلثوم", "هدى", "راضية", "آسيا", "اسيا", "صبرينة",
+  "أحلام", "احلام", "فريال", "ريمة", "ريما", "ليديا", "كاميليا", "ندى", "صفاء", "دعاء",
+  "رهف", "رغد", "جنى", "تسنيم", "سندس", "سلسبيل", "بشرى", "هاجر", "رحمة", "غفران",
+  "تقوى", "يقين", "ماريا", "سيرين", "لجين", "ريتاج", "إيناس", "ايناس", "أنيسة", "انيسة",
+  "ناريمان", "شروق", "عبير", "خلود", "أمل", "امل", "حورية", "زهرة", "وردة", "فتيحة",
+  "يمينة", "زليخة", "نصيرة", "فضيلة", "عقيلة", "مليكة", "سليمة", "رشيدة", "نعيمة", "حسيبة",
+  "وهيبة", "أمينة", "امينة", "أميرة", "اميرة", "خولة", "مرام", "إلهام", "الهام", "كوثر",
+  "ساجدة", "إشراق", "اشراق", "نرمين", "سلمى", "يسرى", "يسرا", "رتاج", "سجى", "لمى",
+]);
+
+const FEMALE_LATIN_NAMES = new Set([
+  "fatima", "fatma", "sara", "sarah", "meriem", "meryem", "mariam", "maryam", "khadija", "aicha",
+  "aya", "salma", "selma", "chaima", "cheima", "marwa", "meroua", "ikram", "nesrine", "nisrine",
+  "yasmine", "yasmina", "manel", "manal", "imen", "imane", "souad", "hanane", "hanan", "nadia",
+  "leila", "laila", "zahra", "malak", "lina", "rania", "dalia", "asma", "asmaa", "hafsa",
+  "habiba", "zainab", "zineb", "zaynab", "halima", "samira", "karima", "latifa", "jamila", "djamila",
+  "nawal", "nawel", "farida", "soumia", "soumaya", "wafa", "wafaa", "siham", "sihem", "ibtissem",
+  "ibtissam", "keltoum", "houda", "hoda", "radia", "assia", "sabrina", "ahlem", "ahlam", "feriel",
+  "ryma", "rima", "lydia", "kamelia", "nada", "safa", "safaa", "doaa", "rahaf", "raghad",
+  "jana", "tasnim", "sondos", "salsabil", "bouchra", "bushra", "hajar", "hadjer", "rahma", "ghofrane",
+  "takwa", "yaqeen", "maria", "sirine", "cyrine", "lujain", "ritaj", "ritadj", "ines", "anissa",
+  "narimane", "chourouk", "abir", "abeer", "khouloud", "amal", "amel", "houria", "zohra", "warda",
+  "ouarda", "fatiha", "yamina", "zoubida", "nassira", "fadila", "akila", "malika", "salima", "rachida",
+  "naima", "hassiba", "wahiba", "amina", "amira", "khaoula", "maram", "ilham", "kawthar", "kaouthar",
+  "yousra", "yosra", "saja", "lama", "nourhene", "nourhane", "soulef", "chahinez", "melissa", "celia",
+]);
+
+const FEMALE_BIO_PATTERNS = [
+  /(?:^|\s)(?:طالبة|أختكم|اختكم|بنت|فتاة|انثى|أنثى|حساب بنات|ممنوع الخاص|خاص بلوك|لا اقبل خاص|مسلمة وافتخر|اميرة|أميرة|ملكة)(?:\s|$)/i,
+  /\b(?:girl|female|woman|queen|princess|étudiante|femme|fille)\b/i,
+];
+
+/** تصنيف احتياطي بالاسم والبايو عند تعذّر مزوّدي الشبكة أو غياب الصورة. */
+export function heuristicClassify(input: {
+  firstName: string;
+  lastName: string;
+  username: string;
+  bio: string;
+}): ClassifyResult | null {
+  const fullName = `${input.firstName || ""} ${input.lastName || ""}`.trim();
+  const tokens = fullName
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  for (const t of tokens) {
+    if (FEMALE_ARABIC_NAMES.has(t)) {
+      return { ok: true, gender: "female", confidence: 0.88, evidence: `اسم مؤنث واضح (${t})`, provider: "تحليل الأسماء الذكي" };
+    }
+    if (FEMALE_LATIN_NAMES.has(t)) {
+      return { ok: true, gender: "female", confidence: 0.86, evidence: `اسم مؤنث (${t})`, provider: "تحليل الأسماء الذكي" };
+    }
+  }
+
+  const cleanUser = String(input.username || "").replace(/^@/, "").toLowerCase().replace(/[0-9_.-]+/g, " ").trim();
+  for (const part of cleanUser.split(/\s+/).filter((w) => w.length >= 3)) {
+    if (FEMALE_LATIN_NAMES.has(part)) {
+      return { ok: true, gender: "female", confidence: 0.82, evidence: `معرّف يحتوي اسماً مؤنثاً (@${input.username.replace(/^@/, "")})`, provider: "تحليل الأسماء الذكي" };
+    }
+  }
+
+  const bioText = `${fullName} ${input.bio || ""}`;
+  for (const re of FEMALE_BIO_PATTERNS) {
+    const m = re.exec(bioText);
+    if (m) {
+      return { ok: true, gender: "female", confidence: 0.84, evidence: `دلالة مؤنثة في الملف الشخصي (${m[0].trim()})`, provider: "تحليل الأسماء الذكي" };
+    }
+  }
+
+  return null;
+}
+
 type Candidate = {
   provider: string;
   url: string;
@@ -157,12 +247,14 @@ export function buildClassifyCandidates(input: {
   username: string;
   bio: string;
 }): Candidate[] {
-  const text = [input.firstName, input.lastName, input.username, input.bio].filter(Boolean).join(" · ");
+  const text = [input.firstName, input.lastName, input.username ? `@${input.username.replace(/^@/, "")}` : "", input.bio]
+    .filter(Boolean)
+    .join(" · ");
   const image = input.photo || "";
   const candidates: Candidate[] = [];
-  const geminiKey = envKey("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY");
+  const geminiKeys = envAllKeys("GEMINI_API_KEY", "GEMINI_API_KEY_FALLBACK", "GEMINI_FALLBACK_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY");
   const gemModel = (process.env.MONITOR_GEMINI_MODEL || "gemini-2.5-flash").trim();
-  if (geminiKey) {
+  for (const geminiKey of geminiKeys.slice(0, 2)) {
     candidates.push({
       provider: "Google Gemini",
       gemini: true,
@@ -183,30 +275,74 @@ export function buildClassifyCandidates(input: {
       },
     });
   }
+
   const dataUrl = image;
   const groqKey = envKey("GROQ_API_KEY");
   if (groqKey) {
+    const groqModel = (process.env.MONITOR_GROQ_MODEL || "qwen/qwen3.8-27b").trim();
     candidates.push({
       provider: "Groq",
       url: "https://api.groq.com/openai/v1/chat/completions",
       headers: { authorization: `Bearer ${groqKey}` },
       body: {
-        model: (process.env.MONITOR_GROQ_MODEL || "qwen/qwen3.8-27b").trim(),
+        model: groqModel,
         temperature: 0,
         max_tokens: 300,
+        ...(groqModel.startsWith("qwen/") ? { reasoning_effort: "none" } : {}),
         messages: [
           { role: "system", content: CLASSIFY_PROMPT },
           {
             role: "user",
-            content: [
-              { type: "text", text: `العضو: ${text || "بدون اسم"}` },
-              ...(dataUrl ? [{ type: "image_url", image_url: { url: dataUrl } }] : []),
-            ],
+            content: dataUrl
+              ? [
+                  { type: "text", text: `العضو: ${text || "بدون اسم"}` },
+                  { type: "image_url", image_url: { url: dataUrl } },
+                ]
+              : `العضو: ${text || "بدون اسم"}`,
           },
         ],
       },
     });
+    if (dataUrl) {
+      candidates.push({
+        provider: "Groq",
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        headers: { authorization: `Bearer ${groqKey}` },
+        body: {
+          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          temperature: 0,
+          max_tokens: 250,
+          messages: [
+            { role: "system", content: CLASSIFY_PROMPT },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: `العضو: ${text || "بدون اسم"}` },
+                { type: "image_url", image_url: { url: dataUrl } },
+              ],
+            },
+          ],
+        },
+      });
+    }
+    if (text) {
+      candidates.push({
+        provider: "Groq",
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        headers: { authorization: `Bearer ${groqKey}` },
+        body: {
+          model: "llama-3.3-70b-versatile",
+          temperature: 0,
+          max_tokens: 220,
+          messages: [
+            { role: "system", content: CLASSIFY_PROMPT },
+            { role: "user", content: `العضو: ${text}` },
+          ],
+        },
+      });
+    }
   }
+
   const routerKey = envKey("OPENROUTER_API_KEY");
   if (routerKey) {
     candidates.push({
@@ -221,10 +357,12 @@ export function buildClassifyCandidates(input: {
           { role: "system", content: CLASSIFY_PROMPT },
           {
             role: "user",
-            content: [
-              { type: "text", text: `العضو: ${text || "بدون اسم"}` },
-              ...(dataUrl ? [{ type: "image_url", image_url: { url: dataUrl } }] : []),
-            ],
+            content: dataUrl
+              ? [
+                  { type: "text", text: `العضو: ${text || "بدون اسم"}` },
+                  { type: "image_url", image_url: { url: dataUrl } },
+                ]
+              : `العضو: ${text || "بدون اسم"}`,
           },
         ],
       },
@@ -233,7 +371,7 @@ export function buildClassifyCandidates(input: {
   return candidates;
 }
 
-/** يفحّص العضو ويرجّع النتيجة (أول مزوّد ناجح). ما يthrow. */
+/** يفحّص العضو ويرجّع النتيجة (أول مزوّد ناجح، مع احتياط ذكي بالاسم والبايو). ما يthrow. */
 export async function classifyMember(input: {
   photo: string | null;
   firstName: string;
@@ -243,6 +381,8 @@ export async function classifyMember(input: {
 }): Promise<ClassifyResult> {
   const candidates = buildClassifyCandidates(input);
   if (!candidates.length) {
+    const fallback = heuristicClassify(input);
+    if (fallback) return fallback;
     return { ok: false, gender: "unknown", confidence: 0, evidence: "", provider: "", error: "لا توجد مفاتيح ذكاء اصطناعي للمراقب" };
   }
   for (const candidate of candidates) {
@@ -269,12 +409,18 @@ export async function classifyMember(input: {
       }
       const parsed = parseClassifyText(raw);
       if (parsed) {
+        if (parsed.gender === "unknown") {
+          const heuristic = heuristicClassify(input);
+          if (heuristic) return heuristic;
+        }
         return { ok: true, ...parsed, provider: candidate.provider };
       }
     } catch {
       /* جرّب المزوّد التالي */
     }
   }
+  const fallback = heuristicClassify(input);
+  if (fallback) return fallback;
   return { ok: false, gender: "unknown", confidence: 0, evidence: "", provider: "", error: "تعذّر تصنيف العضو" };
 }
 
@@ -286,10 +432,14 @@ async function readReports(): Promise<MonitorReport[]> {
   const store = getStore();
   const lines = await store.listAll(REPORTS_KEY, REPORT_CAP);
   const out: MonitorReport[] = [];
+  const seenIds = new Set<string>();
   for (const line of lines) {
     try {
       const report = JSON.parse(line) as MonitorReport;
-      if (report && typeof report.userId === "string") out.push(report);
+      if (report && typeof report.userId === "string" && !seenIds.has(report.userId)) {
+        seenIds.add(report.userId);
+        out.push(report);
+      }
     } catch {
       /* تجاهل سطر تالف */
     }
@@ -303,11 +453,17 @@ async function writeReports(reports: MonitorReport[]): Promise<void> {
   if (reports.length) await store.listPush(REPORTS_KEY, reports.slice(0, REPORT_CAP).map((r) => JSON.stringify(r)));
 }
 
-/** يضيف تقرير جديد (يحفظ الأحدث أولاً ويحذف الأقدم على الحد). */
+/** يضيف أو يحدّث تقرير عضو (يحفظ الأحدث أولاً بدون تكرار لنفس العضو). */
 async function addReport(report: MonitorReport): Promise<void> {
   const reports = await readReports();
-  reports.unshift(report);
-  await writeReports(reports);
+  const prev = reports.find((r) => r.userId === report.userId);
+  if (prev && prev.status === "banned") {
+    report.status = "banned";
+    report.decidedAt = prev.decidedAt;
+  }
+  const filtered = reports.filter((r) => r.userId !== report.userId);
+  filtered.unshift(report);
+  await writeReports(filtered);
   await getStore().set(USER_KEY(report.userId), report);
 }
 
@@ -338,11 +494,22 @@ export async function setReportStatus(userId: string, status: MonitorStatus): Pr
   return updated;
 }
 
-/** قائمة التقارير (الأحدث أولاً) + عدد المعلقين. */
-export async function listReports(limit = 100): Promise<{ reports: MonitorReport[]; pending: number }> {
+/** قائمة التقارير (الأحدث أولاً) + عدد المعلقين والإحصائيات. */
+export async function listReports(limit = 100): Promise<{
+  reports: MonitorReport[];
+  pending: number;
+  stats: { total: number; pending: number; banned: number; dismissed: number };
+}> {
   const all = await readReports();
   const reports = all.slice(0, Math.max(1, Math.min(200, Math.floor(limit) || 100)));
-  return { reports, pending: reports.filter((r) => r.status === "pending").length };
+  const pending = all.filter((r) => r.status === "pending").length;
+  const banned = all.filter((r) => r.status === "banned").length;
+  const dismissed = all.filter((r) => r.status === "dismissed").length;
+  return {
+    reports,
+    pending,
+    stats: { total: all.length, pending, banned, dismissed },
+  };
 }
 
 /* ───────────────────────────────────────────────────────────────────────── */
@@ -356,7 +523,7 @@ async function notifyOwners(report: MonitorReport, settings: Settings): Promise<
   const link = panel ? `\n🔗 ${panel}` : "";
   const text =
     `⚠️ مراقب الذكاء الاصطناعي: عضو امرأة دخلت البوت\n` +
-    `👤 ${report.firstName}${report.lastName ? " " + report.lastName : ""}${report.username ? " · @" + report.username : ""}\n` +
+    `👤 ${report.firstName}${report.lastName ? " " + report.lastName : ""}${report.username ? " · @" + report.username.replace(/^@/, "") : ""}\n` +
     `🆔 ${report.userId}${report.bio ? "\n📝 " + report.bio.slice(0, 120) : ""}\n` +
     `🔍 دليل المراقب: ${report.evidence || "لا نص"} (ثقة ${Math.round(report.confidence * 100)}%)\n` +
     `📅 ${new Date(report.createdAt).toLocaleString("ar-DZ")}${link}`;
@@ -378,32 +545,71 @@ export type MonitorInput = {
   bio?: string;
   chatId?: number | string;
   source: string;
+  force?: boolean;
 };
+
+async function enrichUserProfile(
+  userId: string,
+  input: { firstName?: string; lastName?: string; username?: string; bio?: string },
+): Promise<{ firstName: string; lastName: string; username: string; bio: string }> {
+  let firstName = (input.firstName || "").trim();
+  let lastName = (input.lastName || "").trim();
+  let username = (input.username || "").trim().replace(/^@/, "");
+  let bio = (input.bio || "").trim();
+
+  if (!firstName || !username) {
+    const stored = await getUser(userId).catch(() => null);
+    if (stored) {
+      if (!firstName) firstName = stored.firstName || "";
+      if (!username) username = (stored.username || "").replace(/^@/, "");
+    }
+  }
+  if (!isMock() && (!bio || !firstName)) {
+    const info = await getChatInfo(userId).catch(() => null);
+    const res = (info?.ok && info.result ? info.result : {}) as {
+      first_name?: string;
+      last_name?: string;
+      username?: string;
+      bio?: string;
+    };
+    if (!firstName && res.first_name) firstName = res.first_name;
+    if (!lastName && res.last_name) lastName = res.last_name;
+    if (!username && res.username) username = res.username.replace(/^@/, "");
+    if (!bio && typeof res.bio === "string") bio = res.bio;
+  }
+  return { firstName, lastName, username, bio };
+}
 
 /**
  * يراقب عضو دخل البوت. ما يthrow أبداً (يفشل بهدوء ويكمّل البوت).
- * يُستدعى على دخول المجموعة، على طلب الانضمام، وعلى أول رسالة خاصة.
+ * يُستدعى على دخول المجموعة، على طلب الانضمام، وعلى الرسائل الخاصة.
  */
 export async function monitorUserJoin(input: MonitorInput): Promise<MonitorReport | null> {
   try {
     if (!monitorEnabled()) return null;
-    const userId = String(input.userId || "");
+    const userId = String(input.userId || "").trim();
     if (!/^\d{1,20}$/.test(userId)) return null;
 
     const store = getStore();
-    const seen = await store.get<{ at: number }>(SEEN_KEY(userId));
-    const cooldownMs = (Number(process.env.MONITOR_COOLDOWN_HOURS) || 24) * 3600_000;
-    if (seen?.at && Date.now() - seen.at < cooldownMs) return null;
+    if (!input.force) {
+      const seen = await store.get<{ at: number }>(SEEN_KEY(userId));
+      const cooldownMs = (Number(process.env.MONITOR_COOLDOWN_HOURS) || 24) * 3600_000;
+      if (seen?.at && Date.now() - seen.at < cooldownMs) return null;
+    }
     // نحصّنو قبل الفحص باش ما يتكررش الفحص على كل دخول.
     await store.set(SEEN_KEY(userId), { at: Date.now() });
 
-    const photo = await fetchProfilePhoto(userId);
+    const [photo, profile] = await Promise.all([
+      fetchProfilePhoto(userId),
+      enrichUserProfile(userId, input),
+    ]);
+
     const result = await classifyMember({
       photo,
-      firstName: input.firstName || "",
-      lastName: input.lastName || "",
-      username: input.username || "",
-      bio: input.bio || "",
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      username: profile.username,
+      bio: profile.bio,
     });
 
     const threshold = Number(process.env.MONITOR_MIN_CONFIDENCE) || 0.6;
@@ -413,10 +619,10 @@ export async function monitorUserJoin(input: MonitorInput): Promise<MonitorRepor
     const report: MonitorReport = {
       id: userId,
       userId,
-      firstName: input.firstName || "",
-      lastName: input.lastName || "",
-      username: input.username || "",
-      bio: input.bio || "",
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      username: profile.username,
+      bio: profile.bio,
       photo: photo || "",
       gender: result.gender,
       confidence: result.confidence,
@@ -434,6 +640,108 @@ export async function monitorUserJoin(input: MonitorInput): Promise<MonitorRepor
     console.error("[monitor] failed for", input.userId, error);
     return null;
   }
+}
+
+/** فحص مباشر لعضو بمعرّفه من لوحة التحكم وإرجاع النتيجة الكاملة للمالك. */
+export async function scanUserById(userIdRaw: string): Promise<{
+  ok: boolean;
+  userId?: string;
+  firstName?: string;
+  username?: string;
+  bio?: string;
+  hasPhoto?: boolean;
+  result?: ClassifyResult;
+  flagged?: boolean;
+  report?: MonitorReport | null;
+  error?: string;
+}> {
+  const userId = String(userIdRaw || "").trim();
+  if (!/^\d{1,20}$/.test(userId)) {
+    return { ok: false, error: "معرّف المستخدم غير صالح" };
+  }
+  const [photo, profile] = await Promise.all([
+    fetchProfilePhoto(userId),
+    enrichUserProfile(userId, {}),
+  ]);
+  const result = await classifyMember({
+    photo,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    username: profile.username,
+    bio: profile.bio,
+  });
+  await getStore().set(SEEN_KEY(userId), { at: Date.now() }).catch(() => undefined);
+  const threshold = Number(process.env.MONITOR_MIN_CONFIDENCE) || 0.6;
+  let report: MonitorReport | null = null;
+  if (result.ok && result.gender === "female" && result.confidence >= threshold) {
+    const settings = await getSettings();
+    report = {
+      id: userId,
+      userId,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      username: profile.username,
+      bio: profile.bio,
+      photo: photo || "",
+      gender: result.gender,
+      confidence: result.confidence,
+      evidence: result.evidence,
+      provider: result.provider,
+      chatId: userId,
+      source: "manual_scan",
+      status: "pending",
+      createdAt: Date.now(),
+    };
+    await addReport(report);
+    await notifyOwners(report, settings).catch(() => undefined);
+  }
+  return {
+    ok: true,
+    userId,
+    firstName: [profile.firstName, profile.lastName].filter(Boolean).join(" ") || "عضو",
+    username: profile.username,
+    bio: profile.bio,
+    hasPhoto: Boolean(photo),
+    result,
+    flagged: Boolean(report),
+    report,
+  };
+}
+
+/** فحص دفعة من آخر الأعضاء المسجّلين في البوت من لوحة التحكم. */
+export async function scanRecentUsers(limit = 15): Promise<{
+  ok: boolean;
+  scanned: number;
+  flagged: number;
+  pending: number;
+  reports: MonitorReport[];
+}> {
+  const cap = Math.max(1, Math.min(25, Math.floor(Number(limit) || 15)));
+  const recent = await listRecentUsers(cap * 2).catch(() => []);
+  const targets = recent.slice(0, cap);
+  let scanned = 0;
+  let flagged = 0;
+  const deadline = Date.now() + 20_000;
+  for (let i = 0; i < targets.length; i += 4) {
+    if (Date.now() > deadline) break;
+    const batch = targets.slice(i, i + 4);
+    const results = await Promise.all(
+      batch.map(async (u) => {
+        scanned++;
+        return monitorUserJoin({
+          userId: u.id,
+          firstName: u.firstName,
+          username: u.username,
+          chatId: u.id,
+          source: "batch_scan",
+          force: true,
+        });
+      }),
+    );
+    flagged += results.filter(Boolean).length;
+  }
+  const { reports, pending } = await listReports(100);
+  return { ok: true, scanned, flagged, pending, reports };
 }
 
 /* ───────────────────────────────────────────────────────────────────────── */
@@ -460,7 +768,8 @@ export async function banMonitorUser(userId: string, settings: Settings): Promis
   const report = await setReportStatus(id, "banned");
   await kickFromLinkedGroup(id);
   await pushAdminLog({ at: Date.now(), op: "monitor_ban", detail: `حظر ${id} من صفحة المراقب`, via: "panel" }).catch(() => undefined);
-  if (report) await notifyOwners(report, settings).catch(() => undefined);
+  void settings;
+  void report;
   return { ok: true };
 }
 
@@ -471,6 +780,7 @@ export async function unbanMonitorUser(userId: string, settings: Settings): Prom
   await setBanned(id, false);
   await setReportStatus(id, "unbanned");
   await pushAdminLog({ at: Date.now(), op: "monitor_unban", detail: `فك حظر ${id} من صفحة المراقب`, via: "panel" }).catch(() => undefined);
+  void settings;
   return { ok: true };
 }
 

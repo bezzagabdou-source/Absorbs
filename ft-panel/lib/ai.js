@@ -41,6 +41,8 @@ const TOOLS = [
   fn('ft_broadcast_retry', 'إعادة محاولة الرسائل المرفوضة فقط بعد انتهاء بث محدد، دون إعادة الناجحة أو غير المؤكدة. نفّذ بطلب صريح', { jobId: S }, ['jobId']),
   fn('ft_set_attached_image', 'وضع الصورة المرفقة بالرسالة الحالية على جائزة أو مسابقة FT-bot. حدد النوع والمعرف بعد التحقق', { kind: { type: 'string', enum: ['reward', 'contest'] }, id: S }, ['kind', 'id']),
   fn('ft_remove_image', 'حذف صورة جائزة أو مسابقة FT-bot بطلب صريح', { kind: { type: 'string', enum: ['reward', 'contest'] }, id: S }, ['kind', 'id']),
+  fn('ft_monitor_reports', 'عرض تقارير مراقب الذكاء الاصطناعي الخفي (الأعضاء المشتبه فيهن) وحالة المزوّدين والإحصائيات', { limit: N }),
+  fn('ft_monitor_action', 'تنفيذ إجراء في مراقب الذكاء الاصطناعي: حظر وطرد (ban)، فك الحظر (unban)، إخفاء التقرير (dismiss)، فحص عضو بالمعرّف (scan_user)، أو فحص آخر الأعضاء (scan_recent)', { op: { type: 'string', enum: ['ban', 'unban', 'dismiss', 'scan_user', 'scan_recent'] }, userId: S, limit: N }, ['op']),
   ...agent.TOOLS,
 ];
 const pick = (a, keys) => Object.fromEntries(keys.filter(k => a[k] !== undefined).map(k => [k, a[k]]));
@@ -80,9 +82,14 @@ const IMPL = {
     return bot.uploadImage(a.kind, a.id, context.image);
   },
   ft_remove_image: a => bot.uploadImage(a.kind, a.id, ''),
+  ft_monitor_reports: async a => {
+    const out = await bot.monitorView(a.limit);
+    return { ...out, reports: (out.reports || []).map(({ photo, ...r }) => ({ ...r, hasPhoto: Boolean(photo) })) };
+  },
+  ft_monitor_action: a => bot.monitorOp(a.op, pick(a, ['userId', 'limit'])),
   ...agent.IMPL,
 };
-const READ_ONLY = new Set(['ft_overview', 'ft_activity', 'ft_catalog', 'ft_users', 'ft_find_user', 'ft_requests', 'ft_referrals', 'ft_referral_config', 'ft_leaderboard', 'ft_log', 'ft_broadcast_status', ...agent.READ_ONLY]);
+const READ_ONLY = new Set(['ft_overview', 'ft_activity', 'ft_catalog', 'ft_users', 'ft_find_user', 'ft_requests', 'ft_referrals', 'ft_referral_config', 'ft_leaderboard', 'ft_log', 'ft_broadcast_status', 'ft_monitor_reports', ...agent.READ_ONLY]);
 const DELETIONS = new Set(['ft_delete_reward', 'ft_delete_contest', 'ft_remove_image']);
 const BROADCASTS = new Set(['ft_broadcast_all', 'ft_broadcast_retry']);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));

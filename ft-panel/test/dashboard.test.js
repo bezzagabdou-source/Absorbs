@@ -162,3 +162,69 @@ test('owner instruction page saves settings and broadcast UI runs durable batche
     assert.deepEqual(errors, []);
   } finally { dom.window.close(); }
 });
+
+test('monitor tab renders reports without wiping toolbar and supports ban, scan_recent, and scan_user', async () => {
+  const calls = [], errors = [];
+  let reportStatus = 'pending';
+  let html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  html = html.replace('<script defer src="/dashboard.js"></script>', `<script>${fs.readFileSync(path.join(root, 'dashboard.js'), 'utf8')}</script>`)
+    .replace('<script defer src="/dashboard-bot.js"></script>', `<script>${fs.readFileSync(path.join(root, 'dashboard-bot.js'), 'utf8')}</script>`);
+  const vc = new VirtualConsole(); vc.on('jsdomError', error => errors.push(error.message));
+  const dom = new JSDOM(html, {
+    url: 'https://panel.example/', runScripts: 'dangerously', virtualConsole: vc,
+    beforeParse(window) {
+      window.localStorage.setItem('ftp', 'test-session');
+      window.HTMLElement.prototype.scrollIntoView = function () {};
+      window.confirm = () => true;
+      window.fetch = async (_url, options) => {
+        const body = JSON.parse(options.body); calls.push(body);
+        let data = {};
+        if (body.action === 'health') data = { bot: '@test' };
+        else if (body.action === 'monitor_view') {
+          data = {
+            enabled: true,
+            providers: { gemini: true, others: true },
+            pending: reportStatus === 'pending' ? 1 : 0,
+            stats: { total: 1, pending: reportStatus === 'pending' ? 1 : 0, banned: reportStatus === 'banned' ? 1 : 0, dismissed: 0 },
+            reports: [{
+              userId: '777',
+              firstName: 'سارة',
+              username: 'sara_dz',
+              gender: 'female',
+              confidence: 0.94,
+              evidence: 'اسم أنثوي وصورة فتاة',
+              provider: 'gemini-2.5-flash',
+              source: 'group_join',
+              status: reportStatus,
+              createdAt: 1730000000000,
+            }],
+          };
+        } else if (body.action === 'monitor_op') {
+          if (body.op === 'ban') reportStatus = 'banned';
+          if (body.op === 'unban') reportStatus = 'unbanned';
+          data = { ok: true, scanned: 5, flagged: 1, classification: { gender: 'female' } };
+        }
+        return { status: 200, json: async () => ({ ok: true, data }) };
+      };
+    },
+  });
+  dom.window.addEventListener('error', e => errors.push(e.error?.message || e.message));
+  try {
+    const { document } = dom.window;
+    document.querySelector('[data-t="monitor"]').click();
+    await waitFor(() => document.querySelector('#monitor-list [data-report="777"]'), 'monitor report card');
+    assert.ok(document.querySelector('#monitor-refresh'), 'refresh button remains in DOM');
+    assert.match(document.querySelector('#monitor-meta').textContent, /Gemini \+ Groq\/OpenRouter/);
+    assert.match(document.querySelector('#monitor-list').textContent, /سارة/);
+    document.querySelector('[data-act="monitor-op"][data-op="ban"]').click();
+    await waitFor(() => calls.some(c => c.action === 'monitor_op' && c.op === 'ban' && c.userId === '777'), 'ban call');
+    await waitFor(() => document.querySelector('#monitor-list').textContent.includes('محظور'), 'banned status pill');
+    document.querySelector('[data-act="monitor-scan-recent"]').click();
+    await waitFor(() => calls.some(c => c.action === 'monitor_op' && c.op === 'scan_recent') && !document.querySelector('[data-act="monitor-scan-recent"]').disabled, 'scan_recent call');
+    document.querySelector('#monitor-uid-input').value = '888999';
+    document.querySelector('[data-act="monitor-scan-user"]').click();
+    await waitFor(() => calls.some(c => c.action === 'monitor_op' && c.op === 'scan_user' && c.userId === '888999') && !document.querySelector('[data-act="monitor-scan-user"]').disabled, 'scan_user call');
+    assert.deepEqual(errors, []);
+  } finally { dom.window.close(); }
+});
+

@@ -5,6 +5,8 @@ import {
   banMonitorUser,
   unbanMonitorUser,
   dismissReport,
+  scanUserById,
+  scanRecentUsers,
   monitorConfigured,
   monitorEnabled,
 } from "@/lib/monitor";
@@ -25,10 +27,12 @@ const response = (body: Record<string, unknown>, status = 200) =>
 
 /**
  * 👁️ مراقب الذكاء الاصطناعي الخفي — واجهته من لوحة التحكم.
- *   action=view    : يرجّع التقارير (الأحدث أولاً) مع عدد المعلقين والمزوّدين.
- *   action=ban     : يحظر العضو (في البوت + يطيحه من المجموعة المربوطة).
- *   action=unban   : يفك حظر العضو.
- *   action=dismiss : يخفي تقرير (يبقى محفوظاً في السجل).
+ *   action=view        : يرجّع التقارير (الأحدث أولاً) مع عدد المعلقين والمزوّدين والإحصائيات.
+ *   action=ban         : يحظر العضو (في البوت + يطيحه من المجموعة المربوطة).
+ *   action=unban       : يفك حظر العضو.
+ *   action=dismiss     : يخفي تقرير (يبقى محفوظاً في السجل).
+ *   action=scan_user   : يفحص عضواً محدداً بمعرّفه فوراً.
+ *   action=scan_recent : يفحص آخر الأعضاء المسجّلين في البوت.
  */
 export async function POST(request: NextRequest) {
   if (!authorized(request)) return response({ ok: false, error: "unauthorized" }, 401);
@@ -36,7 +40,7 @@ export async function POST(request: NextRequest) {
   const action = String(body.action || "view");
 
   if (action === "view") {
-    const { reports, pending } = await listReports(Number(body.limit) || 100);
+    const { reports, pending, stats } = await listReports(Number(body.limit) || 100);
     const settings = await getSettings().catch(() => null);
     return response({
       ok: true,
@@ -44,13 +48,22 @@ export async function POST(request: NextRequest) {
       providers: monitorConfigured(),
       group: settings?.groupChat ? { chatId: settings.groupChat, title: settings.groupTitle } : null,
       pending,
+      stats,
       reports,
     });
+  }
+
+  if (action === "scan_recent") {
+    return response(await scanRecentUsers(Number(body.limit) || 15));
   }
 
   const userId = String(body.userId || "").trim();
   if (!/^\d{1,20}$/.test(userId)) {
     return response({ ok: false, error: "معرّف المستخدم غير صالح" }, 400);
+  }
+
+  if (action === "scan_user") {
+    return response(await scanUserById(userId));
   }
 
   const settings = await getSettings();

@@ -267,20 +267,40 @@ const LOAD = {
 };
 
 /** 👁️ صفحة «مراقب الذكاء الاصطناعي الخفي»: تقارير الأعضاء المشتبه فيهن. */
+const MONITOR_SOURCE_LABELS = {
+  group_join: "انضمام للمجموعة",
+  join_request: "طلب انضمام",
+  chat_member: "تحديث عضوية",
+  private_start: "بدء البوت بالخاص",
+  private_message: "رسالة خاصة",
+  manual_scan: "فحص يدوي",
+  batch_scan: "فحص جماعي",
+};
 async function loadMonitor() {
   const el = $("#t-monitor");
-  const meta = $("#monitor-meta");
-  const list = $("#monitor-list");
-  el.innerHTML = "<p class='mute'>جارٍ تحميل التقارير…</p>";
+  if (!el) return;
+  let meta = $("#monitor-meta");
+  let list = $("#monitor-list");
+  if (!list) {
+    el.innerHTML = `<div class="agent-toolbar"><button class="sm" type="button" id="monitor-refresh">تحديث التقارير</button><button class="sm ok" type="button" data-act="monitor-scan-recent">فحص آخر الأعضاء</button><span class="pill" id="monitor-meta">…</span></div><div id="monitor-list" class="card" aria-live="polite"></div>`;
+    meta = $("#monitor-meta");
+    list = $("#monitor-list");
+  }
+  list.innerHTML = "<p class='mute'>جارٍ تحميل التقارير…</p>";
   try {
     const data = await api("monitor_view", { limit: 100 });
     const providers = data.providers || {};
     const providerText = [];
     if (providers.gemini) providerText.push("Gemini");
     if (providers.others) providerText.push("Groq/OpenRouter");
-    meta.textContent = `المراقب: ${data.enabled ? "مفعّل" : "مُعطّل"} · المزوّدون: ${providerText.length ? providerText.join(" · ") : "غير متاح"} · معلّق: ${data.pending || 0}`;
+    const stats = data.stats || {};
+    const pendingCount = stats.pending ?? data.pending ?? 0;
+    const bannedCount = stats.banned ?? 0;
+    if (meta) {
+      meta.textContent = `المراقب: ${data.enabled ? "مفعّل" : "مُعطّل"} · المزوّدون: ${providerText.length ? providerText.join(" + ") : "الاستدلال المحلي"} · معلّق: ${pendingCount} · محظور: ${bannedCount}`;
+    }
     if (!data.reports || !data.reports.length) {
-      list.innerHTML = "<h3>لا توجد تقارير</h3><p class='mute'>المراقبة خفية: كل عضو يدخل البوت يُفحص تلقائياً. العضو لا يشعر بالمراقبة.</p>";
+      list.innerHTML = "<h3>لا توجد تقارير حالياً</h3><p class='mute'>المراقبة خفية: كل عضو يدخل البوت أو المجموعة يُفحص تلقائياً (الصورة + الاسم + البايو). يمكنك أيضاً الضغط على «فحص آخر الأعضاء» لفحص الأعضاء المسجلين حالياً.</p>";
       return;
     }
     const STATUS = {
@@ -290,25 +310,32 @@ async function loadMonitor() {
       dismissed: "<span class='pill'>مخفي</span>",
     };
     list.innerHTML = data.reports
-      .map((r) => `
-      <div class='card' data-report="${esc(r.userId)}">
+      .map((r) => {
+        const ts = r.createdAt || r.at;
+        const srcLabel = MONITOR_SOURCE_LABELS[r.source] || r.source || "—";
+        return `
+      <div class='card monitor-card' data-report="${esc(r.userId)}">
         <div class='monitor-head'>
-          <strong>${esc(r.firstName || "—")}${r.lastName ? " " + esc(r.lastName) : ""}</strong>
-          ${r.username ? `<small>@${esc(r.username)}</small>` : ""}
+          ${r.photo ? `<img class='monitor-photo' src='${esc(r.photo)}' alt='صورة العضو' />` : `<div class='avatar'>${esc((r.firstName || "؟").slice(0, 1))}</div>`}
+          <div class='monitor-title'>
+            <strong>${esc(r.firstName || "—")}${r.lastName ? " " + esc(r.lastName) : ""}</strong>
+            ${r.username ? `<small dir='ltr'>@${esc(r.username)}</small>` : ""}
+          </div>
           ${STATUS[r.status] || ""}
         </div>
         <div class='monitor-body'>
-          <span class='mute'>🆔 ${esc(r.userId)} · ${esc(r.source || "")} · ${r.at ? esc(new Date(r.createdAt).toLocaleString("ar-DZ")) : ""}</span>
-          <span>🔍 ${esc(r.evidence || "لا نص")} · ثقة ${Math.round((r.confidence || 0) * 100)}% · ${esc(r.provider || "—")}</span>
+          <span class='mute'>🆔 <code>${esc(r.userId)}</code> · ${esc(srcLabel)}${ts ? " · " + esc(new Date(ts).toLocaleString("ar-DZ")) : ""}</span>
+          <span>🔍 ${esc(r.evidence || "دليل في الاسم/الصورة")} · ثقة ${Math.round((r.confidence || 0) * 100)}% · <small class='mute' dir='ltr'>${esc(r.provider || "—")}</small></span>
         </div>
-        ${r.bio ? `<small class='mute'>📝 ${esc(r.bio).slice(0, 120)}</small>` : ""}
-        ${r.photo ? `<img class='monitor-photo' src='${r.photo}' alt='صورة العضو' />` : ""}
+        ${r.bio ? `<small class='mute'>📝 ${esc(r.bio).slice(0, 160)}</small>` : ""}
         <div class='monitor-actions'>
-          ${r.status !== "banned" ? `<button class='sm bad' data-act='monitor-op' data-op='ban' data-uid='${esc(r.userId)}'>حضر</button>` : ""}
-          ${r.status === "banned" ? `<button class='sm' data-act='monitor-op' data-op='unban' data-uid='${esc(r.userId)}'>فك الحظر</button>` : ""}
+          ${r.status !== "banned" ? `<button class='sm bad' data-act='monitor-op' data-op='ban' data-uid='${esc(r.userId)}'>حظر وطرد</button>` : ""}
+          ${r.status === "banned" ? `<button class='sm ok' data-act='monitor-op' data-op='unban' data-uid='${esc(r.userId)}'>فك الحظر</button>` : ""}
           ${r.status === "pending" ? `<button class='sm' data-act='monitor-op' data-op='dismiss' data-uid='${esc(r.userId)}'>إخفاء</button>` : ""}
+          <button class='sm' data-act='monitor-op' data-op='scan_user' data-uid='${esc(r.userId)}'>إعادة فحص</button>
         </div>
-      </div>`)
+      </div>`;
+      })
       .join("");
   } catch (error) {
     list.innerHTML = `<h3>تعذّر تحميل التقارير</h3><p class='err'>${esc(error.message)}</p>`;
@@ -375,15 +402,53 @@ document.addEventListener("click", async (e) => {
       toast("تم حذف الصورة");
     } else if (a === "ai-check-refresh") {
       $("#ai-check").click();
+    } else if (a === "monitor-scan-recent") {
+      b.disabled = true;
+      toast("جارٍ فحص آخر الأعضاء بالذكاء الاصطناعي…");
+      try {
+        const out = await api("monitor_op", { op: "scan_recent", limit: 25 });
+        toast(`تم فحص ${out.scanned || 0} عضو · رُصد: ${out.flagged || 0}`);
+        await loadMonitor();
+      } catch (error) {
+        toast(error.message, 1);
+      } finally {
+        b.disabled = false;
+      }
+    } else if (a === "monitor-scan-user") {
+      const inp = $("#monitor-uid-input");
+      const uid = String(inp?.value || "").trim();
+      if (!/^\d{1,20}$/.test(uid)) {
+        toast("أدخل معرّف عضو رقمي صحيح (User ID)", 1);
+        return;
+      }
+      b.disabled = true;
+      toast(`جارٍ فحص العضو ${uid}…`);
+      try {
+        const out = await api("monitor_op", { op: "scan_user", userId: uid });
+        if (out && out.ok === false) {
+          toast(out.error || "تعذّر الفحص", 1);
+        } else if (out && out.flagged) {
+          toast(`⚠️ تم رصد حساب أنثى (${out.report?.evidence || "دليل مؤكد"})`);
+        } else {
+          const g = out?.classification?.gender || "unknown";
+          toast(`✅ نتيجة الفحص: ${g === "male" ? "ذكر" : "لا يوجد دليل أنه أنثى"}`);
+        }
+        await loadMonitor();
+      } catch (error) {
+        toast(error.message, 1);
+      } finally {
+        b.disabled = false;
+      }
     } else if (a === "monitor-op") {
       const op = b.dataset.op;
       const uid = b.dataset.uid;
-      const confirmMsg = op === "ban" ? `حضور ${uid} من البوت (حظر في البوت + طرد من المجموعة المربوطة)؟` : null;
+      const confirmMsg = op === "ban" ? `حظر ${uid} من البوت وطرده من المجموعة المربوطة؟` : null;
       if (confirmMsg && !confirm(confirmMsg)) return;
       b.disabled = true;
       try {
         const out = await api("monitor_op", { op, userId: uid });
-        toast(op === "ban" ? "تم الحضور" : op === "unban" ? "تم فك الحظر" : "تم إخفاء التقرير");
+        const msg = op === "ban" ? "تم الحظر والطرد" : op === "unban" ? "تم فك الحظر" : op === "scan_user" ? "تمت إعادة الفحص" : "تم إخفاء التقرير";
+        toast(msg);
         if (out && out.ok === false) toast(out.error || "فشل", 1);
         await loadMonitor();
       } catch (error) {

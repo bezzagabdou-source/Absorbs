@@ -81,10 +81,17 @@
         <section id="t-monitor" hidden>
           <div class="agent-toolbar" aria-label="أدوات المراقب">
             <button class="sm" type="button" id="monitor-refresh">تحديث التقارير</button>
+            <button class="sm ok" type="button" data-act="monitor-scan-recent">فحص آخر الأعضاء</button>
             <span class="pill" id="monitor-meta">…</span>
           </div>
+          <div class="card monitor-scan-bar">
+            <div class="row">
+              <input id="monitor-uid-input" type="text" inputmode="numeric" placeholder="معرّف العضو (User ID) لفحصه فوراً…" aria-label="معرّف العضو لفحصه" />
+              <button class="btn" type="button" data-act="monitor-scan-user">فحص العضو</button>
+            </div>
+          </div>
           <div id="monitor-list" class="card" aria-live="polite"></div>
-          <small class="privacy-note">مراقب خفي: يفحص تلقائياً كل عضو يدخل البوت (الصورة، الاسم، @username، البايو إن توفّر) بمزوّد ذكاء اصطناعي. إلا وُجد دليل أنه امرأة، يظهر التقرير هنا مع أزرار الحظر وفك الحظر. العضو لا يشعر بالمراقبة.</small>
+          <small class="privacy-note">مراقب خفي: يفحص تلقائياً كل عضو يدخل البوت أو المجموعة (الصورة، الاسم، @username، البايو إن توفّر) بمزوّد ذكاء اصطناعي. إذا وُجد دليل أنه امرأة، يظهر التقرير هنا مع أزرار الحظر وفك الحظر. العضو لا يشعر بالمراقبة.</small>
         </section>
         <section id="t-set" hidden></section>
       </main>

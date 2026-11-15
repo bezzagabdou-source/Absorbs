@@ -179,13 +179,13 @@ async function analyzeImage(image, prompt) {
   return { text: result.text.slice(0, 5000), provider: String(result.provider || '') };
 }
 // 👁️ مراقب الذكاء الاصطناعي الخفي: صفحة مخصصة في البوت بمسار ثابت وقائمة عمليات مغلقة.
-const MONITOR_OPS = new Set(['view', 'ban', 'unban', 'dismiss']);
+const MONITOR_OPS = new Set(['view', 'ban', 'unban', 'dismiss', 'scan_user', 'scan_recent']);
 async function monitorView(limit = 100) {
   return json(await call('/api/panel/monitor', { body: { action: 'view', limit: Math.min(200, Math.max(1, Number(limit) || 100)) }, timeout: 20000 }), '/api/panel/monitor');
 }
 async function monitorOp(op, input = {}) {
   if (!MONITOR_OPS.has(op) || !input || typeof input !== 'object' || Array.isArray(input)) throw new Error('عملية المراقب غير مسموحة');
-  const response = await call('/api/panel/monitor', { body: { ...input, action: op }, timeout: 20000 });
+  const response = await call('/api/panel/monitor', { body: { ...input, action: op }, timeout: 25000 });
   const data = await response.json().catch(() => ({}));
   if (response.status === 401 || response.status === 403) throw new Error('ربط البوت مرفوض؛ تحقّق من مفتاح اللوحة (PANEL_PUBLIC_KEY)');
   if (response.status === 404) throw new Error('البوت المنشور نسخة قديمة: لا يحتوي صفحة المراقب (/api/panel/monitor → 404)');

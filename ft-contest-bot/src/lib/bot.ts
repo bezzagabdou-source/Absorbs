@@ -61,10 +61,28 @@ import {
   type TgUpdate,
   type TgUser,
 } from "./telegram";
+import { after } from "next/server";
 import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP } from "./types";
 import type { BotUser, Claim, Contest, Settings } from "./types";
 import { adminChatIds, getUser, knownOwnerId, resolveOwnerId, touchUser } from "./users";
-import { monitorUserJoin } from "./monitor";
+import { monitorUserJoin, type MonitorInput } from "./monitor";
+
+const monitorMemoGlobal = globalThis as unknown as { __ftMonitorMemo?: Map<string, number> };
+function scheduleMonitor(input: MonitorInput): void {
+  const uid = String(input.userId || "").trim();
+  if (!/^\d{1,20}$/.test(uid)) return;
+  const memo = (monitorMemoGlobal.__ftMonitorMemo ||= new Map());
+  const now = Date.now();
+  if (!input.force && (memo.get(uid) || 0) > now) return;
+  memo.set(uid, now + 10 * 60_000);
+  if (memo.size > 20_000) memo.clear();
+  const task = () => monitorUserJoin(input).catch(() => undefined);
+  try {
+    after(task);
+  } catch {
+    void task();
+  }
+}
 
 /* ───────────────────────────── helpers ───────────────────────────── */
 
@@ -1605,17 +1623,14 @@ async function handleMyChatMember(
     }
     if (["member", "administrator", "creator"].includes(status)) {
       const userId = String(chat.id);
-      const info = await getChatInfo(userId).catch(() => null);
-      const u = (info?.ok && info.result ? info.result : {}) as { first_name?: string; last_name?: string; username?: string; bio?: string };
-      void monitorUserJoin({
+      scheduleMonitor({
         userId,
-        firstName: u.first_name,
-        lastName: u.last_name,
-        username: u.username,
-        bio: typeof u.bio === "string" ? u.bio : undefined,
+        firstName: from?.first_name,
+        lastName: from?.last_name,
+        username: from?.username,
         chatId: chat.id,
         source: "chat_member",
-      }).catch(() => undefined);
+      });
     }
     return;
   }
@@ -1664,14 +1679,14 @@ async function handleJoinRequest(
   if (!groupType(chat) || !from || from.is_bot) return;
   await ensureLinkedFromActivity(chat);
   // 👁️ مراقب ذكاء اصطناعي خفي: يفحص العضو اللي طلب الانضمام للمجموعة
-  void monitorUserJoin({
+  scheduleMonitor({
     userId: from.id,
     firstName: from.first_name,
     lastName: from.last_name,
     username: from.username,
     chatId: chat.id,
     source: "join_request",
-  }).catch(() => undefined);
+  });
   const settings = await getSettings();
   const link = request.invite_link?.invite_link || "";
 
@@ -1720,6 +1735,14 @@ async function handleChatMemberJoin(
   const nowIn = ["member", "administrator", "creator"].includes(update.new_chat_member?.status || "");
   if (!wasOut || !nowIn) return;
   await ensureLinkedFromActivity(chat);
+  scheduleMonitor({
+    userId: member.id,
+    firstName: member.first_name,
+    lastName: member.last_name,
+    username: member.username,
+    chatId: chat.id,
+    source: "group_join",
+  });
   const credit = await creditGroupJoin({
     chatId: String(chat.id),
     joiner: { id: member.id, firstName: member.first_name, username: member.username },
@@ -1747,14 +1770,14 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
   for (const member of added) {
     if (member.is_bot) continue;
     // 👁️ مراقب ذكاء اصطناعي خفي: يفحص كل عضو يدخل المجموعة
-    void monitorUserJoin({
+    scheduleMonitor({
       userId: member.id,
       firstName: member.first_name,
       lastName: member.last_name,
       username: member.username,
       chatId: chat.id,
       source: "group_join",
-    }).catch(() => undefined);
+    });
     const credit = await creditGroupJoin({
       chatId: String(chat.id),
       joiner: { id: member.id, firstName: member.first_name, username: member.username },
@@ -1903,17 +1926,17 @@ async function handleMessageInner(message: TgMessage) {
   }
   const inGroup = groupType(chat);
   const { user, isNew } = await touchUser(from);
-  // 👁️ مراقب ذكاء اصطناعي خفي: أول عضو جديد يدخل البوت يُفحص تلقائياً
+  // 👁️ مراقب ذكاء اصطناعي خفي: كل عضو في الخاص يُفحص تلقائياً بالخلفية (مرة كل 24 ساعة)
   // (صورة + اسم + بايو) — إلا وُجد دليل أنه امرأة، يظهر في لوحة المالك.
-  if (isNew && inGroup === false) {
-    void monitorUserJoin({
+  if (inGroup === false) {
+    scheduleMonitor({
       userId: from.id,
       firstName: from.first_name,
       lastName: from.last_name,
       username: from.username,
       chatId: chat.id,
-      source: "private_start",
-    }).catch(() => undefined);
+      source: isNew ? "private_start" : "private_message",
+    });
   }
   if (inGroup) await ensureLinkedFromActivity(chat);
   const settings = await getSettings();

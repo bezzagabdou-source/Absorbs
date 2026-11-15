@@ -484,6 +484,20 @@ input:focus, textarea:focus, select:focus { outline: 0; border-color: var(--acce
 #nav { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(14px); border-top: 1px solid var(--line); box-shadow: 0 -6px 24px rgba(15, 32, 54, 0.08); }
 #nav button.on { color: var(--pitch); }
 .pill { display: inline-block; background: #e8f1ff; color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
+.pill.warn { background: #fff4db; color: #9a5b00; }
+.pill.bad { background: #fde8e7; color: var(--red); }
+.pill.ok { background: #e4f7ed; color: var(--pitch); }
+.sm.bad { background: var(--red); color: #fff; border-color: var(--red); }
+.ok-note { color: var(--pitch); font-weight: 600; }
+.monitor-scan-bar { margin-bottom: 10px; padding: 10px 12px; }
+.monitor-scan-bar .row { margin-top: 0; align-items: center; }
+.monitor-scan-bar .btn { white-space: nowrap; }
+.monitor-card { border: 1px solid var(--line); }
+.monitor-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.monitor-title { flex: 1; min-width: 120px; display: grid; gap: 2px; }
+.monitor-body { display: grid; gap: 4px; font-size: 14px; }
+.monitor-photo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex: 0 0 52px; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(15, 32, 54, 0.16); }
+.monitor-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 10px 0 14px; }
 .cc-tile { background: linear-gradient(135deg, #fff, #f1f6ff); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; display: grid; gap: 2px; }
 .cc-tile b { font-size: 22px; font-family: "Reem Kufi", sans-serif; }
