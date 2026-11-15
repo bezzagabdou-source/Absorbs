@@ -97,14 +97,28 @@ class FeedViewModel(private val app: AppViewModel) : ViewModel() {
     var loadingMore by mutableStateOf(false)
     var endReached by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
+    var followingOnly by mutableStateOf(false)
+    /** postId -> emoji -> count (v6 post_reactions) */
+    val reactionCounts = androidx.compose.runtime.mutableStateMapOf<String, Map<String, Int>>()
+    /** postId -> my emoji */
+    val myReactions = androidx.compose.runtime.mutableStateMapOf<String, String>()
+    var reactionsSupported by mutableStateOf(true)
+        private set
     private var offset = 0
     private val pageSize = 20
+
+    fun setFollowingOnly(value: Boolean, ctx: Context) {
+        if (followingOnly == value) return
+        followingOnly = value
+        load(ctx, refresh = true)
+    }
 
     fun load(ctx: Context, refresh: Boolean = false) {
         if (refresh) { offset = 0; endReached = false }
         if (offset == 0) loading = true
         Repo.stories { list, _ -> onMain { stories.clear(); if (list != null) stories.addAll(list) } }
-        Repo.feed(pageSize, offset) { list, err ->
+        val source = if (followingOnly) Repo::feedFollowing else Repo::feed
+        source(pageSize, offset) { list, err ->
             onMain {
                 loading = false; loadingMore = false
                 if (list != null) {
@@ -116,6 +130,7 @@ class FeedViewModel(private val app: AppViewModel) : ViewModel() {
                     posts.addAll(visible)
                     if (list.size < pageSize) endReached = true
                     error = null
+                    refreshReactions()
                 } else {
                     if (offset == 0) loadCache(ctx)
                     error = err
@@ -133,6 +148,45 @@ class FeedViewModel(private val app: AppViewModel) : ViewModel() {
 
     fun toggleLike(post: Post) {
         Repo.toggleLike(post) { ok -> if (ok) onMain { /* state mutated in place */ refreshPost(post) } }
+    }
+
+    fun refreshReactions() {
+        val ids = posts.map { it.id }
+        if (ids.isEmpty()) return
+        Repo.reactionsFor(ids) { counts, mine, supported ->
+            onMain {
+                reactionsSupported = supported
+                if (supported) {
+                    reactionCounts.clear(); reactionCounts.putAll(counts)
+                    myReactions.clear(); myReactions.putAll(mine)
+                }
+            }
+        }
+    }
+
+    /** Facebook-style: one emoji per user per post; tapping mine again removes it. */
+    fun toggleReaction(postId: String, emoji: String) {
+        val previous = myReactions[postId]
+        val removing = previous == emoji
+        // optimistic
+        val byPost = reactionCounts[postId]?.toMutableMap() ?: mutableMapOf()
+        if (previous != null) byPost[previous] = maxOf(0, (byPost[previous] ?: 1) - 1)
+        if (!removing) byPost[emoji] = (byPost[emoji] ?: 0) + 1
+        reactionCounts[postId] = byPost.filterValues { it > 0 }
+        if (removing) myReactions.remove(postId) else myReactions[postId] = emoji
+        Repo.setPostReaction(postId, if (removing) null else emoji) { ok, missing ->
+            onMain {
+                if (missing) reactionsSupported = false
+                if (!ok && !missing) {
+                    // roll back
+                    val rb = reactionCounts[postId]?.toMutableMap() ?: mutableMapOf()
+                    if (previous != null) rb[previous] = (rb[previous] ?: 0) + 1
+                    if (!removing) rb[emoji] = maxOf(0, (rb[emoji] ?: 1) - 1)
+                    reactionCounts[postId] = rb.filterValues { it > 0 }
+                    if (previous != null) myReactions[postId] = previous else myReactions.remove(postId)
+                }
+            }
+        }
     }
 
     private fun refreshPost(post: Post) {
@@ -300,13 +354,45 @@ class ChatViewModel(val threadId: String) : ViewModel() {
 class NotificationsViewModel : ViewModel() {
     val items = mutableStateListOf<NotifItem>()
     var loading by mutableStateOf(true)
+    var usingRealTable by mutableStateOf(false)
+        private set
+    var unread by mutableStateOf(0)
+        private set
 
     fun load() {
         loading = true
-        Repo.notifications { list ->
-            onMain {
-                items.clear(); items.addAll(list); loading = false
+        Repo.notificationsV6 { list, err ->
+            if (list != null) {
+                // Real table: mark everything read, clear the badge locally too.
+                onMain {
+                    usingRealTable = true
+                    items.clear(); items.addAll(list); loading = false
+                    unread = 0
+                }
+                Repo.markAllNotificationsRead { }
+            } else if (Repo.isMissingSchema(err)) {
+                // upgrade-v6 not installed yet → legacy aggregated feed
+                Repo.notifications { legacy ->
+                    onMain {
+                        usingRealTable = false
+                        items.clear(); items.addAll(legacy); loading = false
+                    }
+                }
+                Repo.unreadNotifications { n -> onMain { if (n >= 0) unread = n } }
+            } else {
+                onMain { loading = false }
+                Repo.unreadNotifications { n -> onMain { if (n >= 0) unread = n } }
             }
         }
+    }
+
+    /** Header action: mark everything read (server + local badge). */
+    fun markAllShown() {
+        Repo.markAllNotificationsRead { }
+        unread = 0
+    }
+
+    fun refreshUnreadOnly() {
+        Repo.unreadNotifications { n -> onMain { if (n >= 0) unread = n } }
     }
 }

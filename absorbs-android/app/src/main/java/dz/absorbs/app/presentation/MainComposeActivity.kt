@@ -235,25 +235,106 @@ private fun SplashView(lang: Lang) {
     val s = stringsFor(lang)
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
+    // Aurora orb drift behind the logo
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "aurora")
+    val orbPhase by transition.animateFloat(
+        initialValue = 0f, targetValue = 2f * Math.PI.toFloat(),
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(2600, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "orbPhase",
+    )
+    val ringAngle by transition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "ringAngle",
+    )
+    val sparklePulse by transition.animateFloat(
+        initialValue = 0.75f, targetValue = 1.25f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(950, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "sparklePulse",
+    )
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // drifting aurora orbs
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            val r = size.width * 0.42f
+            val ox = kotlin.math.cos(orbPhase) * 90f
+            val oy = kotlin.math.sin(orbPhase) * 60f
+            drawCircle(color = androidx.compose.ui.graphics.Color(0x404F46E5), radius = r, center = androidx.compose.ui.geometry.Offset(cx + ox - 180f, cy + oy - 340f))
+            drawCircle(color = androidx.compose.ui.graphics.Color(0x33C026D3), radius = r * 0.8f, center = androidx.compose.ui.geometry.Offset(cx - ox + 200f, cy - oy + 380f))
+            drawCircle(color = androidx.compose.ui.graphics.Color(0x2E0284C7), radius = r * 0.65f, center = androidx.compose.ui.geometry.Offset(cx + ox * 0.7f + 160f, cy + oy * 0.7f - 420f))
+        }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            AnimatedVisibility(shown, enter = scaleIn(tween(600)) + fadeIn(tween(500))) {
+            AnimatedVisibility(shown, enter = scaleIn(androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 220f), 0.6f) + fadeIn(tween(500))) {
                 Box(
-                    Modifier.size(96.dp).background(Dz.primaryBrush(), RoundedCornerShape(28.dp)),
+                    Modifier.size(128.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text("D", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 44.sp) }
+                ) {
+                    // rotating aurora arc
+                    androidx.compose.foundation.Canvas(Modifier.size(128.dp)) {
+                        val sweep = androidx.compose.ui.graphics.drawscope.Stroke(width = 10.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        drawArc(
+                            brush = Dz.ringBrush(),
+                            startAngle = ringAngle,
+                            sweepAngle = 260f,
+                            useCenter = false,
+                            style = sweep,
+                        )
+                    }
+                    // logo tile
+                    Box(
+                        Modifier.size(100.dp).background(Dz.primaryBrush(), RoundedCornerShape(30.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("D", color = Color.White, fontFamily = dz.absorbs.app.presentation.theme.TajawalBlack, fontSize = 54.sp)
+                        // sparkle star, pulsing
+                        androidx.compose.foundation.Canvas(Modifier.size(100.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            val sx = w * 0.78f; val sy = h * 0.24f
+                            val sr = 7.5.dp.toPx() * sparklePulse
+                            val path = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(sx, sy - sr)
+                                lineTo(sx + sr * 0.28f, sy - sr * 0.28f)
+                                lineTo(sx + sr, sy)
+                                lineTo(sx + sr * 0.28f, sy + sr * 0.28f)
+                                lineTo(sx, sy + sr)
+                                lineTo(sx - sr * 0.28f, sy + sr * 0.28f)
+                                lineTo(sx - sr, sy)
+                                lineTo(sx - sr * 0.28f, sy - sr * 0.28f)
+                                close()
+                            }
+                            drawPath(path, color = Color(0xFF7FF5E3))
+                        }
+                    }
+                }
             }
-            Spacer(Modifier.height(16.dp))
-            Text("Dz connect", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurface)
-            Text(s.appTagline, color = Dz.Emerald, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(26.dp))
+            Spacer(Modifier.height(22.dp))
+            Text(
+                "Dz connect",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                s.appTagline,
+                fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
+                color = Color(0xFF7C3AED),
+            )
+            Spacer(Modifier.height(30.dp))
             val composition = com.airbnb.lottie.compose.rememberLottieComposition(
                 com.airbnb.lottie.compose.LottieCompositionSpec.Asset("AndroidWave.json"),
             ).value
             com.airbnb.lottie.compose.LottieAnimation(
                 composition = composition,
                 iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
-                modifier = Modifier.size(110.dp),
+                modifier = Modifier.size(104.dp),
             )
         }
     }
@@ -309,6 +390,7 @@ private fun MainShell(
                         app = app, dark = dark, onToggleDark = onToggleDark,
                         lang = lang, onSetLang = onSetLang,
                         onOpenSaved = { onNav(nav.copy(saved = true, settings = false)) },
+                        onEditProfile = { onNav(nav.copy(editProfile = true, settings = false)) },
                         onBack = { onNav(nav.copy(settings = false)) },
                         onLoggedOut = { app.refreshSessionFlags() },
                     )
@@ -409,7 +491,7 @@ private fun MainShell(
             Box(
                 Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 96.dp)
                     .size(54.dp).clip(CircleShape)
-                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Dz.Sky, Dz.Emerald)))
+                    .background(Dz.aiBrush())
                     .clickable { haptic(); aiOpen = true },
                 contentAlignment = Alignment.Center,
             ) { DzIcon(R.drawable.ic_lucide_sparkles, tint = Color.White, size = 25.dp) }
@@ -452,11 +534,11 @@ private fun NavItem(
             .padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        DzIcon(icon, tint = if (selected) Dz.Emerald else MaterialTheme.colorScheme.onSurfaceVariant, size = 23.dp)
+        DzIcon(icon, tint = if (selected) Dz.Indigo else MaterialTheme.colorScheme.onSurfaceVariant, size = 23.dp)
         Text(
             label, fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) Dz.Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (selected) Dz.Indigo else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

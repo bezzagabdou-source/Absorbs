@@ -238,7 +238,7 @@ fun CreateScreen(storyModeInitial: Boolean, onDone: () -> Unit, onCancel: () -> 
                 )
             } else if (uri != null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    DzIcon(R.drawable.ic_lucide_clapperboard, tint = Dz.Teal, size = 44.dp)
+                    DzIcon(R.drawable.ic_lucide_clapperboard, tint = Dz.Indigo, size = 44.dp)
                     Spacer(Modifier.height(8.dp))
                     Text("Video ✓", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 }

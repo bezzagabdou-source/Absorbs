@@ -775,4 +775,147 @@ object Api {
             } catch (_: Exception) { cb(null, "المساعد غير متاح الآن ($code)") }
         }
     }
+    // ── v6: following feed ─────────────────────────────────────────────────
+    fun fetchFollowingFeed(limit: Int = 40, offset: Int = 0, cb: (List<Post>?, String?) -> Unit) {
+        rest("GET", "follows?select=following_id&follower_id=eq.${Session.userId}&limit=500") { arr, err ->
+            if (arr == null) return@rest cb(null, err)
+            val ids = (0 until arr.length()).map { arr.getJSONObject(it).optString("following_id") } + Session.userId
+            rest("GET", "posts?select=*&author_id=in.(${ids.joinToString(",")})&order=created_at.desc&limit=$limit&offset=$offset") { parr, perr ->
+                if (parr == null) return@rest cb(null, perr)
+                val posts = (0 until parr.length()).map { Post.from(parr.getJSONObject(it)) }
+                if (posts.isEmpty()) return@rest cb(emptyList(), null)
+                hydrate(posts, cb)
+            }
+        }
+    }
+
+    /** Shared author/like/comment hydration for post lists. */
+    private fun hydrate(posts: List<Post>, cb: (List<Post>?, String?) -> Unit) {
+        val ids = posts.joinToString(",") { it.authorId }
+        val postIds = posts.joinToString(",") { it.id }
+        rest("GET", "profiles?select=*&id=in.($ids)") { parr, _ ->
+            val byId = mutableMapOf<String, Profile>()
+            if (parr != null) for (i in 0 until parr.length()) {
+                val p = Profile.from(parr.getJSONObject(i)); byId[p.id] = p
+            }
+            posts.forEach { it.author = byId[it.authorId] }
+            rest("GET", "comments?select=post_id&post_id=in.($postIds)") { carr, _ ->
+                if (carr != null) {
+                    val counts = mutableMapOf<String, Int>()
+                    for (i in 0 until carr.length()) {
+                        val pid = carr.getJSONObject(i).optString("post_id")
+                        counts[pid] = (counts[pid] ?: 0) + 1
+                    }
+                    posts.forEach { it.commentCount = counts[it.id] ?: 0 }
+                }
+                rest("GET", "likes?select=post_id,user_id&post_id=in.($postIds)") { larr, _ ->
+                    if (larr != null) {
+                        val counts = mutableMapOf<String, Int>()
+                        val mine = mutableSetOf<String>()
+                        for (i in 0 until larr.length()) {
+                            val o = larr.getJSONObject(i)
+                            val pid = o.optString("post_id")
+                            counts[pid] = (counts[pid] ?: 0) + 1
+                            if (o.optString("user_id") == Session.userId) mine.add(pid)
+                        }
+                        posts.forEach { it.likeCount = counts[it.id] ?: 0; it.likedByMe = mine.contains(it.id) }
+                    }
+                    cb(posts, null)
+                }
+            }
+        }
+    }
+
+    // ── v6: real notifications (table + read_at) ───────────────────────────
+    /** True when the notifications table is not installed yet (run upgrade-v6.sql). */
+    fun isMissingSchema(err: String?): Boolean {
+        if (err == null) return false
+        val e = err.lowercase()
+        return e.contains("could not find the table", true) ||
+            e.contains("does not exist", true) || e.contains("42p01") || e.contains("pgrst205") || e.contains("pgrst204")
+    }
+
+    fun fetchNotificationsV6(cb: (List<NotifItem>?, String?) -> Unit) {
+        rest(
+            "GET",
+            "notifications?select=*,actor:profiles!notifications_actor_id_fkey(*)&recipient_id=eq.${Session.userId}&order=created_at.desc&limit=60",
+        ) { arr, err ->
+            if (arr == null) return@rest cb(null, err)
+            val items = (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                val actor = o.optJSONObject("actor")?.let { Profile.from(it) }
+                val type = o.optString("type", "verify")
+                NotifItem(
+                    kind = type,
+                    actor = actor,
+                    postId = o.optString("post_id").ifBlank { null },
+                    text = o.optString("body", ""),
+                    createdAt = o.optString("created_at"),
+                )
+            }
+            cb(items, null)
+        }
+    }
+
+    fun countUnreadNotifications(cb: (Int) -> Unit) {
+        rest("GET", "notifications?select=id&recipient_id=eq.${Session.userId}&read_at=is.null&limit=99") { arr, _ ->
+            cb(arr?.length() ?: -1) // -1 = table missing / error → hide badge
+        }
+    }
+
+    fun markAllNotificationsRead(cb: (Boolean) -> Unit) {
+        val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(java.util.Date())
+        restRaw("PATCH", "notifications?recipient_id=eq.${Session.userId}&read_at=is.null", JSONObject().put("read_at", now)) { _, code ->
+            cb(code in 200..299)
+        }
+    }
+
+    // ── v6: emoji reactions (one per user per post, live counts) ───────────
+    /** post_id -> (emoji -> count), plus the list of (post_id -> myEmoji). */
+    fun fetchReactionsFor(postIds: List<String>, cb: (Map<String, Map<String, Int>>, Map<String, String>, Boolean) -> Unit) {
+        if (postIds.isEmpty()) return cb(emptyMap(), emptyMap(), true)
+        rest("GET", "post_reactions?select=post_id,emoji,user_id&post_id=in.(${postIds.joinToString(",")})&limit=2000") { arr, err ->
+            if (arr == null) return@rest cb(emptyMap(), emptyMap(), false) // assume table missing / transient error
+            val counts = mutableMapOf<String, MutableMap<String, Int>>()
+            val mine = mutableMapOf<String, String>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val pid = o.optString("post_id"); val emoji = o.optString("emoji")
+                val byPost = counts.getOrPut(pid) { mutableMapOf() }
+                byPost[emoji] = (byPost[emoji] ?: 0) + 1
+                if (o.optString("user_id") == Session.userId) mine[pid] = emoji
+            }
+            cb(counts, mine, true)
+        }
+    }
+
+    fun setPostReaction(postId: String, emoji: String?, cb: (Boolean, Boolean) -> Unit) {
+        // returns (success, tableMissing)
+        if (emoji == null) {
+            restRaw("DELETE", "post_reactions?post_id=eq.$postId&user_id=eq.${Session.userId}", null) { _, code ->
+                cb(code in 200..299 || code == 404, false)
+            }
+            return
+        }
+        rest("GET", "post_reactions?select=post_id&post_id=eq.$postId&user_id=eq.${Session.userId}&limit=1") { arr, _ ->
+            val exists = arr != null && arr.length() > 0
+            if (exists) {
+                restRaw("PATCH", "post_reactions?post_id=eq.$postId&user_id=eq.${Session.userId}", JSONObject().put("emoji", emoji)) { _, code ->
+                    cb(code in 200..299, false)
+                }
+            } else {
+                val b = JSONObject().put("post_id", postId).put("user_id", Session.userId).put("emoji", emoji)
+                restRaw("POST", "post_reactions", b) { body, code ->
+                    if (code in 200..299) cb(true, false)
+                    else if (code == 409) {
+                        restRaw("PATCH", "post_reactions?post_id=eq.$postId&user_id=eq.${Session.userId}", JSONObject().put("emoji", emoji)) { _, pcode -> cb(pcode in 200..299, false) }
+                    } else cb(false, isMissingSchema(errMsg(body, "")))
+                }
+            }
+        }
+    }
+
+}
 }

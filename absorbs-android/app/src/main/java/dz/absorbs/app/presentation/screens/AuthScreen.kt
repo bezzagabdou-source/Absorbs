@@ -40,14 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.rememberLottieComposition
 import dz.absorbs.app.data.Config
 import dz.absorbs.app.presentation.components.GlassCard
 import dz.absorbs.app.presentation.components.GradientButton
@@ -73,18 +69,58 @@ fun AuthScreen(app: AppViewModel) {
     val dy2 by drift.animateFloat(12f, -16f, infiniteRepeatable(tween(4600), RepeatMode.Reverse), label = "dy2")
 
     Box(Modifier.fillMaxSize().background(Dz.appBrush(MaterialTheme.colorScheme.background == Dz.DarkBg))) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            val dotColor = androidx.compose.ui.graphics.Color(0x144F46E5)
+            var y = 24f
+            while (y < size.height) {
+                var x = 18f
+                while (x < size.width) {
+                    drawCircle(dotColor, radius = 1.6f, center = androidx.compose.ui.geometry.Offset(x, y))
+                    x += 30f
+                }
+                y += 30f
+            }
+        }
         Box(Modifier.size(230.dp).offset(x = 240.dp, y = (-60 + dy).dp).background(Dz.Sky.copy(alpha = 0.20f), CircleShape))
-        Box(Modifier.size(190.dp).offset(x = (-80).dp, y = (150 + dy2).dp).background(Dz.Emerald.copy(alpha = 0.18f), CircleShape))
-        Box(Modifier.size(120.dp).align(Alignment.BottomEnd).offset(x = 40.dp, y = (30 - dy).dp).background(Dz.Gold.copy(alpha = 0.18f), CircleShape))
+        Box(Modifier.size(190.dp).offset(x = (-80).dp, y = (150 + dy2).dp).background(Dz.Fuchsia.copy(alpha = 0.20f), CircleShape))
+        Box(Modifier.size(120.dp).align(Alignment.BottomEnd).offset(x = 40.dp, y = (30 - dy).dp).background(Dz.Indigo.copy(alpha = 0.16f), CircleShape))
+        Box(Modifier.size(150.dp).align(Alignment.TopStart).offset(x = 30.dp, y = (60 - dy).dp).background(Dz.Violet.copy(alpha = 0.14f), CircleShape))
 
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(26.dp))
-            val composition by rememberLottieComposition(LottieCompositionSpec.Asset("AndroidWave.json"))
-            LottieAnimation(composition, iterations = LottieConstants.IterateForever, modifier = Modifier.size(118.dp))
-            Text("Dz connect", style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onSurface)
+            val ringTransition = rememberInfiniteTransition(label = "authRing")
+            val ringAngle by ringTransition.animateFloat(
+                0f, 360f,
+                infiniteRepeatable(tween(2600), RepeatMode.Restart),
+                label = "authRingAngle",
+            )
+            Box(Modifier.size(116.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.size(116.dp)) {
+                    drawArc(
+                        brush = Dz.ringBrush(),
+                        startAngle = ringAngle, sweepAngle = 255f, useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 7.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                    )
+                }
+                Box(
+                    Modifier.size(88.dp).background(Dz.primaryBrush(), RoundedCornerShape(26.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("D", color = Color.White, fontFamily = dz.absorbs.app.presentation.theme.TajawalBlack, fontSize = 48.sp)
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Dz connect",
+                style = MaterialTheme.typography.headlineLarge.copy(
+                    fontFamily = dz.absorbs.app.presentation.theme.PoppinsFamily,
+                    fontWeight = FontWeight.Bold,
+                    brush = androidx.compose.ui.graphics.Brush.linearGradient(listOf(Dz.Indigo, Dz.Violet, Dz.Fuchsia)),
+                ),
+            )
             Text(s.appTagline, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
             Spacer(Modifier.height(22.dp))
 
@@ -121,7 +157,7 @@ fun AuthScreen(app: AppViewModel) {
                             Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
                         }
                         vm.info?.let {
-                            Text(it, color = Dz.Teal, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
+                            Text(it, color = Dz.Violet, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
                         }
                         Spacer(Modifier.height(16.dp))
                         GradientButton(
@@ -148,7 +184,11 @@ fun AuthScreen(app: AppViewModel) {
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("G  ·  ${s.continueGoogle}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                GoogleGlyph(22.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(s.continueGoogle, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                            }
                         }
                         AnimatedVisibility(vm.needsActivation) {
                             Column(
@@ -195,3 +235,21 @@ private fun AuthTab(text: String, active: Boolean, modifier: Modifier = Modifier
 }
 
 private val Brushless = androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+
+
+/** Official 4-color Google "G" glyph drawn with Canvas. */
+@Composable
+private fun GoogleGlyph(size: androidx.compose.ui.unit.Dp) {
+    androidx.compose.foundation.Canvas(Modifier.size(size)) {
+        val s = size.toPx()
+        val stroke = s * 0.30f
+        val inset = stroke / 2f
+        val arc = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Butt)
+        // red (top-right), yellow (bottom-right), green (bottom-left), blue (left) arcs + blue bar
+        drawArc(androidx.compose.ui.graphics.Color(0xFF4285F4), 150f, 90f, false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = androidx.compose.ui.geometry.Size(s - stroke, s - stroke), style = arc)
+        drawArc(androidx.compose.ui.graphics.Color(0xFF34A853), 30f, 120f, false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = androidx.compose.ui.geometry.Size(s - stroke, s - stroke), style = arc)
+        drawArc(androidx.compose.ui.graphics.Color(0xFFFBBC05), 270f, 90f, false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = androidx.compose.ui.geometry.Size(s - stroke, s - stroke), style = arc)
+        drawArc(androidx.compose.ui.graphics.Color(0xFFEA4335), 180f, 105f, false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = androidx.compose.ui.geometry.Size(s - stroke, s - stroke), style = arc)
+        drawRect(androidx.compose.ui.graphics.Color(0xFF4285F4), topLeft = androidx.compose.ui.geometry.Offset(s * 0.48f, s * 0.36f), size = androidx.compose.ui.geometry.Size(s * 0.42f, stroke))
+    }
+}

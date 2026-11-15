@@ -67,6 +67,7 @@ import dz.absorbs.app.presentation.components.DzIcon
 import dz.absorbs.app.presentation.components.EmptyState
 import dz.absorbs.app.presentation.components.GlassCard
 import dz.absorbs.app.presentation.components.LikeButton
+import dz.absorbs.app.presentation.components.ReactionsBar
 import dz.absorbs.app.presentation.components.ShimmerBox
 import dz.absorbs.app.presentation.components.StoryRing
 import dz.absorbs.app.presentation.components.VerifiedBadge
@@ -122,8 +123,33 @@ fun FeedScreen(
                 )
                 Text(s.appTagline, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = onOpenNotifications) { DzIcon(R.drawable.ic_lucide_bell, tint = MaterialTheme.colorScheme.onSurface) }
+            var unread by remember { mutableStateOf(0) }
+            LaunchedEffect(Unit) { Repo.unreadNotifications { n -> onMain { if (n >= 0) unread = n } } }
+            Box {
+                IconButton(onClick = { unread = 0; onOpenNotifications() }) { DzIcon(R.drawable.ic_lucide_bell, tint = MaterialTheme.colorScheme.onSurface) }
+                if (unread > 0) {
+                    Box(
+                        Modifier.align(Alignment.TopEnd).padding(6.dp).size(17.dp)
+                            .background(Dz.Rose, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(if (unread > 9) "9+" else "$unread", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                }
+            }
             IconButton(onClick = onOpenMessages) { DzIcon(R.drawable.ic_lucide_message_circle, tint = MaterialTheme.colorScheme.onSurface) }
+        }
+
+        // For you / Following — Instagram-style home tabs
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), RoundedCornerShape(999.dp))
+                .padding(4.dp),
+        ) {
+            FeedTab(s.feedForYou, !vm.followingOnly, Modifier.weight(1f)) {
+                vm.setFollowingOnly(false, ctx)
+            }
+            FeedTab(s.feedFollowing, vm.followingOnly, Modifier.weight(1f)) {
+                vm.setFollowingOnly(true, ctx)
+            }
         }
 
         PullToRefreshBox(
@@ -147,7 +173,7 @@ fun FeedScreen(
                                 Box(contentAlignment = Alignment.BottomEnd) {
                                     DzAvatar(app.me?.avatarUrl, app.me?.displayName ?: "D", 62.dp)
                                     Box(
-                                        Modifier.size(22.dp).background(Dz.Emerald, CircleShape),
+                                        Modifier.size(22.dp).background(Dz.Indigo, CircleShape),
                                         contentAlignment = Alignment.Center,
                                     ) { DzIcon(R.drawable.ic_lucide_plus, tint = Color.White, size = 14.dp) }
                                 }
@@ -173,6 +199,10 @@ fun FeedScreen(
                     itemsIndexed(vm.posts, key = { _, p -> p.id }) { _, post ->
                         PostCard(
                             post = post, app = app,
+                            reactions = vm.reactionCounts[post.id] ?: emptyMap(),
+                            myReaction = vm.myReactions[post.id],
+                            reactionsSupported = vm.reactionsSupported,
+                            onToggleReaction = { emoji -> vm.toggleReaction(post.id, emoji) },
                             onLike = { vm.toggleLike(post) },
                             onOpenProfile = onOpenProfile,
                             onOpenComments = { onOpenComments(post) },
@@ -202,6 +232,10 @@ fun FeedScreen(
 fun PostCard(
     post: Post,
     app: AppViewModel,
+    reactions: Map<String, Int> = emptyMap(),
+    myReaction: String? = null,
+    reactionsSupported: Boolean = false,
+    onToggleReaction: ((String) -> Unit)? = null,
     onLike: () -> Unit,
     onOpenProfile: (String) -> Unit,
     onOpenComments: () -> Unit,
@@ -344,7 +378,7 @@ fun PostCard(
                 IconButton(onClick = { app.toggleSave(post) }) {
                     DzIcon(
                         R.drawable.ic_lucide_bookmark,
-                        tint = if (saved) Dz.Gold else MaterialTheme.colorScheme.onSurfaceVariant, size = 21.dp,
+                        tint = if (saved) Dz.Amber else MaterialTheme.colorScheme.onSurfaceVariant, size = 21.dp,
                     )
                 }
                 IconButton(onClick = {
@@ -355,6 +389,12 @@ fun PostCard(
                     ctx.startActivity(Intent.createChooser(share, s.share))
                 }) {
                     DzIcon(R.drawable.ic_lucide_share_2, tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 21.dp)
+                }
+            }
+
+            if (reactionsSupported && onToggleReaction != null) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 10.dp)) {
+                    ReactionsBar(counts = reactions, mine = myReaction, onToggle = onToggleReaction)
                 }
             }
         }
@@ -439,7 +479,7 @@ fun StoryViewer(
                     Spacer(Modifier.width(9.dp))
                     Column(Modifier.weight(1f)) {
                         Text(story.author?.displayName ?: "", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text(TimeAr.ago(story.createdAt), color = Color(0xFFBFE8D8), fontSize = 12.sp)
+                        Text(TimeAr.ago(story.createdAt), color = Color(0xFFE4E1FF), fontSize = 12.sp)
                     }
                     IconButton(onClick = onClose) { DzIcon(R.drawable.ic_lucide_x, tint = Color.White) }
                 }
@@ -580,5 +620,27 @@ private fun CommentRow(
                 modifier = Modifier.padding(top = 4.dp).clickable { onReply() },
             )
         }
+    }
+}
+
+
+@Composable
+private fun FeedTab(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(999.dp))
+            .then(
+                if (selected) Modifier.background(Dz.primaryBrush())
+                else Modifier,
+            )
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

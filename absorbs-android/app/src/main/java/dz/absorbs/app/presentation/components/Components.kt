@@ -107,9 +107,9 @@ fun GlassCard(
     Box(
         modifier = modifier
             .background(
-                if (dark) Color(0xE61B3A32) else Color(0xE6FFFFFF), shape,
+                if (dark) Color(0xE6141A33) else Color(0xF2FFFFFF), shape,
             )
-            .border(1.dp, if (dark) Color(0x33FFFFFF) else Color(0x26059669), shape)
+            .border(1.dp, if (dark) Color(0x33FFFFFF) else Color(0x2E4F46E5), shape)
             .padding(contentPadding),
     ) { content() }
 }
@@ -171,7 +171,7 @@ fun ShimmerBox(modifier: Modifier = Modifier, height: Dp = 150.dp) {
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(Color(0xFFBFE3D2).copy(alpha = alpha), RoundedCornerShape(24.dp)),
+            .background(Color(0xFFCFCBF0).copy(alpha = alpha), RoundedCornerShape(24.dp)),
     )
 }
 
@@ -194,7 +194,7 @@ fun EmptyState(iconRes: Int, text: String, modifier: Modifier = Modifier) {
 @Composable
 fun OfflineBar(text: String) {
     Box(
-        modifier = Modifier.fillMaxWidth().background(Dz.Gold).padding(horizontal = 14.dp, vertical = 7.dp),
+        modifier = Modifier.fillMaxWidth().background(Dz.Amber).padding(horizontal = 14.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
@@ -224,9 +224,87 @@ fun LikeButton(liked: Boolean, count: Int, onToggle: () -> Unit) {
             painter = painterResource(R.drawable.ic_lucide_heart),
             contentDescription = null,
             modifier = Modifier.size(19.dp).scale(scale.value),
-            tint = if (liked) Dz.Emerald else MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (liked) Dz.Rose else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.width(6.dp))
         Text("$count", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
+
+
+/** Facebook-style emoji reactions: one per user per post (v6 post_reactions). */
+@Composable
+fun ReactionsBar(
+    counts: Map<String, Int>,
+    mine: String?,
+    onToggle: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var pickerOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val total = counts.values.sum()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    Row(
+        modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // picker toggle — popup floats above the feed, no layout shift
+        Box {
+            Box(
+                Modifier.size(34.dp).clip(CircleShape)
+                    .background(if (mine != null) Dz.Violet.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                    .clickable { pickerOpen = !pickerOpen },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (mine != null) Text(mine, fontSize = 17.sp)
+                else DzIcon(R.drawable.ic_lucide_sparkles, tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 17.dp)
+            }
+            if (pickerOpen) {
+                androidx.compose.ui.window.Popup(
+                    offset = with(density) { androidx.compose.ui.unit.IntOffset(0, 42.dp.roundToPx()) },
+                    onDismissRequest = { pickerOpen = false },
+                    properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                ) {
+                    Row(
+                        Modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(999.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(999.dp))
+                            .padding(6.dp),
+                    ) {
+                        REACTION_EMOJIS.forEach { emoji ->
+                            Text(
+                                emoji,
+                                fontSize = 23.sp,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { pickerOpen = false; onToggle(emoji) }
+                                    .padding(6.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (total > 0) {
+            Spacer(Modifier.width(8.dp))
+            counts.entries.sortedByDescending { it.value }.forEach { (emoji, n) ->
+                val mineThis = mine == emoji
+                Box(
+                    Modifier.padding(end = 4.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            if (mineThis) Dz.Violet.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        )
+                        .clickable { onToggle(emoji) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        "$emoji $n",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = if (mineThis) Dz.Violet else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val REACTION_EMOJIS = listOf("❤️", "🔥", "😂", "😮", "😢", "👏")

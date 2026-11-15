@@ -1,15 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Aurora DZ palette: pearl white · emerald · teal · sky · gold (no pink, no violet) -->
-    <color name="ink">#0B1F1A</color>
-    <color name="ink_soft">#3D5750</color>
+    <!-- Aurora Light palette: light surfaces · saturated indigo/violet/fuchsia · ink text -->
+    <color name="ink">#141A30</color>
+    <color name="ink_soft">#45507A</color>
+    <color name="indigo">#4F46E5</color>
+    <color name="indigo_deep">#3730A3</color>
+    <color name="violet">#7C3AED</color>
+    <color name="fuchsia">#C026D3</color>
     <color name="emerald">#059669</color>
     <color name="emerald_deep">#047857</color>
     <color name="teal">#0D9488</color>
     <color name="sky">#0284C7</color>
     <color name="gold">#D97706</color>
-    <color name="pearl">#F4FBF7</color>
-    <color name="launcher_bg">#E9FBF2</color>
-    <color name="card_line">#1A0B1F1A</color>
+    <color name="pearl">#FAF9FF</color>
+    <color name="splash_bg">#1B1140</color>
+    <color name="launcher_bg">#1B1140</color>
+    <color name="card_line">#1F4F46E5</color>
     <color name="white">#FFFFFF</color>
 </resources>

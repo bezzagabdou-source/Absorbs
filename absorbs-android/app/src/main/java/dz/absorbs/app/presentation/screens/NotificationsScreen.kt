@@ -49,7 +49,12 @@ fun NotificationsScreen(onBack: () -> Unit, onOpenProfile: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) { DzIcon(R.drawable.ic_lucide_chevron_left, tint = MaterialTheme.colorScheme.onSurface) }
-            Text(s.notifications, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(s.notifications, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            if (vm.usingRealTable && vm.items.isNotEmpty()) {
+                androidx.compose.material3.TextButton(onClick = { vm.markAllShown() }) {
+                    Text(s.markAllRead, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Dz.Indigo)
+                }
+            }
         }
         when {
             vm.loading -> ShimmerBox(Modifier.padding(12.dp), 220.dp)
@@ -57,9 +62,13 @@ fun NotificationsScreen(onBack: () -> Unit, onOpenProfile: (String) -> Unit) {
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
                 items(vm.items) { notif ->
                     val (icon, color, action) = when (notif.kind) {
-                        "like" -> Triple(R.drawable.ic_lucide_heart, Dz.Emerald, s.likedYourPost)
+                        "like" -> Triple(R.drawable.ic_lucide_heart, Dz.Rose, s.likedYourPost)
                         "comment" -> Triple(R.drawable.ic_lucide_message_circle, Dz.Sky, s.commentedYourPost)
-                        else -> Triple(R.drawable.ic_lucide_user, Dz.Gold, s.startedFollowing)
+                        "reply" -> Triple(R.drawable.ic_lucide_reply, Dz.Violet, s.repliedToYourComment)
+                        "message" -> Triple(R.drawable.ic_lucide_send, Dz.Teal, s.sentYouMessage)
+                        "reaction" -> Triple(R.drawable.ic_lucide_heart, Dz.Fuchsia, s.reactedToYourPost)
+                        "verify" -> Triple(R.drawable.ic_lucide_badge_check, Dz.Sky, s.verifyCongrats)
+                        else -> Triple(R.drawable.ic_lucide_user, Dz.Amber, s.startedFollowing)
                     }
                     GlassCard(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp)
@@ -73,15 +82,21 @@ fun NotificationsScreen(onBack: () -> Unit, onOpenProfile: (String) -> Unit) {
                                     Modifier.size(20.dp).align(Alignment.BottomEnd)
                                         .background(color, CircleShape),
                                     contentAlignment = Alignment.Center,
-                                ) { DzIcon(icon, tint = Color.White, size = 12.dp) }
+                                ) {
+                                    if (notif.kind == "reaction" && notif.text.isNotBlank()) {
+                                        Text(notif.text, fontSize = 10.sp)
+                                    } else {
+                                        DzIcon(icon, tint = Color.White, size = 12.dp)
+                                    }
+                                }
                             }
                             Spacer(Modifier.width(11.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "${notif.actor?.displayName ?: ""} $action",
+                                    if (notif.actor != null) "${notif.actor.displayName} $action" else action,
                                     fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface,
                                 )
-                                if (notif.text.isNotBlank()) {
+                                if (notif.text.isNotBlank() && notif.kind !in setOf("reaction")) {
                                     Text(notif.text, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                 }
                             }

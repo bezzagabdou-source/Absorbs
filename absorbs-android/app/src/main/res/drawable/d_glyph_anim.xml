@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- White D glyph for the Android 12+ animated splash (alpha/scale pulse) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="96dp" android:height="96dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:name="pulse" android:pivotX="54" android:pivotY="54">
+        <path
+            android:fillType="evenOdd"
+            android:pathData="M32,26 L50,26 C70,26 82,40 82,54 C82,68 70,82 50,82 L32,82 Z M43.5,37 L49,37 C61.5,37 70.5,44.5 70.5,54 C70.5,63.5 61.5,71 49,71 L43.5,71 Z"
+            android:fillColor="#FFFFFF"/>
+        <path
+            android:name="sparkle"
+            android:pathData="M74,16 L76.6,23.4 L84,26 L76.6,28.6 L74,36 L71.4,28.6 L64,26 L71.4,23.4 Z"
+            android:fillColor="#A5F3FC"/>
+    </group>
+</vector>

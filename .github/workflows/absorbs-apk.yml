@@ -84,7 +84,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "transport APK unchanged"
           else
-            git commit -m "transport: unsigned v3.0.0 APK for permanent-key signing [skip ci]"
+            git commit -m "transport: unsigned v4.0.0 APK for permanent-key signing [skip ci]"
             git push origin "HEAD:${{ github.ref_name }}"
           fi
 
@@ -138,10 +138,10 @@ jobs:
       - name: Publish to GitHub Release (direct download link)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: dz-connect-v3.0.0
-          name: "Dz connect Android v3.0.0 — Compose Native"
+          tag_name: dz-connect-v4.0.0
+          name: "Dz connect Android v4.0.0 — Aurora Light · High Contrast"
           body: |
-            📱 **Dz connect v3.0.0 — تطبيق Android أصلي بالكامل (Jetpack Compose)** ماشي WebView: خلاصة وقصص وريلز بفيديو حقيقي، رسائل فورية (Realtime + حضور + «يكتب الآن…»)، Dz connect ai، ملفات شخصية كاملة، بحث واستكشاف، إنشاء منشورات بفلاتر وضغط صور، ثلاث لغات (عربي RTL / فرنسية / إنجليزية) ووضع داكن.
+            ✨ **Dz connect v4.0.0 «Aurora Light»** — هوية بصرية جديدة بالكامل بتصميم فاتح عالي التباين: بياض لؤلؤي، تحولات Aurora (نيلي → بنفسجي → أرجواني وردي)، خط IBM Plex Sans Arabic، أيقونة تكيّفية متحركة لجوجل، شاشة بداية Android 12+، تبويب «يتابعون» في الخلاصة، تفاعلات إيموجي (واحد لكل مستخدم لكل منشور)، وإشعارات حقيقية مع عدّاد غير مقروء (يتطلب تشغيل upgrade-v6.sql).
             حمّل `DZConnect.apk` وثبّته مباشرة. إذا عندك نسخة قديمة بتوقيع مختلف احذفها أولًا.
             ملف `DZConnect.aab` مخصّص للرفع على Google Play Console.
           files: |

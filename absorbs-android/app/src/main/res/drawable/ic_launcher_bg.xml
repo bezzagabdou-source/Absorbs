@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deep aurora backdrop matching the foreground artwork's edge tones -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z" android:fillColor="#1B1140"/>
+    <path android:pathData="M0,0 A120,120 0 0 1 108,0 L108,40 C70,20 30,20 0,42 Z" android:fillColor="#221647"/>
+    <path android:pathData="M0,108 L0,64 C40,88 80,88 108,60 L108,108 Z" android:fillColor="#241233"/>
+    <path android:pathData="M0,0h108v10L0,22z" android:fillColor="#2A1B52"/>
+</vector>

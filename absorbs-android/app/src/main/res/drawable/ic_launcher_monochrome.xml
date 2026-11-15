@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon silhouette: bold D + sparkle (white, alpha-only) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"
+    android:tint="#FFFFFF">
+    <path
+        android:fillType="evenOdd"
+        android:pathData="M32,26 L50,26 C70,26 82,40 82,54 C82,68 70,82 50,82 L32,82 Z M43.5,37 L49,37 C61.5,37 70.5,44.5 70.5,54 C70.5,63.5 61.5,71 49,71 L43.5,71 Z"
+        android:fillColor="#FFFFFF"/>
+    <path
+        android:pathData="M74,18 L76.2,23.8 L82,26 L76.2,28.2 L74,34 L71.8,28.2 L66,26 L71.8,23.8 Z"
+        android:fillColor="#FFFFFF"/>
+</vector>

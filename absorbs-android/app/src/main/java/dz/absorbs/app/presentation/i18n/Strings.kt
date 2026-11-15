@@ -31,6 +31,8 @@ data class Str(
     val addCaption: String, val filters: String, val errorGeneric: String, val cancel: String, val confirm: String,
     val storyMode: String, val postMode: String, val loadMore: String, val newPostNotif: String,
     val likedYourPost: String, val commentedYourPost: String, val startedFollowing: String, val version: String,
+    val feedForYou: String, val feedFollowing: String, val markAllRead: String,
+    val repliedToYourComment: String, val reactedToYourPost: String, val sentYouMessage: String, val verifyCongrats: String,
 )
 
 val ArStr = Str(
@@ -60,6 +62,8 @@ val ArStr = Str(
     storyMode = "قصة 24 ساعة", postMode = "منشور", loadMore = "تحميل المزيد", newPostNotif = "جديد",
     likedYourPost = "أعجب بمنشورك", commentedYourPost = "علّق على منشورك", startedFollowing = "بدأ متابعتك",
     version = "الإصدار",
+    feedForYou = "لك", feedFollowing = "يتابعون", markAllRead = "قراءة الكل",
+    repliedToYourComment = "رد على تعليقك", reactedToYourPost = "تفاعل مع منشورك", sentYouMessage = "رسالة جديدة", verifyCongrats = "تم توثيق حسابك 🎉",
 )
 
 val FrStr = Str(
@@ -90,6 +94,8 @@ val FrStr = Str(
     storyMode = "Story 24 h", postMode = "Publication", loadMore = "Charger plus", newPostNotif = "Nouveau",
     likedYourPost = "a aimé votre publication", commentedYourPost = "a commenté votre publication", startedFollowing = "vous suit désormais",
     version = "Version",
+    feedForYou = "Pour vous", feedFollowing = "Abonnements", markAllRead = "Tout marquer lu",
+    repliedToYourComment = "a répondu à votre commentaire", reactedToYourPost = "a réagi à votre publication", sentYouMessage = "vous a envoyé un message", verifyCongrats = "Votre compte est vérifié 🎉",
 )
 
 val EnStr = Str(
@@ -119,6 +125,8 @@ val EnStr = Str(
     storyMode = "24h Story", postMode = "Post", loadMore = "Load more", newPostNotif = "New",
     likedYourPost = "liked your post", commentedYourPost = "commented on your post", startedFollowing = "started following you",
     version = "Version",
+    feedForYou = "For you", feedFollowing = "Following", markAllRead = "Mark all read",
+    repliedToYourComment = "replied to your comment", reactedToYourPost = "reacted to your post", sentYouMessage = "sent you a message", verifyCongrats = "Your account is verified 🎉",
 )
 
 fun stringsFor(lang: Lang): Str = when (lang) {

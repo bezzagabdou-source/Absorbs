@@ -81,13 +81,13 @@ fun AiScreen() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                Modifier.size(42.dp).background(Brush.linearGradient(listOf(Dz.Sky, Dz.Emerald)), CircleShape),
+                Modifier.size(42.dp).background(Dz.aiBrush(), CircleShape),
                 contentAlignment = Alignment.Center,
             ) { DzIcon(R.drawable.ic_lucide_sparkles, tint = Color.White, size = 22.dp) }
             Spacer(Modifier.width(10.dp))
             Column {
                 Text(s.aiTitle, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                Text("Gemini · Dz connect", fontSize = 11.sp, color = Dz.Emerald, fontWeight = FontWeight.Bold)
+                Text("Gemini · Dz connect", fontSize = 11.sp, color = Dz.Indigo, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -149,7 +149,7 @@ fun AiScreen() {
                         .background(MaterialTheme.colorScheme.surface)
                         .clickable { send(prompt) }
                         .padding(horizontal = 14.dp, vertical = 8.dp),
-                ) { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Dz.Teal) }
+                ) { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Dz.Indigo) }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -165,7 +165,7 @@ fun AiScreen() {
             )
             Spacer(Modifier.width(8.dp))
             Box(
-                Modifier.size(50.dp).background(Brush.linearGradient(listOf(Dz.Sky, Dz.Emerald)), CircleShape)
+                Modifier.size(50.dp).background(Dz.aiBrush(), CircleShape)
                     .clickable { val t = input; input = ""; send(t) },
                 contentAlignment = Alignment.Center,
             ) { DzIcon(R.drawable.ic_lucide_send, tint = Color.White, size = 21.dp) }

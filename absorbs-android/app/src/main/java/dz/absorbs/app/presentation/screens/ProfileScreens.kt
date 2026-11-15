@@ -306,6 +306,7 @@ fun SettingsScreen(
     lang: dz.absorbs.app.presentation.i18n.Lang,
     onSetLang: (dz.absorbs.app.presentation.i18n.Lang) -> Unit,
     onOpenSaved: () -> Unit,
+    onEditProfile: () -> Unit,
     onBack: () -> Unit,
     onLoggedOut: () -> Unit,
 ) {
@@ -332,29 +333,68 @@ fun SettingsScreen(
     }
     LaunchedEffect(Unit) { reloadBlocked() }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 34.dp)) {
+        // ── header ──────────────────────────────────────────────────────────
         item {
             Row(
-                Modifier.fillMaxWidth().padding(10.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) { DzIcon(R.drawable.ic_lucide_chevron_left, tint = MaterialTheme.colorScheme.onSurface) }
                 Text(s.settings, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             }
         }
+
+        // ── profile summary card ────────────────────────────────────────────
         item {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+            GlassCard(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clickable { onEditProfile() },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DzAvatar(app.me?.avatarUrl, app.me?.displayName ?: "D", 64.dp, ring = Dz.ringBrush())
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                app.me?.displayName ?: "Dz connect",
+                                fontWeight = FontWeight.Bold, fontSize = 17.sp,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1,
+                            )
+                            if (app.me?.verified == true) { Spacer(Modifier.width(5.dp)); VerifiedBadge(size = 17.dp) }
+                        }
+                        Text(
+                            "@${app.me?.username ?: ""}", fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "اضغط لتعديل ملفك الشخصي · Edit your profile",
+                            fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold,
+                            color = Dz.Indigo,
+                        )
+                    }
+                    DzIcon(R.drawable.ic_lucide_chevron_left, tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 20.dp)
+                }
+            }
+        }
+
+        // ── preferences ─────────────────────────────────────────────────────
+        item { SectionLabel("التفضيلات · Preferences") }
+        item {
+            GlassCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                 Column {
-                    Text(s.language, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(s.language, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         dz.absorbs.app.presentation.i18n.Lang.entries.forEach { l ->
                             val active = l == lang
                             Box(
                                 Modifier.clip(RoundedCornerShape(999.dp))
-                                    .then(if (active) Modifier.background(Dz.primaryBrush()) else Modifier.background(MaterialTheme.colorScheme.surface))
+                                    .then(if (active) Modifier.background(Dz.primaryBrush()) else Modifier.background(MaterialTheme.colorScheme.surfaceVariant))
                                     .clickable { onSetLang(l) }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
                             ) {
                                 Text(l.label, color = if (active) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
@@ -362,18 +402,43 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.height(16.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        DzIcon(if (dark) R.drawable.ic_lucide_moon else R.drawable.ic_lucide_sun, tint = Dz.Gold, size = 20.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text(s.darkMode, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                        Box(Modifier.size(36.dp).background(Color(0x1F7C3AED), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                            DzIcon(if (dark) R.drawable.ic_lucide_moon else R.drawable.ic_lucide_sun, tint = Dz.Violet, size = 19.dp)
+                        }
+                        Spacer(Modifier.width(11.dp))
+                        Text(s.darkMode, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Switch(checked = dark, onCheckedChange = onToggleDark)
                     }
                 }
             }
         }
+
+        // ── account ─────────────────────────────────────────────────────────
+        item { SectionLabel("الحساب · Account") }
         item {
-            GlassCard(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+            GlassCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                 Column {
                     SettingsRow(R.drawable.ic_lucide_bookmark, s.saved) { onOpenSaved() }
+                    SettingsRow(R.drawable.ic_lucide_pencil, s.editProfile) { onEditProfile() }
+                    SettingsRow(R.drawable.ic_lucide_share_2, "شارك التطبيق مع أصدقائك") {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "Dz connect — منصة التواصل الجزائرية 🇩🇿\n${Repo.siteUrl}")
+                        }
+                        ctx.startActivity(Intent.createChooser(send, s.share))
+                    }
+                    SettingsRow(R.drawable.ic_lucide_globe, "الموقع الرسمي · absorbs-app.vercel.app") {
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Repo.siteUrl)))
+                    }
+                }
+            }
+        }
+
+        // ── privacy & safety ────────────────────────────────────────────────
+        item { SectionLabel("الخصوصية والأمان · Privacy & Safety") }
+        item {
+            GlassCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Column {
                     SettingsRow(R.drawable.ic_lucide_shield_check, s.privacy) {
                         ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${Repo.siteUrl}/privacy")))
                     }
@@ -384,15 +449,10 @@ fun SettingsScreen(
             }
         }
         if (blocked.isNotEmpty()) {
-            item {
-                Text(
-                    s.blockedUsers, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp),
-                )
-            }
+            item { SectionLabel("${s.blockedUsers} · ${blocked.size}") }
             items(blocked, key = { it.id }) { person ->
                 GlassCard(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     contentPadding = PaddingValues(10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -414,19 +474,38 @@ fun SettingsScreen(
                 }
             }
         }
+
+        // ── about ───────────────────────────────────────────────────────────
+        item { SectionLabel("حول · About") }
         item {
-            Column(Modifier.padding(16.dp)) {
+            GlassCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(56.dp).background(Dz.primaryBrush(), RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("D", color = Color.White, fontFamily = dz.absorbs.app.presentation.theme.TajawalBlack, fontSize = 28.sp) }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Dz connect", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("منصة التواصل الاجتماعي الجزائرية 🇩🇿", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${s.version} 4.0.0 · Aurora", fontSize = 11.sp, color = Dz.Indigo, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        item {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
                 GradientButton(s.logout, Modifier.fillMaxWidth()) {
                     Repo.signOut()
                     onLoggedOut()
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    s.deleteAccount, color = Dz.Danger, fontWeight = FontWeight.Bold,
+                    s.deleteAccount, color = Dz.Danger, fontWeight = FontWeight.Bold, fontSize = 13.sp,
                     modifier = Modifier.clickable { confirmDelete = true }.padding(6.dp),
                 )
-                Spacer(Modifier.height(10.dp))
-                Text("${s.version} 3.0.0 · Dz connect", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("Dz connect © 2026 · صُنع في الجزائر", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
             }
         }
     }
@@ -448,12 +527,24 @@ fun SettingsScreen(
 }
 
 @Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text.uppercase(),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.6.sp,
+        color = Dz.Violet,
+        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 6.dp),
+    )
+}
+
+@Composable
 private fun SettingsRow(icon: Int, label: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DzIcon(icon, tint = Dz.Teal, size = 20.dp)
+        DzIcon(icon, tint = Dz.Indigo, size = 20.dp)
         Spacer(Modifier.width(11.dp))
         Text(label, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, modifier = Modifier.weight(1f))
         DzIcon(R.drawable.ic_lucide_chevron_left, tint = MaterialTheme.colorScheme.onSurfaceVariant, size = 18.dp)

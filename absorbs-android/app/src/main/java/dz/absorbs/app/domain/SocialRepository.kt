@@ -70,6 +70,14 @@ object SocialRepository {
 
     // Notifications & AI & uploads
     fun notifications(cb: (List<NotifItem>) -> Unit) = Api.fetchNotifications(cb)
+    fun notificationsV6(cb: (List<NotifItem>?, String?) -> Unit) = Api.fetchNotificationsV6(cb)
+    fun isMissingSchema(err: String?) = Api.isMissingSchema(err)
+    fun unreadNotifications(cb: (Int) -> Unit) = Api.countUnreadNotifications(cb)
+    fun markAllNotificationsRead(cb: (Boolean) -> Unit) = Api.markAllNotificationsRead(cb)
+    fun feedFollowing(limit: Int = 20, offset: Int = 0, cb: (List<Post>?, String?) -> Unit) = Api.fetchFollowingFeed(limit, offset, cb)
+    fun reactionsFor(postIds: List<String>, cb: (Map<String, Map<String, Int>>, Map<String, String>, Boolean) -> Unit) =
+        Api.fetchReactionsFor(postIds, cb)
+    fun setPostReaction(postId: String, emoji: String?, cb: (Boolean, Boolean) -> Unit) = Api.setPostReaction(postId, emoji, cb)
     fun aiChat(history: List<Pair<String, String>>, cb: (String?, String?) -> Unit) = Api.aiChat(history, cb)
     fun upload(bucket: String, bytes: ByteArray, mime: String, cb: (String?, String?) -> Unit) =
         Api.uploadToBucket(bucket, bytes, mime, cb)
