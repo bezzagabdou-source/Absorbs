@@ -1,0 +1,81 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+// Release signing comes ONLY from CI secrets / environment variables —
+// the upload keystore never lives in this repository.
+//   DZ_KEYSTORE_FILE, DZ_KEYSTORE_PASSWORD, DZ_KEY_ALIAS, DZ_KEY_PASSWORD
+def dzKeystoreFile = System.getenv("DZ_KEYSTORE_FILE")
+def dzReleaseSigning = dzKeystoreFile != null && new File(dzKeystoreFile).exists()
+
+android {
+    namespace 'dz.absorbs.app'
+    // compileSdk 37 (required by Compose 1.12 / AGP 9.1); targetSdk stays 36 for Play.
+    compileSdk 37
+
+    defaultConfig {
+        applicationId 'dz.absorbs.app'
+        minSdk 24
+        // Google Play requires targetSdk 36 (Android 16) for new apps/updates. Never lower.
+        targetSdk 36
+        versionCode 30
+        versionName '3.0.0'
+    }
+
+    signingConfigs {
+        if (dzReleaseSigning) {
+            release {
+                storeFile file(dzKeystoreFile)
+                storePassword System.getenv("DZ_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("DZ_KEY_ALIAS")
+                keyPassword System.getenv("DZ_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Debug-signed APKs get blocked by Google Play Protect — never ship them as release.
+            if (dzReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    buildFeatures { compose true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+
+    // Networking + media loading (data layer)
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'io.coil-kt:coil-compose:2.7.0'
+    implementation 'io.coil-kt:coil-video:2.7.0'
+
+    // Jetpack Compose (BOM 2026.09.00 — versions verified from developer.android.com)
+    implementation platform('androidx.compose:compose-bom:2026.09.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.runtime:runtime'
+    implementation 'androidx.activity:activity-compose:1.13.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.11.0'
+
+    // Video (Media3 ExoPlayer 1.11.0) + Lottie animations
+    implementation 'androidx.media3:media3-exoplayer:1.11.0'
+    implementation 'androidx.media3:media3-ui:1.11.0'
+    implementation 'com.airbnb.android:lottie:6.4.1'
+    implementation 'com.airbnb.android:lottie-compose:6.4.1'
+}
