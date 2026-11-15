@@ -12,6 +12,11 @@ const waitFor = async (predicate, description) => {
   throw new Error('Timed out: ' + description);
 };
 
+test('legacy data migration is no longer exposed as a dashboard action', () => {
+  const dashboard = fs.readFileSync(path.join(root, 'dashboard.js'), 'utf8');
+  assert.doesNotMatch(dashboard, /legacy-scan|legacy-preview|legacy-apply|نقل بيانات اللوحة القديمة/);
+});
+
 test('dashboard edits real bot items with image retry and sends an AI image', async () => {
   const calls = [], errors = [];
   let imageFails = true;

@@ -214,7 +214,6 @@ async function loadSet() {
       : `<p class='err'>${esc(health && health.error ? health.error : "تعذّر فحص البوت")}</p>`;
     el.innerHTML =
       `<div class='card'><h3>حالة الربط</h3>${status}<button class='sm' data-act='bot-recheck'>إعادة الفحص</button><small>${connection.configured ? "مفتاح الربط محفوظ ومشفّر." : "لم يُحفظ مفتاح الربط بعد."}</small></div>` +
-      `<div class='card'><h3>نقل بيانات اللوحة القديمة → FT-bot</h3><small>تُقرأ بيانات اللوحة القديمة (المستخدمون والنقاط والجوائز والطلبات والقنوات) وتُنقل إلى قاعدة FT-bot. لا يُحذف شيء من المصدر، وإعادة التشغيل آمنة ولا تضاعف النقاط.</small><button class='btn' data-act='legacy-scan'>فحص البيانات القديمة</button><div id='migration' class='mute'></div></div>` +
       `<div id='bot-ref-config' class='card'><h3>نقاط إحالات FT-bot</h3><small>جارٍ التحميل…</small></div>` +
       `<form id='bot-connect-form' class='card'><h3>ربط FT-bot</h3><small>${connection.configured ? "المفتاح محفوظ؛ يمكنك تغييره أدناه." : "أدخل مفتاح PANEL_PUBLIC_KEY من مشروع ft-bot في Vercel لتفعيل اللوحة."}</small><label>مفتاح الربط<input id='bot-key' type='password' autocomplete='off' minlength='8' maxlength='512' required></label><button class='btn' type='submit'>حفظ واختبار الربط</button><small>يُحفظ المفتاح مشفّراً ولا يُعرض مجدداً. لا ترسله في المحادثة.</small></form>` +
       `<form id='password-form' class='card'><h3>تغيير كلمة سر اللوحة</h3><label>كلمة السر الحالية<input id='pw-old' type='password' autocomplete='current-password' required></label><label>كلمة السر الجديدة (10 أحرف على الأقل)<input id='pw-new' type='password' minlength='10' maxlength='256' autocomplete='new-password' required></label><label>تأكيد كلمة السر الجديدة<input id='pw-confirm' type='password' minlength='10' maxlength='256' autocomplete='new-password' required></label><button class='btn' type='submit'>تغيير كلمة السر</button><small>تُغلق الجلسات القديمة بعد التغيير.</small></form>` +
@@ -223,27 +222,6 @@ async function loadSet() {
   } catch (e) {
     fail(el, e);
   }
-}
-
-function migrationSummary(s) {
-  if (!s) return "";
-  return `<div class='item col'><div><b>المصدر: اللوحة القديمة</b><small>${esc(String(s.users))} مستخدم${s.usersTruncated ? " (أُخذ أول دفعة)" : ""} · ${esc(String(s.prizes))} جائزة · ${esc(String(s.requests))} طلب (${esc(String(s.pendingRequests))} معلّق) · ${esc(String(s.channels))} قناة</small></div></div>`;
-}
-function migrationReport(r) {
-  if (!r) return "";
-  const rows = [
-    ["مستخدمون جدد", r.users.created], ["مستخدمون موجودون", r.users.existing],
-    ["أُرصدة نُقلت", r.users.pointsSet], ["أُرصدة محفوظة كما هي", r.users.pointsKept],
-    ["حظر نُقل", r.users.banned], ["إحالات نُقلت", r.users.refs],
-    ["جوائز جديدة", r.prizes.created], ["جوائز محدّثة", r.prizes.updated],
-    ["طلبات نُقلت", r.requests.imported], ["طلبات متجاهلة", r.requests.skipped],
-    ["قنوات أُضيفت", (r.channels.added || []).length], ["قنوات موجودة", r.channels.existing],
-  ];
-  return `<div class='card'><h3>${r.dryRun ? "معاينة الترحيل (لم تُكتب أي بيانات)" : "تمّ الترحيل"}</h3>` +
-    rows.map(([label, value]) => `<div class='item'><div><b>${esc(String(value))}</b><small>${esc(label)}</small></div></div>`).join("") +
-    ((r.warnings || []).length ? `<small class='err'>${esc(r.warnings.join(" · "))}</small>` : "") +
-    ((r.skipped || []).length ? `<small class='mute'>${esc(r.skipped.slice(0, 5).join(" · "))}</small>` : "") +
-    `</div>`;
 }
 
 async function loadReferralConfig() {
@@ -282,35 +260,6 @@ document.addEventListener("click", async (e) => {
     } else if (a === "bot-recheck") {
       b.disabled = true;
       await loadSet();
-    } else if (a === "legacy-scan") {
-      b.disabled = true;
-      const box = $("#migration");
-      box.className = "";
-      box.innerHTML = "<p class='mute'>جارٍ فحص بيانات اللوحة القديمة…</p>";
-      try {
-        const scan = await api("legacy_scan");
-        box.innerHTML = migrationSummary(scan.summary) +
-          `<div class='acts wrap'><button class='sm' data-act='legacy-preview'>معاينة النقل</button><button class='sm ok' data-act='legacy-apply'>تنفيذ النقل إلى FT-bot</button></div>`;
-      } catch (error) {
-        box.className = "err";
-        box.textContent = error.message;
-      } finally { b.disabled = false; }
-    } else if (a === "legacy-preview" || a === "legacy-apply") {
-      const apply = a === "legacy-apply";
-      if (apply && !confirm("نقل بيانات اللوحة القديمة إلى قاعدة FT-bot؟ العملية لا تحذف المصدر ولا تُنقص أي رصيد موجود.")) return;
-      b.disabled = true;
-      const box = $("#migration");
-      box.className = "";
-      box.innerHTML = `<p class='mute'>${apply ? "جارٍ النقل…" : "جارٍ حساب المعاينة…"}</p>`;
-      try {
-        const out = await api("legacy_import", apply ? { dryRun: false, confirm: true } : { dryRun: true });
-        box.innerHTML = migrationSummary(out.summary) + migrationReport(out.report) +
-          (apply ? "" : `<div class='acts wrap'><button class='sm ok' data-act='legacy-apply'>تنفيذ النقل الآن</button></div>`);
-        if (apply) toast("تمّ نقل بيانات اللوحة القديمة إلى FT-bot");
-      } catch (error) {
-        box.className = "err";
-        box.textContent = error.message;
-      } finally { b.disabled = false; }
     } else if (a === "connect-settings") {
       show("set");
     } else if (a === "remove-image") {
