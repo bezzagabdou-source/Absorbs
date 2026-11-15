@@ -87,15 +87,45 @@ const DELETIONS = new Set(['ft_delete_reward', 'ft_delete_contest', 'ft_remove_i
 const BROADCASTS = new Set(['ft_broadcast_all', 'ft_broadcast_retry']);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function chat(messages, deadline) {
+/* ──────────────────────────────────────────────────────────────────────────
+   مزوّدون الذكاء الاصطناعي — السلسلة الترتيبية (الأول ينفّذ، والاحتياطي
+   ينفّذ ادا فشل الأول):
+     1. Groq         → نماذج AI_MODELS (GROQ_API_KEY)
+     2. OpenRouter   → OPENROUTER_API_KEY
+     3. Gemini       → GEMINI_API_KEY، ثم GEMINI_API_KEY_FALLBACK / GEMINI_FALLBACK_KEY
+                       (مفتاح جيميني احتياطي يضيفه المالك «ادا فشل الأول»)
+   4. البوت        → /api/panel/chat (مفاتيحه الخاصة، آخر حلقة احتياط)
+   لا تُعرَض المفاتيح ولا تُسجّل. مزوّد يُرفَض (401/403) يُستبعد من بقية الطلب.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** نظّم مزوّدين حسب المفاتيح المتوفرة (بدون تنفيذ أي طلب). */
+function buildProviders() {
   const providers = [];
   const models = (process.env.AI_MODELS || 'openai/gpt-oss-120b,openai/gpt-oss-20b').split(',').map(s => s.trim()).filter(Boolean);
-  if (process.env.GROQ_API_KEY) for (const model of models.slice(0, 3)) providers.push({ url: 'https://api.groq.com/openai/v1/chat/completions', key: process.env.GROQ_API_KEY, model });
-  if (process.env.OPENROUTER_API_KEY) providers.push({ url: 'https://openrouter.ai/api/v1/chat/completions', key: process.env.OPENROUTER_API_KEY, model: process.env.OPENROUTER_MODEL || 'openai/gpt-oss-120b' });
+  if (process.env.GROQ_API_KEY) for (const model of models.slice(0, 3)) providers.push({ id: 'groq', url: 'https://api.groq.com/openai/v1/chat/completions', key: process.env.GROQ_API_KEY, model, kind: 'openai' });
+  if (process.env.OPENROUTER_API_KEY) providers.push({ id: 'openrouter', url: 'https://openrouter.ai/api/v1/chat/completions', key: process.env.OPENROUTER_API_KEY, model: process.env.OPENROUTER_MODEL || 'openai/gpt-oss-120b', kind: 'openai' });
+  // مفتاح جيميني احتياطي: يُضاف ادا فشل المزوّد الأول. المفتاح الرئيسي أولاً، ثم المفتاح الاحتياطي.
+  const geminiKeys = [process.env.GEMINI_API_KEY, process.env.GEMINI_API_KEY_FALLBACK, process.env.GEMINI_FALLBACK_KEY].filter(Boolean);
+  geminiKeys.forEach((key, i) => {
+    // معرفات مختلفة: رفض المفتاح الرئيسي ما يستبعدش المفتاح الاحتياطي.
+    providers.push({ id: i === 0 ? 'gemini' : `gemini-fallback-${i}`, url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', key, model: process.env.GEMINI_MODEL || 'gemini-2.5-flash', kind: 'gemini' });
+  });
+  return providers;
+}
+
+/** رؤوس الطلب حسب نوع المزوّد (جيميني يستخدم x-goog-api-key). */
+function providerHeaders(provider) {
+  if (provider.kind === 'gemini') return { 'x-goog-api-key': provider.key, 'content-type': 'application/json' };
+  return { authorization: 'Bearer ' + provider.key, 'content-type': 'application/json' };
+}
+
+async function chat(messages, deadline) {
+  const providers = buildProviders();
   const maxTokens = Math.max(1024, Math.min(8192, Number(process.env.AI_MAX_TOKENS) || 8192));
   let lastError = 'تعذّر الاتصال بمزوّد الذكاء الاصطناعي';
   let attempts = 0;
   const retryable = [];
+  const dead = new Set(); // مزوّد رُفض (401/403) — ما نجريو ثاني
   // Try each configured model/provider before retrying a transient failure. Only model
   // requests are retried; already-executed tools are never automatically replayed.
   async function attempt(provider) {
@@ -104,7 +134,7 @@ async function chat(messages, deadline) {
     attempts++;
     try {
       const response = await fetch(provider.url, {
-        method: 'POST', headers: { authorization: 'Bearer ' + provider.key, 'content-type': 'application/json' },
+        method: 'POST', headers: providerHeaders(provider),
         body: JSON.stringify({ model: provider.model, messages, tools: TOOLS, tool_choice: 'auto', temperature: 0.1, max_tokens: maxTokens }),
         signal: AbortSignal.timeout(Math.min(22000, remaining)),
       });
@@ -112,6 +142,8 @@ async function chat(messages, deadline) {
       const message = payload.choices?.[0]?.message;
       if (response.ok && message && typeof message === 'object' && ((typeof message.content === 'string' && message.content.trim()) || (Array.isArray(message.tool_calls) && message.tool_calls.length))) return { message };
       lastError = response.ok ? 'مزوّد الذكاء الاصطناعي لم يرجع رداً' : `مزوّد الذكاء الاصطناعي: HTTP ${response.status}`;
+      // 401/403 (مفتاح مرفوض أو منتهي) ما يتكررش: نتجاوزو المزوّد هادي للمقدّم الآخر.
+      if (response.status === 401 || response.status === 403) dead.add(provider.id);
       return { retry: response.ok || response.status === 429 || response.status >= 500 };
     } catch (e) {
       lastError = e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'انتهت مهلة مزوّد الذكاء الاصطناعي' : 'تعذّر الاتصال بمزوّد الذكاء الاصطناعي';
@@ -119,7 +151,7 @@ async function chat(messages, deadline) {
     }
   }
   for (const provider of providers) {
-    if (attempts >= 4) break;
+    if (attempts >= 4 || dead.has(provider.id)) continue;
     const result = await attempt(provider);
     if (result.message) return result.message;
     if (result.retry) retryable.push(provider);
@@ -132,11 +164,49 @@ async function chat(messages, deadline) {
   }
   if (retryable.length && attempts < 4 && deadline - Date.now() > 700) await pause(150);
   for (const provider of retryable) {
-    if (attempts >= 4) break;
+    if (attempts >= 4 || dead.has(provider.id)) continue;
     const result = await attempt(provider);
     if (result.message) return result.message;
   }
   throw new Error(lastError);
+}
+
+/**
+ * حالة مزوّدين الذكاء الاصطناعي (أسماء فقط — لا تُعرَض المفاتيح).
+ * تستعملها لوحة التحكم بزر «فحص الذكاء الاصطناعي» باش يتأكّد المالك 100/100.
+ */
+function aiStatus() {
+  const providers = buildProviders().map((p) => ({ id: p.id, model: p.model, kind: p.kind }));
+  const botFallback = Boolean(process.env.BOT_BASE_URL);
+  return {
+    available: providers.length > 0,
+    botFallback,
+    providers,
+    hint: providers.length ? '' : 'لم يُعثَر على أي مفتاح ذكاء اصطناعي؛ أضف GEMINI_API_KEY في Vercel ثم أعد النشر.',
+  };
+}
+
+/**
+ * فحص عملي: يبعث طلبًا صغيرًا عبر السلسلة نفسها اللي يستعملها المساعد
+ * ويرجّع المزوّد اللي ردّ (أو الخطأ). ما يكتب شيء ولا ينجّذ أداة.
+ */
+async function testAI() {
+  const providers = buildProviders();
+  const message = { role: 'user', content: 'ردّ بكلمة: جاهز' };
+  for (const provider of providers) {
+    try {
+      const response = await fetch(provider.url, {
+        method: 'POST', headers: providerHeaders(provider),
+        body: JSON.stringify({ model: provider.model, messages: [message], temperature: 0.1, max_tokens: 32 }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!response.ok) continue;
+      const payload = await response.json().catch(() => ({}));
+      const text = payload.choices?.[0]?.message?.content;
+      if (typeof text === 'string' && text.trim()) return { ok: true, provider: provider.id, model: provider.model, reply: text.trim().slice(0, 60) };
+    } catch { /* جرّب المزوّد التالي */ }
+  }
+  return { ok: false, error: 'تعذّر الاتصال بأي مزوّد ذكاء اصطناعي' };
 }
 const summarize = result => { const text = JSON.stringify(result ?? null); return text.length > 12000 ? text.slice(0, 12000) + '…' : text; };
 // Large source texts belong in the model context, not as repeated tool arguments in the UI.
@@ -369,4 +439,4 @@ async function runAI(prompt, history, image, options = {}) {
   if (image && !imageDescription) return { reply: unseenImageReply(actions, attachmentRequested, visionFailed), actions, retainImage: attachmentRequested && !actions.some(a => a.tool === 'ft_set_attached_image' && a.ok) };
   return { reply: 'وصلت لحد الوقت أو الخطوات؛ راجع النتائج أدناه قبل إعادة الطلب.', actions, retainImage: attachmentRequested && !actions.some(a => a.tool === 'ft_set_attached_image' && a.ok) };
 }
-module.exports = { runAI };
+module.exports = { runAI, aiStatus, testAI, buildProviders, chat };

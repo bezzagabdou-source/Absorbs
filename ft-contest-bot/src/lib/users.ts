@@ -6,7 +6,7 @@ import type { TgUser } from "./telegram";
 const IDS_KEY = "users:ids";
 const JOINED_KEY = "users:joined";
 
-export async function touchUser(from: TgUser): Promise<BotUser> {
+export async function touchUser(from: TgUser): Promise<{ user: BotUser; isNew: boolean }> {
   const store = getStore();
   const id = String(from.id);
   const existing = await store.get<BotUser>(`user:${id}`);
@@ -20,7 +20,7 @@ export async function touchUser(from: TgUser): Promise<BotUser> {
   await store.set(`user:${id}`, user);
   if (isNew) await store.zIncr(JOINED_KEY, id, user.joinedAt);
   await trackBotActivity(id);
-  return user;
+  return { user, isNew };
 }
 
 export async function getUser(id: string): Promise<BotUser | null> {

@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const legacy = require('../lib/legacy');
 const { redis } = require('../lib/db');
-const { runAI } = require('../lib/ai');
+const { runAI, aiStatus, testAI } = require('../lib/ai');
 const auth = require('../lib/auth');
 const rate = require('../lib/rate');
 const bot = require('../lib/botBridge');
@@ -79,6 +79,9 @@ async function handle(b, token) {
     case 'bot_manage': return { data: await bot.manageOp(b.op, b.input) };
     case 'emoji_view': return { data: await bot.emojiView(b.q, b.limit) };
     case 'emoji_op': return { data: await bot.emojiOp(b.op, b.input) };
+    // 👁️ صفحة «مراقب الذكاء الاصطناعي الخفي»: عرض التقارير أو الحضور/فك الحظر/إخفاء
+    case 'monitor_view': return { data: await bot.monitorView(b.limit) };
+    case 'monitor_op': return { data: await bot.monitorOp(b.op, { userId: b.userId }) };
     // ── ترحيل اللوحة القديمة إلى FT-bot ──
     case 'legacy_scan': return { data: await legacy.snapshot() };
     case 'legacy_import': {
@@ -96,6 +99,8 @@ async function handle(b, token) {
     case 'agent_undo': return { data: await runAgentOnce(b, token, () => agentRepo.undo()) };
     case 'agent_deploy_status': return { data: await agentRepo.getDeployStatus({ id: b.id }) };
     case 'ai': return { data: await runAIOnce(b, token) };
+    // ── فحص حالة مزوّدين الذكاء الاصطناعي (بلا تنفيذ أي أداة) ──
+    case 'ai_status': return { data: b.test === true ? { ...aiStatus(), test: await testAI() } : aiStatus() };
     default: throw new Error('أمر غير معروف');
   }
 }

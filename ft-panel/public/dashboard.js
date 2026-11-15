@@ -28,6 +28,8 @@ const TITLES = {
   instructions: "تعليمات المساعد",
   bot: "إدارة FT-bot",
   referrals: "الإحالات",
+  emoji: "الإيموجي",
+  monitor: "مراقب الذكاء الاصطناعي",
   set: "الإعدادات",
 };
 function toast(m, bad) {
@@ -250,8 +252,58 @@ async function loadReferralConfig() {
 const LOAD = {
   instructions: loadInstructions,
   referrals: loadReferrals,
+  monitor: loadMonitor,
   set: loadSet,
 };
+
+/** 👁️ صفحة «مراقب الذكاء الاصطناعي الخفي»: تقارير الأعضاء المشتبه فيهن. */
+async function loadMonitor() {
+  const el = $("#t-monitor");
+  const meta = $("#monitor-meta");
+  const list = $("#monitor-list");
+  el.innerHTML = "<p class='mute'>جارٍ تحميل التقارير…</p>";
+  try {
+    const data = await api("monitor_view", { limit: 100 });
+    const providers = data.providers || {};
+    const providerText = [];
+    if (providers.gemini) providerText.push("Gemini");
+    if (providers.others) providerText.push("Groq/OpenRouter");
+    meta.textContent = `المراقب: ${data.enabled ? "مفعّل" : "مُعطّل"} · المزوّدون: ${providerText.length ? providerText.join(" · ") : "غير متاح"} · معلّق: ${data.pending || 0}`;
+    if (!data.reports || !data.reports.length) {
+      list.innerHTML = "<h3>لا توجد تقارير</h3><p class='mute'>المراقبة خفية: كل عضو يدخل البوت يُفحص تلقائياً. العضو لا يشعر بالمراقبة.</p>";
+      return;
+    }
+    const STATUS = {
+      pending: "<span class='pill warn'>معلّق</span>",
+      banned: "<span class='pill bad'>محظور</span>",
+      unbanned: "<span class='pill ok'>فك الحظر</span>",
+      dismissed: "<span class='pill'>مخفي</span>",
+    };
+    list.innerHTML = data.reports
+      .map((r) => `
+      <div class='card' data-report="${esc(r.userId)}">
+        <div class='monitor-head'>
+          <strong>${esc(r.firstName || "—")}${r.lastName ? " " + esc(r.lastName) : ""}</strong>
+          ${r.username ? `<small>@${esc(r.username)}</small>` : ""}
+          ${STATUS[r.status] || ""}
+        </div>
+        <div class='monitor-body'>
+          <span class='mute'>🆔 ${esc(r.userId)} · ${esc(r.source || "")} · ${r.at ? esc(new Date(r.createdAt).toLocaleString("ar-DZ")) : ""}</span>
+          <span>🔍 ${esc(r.evidence || "لا نص")} · ثقة ${Math.round((r.confidence || 0) * 100)}% · ${esc(r.provider || "—")}</span>
+        </div>
+        ${r.bio ? `<small class='mute'>📝 ${esc(r.bio).slice(0, 120)}</small>` : ""}
+        ${r.photo ? `<img class='monitor-photo' src='${r.photo}' alt='صورة العضو' />` : ""}
+        <div class='monitor-actions'>
+          ${r.status !== "banned" ? `<button class='sm bad' data-act='monitor-op' data-op='ban' data-uid='${esc(r.userId)}'>حضر</button>` : ""}
+          ${r.status === "banned" ? `<button class='sm' data-act='monitor-op' data-op='unban' data-uid='${esc(r.userId)}'>فك الحظر</button>` : ""}
+          ${r.status === "pending" ? `<button class='sm' data-act='monitor-op' data-op='dismiss' data-uid='${esc(r.userId)}'>إخفاء</button>` : ""}
+        </div>
+      </div>`)
+      .join("");
+  } catch (error) {
+    list.innerHTML = `<h3>تعذّر تحميل التقارير</h3><p class='err'>${esc(error.message)}</p>`;
+  }
+}
 document.addEventListener("click", async (e) => {
   const b = e.target.closest("[data-act]");
   if (!b) return;
@@ -311,6 +363,22 @@ document.addEventListener("click", async (e) => {
       b.disabled = true;
       await api("bot_image", { kind: b.dataset.kind, id, dataUrl: "" });
       toast("تم حذف الصورة");
+    } else if (a === "ai-check-refresh") {
+      $("#ai-check").click();
+    } else if (a === "monitor-op") {
+      const op = b.dataset.op;
+      const uid = b.dataset.uid;
+      const confirmMsg = op === "ban" ? `حضور ${uid} من البوت (حظر في البوت + طرد من المجموعة المربوطة)؟` : null;
+      if (confirmMsg && !confirm(confirmMsg)) return;
+      b.disabled = true;
+      try {
+        const out = await api("monitor_op", { op, userId: uid });
+        toast(op === "ban" ? "تم الحضور" : op === "unban" ? "تم فك الحظر" : "تم إخفاء التقرير");
+        if (out && out.ok === false) toast(out.error || "فشل", 1);
+        await loadMonitor();
+      } catch (error) {
+        toast(error.message, 1);
+      } finally { b.disabled = false; }
     } else if (a === "out") {
       logout();
     }
@@ -476,6 +544,32 @@ $("#agent-clear").addEventListener("click", () => {
   if (AI_BUSY || !confirm("بدء محادثة جديدة؟ ستبقى المسودات والنسخ محفوظة.")) return;
   HIST = []; saveHistory(); $("#chat").innerHTML = ""; clearAiImage();
   bubble("bot", "محادثة جديدة. المسودات والنسخ السابقة لم تُحذف.");
+});
+$('#monitor-refresh').addEventListener('click', () => loadMonitor());
+$("#ai-check").addEventListener("click", async (e) => {
+  const button = e.currentTarget;
+  const box = $("#ai-status");
+  if (button.disabled) return;
+  button.disabled = true;
+  box.hidden = false;
+  box.innerHTML = "<h3>فحص الذكاء الاصطناعي</h3><p class='mute'>جارٍ الفحص…</p>";
+  try {
+    const status = await api("ai_status", { test: true });
+    const lines = status.providers.length
+      ? status.providers.map((p) => `<div class='item'><div><b>${esc(p.id)}</b><small>${esc(p.model)} · ${esc(p.kind)}</small></div></div>`).join("")
+      : "<p class='err'>لا توجد مفاتيح ذكاء اصطناعي مُهيَّأة.</p>";
+    const test = status.test;
+    const testHtml = test
+      ? (test.ok
+        ? `<p class='ok-note'>✅ الفحص عملي ناجح عبر «${esc(test.provider)}» (${esc(test.model)}): ${esc(test.reply)}</p>`
+        : `<p class='err'>❌ ${esc(test.error || "تعذّر الاتصال بأي مزوّد")}</p>`)
+      : "";
+    box.innerHTML = `<h3>فحص الذكاء الاصطناعي</h3><small>السلسلة الترتيبية للمزوّدين (الاحتياطي ينفّذ ادا فشل الأول)</small>${lines}${testHtml}<button class='sm' data-act='ai-check-refresh'>إعادة الفحص</button>`;
+  } catch (error) {
+    box.innerHTML = `<h3>فحص الذكاء الاصطناعي</h3><p class='err'>${esc(error.message)}</p>`;
+  } finally {
+    button.disabled = false;
+  }
 });
 document.addEventListener("click", async event => {
   const button = event.target.closest("[data-agent-status]");

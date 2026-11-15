@@ -48,6 +48,7 @@ import {
   editMessage,
   escapeHtml,
   getBotIdentity,
+  getChatInfo,
   clearTrace,
   getTrace,
   sendChatAction,
@@ -63,6 +64,7 @@ import {
 import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP } from "./types";
 import type { BotUser, Claim, Contest, Settings } from "./types";
 import { adminChatIds, getUser, knownOwnerId, resolveOwnerId, touchUser } from "./users";
+import { monitorUserJoin } from "./monitor";
 
 /* ───────────────────────────── helpers ───────────────────────────── */
 
@@ -1569,7 +1571,26 @@ async function handleMyChatMember(
   update: NonNullable<TgUpdate["my_chat_member"]>,
 ): Promise<void> {
   const { chat, new_chat_member: member, from } = update;
-  if (!groupType(chat)) return;
+  // 👁️ دخول عضو في محادثة خاصة (البوت يتحوّل لـmember): يراقبوه المراقب الخفي
+  // بدون ما يحسّ العضو. في المحادثة الخاصة، معرف الشات = معرف العضو نفسه.
+  if (!groupType(chat)) {
+    const status = member?.status || "";
+    if (["member", "administrator", "creator"].includes(status)) {
+      const userId = String(chat.id);
+      const info = await getChatInfo(userId).catch(() => null);
+      const u = (info?.ok && info.result ? info.result : {}) as { first_name?: string; last_name?: string; username?: string; bio?: string };
+      void monitorUserJoin({
+        userId,
+        firstName: u.first_name,
+        lastName: u.last_name,
+        username: u.username,
+        bio: typeof u.bio === "string" ? u.bio : undefined,
+        chatId: chat.id,
+        source: "chat_member",
+      }).catch(() => undefined);
+    }
+    return;
+  }
   const status = member?.status || "";
   const settings = await getSettings();
 
@@ -1614,6 +1635,15 @@ async function handleJoinRequest(
   const { chat, from } = request;
   if (!groupType(chat) || !from || from.is_bot) return;
   await ensureLinkedFromActivity(chat);
+  // 👁️ مراقب ذكاء اصطناعي خفي: يفحص العضو اللي طلب الانضمام للمجموعة
+  void monitorUserJoin({
+    userId: from.id,
+    firstName: from.first_name,
+    lastName: from.last_name,
+    username: from.username,
+    chatId: chat.id,
+    source: "join_request",
+  }).catch(() => undefined);
   const settings = await getSettings();
   const link = request.invite_link?.invite_link || "";
 
@@ -1688,6 +1718,15 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
 
   for (const member of added) {
     if (member.is_bot) continue;
+    // 👁️ مراقب ذكاء اصطناعي خفي: يفحص كل عضو يدخل المجموعة
+    void monitorUserJoin({
+      userId: member.id,
+      firstName: member.first_name,
+      lastName: member.last_name,
+      username: member.username,
+      chatId: chat.id,
+      source: "group_join",
+    }).catch(() => undefined);
     const credit = await creditGroupJoin({
       chatId: String(chat.id),
       joiner: { id: member.id, firstName: member.first_name, username: member.username },
@@ -1833,7 +1872,19 @@ async function handleMessageInner(message: TgMessage) {
     return;
   }
   const inGroup = groupType(chat);
-  const user = await touchUser(from);
+  const { user, isNew } = await touchUser(from);
+  // 👁️ مراقب ذكاء اصطناعي خفي: أول عضو جديد يدخل البوت يُفحص تلقائياً
+  // (صورة + اسم + بايو) — إلا وُجد دليل أنه امرأة، يظهر في لوحة المالك.
+  if (isNew && inGroup === false) {
+    void monitorUserJoin({
+      userId: from.id,
+      firstName: from.first_name,
+      lastName: from.last_name,
+      username: from.username,
+      chatId: chat.id,
+      source: "private_start",
+    }).catch(() => undefined);
+  }
   if (inGroup) await ensureLinkedFromActivity(chat);
   const settings = await getSettings();
   // 🛠️ وضع الصيانة: البوت يردّ باعتذار لطيف (المالك والأدمن يخدمو عادي)
@@ -2116,7 +2167,7 @@ async function handleCallback(query: TgCallbackQuery) {
   await answerCallback(query.id);
   const from = query.from;
   if (!from || from.is_bot) return;
-  const user = await touchUser(from);
+  const { user } = await touchUser(from);
   const chat = query.message?.chat;
   const inGroup = chat ? groupType(chat) : false;
   // داخل المجموعة: نرد في الخاص حتى ما نزعجوش الأعضاء

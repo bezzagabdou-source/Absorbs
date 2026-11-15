@@ -631,6 +631,15 @@ export async function declineJoinRequest(chatId: number | string, userId: number
   return tgCall("declineChatJoinRequest", { chat_id: chatId, user_id: userId });
 }
 
+/** 🚫 يحظر عضو من مجموعة (أو يطيّحو) — until_date=0 يعني حظر دائم */
+export async function banChatMember(chatId: number | string, userId: number | string, untilDate?: number) {
+  return tgCall("banChatMember", {
+    chat_id: chatId,
+    user_id: userId,
+    ...(typeof untilDate === "number" && untilDate > 0 ? { until_date: untilDate } : {}),
+  });
+}
+
 export async function getChatInfo(chatId: number | string) {
   return tgCall<TgChat>("getChat", { chat_id: chatId });
 }

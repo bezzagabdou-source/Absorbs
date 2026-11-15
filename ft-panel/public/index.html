@@ -39,7 +39,9 @@
             <button class="sm" type="button" id="agent-undo">تراجع آخر تعديل</button>
             <button class="sm" type="button" id="agent-history">السجل</button>
             <button class="sm" type="button" id="agent-clear">محادثة جديدة</button>
+            <button class="sm" type="button" id="ai-check">فحص الذكاء الاصطناعي</button>
           </div>
+          <div id="ai-status" class="card" hidden></div>
           <small class="privacy-note">الكود يُحفظ كمسودة أولاً. النشر يبدأ بناءً، والتراجع الآلي لا يشمل كل عمليات الإدارة أو الرسائل.</small>
           <div id="chat" aria-live="polite"></div>
           <div class="chips">
@@ -74,6 +76,14 @@
         <section id="t-bot" hidden></section>
                                         <section id="t-referrals" hidden></section>
         <section id="t-emoji" hidden></section>
+        <section id="t-monitor" hidden>
+          <div class="agent-toolbar" aria-label="أدوات المراقب">
+            <button class="sm" type="button" id="monitor-refresh">تحديث التقارير</button>
+            <span class="pill" id="monitor-meta">…</span>
+          </div>
+          <div id="monitor-list" class="card" aria-live="polite"></div>
+          <small class="privacy-note">مراقب خفي: يفحص تلقائياً كل عضو يدخل البوت (الصورة، الاسم، @username، البايو إن توفّر) بمزوّد ذكاء اصطناعي. إلا وُجد دليل أنه امرأة، يظهر التقرير هنا مع أزرار الحظر وفك الحظر. العضو لا يشعر بالمراقبة.</small>
+        </section>
         <section id="t-set" hidden></section>
       </main>
       <nav id="nav">
@@ -81,6 +91,7 @@
         ><button data-t="bot">FT-bot</button
         ><button data-t="referrals">الإحالات</button
         ><button data-t="emoji">الإيموجي</button
+        ><button data-t="monitor">مراقب الذكاء الاصطناعي</button>
         ><button data-t="set">الإعدادات</button
         ><button data-t="instructions">تعليمات المساعد</button>
       </nav>

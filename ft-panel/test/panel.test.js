@@ -7,7 +7,7 @@ const fs = require('node:fs');
 
 // Isolated Redis and an in-process fake bot; never connects to production.
 const socket = `/tmp/ft-panel-test-${process.pid}.sock`;
-let server, db, bot, handler, origin, calls = [], manageCalls = [], visionCalls = [], fallbackCalls = [], originalFetch;
+let server, db, bot, handler, origin, calls = [], manageCalls = [], visionCalls = [], fallbackCalls = [], monitorCalls = [], originalFetch;
 let failVision = false, fallbackReplies = [];
 let migrateCalls = [];
 let catalogRewards = [{ id: 'r1', title: 'Real bot reward', cost: 5, hasImage: false, delivery: 'private delivery' }, { id: 'r280', title: 'كونت بيس', desc: 'حساب بيس كامل', cost: 280, hasImage: false }];
@@ -51,6 +51,16 @@ before(async () => {
       if (input.id === 'missing') { res.writeHead(404); return res.end(JSON.stringify({ ok: false, error: 'الجائزة غير موجودة' })); }
       if (input.op === 'broadcast_start') return res.end(JSON.stringify({ ok: true, jobId: input.jobId, total: 140, sent: 0, failed: 0, excludedBanned: 0, unknown: 0, remaining: 140, done: false, scope: 'all_registered_at_start' }));
       return res.end(JSON.stringify({ ok: true, reward: { id: input.id || 'r2', ...input.reward }, contest: { id: input.id || 'c2', ...input.contest } }));
+    }
+    if (url.pathname === '/api/panel/monitor') {
+      res.setHeader('content-type', 'application/json');
+      let raw = ''; for await (const chunk of req) raw += chunk; const input = JSON.parse(raw);
+      monitorCalls.push(input);
+      if (input.action === 'view') return res.end(JSON.stringify({ ok: true, enabled: true, providers: { gemini: true, others: true }, group: null, pending: 1, reports: [{ id: '9', userId: '9', firstName: 'فاطمة', username: 'fatima', status: 'pending', confidence: 0.9, evidence: 'اسم امرأة', provider: 'Google Gemini', createdAt: 1, photo: '' }] }));
+      if (input.action === 'ban') return res.end(JSON.stringify({ ok: true }));
+      if (input.action === 'unban') return res.end(JSON.stringify({ ok: true }));
+      if (input.action === 'dismiss') return res.end(JSON.stringify({ ok: true }));
+      res.writeHead(400); return res.end(JSON.stringify({ ok: false, error: 'إجراء غير معروف' }));
     }
     if (url.pathname === '/api/panel/emoji') {
       res.setHeader('content-type', 'application/json');
@@ -509,4 +519,29 @@ test('owner instructions require authentication, are encrypted and applied to fu
   assert.match(captured.messages[0].content, /اكتب إجابات موجزة جداً/);
   assert.match(captured.messages[0].content, /سياسة الحماية الأساسية/);
   assert.equal((await api('agent_instructions_save', { text: '' }, token, '42')).statusCode, 200);
+});
+
+test('monitor view lists AI-monitor reports and the pending count', async () => {
+  const login = await api('login', { password: 'new-password-long' }, '', '50');
+  const token = login.body.token;
+  await api('bot_connect', { key: 'valid-test-bot-key' }, token);
+  monitorCalls.length = 0;
+  const view = await api('monitor_view', { limit: 100 }, token);
+  assert.equal(view.body.ok, true);
+  assert.equal(view.body.data.reports.length, 1);
+  assert.equal(view.body.data.pending, 1);
+  assert.equal(monitorCalls[0].action, 'view');
+});
+
+test('monitor ban / unban / dismiss reach the bot with the user id', async () => {
+  const login = await api('login', { password: 'new-password-long' }, '', '51');
+  const token = login.body.token;
+  await api('bot_connect', { key: 'valid-test-bot-key' }, token);
+  monitorCalls.length = 0;
+  for (const op of ['ban', 'unban', 'dismiss']) {
+    const res = await api('monitor_op', { op, userId: '9' }, token);
+    assert.equal(res.body.ok, true);
+    assert.equal(monitorCalls.at(-1).action, op);
+    assert.equal(monitorCalls.at(-1).userId, '9');
+  }
 });
