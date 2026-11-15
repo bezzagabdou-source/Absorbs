@@ -9,17 +9,22 @@ const JOINED_KEY = "users:joined";
 export async function touchUser(from: TgUser): Promise<{ user: BotUser; isNew: boolean }> {
   const store = getStore();
   const id = String(from.id);
-  const existing = await store.get<BotUser>(`user:${id}`);
-  const isNew = await store.sAdd(IDS_KEY, id);
+  // ⚡ القراءة والتسجيل ف نفس الوقت
+  const [existing, isNew] = await Promise.all([store.get<BotUser>(`user:${id}`), store.sAdd(IDS_KEY, id)]);
   const user: BotUser = {
     id,
     firstName: from.first_name || existing?.firstName || "صديق",
     username: from.username || existing?.username || "",
     joinedAt: existing?.joinedAt || Date.now(),
   };
-  await store.set(`user:${id}`, user);
-  if (isNew) await store.zIncr(JOINED_KEY, id, user.joinedAt);
-  await trackBotActivity(id);
+  // ✍️ نكتبو غير إلا تبدّل شي (كانت كتابة ف كل رسالة)
+  const changed =
+    !existing || existing.firstName !== user.firstName || existing.username !== user.username || !existing.joinedAt;
+  await Promise.all([
+    changed ? store.set(`user:${id}`, user) : Promise.resolve(),
+    isNew ? store.zIncr(JOINED_KEY, id, user.joinedAt) : Promise.resolve(),
+    trackBotActivity(id),
+  ]);
   return { user, isNew };
 }
 

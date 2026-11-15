@@ -51,6 +51,15 @@ function describeUpdate(update: TgUpdate) {
   return { kind: "other", chatId: 0, userId: 0, name: "", text: "" };
 }
 
+/** ⚡ هوية البوت ما كتتبدّلش كل ثانية: مرة ف 5 دقايق تكفي (كانت نداءين لتيليغرام ف كل رسالة) */
+const META_EVERY_MS = 5 * 60_000;
+let metaAt = 0;
+function metaDue(): boolean {
+  if (Date.now() - metaAt < META_EVERY_MS) return false;
+  metaAt = Date.now();
+  return true;
+}
+
 /** 🩺 نسجّل بوت الحقيقة لي كيتصل بيه السيرفر (التوكن الفعّال) */
 async function saveBotMeta() {
   const { getStore } = await import("@/lib/store");
@@ -89,10 +98,13 @@ async function alertOwner(reason: string) {
   await getStore().set(ALERT_KEY, Date.now());
 }
 
-async function pushAudit(entry: AuditEntry & { sent?: { method: string; text?: string; error?: string }[] }) {
+type TraceLine = { method: string; text: string };
+function captureTrace(): TraceLine[] {
+  return getTrace().slice(0, 6).map((t) => ({ method: t.method, text: String(t.payload.text || "").slice(0, 200) }));
+}
+
+async function pushAudit(entry: AuditEntry, trace: TraceLine[]) {
   const { getStore } = await import("@/lib/store");
-  // نلتقطو آخر نداءات الإرسال من الأثر (إلا كان التسجيل مفعّل)
-  const trace = getTrace().slice(0, 6).map((t) => ({ method: t.method, text: String(t.payload.text || "").slice(0, 200) }));
   const store = getStore();
   await store.listPush(AUDIT_KEY, [JSON.stringify({ ...entry, sent: trace })]);
   const len = await store.listLen(AUDIT_KEY);
@@ -178,22 +190,15 @@ export async function POST(request: NextRequest) {
   // 🧩 أي بوت؟ البوت الثاني كيتسجّل على نفس الرابط بعلامة ?bot=2 — نفس المتجر والبيانات
   const which = new URL(request.url).searchParams.get("bot");
   const second = secondBotToken();
-  if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update));
+  if (which === "2" && second) return await runWithBotToken(second, () => handleWebhook(update, false));
 
   return await handleWebhook(update);
 }
 
-async function handleWebhook(update: TgUpdate) {
-  const settings = await getSettings();
-
-  // 🩺 نسجّلو هوية البوت + حالة الويب هوك ف كل تحديث (باش نعرفو واش الإرسال يخدم)
-  try {
-    await saveBotMeta();
-  } catch {
-    /* ما نعطّلوش الردّ */
-  }
-
-  await trackBotMessage();
+async function handleWebhook(update: TgUpdate, primary = true) {
+  // ⚡ كل الأشغال الثقيلة (هوية البوت، العدّادات، التدقيق، التنبيه) تمشي بعد ما نردّو — /start يجاوب فوراً
+  if (primary && metaDue()) after(() => saveBotMeta().catch(() => undefined));
+  after(() => trackBotMessage().catch(() => undefined));
 
   // 🎭 إلا وصّل ملصق: نحفظو file_id باش المالك يستعملو في الواجهة (بلا ما يردّ عليه)
   if (update.message?.sticker?.file_id) {
@@ -214,20 +219,23 @@ async function handleWebhook(update: TgUpdate) {
     error = String((e as Error)?.message || e);
     console.error("[webhook] failed to handle update", e);
   }
-  try {
-    await pushAudit({ at: Date.now(), ...detail, error });
-  } catch {
-    /* التدقيق ما يعطّلش الردّ */
-  }
 
-  // 🚨 إلا فشل الإرسال لتّيليغرام، نبلغو المالك على الخاص (باش ما نبقاوش في السكوت)
-  try {
-    const { getSendErrors } = await import("@/lib/telegram");
-    const errs = getSendErrors().filter((e) => Date.now() - e.at < 20_000);
-    if (errs.length) await alertOwner(errs[0].error);
-  } catch {
-    /* تنبيه فقط */
-  }
+  const trace = captureTrace();
+  after(async () => {
+    try {
+      await pushAudit({ at: Date.now(), ...detail, error }, trace);
+    } catch {
+      /* التدقيق ما يعطّلش الردّ */
+    }
+    // 🚨 إلا فشل الإرسال لتّيليغرام، نبلغو المالك على الخاص (باش ما نبقاوش في السكوت)
+    try {
+      const { getSendErrors } = await import("@/lib/telegram");
+      const errs = getSendErrors().filter((e) => Date.now() - e.at < 20_000);
+      if (errs.length) await alertOwner(errs[0].error);
+    } catch {
+      /* تنبيه فقط */
+    }
+  });
 
   return NextResponse.json({ ok: true });
 }

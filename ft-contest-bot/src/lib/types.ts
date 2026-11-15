@@ -35,6 +35,8 @@ export type Contest = {
 export const PINNED_CHANNELS = ["@mxabdou"];
 
 export type Settings = {
+  /** 🔒 قنوات مقفولة (من الكود + سجل system:locked-channels ف قاعدة البيانات): تتزاد فقط، ما تتحيّدش */
+  lockedChannels?: string[];
   botToken: string;
   botUsername: string;
   botId: number | null;

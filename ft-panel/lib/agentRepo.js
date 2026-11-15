@@ -28,6 +28,19 @@ function checkText(value) {
   if (typeof value !== 'string' || Buffer.byteLength(value) > MAX_FILE || value.includes('\0')) throw new Error('الملف يجب أن يكون نصياً وأصغر من 250 كيلوبايت');
   return value;
 }
+// 🔒 حدود الصلاحيات (تُفرض في الكود لا في البرومبت):
+//  • كود ft-panel للقراءة فقط؛ المساعد يعدّل فيها المتغيرات (env_set) وليس الملفات.
+//  • قناة الاشتراك الإجباري @mxabdou مقفولة: أي تعديل يحذفها أو يعطّل قفلها يُرفض.
+const LOCK_RULES = [
+  { path: 'ft-contest-bot/src/lib/types.ts', must: [/PINNED_CHANNELS\s*=\s*\[[^\]]*["']@mxabdou["']/] },
+  { path: 'ft-contest-bot/src/lib/settings.ts', must: [/withPinnedChannels/, /lockedChannels/, /system:locked-channels/, /PINNED_CHANNELS/] },
+  { path: 'ft-contest-bot/src/lib/bot.ts', must: [/requiredChannelsOf/, /PINNED_CHANNELS/, /lockedChannels/, /checkChannels/] },
+];
+function assertWriteAllowed(path, next) {
+  if (/^ft-panel(?:\/|$)/.test(path)) throw new Error('كود لوحة ft-panel محمي: المساعد يقدر يغيّر فقط متغيراتها (env_set)، ويعدّل كود ft-contest-bot');
+  const rule = LOCK_RULES.find(r => r.path === path);
+  if (rule && rule.must.some(re => !re.test(next))) throw new Error('قناة الاشتراك الإجباري @mxabdou مقفولة: لا يمكن حذفها أو تغيير آلية قفلها');
+}
 const sha = value => crypto.createHash('sha256').update(String(value)).digest('hex');
 const clip = (value, max = 45_000) => String(value).length > max ? String(value).slice(0, max) + '\n… (diff truncated)' : String(value);
 function diff(path, before, after) { return clip(createTwoFilesPatch(path, path, before || '', after || '', 'قبل', 'بعد', { context: 3 })); }
@@ -152,6 +165,7 @@ async function writeFile(args = {}, ctx = {}, patch = false) {
       next = old.content.replace(from, to);
     } else next = args.content;
     checkText(next);
+    assertWriteAllowed(path, next);
     if (old && old.content === next) return { path, unchanged: true, staged: true, message: 'لا يوجد تغيير' };
     const base = beforeEntry ? { content: beforeEntry.baseContent, sha: beforeEntry.baseSha } : await remoteFile(cfg, path, ws.baseCommit, ctx.files);
     const id = crypto.randomUUID();
@@ -327,4 +341,4 @@ async function getLogs(args = {}) {
   return { id: status.id, kind: 'build_events', text: redact(raw).slice(0, 30000), truncated: raw.length > 30000 };
 }
 function context() { return { files: new Map(), trees: new Map() }; }
-module.exports = { config, pathOk, head, gh, tree, current, readWorkspace, listFiles, readFile, searchCode, writeFile, workspaceDiff, deploy, undo, getDeployStatus, getLogs, context, redact };
+module.exports = { config, pathOk, head, gh, tree, current, readWorkspace, listFiles, readFile, searchCode, writeFile, workspaceDiff, deploy, undo, getDeployStatus, getLogs, context, redact, vercel, assertWriteAllowed };

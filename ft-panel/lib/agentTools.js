@@ -1,6 +1,7 @@
 const repo = require('./agentRepo');
 const sandbox = require('./agentSandbox');
 const audit = require('./agentAudit');
+const extras = require('./agentExtras');
 const bot = require('./botBridge');
 const S = { type: 'string' }, B = { type: 'boolean' }, N = { type: 'number' };
 const fn = (name, description, properties = {}, required = []) => ({ type: 'function', function: { name, description, parameters: { type: 'object', properties, required } } });
@@ -20,9 +21,10 @@ const TOOLS = [
   fn('set_commands', 'تحديث أوامر تيليغرام المطلوبة صراحة؛ تؤخذ نسخة من الأوامر السابقة أولاً', { commands: { type: 'array', items: { type: 'object', properties: { command: S, description: S }, required: ['command', 'description'] } } }, ['commands']),
   fn('set_webhook', 'ربط تيليغرام بعنوان FT-bot المهيأ فقط مع سر البوت الموجود؛ لا يحذف التحديثات المنتظرة. نفّذ بطلب صريح'),
   fn('run_tests', 'تشغيل الاختبارات في Vercel Sandbox مع مسودات project=bot أو panel؛ للبوت يشمل TypeScript والبناء إن لم يُلغَ build', { project: { type: 'string', enum: ['bot', 'panel'] }, build: B }, ['project']),
+  ...extras.TOOLS,
   fn('lint_check', 'فحص الصياغة للوحة أو TypeScript للبوت في بيئة معزولة؛ لا يوجد سكربت lint مستقل حالياً', { project: { type: 'string', enum: ['bot', 'panel'] } }, ['project']),
 ];
-const READ_ONLY = new Set(['list_files', 'read_file', 'search_code', 'review_diff', 'db_query', 'get_logs', 'get_deploy_status', 'get_bot_info', 'run_tests', 'lint_check']);
+const READ_ONLY = new Set([...extras.READ_ONLY, 'list_files', 'read_file', 'search_code', 'review_diff', 'db_query', 'get_logs', 'get_deploy_status', 'get_bot_info', 'run_tests', 'lint_check']);
 function commands(input) {
   if (!Array.isArray(input) || input.length > 100) throw new Error('قائمة الأوامر غير صالحة');
   return input.map(c => {
@@ -77,6 +79,7 @@ const IMPL = {
   db_query: a => bot.agent('db_query', { key: a.key }), db_update: dbUpdate,
   get_logs: a => repo.getLogs(a), deploy: (a, c) => repo.deploy(a, c.repo), get_deploy_status: a => repo.getDeployStatus(a),
   get_bot_info: () => bot.agent('get_bot_info'), set_commands: setCommands, set_webhook: setWebhook,
+  ...extras.IMPL,
   run_tests: (a, c) => sandbox.run(a, 'test', c), lint_check: (a, c) => sandbox.run(a, 'lint', c),
 };
 module.exports = { TOOLS, IMPL, READ_ONLY };

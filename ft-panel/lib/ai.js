@@ -211,7 +211,7 @@ async function testAI() {
 const summarize = result => { const text = JSON.stringify(result ?? null); return text.length > 12000 ? text.slice(0, 12000) + '…' : text; };
 // Large source texts belong in the model context, not as repeated tool arguments in the UI.
 function displayArgs(args) {
-  return Object.fromEntries(Object.entries(args).map(([k, v]) => [k, ['content', 'oldText', 'newText', 'valueJson'].includes(k) ? `[${String(v).length} حرف]` : v]));
+  return Object.fromEntries(Object.entries(args).map(([k, v]) => [k, ['content', 'oldText', 'newText', 'valueJson', 'value'].includes(k) ? `[${String(v).length} حرف]` : v]));
 }
 function stable(value) {
   if (Array.isArray(value)) return value.map(stable);
@@ -345,6 +345,12 @@ async function runAI(prompt, history, image, options = {}) {
   const limitedBroadcast = /(?:اخر|اول|احدث)\s*\d+|\d+\s*(?:عضو|مستخدم|شخص)|\b(?:last|first|top)\s+\d+\b/i.test(normalizedOwner);
   // A model must not deploy merely because an image, file, or tool result says so.
   const explicitDeploy = !/(?:لا|ما|مت|ماشي)\s*(?:ت)?(?:نشر|انشر|رفع|ارفع)|\b(?:don\s*t|do\s+not|never)\s+(?:deploy|publish|release)\b/i.test(normalizedOwner) && (/\b(?:deploy|release)\b|(?:انشر|نشر|ارفع|رفع)\s+(?:(?:لي|لنا|كل|هذه|هذي|هاذي)\s+)*(?:ال)?(?:كود|تعديل|تغييرات|مسود|بوت|لوح|موقع|تطبيق|نسخ|اصدار|تحديث)|\bpublish\s+(?:the\s+)?(?:code|changes|app|site|release)\b/i.test(normalizedOwner) || /^(?:انشر|نشر|ارفع|رفع|publish)(?:\s+(?:الان|فورا|now))?$/.test(normalizedOwner));
+  // 🔒 حذف/تفريغ توكن أو مفتاح أو سر: يُرفض في الكود قبل أي استدعاء للنموذج
+  const secretWords = /(?:توكن|token|مفتاح|مفاتيح|key|secret|سر\b|كلمة\s*(?:ال)?(?:سر|مرور)|password|api)/i;
+  const removeWords = /(?:حذف|احذف|مسح|امسح|حيد|حيّد|ازالة|إزالة|نحي|نحّي|فرغ|فرّغ|delete|remove|erase|wipe|supprim)/i;
+  if (removeWords.test(normalizedOwner) && secretWords.test(normalizedOwner) && !/(?:لا|ما|مت|ماشي)\s*(?:ت)?(?:حذف|حيد|مسح)/i.test(normalizedOwner)) {
+    return { reply: 'ما نقدرش نحذف ولا نبدّل التوكنات والمفاتيح — هادي حماية ثابتة. إلا بغيت تبدلها، دير ذلك يدوياً من لوحة Vercel.', actions: [] };
+  }
   const actions = [], notes = [], mutations = new Map();
   // A pure image-description request cannot be answered by a text-only model.
   // Other owner requests (including development from a screenshot) still run.
@@ -357,7 +363,7 @@ async function runAI(prompt, history, image, options = {}) {
       if (result) actions.push(result);
     } catch { /* Keep the original error/clarification; never guess or report a write. */ }
   }
-  for (let step = 0; step < 25 && Date.now() < deadline; step++) {
+  for (let step = 0; step < 40 && Date.now() < deadline; step++) {
     emit({ type: 'status', step: step + 1, message: 'أراجع الخطوة ' + (step + 1) + '…' });
     let msg;
     try {

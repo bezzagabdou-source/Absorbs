@@ -2,10 +2,39 @@ import { getStore } from "./store";
 import { DEFAULT_SETTINGS, OWNER_USERNAME, PINNED_CHANNELS, WELCOME_TEXT, type Settings } from "./types";
 
 /** 🔐 كنضيفو القنوات المثبّتة (بلا تكرار) — ما تسقطش من البوابة */
-export function withPinnedChannels(list: unknown): string[] {
+export function withPinnedChannels(list: unknown, locked: string[] = []): string[] {
   const base = normalizeChannels(list);
-  for (const pin of normalizeChannels(PINNED_CHANNELS)) if (!base.includes(pin)) base.unshift(pin);
+  for (const pin of [...normalizeChannels(PINNED_CHANNELS), ...locked]) if (!base.includes(pin)) base.unshift(pin);
   return base;
+}
+
+/**
+ * 🔒 القنوات المقفولة: اتحاد (الكود ∪ سجل system:locked-channels ف قاعدة البيانات).
+ * السجل كيتكتب من الكود فقط ويكبر ولا يصغر؛ المفاتيح `system:*` محمية من أدوات المساعد وأي أداة بيانات.
+ * يعني حتى إلا تحيّدات القناة من الكود، كتبقى مفروضة من قاعدة البيانات.
+ */
+const LOCK_KEY = "system:locked-channels";
+let lockMemo: { at: number; list: string[] } | null = null;
+export async function lockedChannels(): Promise<string[]> {
+  const code = normalizeChannels(PINNED_CHANNELS);
+  if (lockMemo && Date.now() - lockMemo.at < 60_000) return [...new Set([...lockMemo.list, ...code])];
+  let stored: string[] = [];
+  try {
+    const record = await getStore().get<{ channels?: unknown }>(LOCK_KEY);
+    stored = normalizeChannels(record?.channels);
+  } catch {
+    /* التخزين غير متاح مؤقتاً: الكود وحده كافي */
+  }
+  const merged = [...new Set([...stored, ...code])];
+  if (merged.length > stored.length) {
+    try {
+      await getStore().set(LOCK_KEY, { channels: merged, at: Date.now() });
+    } catch {
+      /* نعاودو ف الطلب الجاي */
+    }
+  }
+  lockMemo = { at: Date.now(), list: merged };
+  return merged;
 }
 
 /** تطبيع قائمة القنوات: نص أو مصفوفة → مصفوفة @usernames فريدة */
@@ -38,14 +67,27 @@ function isOldLongWelcome(text: string): boolean {
   return text.length > 90 || /هنا تربح|اختر من الأزرار/.test(text);
 }
 
+/** ⚡ كاش قصير (3 ثواني) للإعدادات: كانت كل رسالة كتقراها 6-10 مرات من قاعدة البيانات */
+const SETTINGS_TTL_MS = 3_000;
+let settingsCache: { at: number; value: Settings } | null = null;
+
 export async function getSettings(): Promise<Settings> {
+  if (settingsCache && Date.now() - settingsCache.at < SETTINGS_TTL_MS) return { ...settingsCache.value };
+  const value = await loadSettings();
+  settingsCache = { at: Date.now(), value };
+  return { ...value };
+}
+
+async function loadSettings(): Promise<Settings> {
   const store = getStore();
+  const locked = await lockedChannels();
   const saved = (await store.get<Partial<Settings>>(SETTINGS_KEY)) || {};
   const envToken = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
   const savedWelcome = (saved.welcomeText || "").trim();
   const settings: Settings = {
     ...DEFAULT_SETTINGS,
     ...saved,
+    lockedChannels: locked,
     botToken: saved.botToken || envToken,
     ownerUsername: (saved.ownerUsername || OWNER_USERNAME).replace(/^@/, ""),
     supportUsername: (saved.supportUsername || saved.ownerUsername || OWNER_USERNAME).replace(/^@/, ""),
@@ -61,6 +103,7 @@ export async function getSettings(): Promise<Settings> {
         if (legacy.length) return legacy;
         return DEFAULT_SETTINGS.requiredChannels;
       })(),
+      locked,
     ),
     // 🔒 نسخة الاشتراك الإجباري: البوابة شغّالة افتراضياً (كيما كانت).
     // تقدر تطفيها من اللوحة (تتخزّن ف gateOn).
@@ -84,10 +127,12 @@ export async function getSettings(): Promise<Settings> {
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
-  const current = await getSettings();
+  const current = await loadSettings();
   const next: Settings = { ...current, ...patch, gateV: GATE_VERSION };
   // 🔐 القنوات المثبّتة ما تسقطش حتى إلا تحيّدتا من اللوحة
-  if (patch.requiredChannels !== undefined) next.requiredChannels = withPinnedChannels(patch.requiredChannels);
+  const locked = await lockedChannels();
+  next.lockedChannels = locked;
+  next.requiredChannels = withPinnedChannels(patch.requiredChannels !== undefined ? patch.requiredChannels : next.requiredChannels, locked);
   // أي تعديل صريح على requireJoin = قرار المالك → نثبّتوه
   if (patch.requireJoin !== undefined) next.gateOn = Boolean(patch.requireJoin);
   // 🔐 والبوابة كتبقى شغّالة على الكل دام كاينة قناة مثبّتة (المالك يطفيها غير بـ GATE_OFF=1)
@@ -96,6 +141,7 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
     next.requireJoin = true;
   }
   await getStore().set(SETTINGS_KEY, next);
+  settingsCache = null; // 🔄 التعديل يظهر فوراً
   return next;
 }
 

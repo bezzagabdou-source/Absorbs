@@ -114,7 +114,7 @@ export function channelUrl(chat: string): string {
 
 /** القنوات المطلوبة فعلياً (لا شيء إذا كان الاشتراك غير إجباري) */
 export function requiredChannelsOf(settings: Settings): string[] {
-  const pinned = normalizeChannels(PINNED_CHANNELS);
+  const pinned = [...new Set([...normalizeChannels(PINNED_CHANNELS), ...normalizeChannels(settings.lockedChannels)])];
   if (!settings.requireJoin) return pinned; // 🔐 المثبّتة ما تسقطش حتى إلا طفا المالك البوابة
   const list = (settings.requiredChannels || []).filter(Boolean);
   const out = list.length ? [...list] : settings.channelChat ? [settings.channelChat] : [];
@@ -127,23 +127,44 @@ export function requiredChannelsOf(settings: Settings): string[] {
  * - missing: قنوات ثبت أنو ما مشتركش فيها → نبلوكيو
  * - soft:    قنوات تعذّر التحقق منها (البوت ماشي أدمن...) → ما نبلوكيوش
  */
+/** ⚡ المشترك المؤكَّد ما نعاودوش نسقسيو تيليغرام عليه 10 دقايق (فقط النتيجة الإيجابية كتتخزّن) */
+const GATE_OK_TTL_MS = 10 * 60_000;
+const gateOkGlobal = globalThis as unknown as { __ftGateOk?: Map<string, number> };
+
+function gateOkKey(chat: string, userId: number | string) {
+  return `${String(chat).toLowerCase()}|${userId}`;
+}
+
 export async function checkChannels(
   settings: Settings,
   userId: number | string,
+  options: { fresh?: boolean } = {},
 ): Promise<{ required: string[]; missing: ChannelCheck[]; soft: string[]; ok: boolean }> {
   const required = requiredChannelsOf(settings);
+  const memo = (gateOkGlobal.__ftGateOk ||= new Map());
+  const now = Date.now();
+  // ⚡ كل القنوات كتتحقّق فنفس الوقت (ماشي وحدة بوحدة)
+  const results = await Promise.all(
+    required.map(async (chat) => {
+      const key = gateOkKey(chat, userId);
+      if (!options.fresh && (memo.get(key) || 0) > now) return { chat, kind: "ok" as const };
+      const res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
+      // 🛟 أي فشل من تيليغرام = تجاوز القناة (ما نوقفوش البوت على خطأ تحقّق)
+      if (!res.ok || !res.result) return { chat, kind: "soft" as const, note: `${chat}: ${res.description || "تعذّر التحقّق"}` };
+      if (!MEMBER_STATUS.includes(res.result.status)) {
+        memo.delete(key);
+        return { chat, kind: "missing" as const, status: res.result.status };
+      }
+      memo.set(key, now + GATE_OK_TTL_MS);
+      return { chat, kind: "ok" as const };
+    }),
+  );
+  if (memo.size > 20_000) memo.clear();
   const missing: ChannelCheck[] = [];
   const soft: string[] = [];
-  for (const chat of required) {
-    const res = await tgCall<{ status: string }>("getChatMember", { chat_id: chat, user_id: userId });
-    // 🛟 أي فشل من تيليغرام = تجاوز القناة (ما نوقفوش البوت على خطأ تحقّق)
-    if (!res.ok || !res.result) {
-      soft.push(`${chat}: ${res.description || "تعذّر التحقّق"}`);
-      continue;
-    }
-    if (!MEMBER_STATUS.includes(res.result.status)) {
-      missing.push({ chat, url: channelUrl(chat), status: res.result.status });
-    }
+  for (const r of results) {
+    if (r.kind === "missing") missing.push({ chat: r.chat, url: channelUrl(r.chat), status: r.status });
+    else if (r.kind === "soft") soft.push(r.note);
   }
   return { required, missing, soft, ok: missing.length === 0 };
 }
@@ -571,8 +592,7 @@ async function showHome(
   settings: Settings,
   messageId?: number,
 ) {
-  const contests = await listContests();
-  const balance = await balanceOf(String(user.id));
+  const [contests, balance] = await Promise.all([listContests(), balanceOf(String(user.id))]);
   const text = (settings.welcomeText || "مرحبا بكم في بوت مسابقات FT")
     .replace(/\{name\}/g, nameOf(user))
     .replace(/\{count\}/g, String(contests.filter((c) => c.status === "active").length))
@@ -1575,6 +1595,14 @@ async function handleMyChatMember(
   // بدون ما يحسّ العضو. في المحادثة الخاصة، معرف الشات = معرف العضو نفسه.
   if (!groupType(chat)) {
     const status = member?.status || "";
+    // 📭 حاجب البوت (kicked) → نخرجوه من لائحة البث؛ رجع (member) → نرجعوه
+    try {
+      const store = (await import("./store")).getStore();
+      if (status === "kicked" || status === "left") await store.sAdd("users:unreachable", String(chat.id));
+      else if (["member", "administrator", "creator"].includes(status)) await store.sDel("users:unreachable", String(chat.id));
+    } catch {
+      /* تسجيل فقط */
+    }
     if (["member", "administrator", "creator"].includes(status)) {
       const userId = String(chat.id);
       const info = await getChatInfo(userId).catch(() => null);
@@ -1793,7 +1821,9 @@ export async function simulateUpdate(update: TgUpdate): Promise<{
 
 export async function handleUpdate(update: TgUpdate): Promise<void> {
   // 👑 نعرفو معرّف المالك (@username → رقم) باش توصلو الطلبات وتخدم أزرار التسليم
-  await resolveOwnerId((await getSettings()).ownerUsername).catch(() => "");
+  // ⚡ معرّف المالك: ننتظروه 250ms كحد أقصى (كان ممكن يقرا كل المستخدمين ويبطّأ /start)
+  const ownerLookup = getSettings().then((s) => resolveOwnerId(s.ownerUsername)).catch(() => "");
+  await Promise.race([ownerLookup, new Promise<void>((r) => setTimeout(r, 250))]);
   if (update.callback_query) {
     await handleCallback(update.callback_query);
     return;
@@ -1966,6 +1996,8 @@ async function handleMessageInner(message: TgMessage) {
   }
 
   if (command === "/start") {
+    // 📭 المستخدم بدا البوت من جديد → يرجع للبث
+    if (!inGroup) void import("./store").then((m) => m.getStore().sDel("users:unreachable", String(from.id))).catch(() => undefined);
     // 🔗 رابط الإحالة العام (ref_<id>) — كيخدم بلا مسابقة وبلا مجموعة
     if (payload.startsWith("ref_")) {
       const inviterId = parseGeneralReferral(payload);
@@ -2178,7 +2210,7 @@ async function handleCallback(query: TgCallbackQuery) {
   const [action, arg] = data.split(":");
 
   if (action === "joinchk") {
-    const gate = await checkChannels(settings, user.id);
+    const gate = await checkChannels(settings, user.id, { fresh: true });
     if (!gate.ok) {
       await sendGate(chatId, settings, gate.missing, messageId);
       return;
