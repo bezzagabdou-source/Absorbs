@@ -157,8 +157,15 @@ function show(t) {
   });
   document
     .querySelectorAll("#nav button")
-    .forEach((b) => b.classList.toggle("on", b.dataset.t === t));
+    .forEach((b) => {
+      const active = b.dataset.t === t;
+      b.classList.toggle("on", active);
+      if (active) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
   $("#ttl").textContent = TITLES[t];
+  const caption = $(".brand-caption");
+  if (caption) caption.textContent = t === "ai" ? "إدارة ومساعدة ذكية لبوتك" : "إدارة آمنة ومباشرة للبوت";
   if (LOAD[t]) LOAD[t]();
 }
 function fail(el, e) {
@@ -548,10 +555,14 @@ function start() {
   if (pendingBroadcast) void resumeBroadcast(pendingBroadcast);
   api("health", { light: true })
     .then((h) => {
-      $("#bot").textContent = h.bot;
+      $("#bot").textContent = h.bot || "البوت متصل";
+      $("#bot").classList.add("is-online");
+      $("#bot").classList.remove("is-offline");
     })
     .catch(() => {
-      $("#bot").textContent = "—";
+      $("#bot").textContent = "تعذّر الفحص";
+      $("#bot").classList.add("is-offline");
+      $("#bot").classList.remove("is-online");
     });
   if (!$("#chat").children.length) {
     if (HIST.length) HIST.forEach(h => bubble(h.role === "user" ? "me" : "bot", esc(h.content).split("\n").join("<br>")));

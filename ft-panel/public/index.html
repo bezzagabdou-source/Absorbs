@@ -27,8 +27,11 @@
     </div>
     <div id="app" hidden>
       <header>
-        <h2 id="ttl">المساعد</h2>
-        <span id="bot" class="pill">…</span>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">FT</span>
+          <div><h2 id="ttl">المساعد</h2><small class="brand-caption">مركز إدارة FT-bot</small></div>
+        </div>
+        <span id="bot" class="pill">جاري الفحص</span>
       </header>
       <main>
         <div id="broadcast-progress" class="card" role="status" aria-live="polite" hidden></div>
@@ -77,12 +80,12 @@
         <section id="t-set" hidden></section>
       </main>
       <nav id="nav">
-        <button data-t="ai" class="on">المساعد</button
-        ><button data-t="bot">FT-bot</button
-        ><button data-t="referrals">الإحالات</button
-        ><button data-t="emoji">الإيموجي</button
-        ><button data-t="set">الإعدادات</button
-        ><button data-t="instructions">تعليمات المساعد</button>
+        <button data-t="ai" class="on" aria-current="page">✦ المساعد</button
+        ><button data-t="bot">◈ إدارة البوت</button
+        ><button data-t="referrals">↗ الإحالات</button
+        ><button data-t="emoji">❋ الإيموجي</button
+        ><button data-t="set">⚙ الإعدادات</button
+        ><button data-t="instructions">☷ تعليمات المساعد</button>
       </nav>
     </div>
     <dialog id="bot-dlg"><form id="bot-df"></form></dialog>

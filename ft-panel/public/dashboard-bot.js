@@ -50,7 +50,7 @@ async function loadBot() {
     } else if (selected === 'users') {
       const data = await botView('users');
       BOT_USERS = data.users || [];
-      content.innerHTML = `<div class='card'><h3>أعضاء FT-bot</h3><small>القائمة والتصدير لآخر 100 عضو فقط. يمكن البحث عن أي معرف مسجّل.</small><form id='bot-user-search' class='bar'><input id='bot-user-query' placeholder='معرّف أو اسم أو @username'><button class='btn'>بحث</button></form><button class='sm' data-act='bot-export'>تصدير آخر 100 بصيغة CSV</button></div><div id='bot-user-results'></div>`;
+      content.innerHTML = `<div class='card'><h3>أعضاء FT-bot</h3><small>بحث مباشر في قاعدة البوت (حتى 5000 نتيجة). اكتب المعرف أو الاسم أو @username؛ ويمكن تصدير النتائج المعروضة.</small><form id='bot-user-search' class='bar'><input id='bot-user-query' placeholder='معرّف أو اسم أو @username' autocomplete='off'><button class='btn'>بحث</button></form><button class='sm' data-act='bot-export'>تصدير النتائج المعروضة بصيغة CSV</button></div><div id='bot-user-results'></div>`;
       renderBotUsers(BOT_USERS);
     } else if (selected === 'requests') {
       const data = await botView('requests');
@@ -239,8 +239,14 @@ document.addEventListener('submit', async event => {
       $('#bot-dlg').close(); toast('تم الحفظ في FT-bot'); await loadBot();
     } else if (form.id === 'bot-user-search') {
       const query = $('#bot-user-query').value.trim().replace(/^@/, '');
-      if (/^\d{1,20}$/.test(query)) renderBotUsers([(await botView('user', query)).user]);
-      else renderBotUsers(BOT_USERS.filter(u => !query || String(u.firstName || '').toLowerCase().includes(query.toLowerCase()) || String(u.username || '').toLowerCase().includes(query.toLowerCase())));
+      if (/^\d{1,20}$/.test(query)) {
+        const user = (await botView('user', query)).user;
+        BOT_USERS = [user];
+      } else {
+        const result = await api('bot_view', { view: 'users', q: query, limit: 5000 });
+        BOT_USERS = Array.isArray(result.users) ? result.users : [];
+      }
+      renderBotUsers(BOT_USERS);
     } else if (form.id === 'bot-settings-form') {
       const channels = $('#bs-channels').value.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
       await botOp('settings_save', { settings: { ownerUsername: $('#bs-owner').value, supportUsername: $('#bs-support').value, welcomeText: $('#bs-welcome').value, rulesText: $('#bs-rules').value, requiredChannels: channels, requireJoin: $('#bs-gate').checked, maintenanceMode: $('#bs-maintenance').checked, aiEnabled: $('#bs-ai').checked, autoApproveJoins: $('#bs-auto').checked, groupTarget: Number($('#bs-target').value) } });

@@ -462,3 +462,133 @@ nav button { min-width: 52px; white-space: nowrap; }
 #t-emoji summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 #emoji-map .item b { font-size: 1.25rem; }
 #nav { overflow-x: auto; }
+
+/* FT Studio refresh: modern Arabic-first owner console, responsive and motion-safe. */
+:root {
+  --bg: #f3f6f8;
+  --card: #ffffff;
+  --ink: #172536;
+  --mute: #657487;
+  --line: #e1e7ed;
+  --pitch: #087f5b;
+  --red: #c2413a;
+  --shadow: 0 10px 30px rgba(23, 37, 54, .055);
+  --radius: 16px;
+}
+html { scroll-behavior: smooth; }
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 8% 0%, rgba(24, 158, 117, .09), transparent 35rem),
+    var(--bg);
+  font-size: 15px;
+  line-height: 1.7;
+  padding-bottom: calc(86px + env(safe-area-inset-bottom));
+}
+header {
+  padding: 13px max(18px, calc((100vw - 1180px) / 2));
+  min-height: 72px;
+  background: rgba(23, 37, 54, .96);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 5px 24px rgba(15, 23, 42, .12);
+}
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand-mark {
+  display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px;
+  border-radius: 14px; color: #fff; font: 700 15px/1 "Reem Kufi", sans-serif;
+  letter-spacing: .03em; background: linear-gradient(145deg, #13a779, #087f5b);
+  box-shadow: 0 7px 18px rgba(8, 127, 91, .34);
+}
+header h2 { font-size: 18px; line-height: 1.25; }
+.brand-caption { display: block; color: rgba(255,255,255,.62); font-size: 12px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; max-width: min(45vw, 300px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 12px;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.08); color: #e9f5ee;
+}
+.pill::before { content: ""; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #f6bd4a; }
+.pill.is-online::before { background: #50d49c; box-shadow: 0 0 0 4px rgba(80,212,156,.12); }
+.pill.is-offline::before { background: #ff756b; box-shadow: 0 0 0 4px rgba(255,117,107,.12); }
+main { max-width: 1180px; margin: 0 auto; padding: 24px 20px 34px; }
+main > section { animation: rise-in .22s ease-out both; }
+@keyframes rise-in { from { opacity: .65; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.card, .item, .stat {
+  border-color: var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.card, .item { padding: 16px 18px; margin-bottom: 12px; }
+.item { transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease; }
+.item:hover { border-color: #c7d9d2; box-shadow: 0 12px 28px rgba(23,37,54,.075); transform: translateY(-1px); }
+.stat { padding: 18px; background: linear-gradient(145deg, #fff, #f8fbfa); }
+.stat b { font-size: 28px; letter-spacing: -.02em; }
+.btn, .sm, .chips button, .seg button, .bot-tabs button { transition: transform .14s ease, box-shadow .14s ease, background-color .14s ease; }
+.btn { border-radius: 10px; box-shadow: 0 5px 12px rgba(8,127,91,.15); }
+.btn:hover:not(:disabled), .sm:hover, .chips button:hover, .bot-tabs button:hover { transform: translateY(-1px); }
+.btn:active:not(:disabled), .sm:active { transform: translateY(0); }
+.sm { border-radius: 9px; padding: 7px 13px; }
+input, textarea, select { border-radius: 10px; border-color: #dce4ea; background: #fbfcfd; }
+textarea { resize: vertical; }
+input:focus, textarea:focus, select:focus { background: #fff; border-color: #0e9a6d; box-shadow: 0 0 0 4px rgba(14,154,109,.1); outline: 0; }
+label { color: #4d5f71; font-weight: 600; }
+#login {
+  background: radial-gradient(ellipse at 20% 15%, rgba(35, 190, 137, .22), transparent 42%),
+    radial-gradient(ellipse at 90% 85%, rgba(64, 116, 190, .15), transparent 38%), #101c2a;
+}
+.login form {
+  max-width: 410px; padding: 34px; border: 1px solid rgba(255,255,255,.65);
+  border-radius: 24px; box-shadow: 0 26px 80px rgba(0,0,0,.24); gap: 16px;
+}
+.login h1 { color: var(--ink); font-size: 30px; }
+.login p { margin-top: -12px; }
+#nav {
+  z-index: 8; overflow-x: auto; scrollbar-width: none; gap: 5px; justify-content: center;
+  padding: 8px max(12px, calc((100vw - 1180px) / 2)); background: rgba(255,255,255,.94);
+  backdrop-filter: blur(16px); box-shadow: 0 -8px 30px rgba(23,37,54,.06);
+}
+#nav::-webkit-scrollbar, .bot-tabs::-webkit-scrollbar { display: none; }
+#nav button {
+  flex: 0 1 auto; min-width: 92px; padding: 10px 14px; border-radius: 11px;
+  border: 0; border-top: 0; color: #627183; font-size: 13px; font-weight: 600;
+}
+#nav button.on { background: #e9f6f0; color: #087f5b; border: 0; }
+.bot-heading h3 { font-size: 21px; }
+.bot-tabs { scrollbar-width: none; gap: 8px; }
+.bot-tabs button { border-radius: 11px; padding: 8px 15px; font-size: 14px; font-weight: 600; }
+.bot-tabs button.on { background: #172536; }
+.scope-note { border: 1px solid #d7eee4; background: #edf8f3; }
+#chat { gap: 12px; padding: 12px 0; }
+.msg { border-radius: 16px; padding: 12px 16px; box-shadow: 0 4px 16px rgba(23,37,54,.045); }
+.msg.me { border-bottom-right-radius: 5px; }
+.msg.bot { border-bottom-left-radius: 5px; }
+#af { border: 1px solid var(--line); border-radius: 16px; padding: 10px; box-shadow: 0 10px 28px rgba(23,37,54,.08); }
+#af #aq { border: 0; box-shadow: none; background: transparent; }
+.agent-toolbar { padding: 9px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,.7); }
+#broadcast-progress { border-color: #c8e7d8; background: #f3fbf7; }
+#toast { top: 88px; box-shadow: 0 12px 35px rgba(0,0,0,.2); }
+#bot-dlg { border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.2); }
+#bot-dlg::backdrop { backdrop-filter: blur(4px); }
+@media (min-width: 800px) {
+  body { padding-bottom: 30px; }
+  #nav { position: sticky; top: 72px; inset-inline: auto; margin: 0 auto; border: 1px solid var(--line); border-radius: 0 0 16px 16px; max-width: 1180px; }
+  main { padding-top: 28px; }
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #t-bot:has(.bot-tabs) { min-height: 55vh; }
+}
+@media (max-width: 799px) {
+  #nav { justify-content: flex-start; }
+  #nav button { min-width: 84px; padding-inline: 9px; }
+  main { padding: 18px 14px 26px; }
+  header { min-height: 66px; padding-inline: 14px; }
+  .brand-mark { width: 38px; height: 38px; flex-basis: 38px; }
+}
+@media (max-width: 440px) {
+  .brand-caption { font-size: 11px; }
+  .pill { max-width: 43vw; padding: 5px 9px; font-size: 11px; }
+  .card, .item { padding: 13px; }
+  .grid { gap: 8px; }
+  .stat { padding: 12px; }
+  .stat b { font-size: 23px; }
+  #af { gap: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

@@ -7,7 +7,7 @@ const fs = require('node:fs');
 
 // Isolated Redis and an in-process fake bot; never connects to production.
 const socket = `/tmp/ft-panel-test-${process.pid}.sock`;
-let server, db, bot, handler, origin, calls = [], manageCalls = [], visionCalls = [], fallbackCalls = [], originalFetch;
+let server, db, bot, handler, origin, calls = [], manageCalls = [], visionCalls = [], fallbackCalls = [], originalFetch, userSearchUrl;
 let failVision = false, fallbackReplies = [];
 let migrateCalls = [];
 let catalogRewards = [{ id: 'r1', title: 'Real bot reward', cost: 5, hasImage: false, delivery: 'private delivery' }, { id: 'r280', title: 'كونت بيس', desc: 'حساب بيس كامل', cost: 280, hasImage: false }];
@@ -46,7 +46,7 @@ before(async () => {
     if (url.pathname === '/api/panel/chat') { let raw = ''; for await (const chunk of req) raw += chunk; fallbackCalls.push(JSON.parse(raw)); res.setHeader('content-type', 'application/json'); const message = fallbackReplies.shift(); if (!message) { res.writeHead(503); return res.end(JSON.stringify({ ok: false })); } return res.end(JSON.stringify({ ok: true, message })); }
     if (url.pathname === '/api/panel/manage') {
       res.setHeader('content-type', 'application/json');
-      if (req.method === 'GET') return res.end(JSON.stringify({ ok: true, rewards: catalogRewards, contests: catalogContests, users: [] }));
+      if (req.method === 'GET') { if (url.searchParams.get('view') === 'users' && url.searchParams.has('q')) userSearchUrl = url; return res.end(JSON.stringify({ ok: true, rewards: catalogRewards, contests: catalogContests, users: [] })); }
       let raw = ''; for await (const chunk of req) raw += chunk; const input = JSON.parse(raw); manageCalls.push(input);
       if (input.id === 'missing') { res.writeHead(404); return res.end(JSON.stringify({ ok: false, error: 'الجائزة غير موجودة' })); }
       if (input.op === 'broadcast_start') return res.end(JSON.stringify({ ok: true, jobId: input.jobId, total: 140, sent: 0, failed: 0, excludedBanned: 0, unknown: 0, remaining: 140, done: false, scope: 'all_registered_at_start' }));
@@ -196,6 +196,12 @@ test('real bot management is authenticated and allowlisted', async () => {
   const saved = await api('bot_manage', { op: 'reward_save', input: { id: 'r1', reward: { cost: 12 } } }, token, '10');
   assert.equal(saved.statusCode, 200);
   assert.deepEqual(manageCalls.at(-1), { op: 'reward_save', id: 'r1', reward: { cost: 12 } });
+  const searched = await api('bot_view', { view: 'users', q: 'alice', limit: 5000 }, token, '10');
+  assert.equal(searched.statusCode, 200);
+  assert.equal(userSearchUrl.searchParams.get('q'), 'alice');
+  assert.equal(userSearchUrl.searchParams.get('limit'), '5000');
+  assert.equal((await api('bot_view', { view: 'catalog', q: 'alice' }, token, '10')).statusCode, 400);
+  assert.equal((await api('bot_view', { view: 'users', limit: 5001 }, token, '10')).statusCode, 400);
 });
 
 test('emoji page proxy is authenticated, allowlisted and keeps literal Telegram errors', async () => {

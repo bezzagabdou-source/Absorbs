@@ -161,11 +161,22 @@ async function photos(ids) {
 // The new management route has a fixed allowlist; never proxy arbitrary URLs or the bot's unrestricted AI endpoint.
 const VIEWS = new Set(['catalog', 'overview', 'stats', 'requests', 'log', 'users', 'user', 'leaderboard', 'broadcast']);
 const OPERATIONS = new Set(['reward_save', 'reward_delete', 'contest_save', 'contest_delete', 'user_points', 'user_ban', 'request_decide', 'points_config', 'settings_save', 'set_group', 'send_message', 'broadcast', 'broadcast_start', 'broadcast_step', 'broadcast_retry']);
-async function manageView(view, id, { timeout = 15000 } = {}) {
+async function manageView(view, id, { timeout = 15000, q, limit } = {}) {
   if (!VIEWS.has(view)) throw new Error('عرض البوت غير مسموح');
   if ((['user', 'leaderboard'].includes(view) || (view === 'broadcast' && id)) && !/^[A-Za-z0-9_-]{1,100}$/.test(String(id || ''))) throw new Error('المعرّف غير صالح');
   const query = new URLSearchParams({ view });
   if (id) query.set('id', String(id));
+  // Search is only supported for the users view, and is bounded to the bot's
+  // own documented pagination limit. Never forward arbitrary query params.
+  if (q !== undefined) {
+    if (view !== 'users' || typeof q !== 'string' || q.length > 100) throw new Error('بحث الأعضاء غير صالح');
+    query.set('q', q.trim());
+  }
+  if (limit !== undefined) {
+    const n = Number(limit);
+    if (view !== 'users' || !Number.isInteger(n) || n < 1 || n > 5000) throw new Error('حدّ نتائج الأعضاء غير صالح');
+    query.set('limit', String(n));
+  }
   return json(await call(`/api/panel/manage?${query}`, { timeout }));
 }
 async function manageOp(op, input = {}) {

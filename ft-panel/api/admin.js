@@ -75,7 +75,7 @@ async function handle(b, token) {
     case 'referral_photos': return { data: await bot.photos(b.ids) };
     case 'bot_media': return { data: await bot.media() };
     case 'bot_image': return { data: await bot.uploadImage(b.kind, b.id, b.dataUrl) };
-    case 'bot_view': return { data: await bot.manageView(b.view, b.id) };
+    case 'bot_view': return { data: await bot.manageView(b.view, b.id, { q: b.q, limit: b.limit }) };
     case 'bot_manage': return { data: await bot.manageOp(b.op, b.input) };
     case 'emoji_view': return { data: await bot.emojiView(b.q, b.limit) };
     case 'emoji_op': return { data: await bot.emojiOp(b.op, b.input) };
