@@ -73,6 +73,7 @@
             <small id="instructions-status"></small>
           </form>
         </section>
+        <section id="t-control" hidden></section>
         <section id="t-bot" hidden></section>
                                         <section id="t-referrals" hidden></section>
         <section id="t-emoji" hidden></section>
@@ -88,10 +89,11 @@
       </main>
       <nav id="nav">
         <button data-t="ai" class="on">المساعد</button
+        ><button data-t="control">التحكم</button
         ><button data-t="bot">FT-bot</button
         ><button data-t="referrals">الإحالات</button
         ><button data-t="emoji">الإيموجي</button
-        ><button data-t="monitor">مراقب الذكاء الاصطناعي</button>
+        ><button data-t="monitor">مراقب الذكاء الاصطناعي</button
         ><button data-t="set">الإعدادات</button
         ><button data-t="instructions">تعليمات المساعد</button>
       </nav>
@@ -101,5 +103,6 @@
     <script defer src="/dashboard.js"></script>
     <script defer src="/dashboard-bot.js"></script>
     <script defer src="/dashboard-emoji.js"></script>
+    <script defer src="/dashboard-control.js"></script>
   </body>
 </html>
