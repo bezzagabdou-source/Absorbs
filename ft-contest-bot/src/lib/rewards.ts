@@ -258,6 +258,17 @@ export async function creditInvite(inviterId: string): Promise<number> {
   return addPoints(inviterId, cfg.perJoin);
 }
 
+/** ↩️ عكس creditInvite (إحالة ملغاة): ننقصو عداد الضيوف ونقاط المتجر، والرصيد ما ينزلش تحت 0 */
+export async function revokeInvite(inviterId: string): Promise<number> {
+  const cfg = await getPointsConfig();
+  if (!cfg.enabled) return 0;
+  const store = getStore();
+  const joined = Number(await store.get<number>(KEY.joined(inviterId))) || 0;
+  if (joined > 0) await store.incr(KEY.joined(inviterId), -1);
+  const per = Math.max(0, Math.trunc(Number(cfg.perJoin) || 0));
+  return per > 0 ? addPoints(inviterId, -per) : balanceOf(inviterId);
+}
+
 export async function creditActivation(inviterId: string): Promise<number> {
   const cfg = await getPointsConfig();
   if (!cfg.enabled) return 0;

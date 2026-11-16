@@ -66,6 +66,7 @@ import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP } from "./types";
 import type { BotUser, Claim, Contest, Settings } from "./types";
 import { adminChatIds, getUser, knownOwnerId, resolveOwnerId, touchUser } from "./users";
 import { monitorUserJoin, type MonitorInput } from "./monitor";
+import { guardReferralCredit } from "./referralGuard";
 
 const monitorMemoGlobal = globalThis as unknown as { __ftMonitorMemo?: Map<string, number> };
 function scheduleMonitor(input: MonitorInput): void {
@@ -1537,6 +1538,8 @@ async function creditReferral(contest: Contest | null, inviterId: string, newUse
       console.error("[points] milestone failed", error);
     }
   }
+  // 🚺 المراقب: إلا كان الداخل مصنَّف أنثى (الآن أو لاحقاً) ما تتحسبش الإحالة لصاحب الرابط
+  await guardReferralCredit(newUser.id, { inviterId, contestId: contest.id, score: true, shop: true, points: true });
   return { counted: true, count };
 }
 
@@ -1709,6 +1712,8 @@ async function handleJoinRequest(
     await notifyOwnerOfReferral(result.contest, owner, result.count, from.first_name || "عضو");
     await creditPointsForOwner(result.ownerId);
   }
+  // 🚺 المراقب: دخول مصنَّفة أنثى ما يتحسبش لصاحب الرابط
+  await guardReferralCredit(String(from.id), { inviterId: result.ownerId, contestId: result.contest.id, score: true, shop: Boolean(owner), points: Boolean(owner) });
 
   const settingsNow = await getSettings();
   if (result.contest.target <= result.count) {
@@ -1757,6 +1762,8 @@ async function handleChatMemberJoin(
     await notifyOwnerOfReferral(credit.contest, owner, credit.count, member.first_name || "عضو");
     await creditPointsForOwner(credit.ownerId);
   }
+  // 🚺 المراقب: دخول مصنَّفة أنثى ما يتحسبش لصاحب الرابط
+  await guardReferralCredit(String(member.id), { inviterId: credit.ownerId, contestId: credit.contest.id, score: true, shop: Boolean(owner), points: Boolean(owner) });
 }
 
 async function handleNewChatMembers(message: TgMessage): Promise<void> {
@@ -1790,6 +1797,8 @@ async function handleNewChatMembers(message: TgMessage): Promise<void> {
       await notifyOwnerOfReferral(credit.contest, owner, credit.count, member.first_name || "عضو");
       await creditPointsForOwner(credit.ownerId);
     }
+    // 🚺 المراقب: دخول مصنَّفة أنثى ما يتحسبش لصاحب الرابط
+    await guardReferralCredit(String(member.id), { inviterId: credit.ownerId, contestId: credit.contest.id, score: true, shop: Boolean(owner), points: Boolean(owner) });
     await sendMessage(
       chat.id,
       `➕ ضيف جديد لـ ${escapeHtml(owner?.firstName || "مشارك")} — ${credit.count}/${credit.contest.target}`,

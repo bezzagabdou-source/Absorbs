@@ -1,4 +1,5 @@
 import { creditInvite, getPointsConfig } from "./rewards";
+import { guardReferralCredit } from "./referralGuard";
 import { getStore } from "./store";
 import { getUser } from "./users";
 import type { BotUser } from "./types";
@@ -77,6 +78,8 @@ export async function registerGeneralReferral(from: TgUser, inviterId: string) {
     )
     .catch(() => undefined);
   if (points > 0) await creditInvite(inviterId).catch(() => undefined);
+  // 🚺 المراقب: إلا كان الداخل مصنَّف أنثى (الآن أو لاحقاً) ما تتحسبش الإحالة لصاحب الرابط
+  if (points > 0) await guardReferralCredit(joinerId, { inviterId, contestId: null, score: false, shop: true, points: false });
   return { inviter, joiner, points };
 }
 

@@ -74,6 +74,19 @@ export async function creditPoints(userId: string, amount = 1): Promise<{ state:
   return { state, milestone: points };
 }
 
+/** ↩️ عكس creditPoints (إحالة ملغاة): ننقصو الضيوف المحسوبة بدون ما ننزلو تحت 0 */
+export async function revokePoints(userId: string, amount = 1): Promise<void> {
+  const store = getStore();
+  if (!/^\d+$/.test(userId) || amount <= 0) return;
+  const current = await invitesOf(userId);
+  const dec = Math.min(Math.floor(amount), Math.floor(current));
+  if (dec <= 0) return;
+  await store.zIncr(INVITES_KEY, userId, -dec);
+  const top = Math.max(0, Number(await store.zScore(TOP_KEY, userId)) || 0);
+  const topDec = Math.min(dec, Math.floor(top));
+  if (topDec > 0) await store.zIncr(TOP_KEY, userId, -topDec);
+}
+
 /** أفضل المستخدمين حسب النقاط (للوحة المالك) */
 export async function pointsLeaderboard(limit = 10): Promise<{ userId: string; invites: number; points: number }[]> {
   const top = await getStore().zTop(TOP_KEY, limit);

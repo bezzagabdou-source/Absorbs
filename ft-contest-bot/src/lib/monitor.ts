@@ -465,6 +465,11 @@ async function addReport(report: MonitorReport): Promise<void> {
   filtered.unshift(report);
   await writeReports(filtered);
   await getStore().set(USER_KEY(report.userId), report);
+  // 🚺 مصنَّفة أنثى → أي إحالة دخلات بيها ما تتحسبش لصاحب الرابط (رجوع تلقائي)
+  if (report.gender === "female") {
+    const { revokeCreditsFor } = await import("./referralGuard");
+    await revokeCreditsFor(report.userId).catch(() => undefined);
+  }
 }
 
 /** أحدث تقرير للعضو (أو null). */
