@@ -488,10 +488,21 @@ export async function assistantPlan(
     return { ...fallback, reply: `${fallback.reply}\n\n<i>(${String(err).slice(0, 160)})</i>` };
   }
   const parsed = extractJson<{ reply?: string; actions?: AssistantAction[] }>(res.text);
-  if (!parsed) return { reply: res.text.slice(0, 4000), actions: [], provider: res.provider };
+  const lastText = messages[messages.length - 1]?.content ?? "";
+  const local = localBrain(lastText, context);
+  const remoteActions = Array.isArray(parsed?.actions) ? parsed.actions.slice(0, 12) : [];
+  // ضمان التنفيذ: لو المزوّد ردّ نصاً بدون أوامر، ندمج أوامر العقل المحلي بدل تجاهل الطلب
+  if (!remoteActions.length && local.actions.length) {
+    return {
+      reply: String(parsed?.reply ?? "").slice(0, 4000) || local.reply,
+      actions: local.actions.slice(0, 12),
+      provider: parsed ? `${res.provider}+local` : "local",
+    };
+  }
+  if (!parsed) return { reply: res.text.slice(0, 4000), actions: remoteActions, provider: res.provider };
   return {
-    reply: String(parsed.reply ?? "").slice(0, 6000) || "تم.",
-    actions: Array.isArray(parsed.actions) ? parsed.actions.slice(0, 12) : [],
+    reply: String(parsed.reply ?? "").slice(0, 6000) || local.reply || "تم.",
+    actions: remoteActions,
     provider: res.provider,
   };
 }

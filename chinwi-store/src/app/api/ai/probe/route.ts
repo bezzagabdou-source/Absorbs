@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { aiChat, freeProviders, probeFreeProviders, testProviders } from "@/lib/ai";
+import { aiChat, assistantPlan, freeProviders, probeFreeProviders, testProviders } from "@/lib/ai";
 import { env } from "@/lib/env";
 
 /**
@@ -32,6 +32,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     } catch (err) {
       return NextResponse.json({ ok: false, error: String(err).slice(0, 400), ms: Date.now() - started });
     }
+  }
+  const planText = (req.nextUrl.searchParams.get("plan") || "").trim();
+  if (planText) {
+    const started = Date.now();
+    const plan = await assistantPlan(
+      [{ role: "user", content: planText.slice(0, 600) }],
+      "منتجات: باقات فري فاير، شحن تليجرام بريموم. العملة: دج.",
+    ).catch((err) => ({ reply: String(err), actions: [], provider: "error" }));
+    return NextResponse.json({
+      ok: true,
+      provider: plan.provider,
+      ms: Date.now() - started,
+      reply: plan.reply.slice(0, 400),
+      actions: plan.actions,
+    });
   }
   const only = (req.nextUrl.searchParams.get("only") || "").trim();
   const compact = req.nextUrl.searchParams.get("compact") === "1";
