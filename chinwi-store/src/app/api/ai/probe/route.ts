@@ -84,7 +84,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (compact) {
     const flat: Record<string, string> = {};
     for (const [id, row] of Object.entries(free)) flat[id] = row.ok ? `OK ${row.ms}ms` : `FAIL ${row.error ?? ""}`.slice(0, 120);
-    for (const [id, row] of Object.entries(keyed)) flat[id] = (row as { ok?: boolean }).ok ? "OK" : "FAIL";
+    for (const [id, row] of Object.entries(keyed)) {
+      const r = row as { ok?: boolean; error?: string; ms?: number };
+      flat[id] = r.ok ? `OK ${r.ms ?? 0}ms` : `FAIL ${(r.error ?? "").replace(/\s+/g, " ").slice(0, 150)}`;
+    }
     return NextResponse.json({ ok: true, compact: flat, checkedAt: new Date().toISOString() });
   }
   const okCount =
