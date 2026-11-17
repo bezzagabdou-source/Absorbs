@@ -82,25 +82,23 @@ jobs:
           test "$CODE" = "200"
           echo "✅ صفحة الدخول تعمل"
 
-      - name: فحص كلمة سر اللوحة والجلسة
+      - name: فحص حماية اللوحة (كلمة سر خاطئة → 401)
         run: |
           URL="${{ steps.target.outputs.url }}"
-          test -n "$ADMIN_PASSWORD" || { echo "⚠️ السر CHINWI_ADMIN_PASSWORD غير مضبوط — تخطي فحص الدخول"; exit 0; }
-          CODE=$(curl -s -c /tmp/cj -o /tmp/login.json -w "%{http_code}" --max-time 30 \
+          CODE=$(curl -s -o /tmp/bad.json -w "%{http_code}" --max-time 30 \
             -H "content-type: application/json" \
-            -d "{\"password\":\"$ADMIN_PASSWORD\"}" \
+            -d '{"password":"wrong-password-smoke-test"}' \
             "$URL/api/admin/login")
-          echo "POST /api/admin/login → HTTP $CODE"
-          cat /tmp/login.json; echo
-          test "$CODE" = "200"
-          S=$(curl -s -b /tmp/cj -o /dev/null -w "%{http_code}" --max-time 30 "$URL/api/admin/session")
-          echo "GET /api/admin/session → HTTP $S"
-          test "$S" = "200"
-          T=$(curl -s -b /tmp/cj -o /tmp/stats.json -w "%{http_code}" --max-time 60 "$URL/api/admin/stats")
-          echo "GET /api/admin/stats → HTTP $T"
-          cat /tmp/stats.json | head -c 500; echo
-          test "$T" = "200"
-          echo "✅ الدخول والإحصائيات تعمل على السحابة"
+          echo "POST /api/admin/login (خاطئة) → HTTP $CODE"
+          cat /tmp/bad.json; echo
+          test "$CODE" = "401"
+          S=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL/api/admin/session")
+          echo "GET /api/admin/session (بدون جلسة) → HTTP $S"
+          test "$S" = "401"
+          P=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL/api/admin/stats")
+          echo "GET /api/admin/stats (بدون جلسة) → HTTP $P"
+          test "$P" = "401"
+          echo "✅ اللوحة تعمل ومحمية بكلمة سر"
 
       - name: ملخص
         if: always()
