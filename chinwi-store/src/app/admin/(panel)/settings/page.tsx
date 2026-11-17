@@ -282,6 +282,12 @@ export default function SettingsPage(): React.ReactElement {
             <a href="/api/admin/export/orders" className="btn btn-ghost text-xs">
               ⬇️ تصدير الطلبات
             </a>
+            <a href="/api/admin/export/backup" className="btn btn-green text-xs">
+              💾 نسخة احتياطية JSON
+            </a>
+            <a href="/api/admin/export/sql" className="btn btn-green text-xs">
+              🗄 نسخة احتياطية SQL
+            </a>
             <a href="/api/admin/export/users" className="btn btn-ghost text-xs">
               ⬇️ تصدير المستخدمين
             </a>

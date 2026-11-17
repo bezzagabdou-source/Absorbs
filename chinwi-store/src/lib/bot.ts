@@ -193,34 +193,21 @@ function priceLabel(p: ProductRow, s: SettingsMap): string {
 
 async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null, editFrom?: number): Promise<void> {
   const cats = await listCategories({ activeOnly: true });
+  const bySlug = (slug: string): CategoryRow | undefined => cats.find((c) => c.slug === slug);
+  const support = settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "");
+
   const rows: InlineButton[][] = [];
-  const games = cats.filter((c) => c.section === "games");
-  const services = cats.filter((c) => c.section !== "games" && c.section !== "digital");
-  const digital = cats.filter((c) => c.section === "digital");
-
-  const counts = new Map<number, number>();
-  for (const row of await q<{ category_id: string; c: string }>(
-    "SELECT category_id, count(*)::text AS c FROM products WHERE active = true GROUP BY category_id",
-  )) {
-    counts.set(Number(row.category_id), Number(row.c));
-  }
-  const label = (c: CategoryRow): string =>
-    `${G} ${c.emoji || "🗂"} ${c.name}${counts.get(c.id) ? ` (${counts.get(c.id)})` : ""}`;
-
-  for (let i = 0; i < games.length; i += 2) {
-    rows.push(games.slice(i, i + 2).map((c) => b(label(c), `cat:${c.id}`)));
-  }
-  for (let i = 0; i < services.length; i += 2) {
-    rows.push(services.slice(i, i + 2).map((c) => b(label(c), `cat:${c.id}`)));
-  }
-  for (const c of digital) rows.push([b(label(c), `cat:${c.id}`)]);
+  rows.push([b(`${G} 🎮 شحن الألعاب الرقمية`, "games")]);
+  const tg = bySlug("telegram");
+  if (tg) rows.push([b(`${G} 🌟 شحن تليجرام بريموم`, `cat:${tg.id}`)]);
+  const tt = bySlug("tiktok");
+  if (tt) rows.push([b(`${G} 🎵 شحن عملات تيك توك`, `cat:${tt.id}`)]);
+  const digital = bySlug("digital");
+  if (digital) rows.push([b(`${G} 🤖 المنتجات الرقمية والذكاء الاصطناعي`, `cat:${digital.id}`)]);
   rows.push([b(`${G} 🔥 الأكثر مبيعاً`, "top"), b(`${G} 🔍 بحث`, "search")]);
-  rows.push([b(`${G} 💵 بيع دولار للمالك`, "usd")]);
+  rows.push([b(`${G} 💵 بيع وشراء الدولار للمتجر`, "usd")]);
   rows.push([b(`${G} 🧾 طلباتي`, "orders"), b(`${G} 👤 حسابي`, "account")]);
-  rows.push([
-    link(`${G} 💬 الدعم المباشر`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`),
-    b(`${G} ℹ️ المساعدة`, "help"),
-  ]);
+  rows.push([link(`${R} 📞 الدعم الفني وتواصل مع المالك`, `https://t.me/${support}`)]);
   if (isAdminUser(user)) rows.push([b(`${G} 🛡 لوحة الإدارة`, "adm")]);
 
   const text = [
@@ -235,11 +222,37 @@ async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null
     "<b>اختر القسم الذي تريده 👇</b>",
   ].join("\n");
 
-  if (editFrom) {
-    await sendMessage(chatId, text, kb(rows));
-  } else {
-    await sendMessage(chatId, text, kb(rows));
+  void editFrom;
+  await sendMessage(chatId, text, kb(rows));
+}
+
+/** قائمة فرعية: شحن الألعاب الرقمية (فري فاير / بيس …) */
+async function sendGamesMenu(chatId: number, s: SettingsMap): Promise<void> {
+  const cats = (await listCategories({ activeOnly: true })).filter((c) => c.section === "games");
+  if (!cats.length) {
+    await sendMessage(chatId, `${R} لا توجد أقسام ألعاب حالياً.`, kb([[b(`${R} 🏠 الرئيسية`, "home")]]));
+    return;
   }
+  const counts = new Map<number, number>();
+  for (const row of await q<{ category_id: string; c: string }>(
+    "SELECT category_id, count(*)::text AS c FROM products WHERE active = true GROUP BY category_id",
+  )) {
+    counts.set(Number(row.category_id), Number(row.c));
+  }
+  const rows: InlineButton[][] = cats.map((c) => [
+    b(`${G} ${c.emoji} ${c.name}${counts.get(c.id) ? ` (${counts.get(c.id)})` : ""}`, `cat:${c.id}`),
+  ]);
+  rows.push([b(`${R} 🏠 الرئيسية`, "home")]);
+  await sendMessage(
+    chatId,
+    [
+      "🎮 <b>شحن الألعاب الرقمية</b>",
+      "",
+      "اختر اللعبة التي تريد شحنها 👇",
+      ...cats.map((c) => `• ${c.emoji} <b>${escapeHtml(c.name)}</b>${c.description ? ` — ${escapeHtml(c.description)}` : ""}`),
+    ].join("\n"),
+    kb(rows),
+  );
 }
 
 async function sendCategory(chatId: number, categoryId: number, s: SettingsMap): Promise<void> {
@@ -1303,6 +1316,12 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
       await sendTop(chatId, s);
       return;
     }
+    case "games": {
+      await answerCallback(cq.id);
+      if (!(await guardSubscription(chatId, from.id, s, user))) return;
+      await sendGamesMenu(chatId, s);
+      return;
+    }
     case "home": {
       await answerCallback(cq.id);
       await clearUserState(from.id);
@@ -1318,11 +1337,19 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
         await clearUserState(from.id);
         await sendMainMenu(chatId, s, user);
       } else if (state.ok) {
-        // تعذّر التحقق التلقائي (البوت ليس مشرفاً) → نمرّر الزبون مع تنبيه للمالك
-        await answerCallback(cq.id, "⚠️ تعذّر التحقق التلقائي — تفضّل", true);
-        await warnOwnerUnverifiedOnce();
-        await clearUserState(from.id);
-        await sendMainMenu(chatId, s, user);
+        // تعذّر التحقق التلقائي (البوت ليس مشرفاً): محاولة أولى تُرفض، والثانية تفتح + تنبيه للمالك
+        const tried = String(user.state ?? "").startsWith("gate:");
+        if (tried) {
+          await answerCallback(cq.id, "⚠️ تم تجاوز التحقق — تأكد من اشتراكك", true);
+          await warnOwnerUnverifiedOnce();
+          await clearUserState(from.id);
+          await sendMainMenu(chatId, s, user);
+        } else {
+          await setUserState(from.id, "gate:1", {});
+          await answerCallback(cq.id, "⚠️ تأكد من الاشتراك ثم اضغط تحقق مرة أخرى", true);
+          await sendSubscriptionGate(chatId, s, state, channels);
+          await warnOwnerUnverifiedOnce();
+        }
       } else {
         await answerCallback(cq.id, `❌ لم تشترك بعد في: ${state.missing.map((c) => c.title || c.chat).join(", ")}`, true);
         await sendSubscriptionGate(chatId, s, state, channels);

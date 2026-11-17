@@ -165,10 +165,21 @@ await check("chk: التحقق يفتح القائمة الرئيسية بعد �
   await resetSent();
   await sendUpdate(cb(users.buyer, "chk"));
   const menu = await waitForMessage(555, (m) => (m.text ?? "").includes("CHINWI STORE"));
-  assert.ok(hasButton(menu, "فري فاير"));
+  assert.ok(hasButton(menu, "شحن الألعاب الرقمية"));
+  assert.ok(hasButton(menu, "شحن تليجرام بريموم"));
+  assert.ok(hasButton(menu, "شحن عملات تيك توك"));
   assert.ok(hasButton(menu, "المنتجات الرقمية"));
-  assert.ok(hasButton(menu, "بيع دولار"));
+  assert.ok(hasButton(menu, "بيع وشراء الدولار"));
+  assert.ok(hasButton(menu, "الدعم الفني"));
   assert.ok(hasButton(menu, "طلباتي"));
+});
+
+await check("menu: زر الألعاب يفتح قائمة فري فاير و بيس", async () => {
+  await resetSent();
+  await sendUpdate(cb(users.buyer, "games"));
+  const games = await waitForMessage(555, (m) => (m.text ?? "").includes("شحن الألعاب الرقمية"));
+  assert.ok(hasButton(games, "فري فاير"));
+  assert.ok(hasButton(games, "eFootball"));
 });
 
 await check("gate: تظهر البوابة حتى لو تعذّر التحقق ثم تفتح بزر «تحققت»", async () => {
@@ -179,10 +190,14 @@ await check("gate: تظهر البوابة حتى لو تعذّر التحقق �
   assert.ok(hasButton(gate, "تحققت"));
   const st = await mockState();
   assert.ok(!st.sent.some((m) => (m.text ?? "").includes("اختر القسم")), "لا تُفتح القائمة قبل التحقق");
+  // المحاولة الأولى تُرفض (لا يمكن التحقق) — المحاولة الثانية تفتح
+  await resetSent();
+  await sendUpdate(cb(users.other, "chk"));
+  await waitForMessage(999, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
   await resetSent();
   await sendUpdate(cb(users.other, "chk"));
   const menu = await waitForMessage(999, (m) => (m.text ?? "").includes("CHINWI STORE"));
-  assert.ok(hasButton(menu, "فري فاير"));
+  assert.ok(hasButton(menu, "شحن الألعاب الرقمية"));
   await membership({ "@ft_H_N_O": "member", "@CHNawaa": "member" });
 });
 
@@ -488,7 +503,7 @@ await check("api: القنوات معطّلة → البوت يسمح بالدخ
   await resetSent();
   await sendUpdate(msg(users.other, "/start"));
   const menu = await waitForMessage(999, (m) => (m.text ?? "").includes("CHINWI STORE"));
-  assert.ok(hasButton(menu, "فري فاير"));
+  assert.ok(hasButton(menu, "شحن الألعاب الرقمية"));
   await adminPost("settings", { require_subscription: true });
 });
 
@@ -507,6 +522,16 @@ await check("api: إعدادات + كلمة سر", async () => {
   assert.equal(s.settings.admin_password, undefined, "لا يجب تسريب كلمة السر");
   const bad = await adminPost("password", { current: "nope", next: "abcdef" });
   assert.equal(bad.status, 401);
+});
+
+await check("api: نسخة احتياطية JSON و SQL", async () => {
+  const json = await fetch(`${BASE}/api/admin/export/backup`, { headers: { cookie } }).then((r) => r.json());
+  assert.ok(json.tables && Array.isArray(json.tables.products), "جداول JSON");
+  assert.ok(json.tables.products.length >= 70);
+  assert.ok(json.counts.wallets >= 4);
+  const sql = await fetch(`${BASE}/api/admin/export/sql`, { headers: { cookie } }).then((r) => r.text());
+  assert.ok(sql.includes("INSERT INTO products"));
+  assert.ok(sql.includes("INSERT INTO settings"));
 });
 
 await check("api: تصدير CSV للطلبات", async () => {

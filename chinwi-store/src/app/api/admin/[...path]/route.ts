@@ -14,7 +14,7 @@ import {
   verifyToken,
 } from "@/lib/auth";
 import { ensureWebhook, webhookStatus } from "@/lib/bootstrap";
-import { allSettings, ensureDb, getSetting, log, one, q, setSetting } from "@/lib/db";
+import { allSettings, backupJson, backupSql, ensureDb, getSetting, log, one, q, setSetting } from "@/lib/db";
 import { env } from "@/lib/env";
 import { emojiStats, setEmojiEnabled, syncEmojiSet } from "@/lib/emoji";
 import { money, shortDate } from "@/lib/format";
@@ -398,6 +398,24 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
     return NextResponse.json({ ok: true, product });
   }
   if (seg[0] === "export" && seg[1]) {
+    if (seg[1] === "backup") {
+      const dump = await backupJson();
+      return new Response(JSON.stringify(dump, null, 2), {
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "content-disposition": `attachment; filename="chinwi-backup-${Date.now()}.json"`,
+        },
+      });
+    }
+    if (seg[1] === "sql") {
+      const sql = await backupSql();
+      return new Response(sql, {
+        headers: {
+          "content-type": "application/sql; charset=utf-8",
+          "content-disposition": `attachment; filename="chinwi-backup-${Date.now()}.sql"`,
+        },
+      });
+    }
     if (seg[1] === "orders") {
       const csv = await ordersCsv();
       return new Response(csv, {

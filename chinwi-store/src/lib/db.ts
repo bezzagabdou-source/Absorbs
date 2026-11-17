@@ -521,7 +521,7 @@ const SEED_WALLETS = [
   },
   {
     name: "RedotPay",
-    emoji: "🔴",
+    emoji: "🟣",
     kind: "redotpay",
     account: "1681967118",
     holder: "RedotPay UID",
@@ -529,12 +529,12 @@ const SEED_WALLETS = [
     sort: 2,
   },
   {
-    name: "PayPal",
+    name: "Bybit",
     emoji: "🔵",
-    kind: "paypal",
+    kind: "bybit",
     account: "603043475",
-    holder: "PayPal ID",
-    instructions: "حوّل المبلغ إلى PayPal ID (أرسل كـ Friends & Family) ثم أرسل الإيصال.",
+    holder: "Bybit UID",
+    instructions: "حوّل المبلغ إلى UID داخل Bybit ثم أرسل صورة الإيصال.",
     sort: 3,
   },
   {
@@ -548,6 +548,27 @@ const SEED_WALLETS = [
   },
 ];
 
+/** ترحيلات لمرة واحدة على القواعد الموجودة مسبقاً */
+async function migrateOnce(query: Query): Promise<void> {
+  const bump = async (key: string, fn: () => Promise<void>): Promise<void> => {
+    const done = await query("SELECT value FROM settings WHERE key = $1", [key]);
+    if (done.rows.length) return;
+    await fn();
+    await query(
+      "INSERT INTO settings (key, value) VALUES ($1, 'true'::jsonb) ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb",
+      [key],
+    );
+  };
+
+  // محفظة 603043475 = Bybit (كانت مسمّاة PayPal سابقاً)
+  await bump("migr_bybit_wallet", async () => {
+    await query("UPDATE wallets SET name = 'Bybit', emoji = '🔵', holder = 'Bybit UID' WHERE account = '603043475'");
+    await query("UPDATE wallets SET emoji = '🟣' WHERE account = '1681967118'");
+    await query("UPDATE wallets SET emoji = '🟡' WHERE account = '1210865168'");
+    await query("UPDATE wallets SET emoji = '🟢' WHERE account = '00799999004327338404'");
+  });
+}
+
 const SEED_CHANNELS = [
   { chat: "@ft_H_N_O", title: "قناة ft_H_N_O", url: "https://t.me/ft_H_N_O", sort: 1 },
   { chat: "@CHNawaa", title: "قناة CHNawaa", url: "https://t.me/CHNawaa", sort: 2 },
@@ -559,6 +580,7 @@ async function seedCatalog(): Promise<void> {
   // قفل استشاري على مستوى المعاملة: يمنع الزرع المزدوج عند إقلاع عدة دوال معاً
   await tx(async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(917263)");
+    await migrateOnce(client.query);
     await seedWithin(client.query);
   });
 }
@@ -631,4 +653,71 @@ async function seedWithin(query: Query): Promise<void> {
     `INSERT INTO settings (key, value) VALUES ('seed_version', '3'::jsonb)
      ON CONFLICT (key) DO UPDATE SET value = '3'::jsonb`,
   );
+}
+
+/* ───────────────────────── النسخ الاحتياطي ───────────────────────── */
+
+export const BACKUP_TABLES = [
+  "settings",
+  "users",
+  "categories",
+  "products",
+  "wallets",
+  "channels",
+  "orders",
+  "media",
+  "ai_messages",
+  "broadcasts",
+  "visits",
+  "logs",
+] as const;
+
+export async function backupJson(): Promise<{
+  exported_at: string;
+  counts: Record<string, number>;
+  tables: Record<string, unknown[]>;
+}> {
+  const tables: Record<string, unknown[]> = {};
+  const counts: Record<string, number> = {};
+  for (const t of BACKUP_TABLES) {
+    const limit = t === "logs" ? " ORDER BY created_at DESC LIMIT 2000" : "";
+    const rows = await q<Record<string, unknown>>(`SELECT * FROM ${t}${limit}`);
+    tables[t] = rows;
+    counts[t] = rows.length;
+  }
+  return { exported_at: new Date().toISOString(), counts, tables };
+}
+
+function sqlLiteral(value: unknown): string {
+  if (value === null || value === undefined) return "NULL";
+  if (typeof value === "number" || typeof value === "bigint") return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (value instanceof Date) return `'${value.toISOString()}'`;
+  if (typeof value === "object") return `'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`;
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+export async function backupSql(): Promise<string> {
+  const parts: string[] = [
+    `-- CHINWI STORE — نسخة احتياطية كاملة`,
+    `-- التاريخ: ${new Date().toISOString()}`,
+    `-- الاستعادة: psql "$DATABASE_URL" -f backup.sql`,
+    "",
+  ];
+  for (const t of BACKUP_TABLES) {
+    const limit = t === "logs" ? " ORDER BY created_at DESC LIMIT 2000" : "";
+    const rows = await q<Record<string, unknown>>(`SELECT * FROM ${t}${limit}`);
+    if (!rows.length) continue;
+    const cols = Object.keys(rows[0]);
+    parts.push(`-- ${t}: ${rows.length} صف`);
+    for (const row of rows) {
+      parts.push(
+        `INSERT INTO ${t} (${cols.map((c) => `"${c}"`).join(", ")}) VALUES (${cols
+          .map((c) => sqlLiteral(row[c]))
+          .join(", ")}) ON CONFLICT DO NOTHING;`,
+      );
+    }
+    parts.push("");
+  }
+  return parts.join("\n");
 }
