@@ -307,7 +307,11 @@ async function ensureOwner(): Promise<void> {
 
 export async function getSetting<T>(key: string): Promise<T | undefined> {
   const row = await one<{ value: T }>("SELECT value FROM settings WHERE key = $1", [key]);
-  return row ? row.value : (DEFAULT_SETTINGS[key] as T | undefined);
+  if (row) return row.value;
+  const def = DEFAULT_SETTINGS[key];
+  // نُعيد نسخة مستقلة حتى لا يُعدَّل الافتراضي المشترك بين الطلبات
+  if (def && typeof def === "object") return JSON.parse(JSON.stringify(def)) as T;
+  return def as T | undefined;
 }
 
 export async function setSetting(key: string, value: unknown): Promise<void> {

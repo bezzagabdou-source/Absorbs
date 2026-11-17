@@ -199,6 +199,15 @@ await check("category: يعرض العروض كأزرار مع الأسعار", 
   assert.ok(hasButton(card, "100 جوهرة"));
   assert.ok(hasButton(card, "320 دج"));
   assert.ok(card.photo, "يجب إرسال صورة القسم");
+  assert.ok(hasButton(card, "فري فاير"), "هيدر القسم زر");
+  assert.ok(
+    buttonsOf(card).some((x) => (x.text ?? "").startsWith("🔴") && (x.text ?? "").includes("320 دج")),
+    "زر السعر أحمر",
+  );
+  assert.ok(
+    buttonsOf(card).some((x) => (x.text ?? "").startsWith("🟢") && (x.text ?? "").includes("100 جوهرة")),
+    "زر الاسم أخضر",
+  );
 });
 
 await check("product: بطاقة المنتج + زر الشراء", async () => {
@@ -209,6 +218,25 @@ await check("product: بطاقة المنتج + زر الشراء", async () => 
   assert.ok(hasButton(card, "1210865168"), "أرقام محافظ المالك تظهر مع المنتج");
   assert.ok(hasButton(card, "1681967118"), "RedotPay يظهر مع المنتج");
   assert.ok((card.text ?? "").includes("الدفع إلى المالك"), "قسم الدفع في وصف المنتج");
+});
+
+await check("top: زر الأكثر مبيعاً يعرض العروض كأزرار [سعر|اسم]", async () => {
+  await resetSent();
+  await sendUpdate(cb(users.buyer, "top"));
+  const top = await waitForMessage(555, (m) => (m.text ?? "").includes("الأكثر مبيعاً"));
+  assert.ok(hasButton(top, "🏠"));
+  assert.ok(buttonsOf(top).some((x) => (x.text ?? "").startsWith("🔴")), "أزرار أسعار حمراء");
+  assert.ok(buttonsOf(top).some((x) => (x.text ?? "").startsWith("🟢")), "أزرار أسماء خضراء");
+});
+
+await check("search: زر البحث ثم كتابة اسم يظهر النتائج", async () => {
+  await resetSent();
+  await sendUpdate(cb(users.buyer, "search"));
+  await waitForMessage(555, (m) => (m.text ?? "").includes("البحث في المتجر"));
+  await resetSent();
+  await sendUpdate(msg(users.buyer, "جوهرة"));
+  const res = await waitForMessage(555, (m) => (m.text ?? "").includes("نتائج البحث"));
+  assert.ok(buttonsOf(res).some((x) => (x.text ?? "").includes("جوهرة")));
 });
 
 /* 3. الشراء: حقل مطلوب → الدفع */

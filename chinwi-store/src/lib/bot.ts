@@ -156,6 +156,39 @@ async function guardSubscription(
   return false;
 }
 
+/* ───────────────────────── أدوات عرض الأزرار ───────────────────────── */
+
+/** يختار إيموجي مناسباً لكل عرض حسب اسمه (مثل تصميم الأزرار في تيليجرام) */
+function guessEmoji(name: string, fallback?: string | null): string {
+  const n = String(name || "");
+  const rules: [RegExp, string][] = [
+    [/جوهر|جواهر|diamond/i, "💎"],
+    [/بريميوم|premium/i, "⭐️"],
+    [/كوين|كوينز|نقط|coin|point/i, "⭐️"],
+    [/بيس|pes|كونت|لاعب|اسطوري|أسطوري/i, "⚽️"],
+    [/تيك|tiktok/i, "🎵"],
+    [/دولار|usd/i, "💵"],
+    [/شهر|أسبوع|سنو|شهري/i, "🎁"],
+    [/باقة|عرض|خصم|تخفيض/i, "🔥"],
+    [/حساب|اشتراك/i, "👤"],
+  ];
+  for (const [re, emoji] of rules) if (re.test(n)) return emoji;
+  return (fallback && fallback.trim()) || "🎁";
+}
+
+/** قصّ الاسم حتى يبقى الزر أنيقاً */
+function shortName(name: string, max = 24): string {
+  const n = String(name || "").trim();
+  return n.length > max ? `${n.slice(0, max - 1)}…` : n;
+}
+
+/** رقم قصير للسعر (بدون كسور) */
+function priceLabel(p: ProductRow, s: SettingsMap): string {
+  const cur = settingString(s, "currency", "دج");
+  if (p.price === null || p.price === undefined) return "📩 سعر خاص";
+  return money(p.price, cur);
+}
+
 /* ───────────────────────── القوائم ───────────────────────── */
 
 async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null, editFrom?: number): Promise<void> {
@@ -165,13 +198,23 @@ async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null
   const services = cats.filter((c) => c.section !== "games" && c.section !== "digital");
   const digital = cats.filter((c) => c.section === "digital");
 
+  const counts = new Map<number, number>();
+  for (const row of await q<{ category_id: string; c: string }>(
+    "SELECT category_id, count(*)::text AS c FROM products WHERE active = true GROUP BY category_id",
+  )) {
+    counts.set(Number(row.category_id), Number(row.c));
+  }
+  const label = (c: CategoryRow): string =>
+    `${G} ${c.emoji || "🗂"} ${c.name}${counts.get(c.id) ? ` (${counts.get(c.id)})` : ""}`;
+
   for (let i = 0; i < games.length; i += 2) {
-    rows.push(games.slice(i, i + 2).map((c) => b(`${G} ${c.emoji} ${c.name}`, `cat:${c.id}`)));
+    rows.push(games.slice(i, i + 2).map((c) => b(label(c), `cat:${c.id}`)));
   }
   for (let i = 0; i < services.length; i += 2) {
-    rows.push(services.slice(i, i + 2).map((c) => b(`${G} ${c.emoji} ${c.name}`, `cat:${c.id}`)));
+    rows.push(services.slice(i, i + 2).map((c) => b(label(c), `cat:${c.id}`)));
   }
-  for (const c of digital) rows.push([b(`${G} ${c.emoji} ${c.name}`, `cat:${c.id}`)]);
+  for (const c of digital) rows.push([b(label(c), `cat:${c.id}`)]);
+  rows.push([b(`${G} 🔥 الأكثر مبيعاً`, "top"), b(`${G} 🔍 بحث`, "search")]);
   rows.push([b(`${G} 💵 بيع دولار للمالك`, "usd")]);
   rows.push([b(`${G} 🧾 طلباتي`, "orders"), b(`${G} 👤 حسابي`, "account")]);
   rows.push([
@@ -216,12 +259,16 @@ async function sendCategory(chatId: number, categoryId: number, s: SettingsMap):
   }
 
   const rows: InlineButton[][] = [];
-  for (let i = 0; i < products.length; i += 2) {
-    rows.push(
-      products.slice(i, i + 2).map((p) => b(`${G} ${priceShort(p, s)}`, `prd:${p.id}`)),
-    );
+  // هيدر القسم (مثل: — 🎁 حسابات بيس —)
+  rows.push([b(`${cat.emoji || "🗂"} — ${shortName(cat.name, 30)} —`, "nop")]);
+  // كل عرض = زر سعر أحمر + زر اسم أخضر
+  for (const p of products) {
+    rows.push([
+      b(`${R} ${priceLabel(p, s)}`, "nop"),
+      b(`${G} ${guessEmoji(p.name, cat.emoji)} ${shortName(p.name)}`, `prd:${p.id}`),
+    ]);
   }
-  rows.push([b(`${R} رجوع للقائمة الرئيسية`, "home")]);
+  rows.push([b(`${R} 🏠 الرئيسية`, "home"), b(`${G} 🔍 بحث`, "search")]);
 
   const caption = [
     `${cat.emoji} <b>${escapeHtml(cat.name)}</b>`,
@@ -234,6 +281,45 @@ async function sendCategory(chatId: number, categoryId: number, s: SettingsMap):
     .join("\n");
 
   await sendPhoto(chatId, { url: imgUrl(cat.image_url) }, caption, kb(rows));
+}
+
+async function sendTop(chatId: number, s: SettingsMap): Promise<void> {
+  const products = await q<ProductRow>(
+    "SELECT * FROM products WHERE active = true ORDER BY sold DESC, price ASC NULLS LAST LIMIT 12",
+  );
+  if (!products.length) {
+    await sendMessage(chatId, `${R} لا توجد عروض حالياً.`, kb([[b(`${R} رجوع`, "home")]]));
+    return;
+  }
+  const rows: InlineButton[][] = [[b("🔥 — الأكثر مبيعاً —", "nop")]];
+  for (const p of products) {
+    rows.push([
+      b(`${R} ${priceLabel(p, s)}`, "nop"),
+      b(`${G} ${guessEmoji(p.name)} ${shortName(p.name)}`, `prd:${p.id}`),
+    ]);
+  }
+  rows.push([b(`${R} 🏠 الرئيسية`, "home"), b(`${G} 🔍 بحث`, "search")]);
+  await sendMessage(
+    chatId,
+    [
+      "🔥 <b>الأكثر مبيعاً في المتجر</b>",
+      "",
+      "<i>هذه العروض الأكثر طلباً من زبائننا — اضغط على الاسم لرؤية التفاصيل.</i>",
+    ].join("\n"),
+    kb(rows),
+  );
+}
+
+async function sendSearchPrompt(chatId: number, s: SettingsMap): Promise<void> {
+  await sendMessage(
+    chatId,
+    [
+      "🔍 <b>البحث في المتجر</b>",
+      "",
+      "اكتب اسم المنتج أو جزءاً منه في المحادثة (مثال: <code>جوهرة</code>، <code>بيس</code>، <code>بريميوم</code>) وسأعرض لك النتائج فوراً.",
+    ].join("\n"),
+    kb([[b(`${R} 🏠 الرئيسية`, "home")]]),
+  );
 }
 
 function priceShort(p: ProductRow, s: SettingsMap): string {
@@ -1203,6 +1289,20 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
   const [head, a1, a2] = data.split(":");
 
   switch (head) {
+    case "nop": {
+      await answerCallback(cq.id, "💡 اضغط على زر الاسم لفتح العرض");
+      return;
+    }
+    case "search": {
+      await answerCallback(cq.id);
+      await sendSearchPrompt(chatId, s);
+      return;
+    }
+    case "top": {
+      await answerCallback(cq.id);
+      await sendTop(chatId, s);
+      return;
+    }
     case "home": {
       await answerCallback(cq.id);
       await clearUserState(from.id);

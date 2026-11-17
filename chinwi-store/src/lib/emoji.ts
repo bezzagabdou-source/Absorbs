@@ -10,7 +10,7 @@ import { setEmojiMap, tg, normEmoji } from "./telegram";
 
 export async function syncEmojiFromSettings(): Promise<void> {
   const enabled = Boolean(await getSetting<boolean>("emoji_animated"));
-  const map = ((await getSetting<Record<string, string>>("emoji_map")) ?? {}) as Record<string, string>;
+  const map = { ...((await getSetting<Record<string, string>>("emoji_map")) ?? {}) } as Record<string, string>;
   setEmojiMap(enabled ? map : {});
 }
 
@@ -25,7 +25,7 @@ export async function syncEmojiSet(input: string): Promise<{ count: number; setN
     stickers?: { emoji?: string; custom_emoji_id?: string }[];
   }>("getStickerSet", { name });
 
-  const map = ((await getSetting<Record<string, string>>("emoji_map")) ?? {}) as Record<string, string>;
+  const map = { ...((await getSetting<Record<string, string>>("emoji_map")) ?? {}) } as Record<string, string>;
   let added = 0;
   for (const sticker of set.stickers ?? []) {
     if (!sticker.custom_emoji_id || !sticker.emoji) continue;
