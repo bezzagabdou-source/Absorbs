@@ -162,7 +162,7 @@ const FREE_ENDPOINTS: FreeEndpoint[] = [
     url: "https://gen.pollinations.ai/v1/chat/completions",
     model: process.env.POLLINATIONS_GEN_MODEL || "openai",
   },
-  { id: "hackclub", label: "Hack Club AI", url: "https://ai.hackclub.com/chat/completions" },
+  { id: "hackclub", label: "Hack Club AI", url: "https://ai.hackclub.com/proxy/v1/chat/completions" },
   {
     id: "ovh",
     label: "OVHcloud AI",
@@ -200,12 +200,13 @@ async function freeChat(ep: FreeEndpoint, messages: AiMessage[], ms = 22_000): P
 }
 
 /** فحص المزوّدين المجانيين (بلا مفاتيح) — للوحة الصحة والتشخيص */
-export async function probeFreeProviders(): Promise<
+export async function probeFreeProviders(only?: string[]): Promise<
   Record<string, { ok: boolean; error?: string; ms: number; sample?: string }>
 > {
   const out: Record<string, { ok: boolean; error?: string; ms: number; sample?: string }> = {};
+  const list = only && only.length ? FREE_ENDPOINTS.filter((e) => only.includes(e.id)) : FREE_ENDPOINTS;
   await Promise.all(
-    FREE_ENDPOINTS.map(async (ep) => {
+    list.map(async (ep) => {
       const started = Date.now();
       try {
         const text = await freeChat(ep, [{ role: "user", content: "قل كلمة واحدة: تمام" }], 25_000);

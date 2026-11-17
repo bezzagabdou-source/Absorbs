@@ -15,7 +15,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!k || k !== env.adminPassword) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
-  const [keyed, free] = await Promise.all([testProviders().catch(() => ({})), probeFreeProviders()]);
+  const only = (req.nextUrl.searchParams.get("only") || "").trim();
+  const compact = req.nextUrl.searchParams.get("compact") === "1";
+  const [keyed, free] = await Promise.all([
+    only ? Promise.resolve({}) : testProviders().catch(() => ({})),
+    probeFreeProviders(only ? [only] : undefined),
+  ]);
+  if (compact) {
+    const flat: Record<string, string> = {};
+    for (const [id, row] of Object.entries(free)) flat[id] = row.ok ? `OK ${row.ms}ms` : `FAIL ${row.error ?? ""}`.slice(0, 120);
+    for (const [id, row] of Object.entries(keyed)) flat[id] = (row as { ok?: boolean }).ok ? "OK" : "FAIL";
+    return NextResponse.json({ ok: true, compact: flat, checkedAt: new Date().toISOString() });
+  }
   const okCount =
     Object.values(keyed).filter((r) => (r as { ok?: boolean }).ok).length +
     Object.values(free).filter((r) => r.ok).length;
