@@ -30,7 +30,7 @@ export const env = {
     return clean(process.env.ADMIN_SECRET) || "chinwi-panel-secret-2026";
   },
   get adminPassword() {
-    return clean(process.env.ADMIN_PASSWORD) || "ChinwiStore@2026";
+    return clean(process.env.ADMIN_PASSWORD) || "change-me-now";
   },
   get ownerUsername() {
     return (clean(process.env.OWNER_USERNAME) || "F_Q_Q_T").replace(/^@/, "");

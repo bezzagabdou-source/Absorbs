@@ -16,10 +16,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: chinwi-activate
+  cancel-in-progress: true
+
 jobs:
   activate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    env:
+      ADMIN_PASSWORD: ${{ secrets.CHINWI_ADMIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,57 +39,76 @@ jobs:
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "الهدف: $URL"
 
-      - name: انتظار جاهزية النشر
+      - name: انتظار جاهزية الموقع
         run: |
           URL="${{ steps.target.outputs.url }}"
-          for i in $(seq 1 40); do
+          for i in $(seq 1 30); do
             CODE=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 20 "$URL/api/health" || true)
             echo "محاولة $i → HTTP $CODE"
-            if [ "$CODE" = "200" ]; then
-              cat /tmp/health.json
-              echo
-              if grep -q '"connected":true' /tmp/health.json; then
-                echo "✅ الموقع متصل بقاعدة البيانات"
-                exit 0
-              fi
+            if [ "$CODE" = "200" ] && grep -q '"connected":true' /tmp/health.json; then
+              cat /tmp/health.json; echo
+              echo "✅ الموقع متصل بقاعدة البيانات"
+              exit 0
             fi
-            sleep 15
+            sleep 10
           done
-          echo "⚠️ الموقع لم يصبح جاهزاً بعد — أكمل التفعيل يدوياً من لوحة التحكم"
-          exit 0
+          echo "❌ الموقع غير جاهز"
+          exit 1
 
-      - name: تفعيل الويبهوك (تشغيل البوت)
+      - name: ربط الويبهوك (تشغيل البوت)
         run: |
           URL="${{ steps.target.outputs.url }}"
-          echo "→ تشغيل /api/cron/heartbeat"
-          curl -s --max-time 60 -X POST "$URL/api/cron/heartbeat" || true
-          echo
+          curl -s --max-time 60 -X POST "$URL/api/cron/heartbeat" >/dev/null || true
           curl -s --max-time 60 "$URL/api/cron/heartbeat" | tee /tmp/heartbeat.json
           echo
-          if grep -q '"ok":true' /tmp/heartbeat.json; then
-            echo "🎉 البوت مفعّل والويبهوك مربوط"
-          else
-            echo "⚠️ التفعيل التلقائي لم ينجح — افتح صفحة «الربط والتشغيل» واضغط زر الربط"
-          fi
+          grep -q '"ok":true' /tmp/heartbeat.json
+          grep -q '/api/telegram/webhook' /tmp/heartbeat.json
+          echo "🎉 الويبهوك مربوط بالبوت"
 
-      - name: فحص شامل بعد التفعيل (متجر + لوحة + ويبهوك)
+      - name: فحص الصفحة الرئيسية
         run: |
           URL="${{ steps.target.outputs.url }}"
-          echo "── الصفحة الرئيسية ──"
-          curl -s -o /dev/null -w "GET / → HTTP %{http_code}\n" --max-time 30 "$URL/"
-          echo "── صفحة لوحة التحكم ──"
-          curl -s -o /dev/null -w "GET /admin/login → HTTP %{http_code}\n" --max-time 30 "$URL/admin/login" || true
-          echo "── تسجيل دخول لوحة التحكم ──"
-          curl -s -o /tmp/login.json -w "POST /api/admin/login → HTTP %{http_code}\n" --max-time 30 \
+          CODE=$(curl -s -o /tmp/home.html -w "%{http_code}" --max-time 30 "$URL/")
+          echo "GET / → HTTP $CODE"
+          test "$CODE" = "200"
+          grep -q "CHINWI" /tmp/home.html || grep -q "شينوي" /tmp/home.html
+          echo "✅ المتجر يعمل"
+
+      - name: فحص صفحة دخول اللوحة
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          CODE=$(curl -s -o /tmp/login.html -w "%{http_code}" --max-time 30 "$URL/admin/login")
+          echo "GET /admin/login → HTTP $CODE"
+          test "$CODE" = "200"
+          echo "✅ صفحة الدخول تعمل"
+
+      - name: فحص كلمة سر اللوحة والجلسة
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          test -n "$ADMIN_PASSWORD" || { echo "⚠️ السر CHINWI_ADMIN_PASSWORD غير مضبوط — تخطي فحص الدخول"; exit 0; }
+          CODE=$(curl -s -c /tmp/cj -o /tmp/login.json -w "%{http_code}" --max-time 30 \
             -H "content-type: application/json" \
-            -d "{\"password\":\"ChinwiStore@2026\"}" \
-            "$URL/api/admin/login"
+            -d "{\"password\":\"$ADMIN_PASSWORD\"}" \
+            "$URL/api/admin/login")
+          echo "POST /api/admin/login → HTTP $CODE"
           cat /tmp/login.json; echo
-          echo "── جلسة الإدارة ──"
-          curl -s -c /tmp/cj -o /dev/null --max-time 30 -H "content-type: application/json" \
-            -d "{\"password\":\"ChinwiStore@2026\"}" "$URL/api/admin/login"
-          curl -s -b /tmp/cj --max-time 30 "$URL/api/admin/session" | head -c 600; echo
-          echo "── الإحصائيات ──"
-          curl -s -b /tmp/cj --max-time 30 "$URL/api/admin/stats" | head -c 600; echo
-          echo "── المنتجات في القاعدة ──"
-          curl -s -b /tmp/cj --max-time 30 "$URL/api/admin/products" | head -c 400; echo
+          test "$CODE" = "200"
+          S=$(curl -s -b /tmp/cj -o /dev/null -w "%{http_code}" --max-time 30 "$URL/api/admin/session")
+          echo "GET /api/admin/session → HTTP $S"
+          test "$S" = "200"
+          T=$(curl -s -b /tmp/cj -o /tmp/stats.json -w "%{http_code}" --max-time 60 "$URL/api/admin/stats")
+          echo "GET /api/admin/stats → HTTP $T"
+          cat /tmp/stats.json | head -c 500; echo
+          test "$T" = "200"
+          echo "✅ الدخول والإحصائيات تعمل على السحابة"
+
+      - name: ملخص
+        if: always()
+        run: |
+          {
+            echo "## CHINWI STORE — تفعيل ونشر"
+            echo ""
+            echo "- الموقع: ${{ steps.target.outputs.url }}"
+            echo "- الحالة: ${{ job.status }}"
+            echo "- الوقت: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } >> "$GITHUB_STEP_SUMMARY"
