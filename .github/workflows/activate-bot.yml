@@ -1,0 +1,113 @@
+name: Activate CHINWI bot (webhook)
+
+on:
+  push:
+    branches:
+      - arena/38dcf496-absorbs
+    paths:
+      - ".github/chinwi-url.txt"
+      - ".github/workflows/activate-bot.yml"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "رابط الموقع (اختياري — الافتراضي من .github/chinwi-url.txt)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chinwi-activate
+  cancel-in-progress: true
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ADMIN_PASSWORD: ${{ secrets.CHINWI_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: تحديد الرابط
+        id: target
+        run: |
+          URL="${{ github.event.inputs.url }}"
+          if [ -z "$URL" ] && [ -f .github/chinwi-url.txt ]; then
+            URL="$(tr -d ' \n\r' < .github/chinwi-url.txt)"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "الهدف: $URL"
+
+      - name: انتظار جاهزية الموقع
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 20 "$URL/api/health" || true)
+            echo "محاولة $i → HTTP $CODE"
+            if [ "$CODE" = "200" ] && grep -q '"connected":true' /tmp/health.json; then
+              cat /tmp/health.json; echo
+              echo "✅ الموقع متصل بقاعدة البيانات"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "❌ الموقع غير جاهز"
+          exit 1
+
+      - name: ربط الويبهوك (تشغيل البوت)
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          curl -s --max-time 60 -X POST "$URL/api/cron/heartbeat" >/dev/null || true
+          curl -s --max-time 60 "$URL/api/cron/heartbeat" | tee /tmp/heartbeat.json
+          echo
+          grep -q '"ok":true' /tmp/heartbeat.json
+          grep -q '/api/telegram/webhook' /tmp/heartbeat.json
+          echo "🎉 الويبهوك مربوط بالبوت"
+
+      - name: فحص تحويل الجذر إلى البوت (لا موقع مصغّر)
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          CODE=$(curl -s -o /dev/null -D /tmp/root-headers.txt -w "%{http_code}" --max-time 30 "$URL/")
+          LOC=$(grep -i '^location:' /tmp/root-headers.txt | head -1 | tr -d '\r' | cut -d' ' -f2-)
+          echo "GET / → HTTP $CODE → $LOC"
+          case "$CODE" in 301|302|307|308) ;; *) echo "❌ يجب أن يحوّل الجذر إلى البوت"; exit 1;; esac
+          case "$LOC" in *t.me/*) ;; *) echo "❌ التحويل لا يشير إلى تيليجرام"; exit 1;; esac
+          echo "✅ الجذر يحوّل إلى البوت"
+
+      - name: فحص صفحة دخول اللوحة
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          CODE=$(curl -s -o /tmp/login.html -w "%{http_code}" --max-time 30 "$URL/admin/login")
+          echo "GET /admin/login → HTTP $CODE"
+          test "$CODE" = "200"
+          echo "✅ صفحة الدخول تعمل"
+
+      - name: فحص حماية اللوحة (كلمة سر خاطئة → 401)
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          CODE=$(curl -s -o /tmp/bad.json -w "%{http_code}" --max-time 30 \
+            -H "content-type: application/json" \
+            -d '{"password":"wrong-password-smoke-test"}' \
+            "$URL/api/admin/login")
+          echo "POST /api/admin/login (خاطئة) → HTTP $CODE"
+          cat /tmp/bad.json; echo
+          test "$CODE" = "401"
+          S=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL/api/admin/session")
+          echo "GET /api/admin/session (بدون جلسة) → HTTP $S"
+          test "$S" = "401"
+          P=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL/api/admin/stats")
+          echo "GET /api/admin/stats (بدون جلسة) → HTTP $P"
+          test "$P" = "401"
+          echo "✅ اللوحة تعمل ومحمية بكلمة سر"
+
+      - name: ملخص
+        if: always()
+        run: |
+          {
+            echo "## CHINWI STORE — تفعيل ونشر"
+            echo ""
+            echo "- الموقع: ${{ steps.target.outputs.url }}"
+            echo "- الحالة: ${{ job.status }}"
+            echo "- الوقت: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          } >> "$GITHUB_STEP_SUMMARY"
