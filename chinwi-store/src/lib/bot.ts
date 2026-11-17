@@ -1481,6 +1481,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
 /* ───────────────────────── الأزرار ───────────────────────── */
 
 async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
+  if (cq.from?.id) await q("UPDATE users SET clicks_count = clicks_count + 1 WHERE tg_id = $1", [cq.from.id]).catch(() => null);
   const from = cq.from;
   const chatId = cq.message?.chat.id ?? from.id;
   const user = await upsertUser(from);
@@ -1843,21 +1844,56 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
 
 /* ───────────────────────── أدوات للوحة التحكم ───────────────────────── */
 
-export async function broadcastToAll(body: string): Promise<{ sent: number; failed: number }> {
-  const rows = await q<{ tg_id: string }>("SELECT tg_id FROM users WHERE is_blocked = false");
+export async function broadcastToAll(
+  body: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ sent: number; failed: number; blocked: number; total: number; failures: { id: number; error: string }[] }> {
+  // نجلب كل المستخدمين مرة واحدة، ونفصل المحظورين بدل إرسال فاشل لهم
+  const rows = await q<{ tg_id: string }>("SELECT tg_id FROM users");
+  const total = rows.length;
   let sent = 0;
   let failed = 0;
-  for (const row of rows) {
-    try {
-      await sendMessage(row.tg_id, body);
-      sent += 1;
-    } catch {
-      failed += 1;
-    }
-    await new Promise((r) => setTimeout(r, 35));
+  let blocked = 0;
+  const failures: { id: number; error: string }[] = [];
+
+  const CHUNK = 20;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    await Promise.all(
+      chunk.map(async (row) => {
+        const id = Number(row.tg_id);
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            await sendMessage(id, body);
+            sent += 1;
+            return;
+          } catch (err) {
+            const msg = String(err);
+            // المحظور/الملغى: لا نعيد المحاولة
+            if (/blocked|deactivated|chat not found|user is deactivated/i.test(msg)) {
+              blocked += 1;
+              await q("UPDATE users SET is_blocked = true WHERE tg_id = $1", [id]).catch(() => null);
+              return;
+            }
+            if (/retry after|429/i.test(msg) && attempt < 2) {
+              await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+              continue;
+            }
+            failed += 1;
+            failures.push({ id, error: msg.slice(0, 120) });
+            return;
+          }
+        }
+      }),
+    );
+    onProgress?.(Math.min(total, i + CHUNK), total);
+    // تنفّس بين الدفعات (حدود تيليجرام: 30 رسالة/ثانية)
+    await new Promise((r) => setTimeout(r, 350));
   }
+
   await q("INSERT INTO broadcasts (body, sent, failed) VALUES ($1,$2,$3)", [body, sent, failed]);
-  return { sent, failed };
+  await log("broadcast", { sent, failed, blocked, total }, failed ? "warn" : "success", "admin");
+  return { sent, failed, blocked, total, failures: failures.slice(0, 20) };
 }
 
 export async function sendToUser(tgId: number, body: string): Promise<boolean> {

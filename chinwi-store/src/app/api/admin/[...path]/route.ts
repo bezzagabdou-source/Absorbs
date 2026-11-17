@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { AI_SUGGESTIONS, aiProviders, assistantPlan, extractProductsFromImage, type AiMessage } from "@/lib/ai";
+import { AI_SUGGESTIONS, aiProviders, assistantPlan, extractProductsFromImage, setAiKeys, testProviders, localBrain, type AiMessage } from "@/lib/ai";
 import {
   COOKIE_NAME,
   changePassword,
@@ -91,6 +91,18 @@ async function saveSettings(input: Record<string, unknown>): Promise<string[]> {
   }
   await log("settings_saved", { keys: saved }, "info", "admin");
   return saved;
+}
+
+
+/** يقرأ مفاتيح AI المخزّنة في الإعدادات ويطبّقها (تتقدّم على متغيرات البيئة) */
+async function applyAiKeys(): Promise<{ groq: string; gemini: string; openrouter: string }> {
+  const keys = {
+    groq: str(await getSetting<string>("groq_key")),
+    gemini: str(await getSetting<string>("gemini_key")),
+    openrouter: str(await getSetting<string>("openrouter_key")),
+  };
+  setAiKeys(keys);
+  return keys;
 }
 
 /* ───────────────────────── سياق الذكاء الاصطناعي ───────────────────────── */
@@ -418,8 +430,27 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
         users: await one<{ count: string }>("SELECT count(*)::text AS count FROM users WHERE is_blocked = false"),
       });
 
-    case "ai/status":
-      return NextResponse.json({ ok: true, providers: aiProviders(), suggestions: AI_SUGGESTIONS });
+    case "ai/status": {
+      const keys = await applyAiKeys();
+      return NextResponse.json({
+        ok: true,
+        providers: aiProviders(),
+        suggestions: AI_SUGGESTIONS,
+        keys: {
+          groq: keys.groq ? `••••${keys.groq.slice(-4)}` : "",
+          gemini: keys.gemini ? `••••${keys.gemini.slice(-4)}` : "",
+          openrouter: keys.openrouter ? `••••${keys.openrouter.slice(-4)}` : "",
+        },
+        envKeys: { groq: Boolean(env.groqKey), gemini: Boolean(env.geminiKey), openrouter: Boolean(env.openrouterKey) },
+      });
+    }
+
+    case "ai/test": {
+      await applyAiKeys();
+      const results = await testProviders();
+      const okCount = Object.values(results).filter((r) => r.ok).length;
+      return NextResponse.json({ ok: true, results, okCount });
+    }
 
     case "ai/history": {
       const rows = await q(
@@ -465,6 +496,68 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
     case "tasks": {
       const rows = await q("SELECT * FROM tasks ORDER BY done ASC, priority ASC, created_at DESC LIMIT 300");
       return NextResponse.json({ ok: true, rows });
+    }
+
+
+    /* ── الأشخاص النشطون ── */
+    case "activity": {
+      const [rows, totals] = await Promise.all([
+        q(
+          `SELECT u.tg_id, u.first_name, u.username, u.avatar_file_id, u.is_blocked, u.messages_count, u.clicks_count,
+                  u.last_seen_at, u.created_at,
+                  (SELECT count(*)::int FROM orders o WHERE o.user_id = u.tg_id) AS orders_count,
+                  (SELECT coalesce(sum(amount),0)::float FROM orders o WHERE o.user_id = u.tg_id AND o.status = 'delivered') AS spent
+             FROM users u
+            ORDER BY u.last_seen_at DESC
+            LIMIT 200`,
+        ),
+        one<Record<string, string>>(
+          `SELECT (SELECT count(*) FROM users)::text AS users,
+                  (SELECT count(*) FROM users WHERE last_seen_at > now() - interval '24 hours')::text AS active_day,
+                  (SELECT count(*) FROM users WHERE last_seen_at > now() - interval '7 days')::text AS active_week,
+                  (SELECT coalesce(sum(messages_count),0) FROM users)::text AS messages,
+                  (SELECT coalesce(sum(clicks_count),0) FROM users)::text AS clicks,
+                  (SELECT count(*) FROM users WHERE created_at > now() - interval '24 hours')::text AS new_day`,
+        ),
+      ]);
+      return NextResponse.json({ ok: true, rows, totals });
+    }
+
+    /* ── البحث الشامل ── */
+    case "search": {
+      const term = str(url.searchParams.get("q")).trim();
+      if (!term) return NextResponse.json({ ok: true, orders: [], users: [], products: [], empty: true });
+      const like = `%${term}%`;
+      const [orders, users, products] = await Promise.all([
+        q(
+          `SELECT id, code, product_name, amount, status, user_id, created_at FROM orders
+            WHERE code ILIKE $1 OR product_name ILIKE $1 OR user_id::text = $2
+            ORDER BY created_at DESC LIMIT 20`,
+          [like, term],
+        ),
+        q(
+          `SELECT tg_id, first_name, username, is_blocked, last_seen_at FROM users
+            WHERE first_name ILIKE $1 OR username ILIKE $1 OR tg_id::text = $2
+            ORDER BY last_seen_at DESC LIMIT 20`,
+          [like, term],
+        ),
+        q(
+          `SELECT id, name, price, category_id, active FROM products WHERE name ILIKE $1 ORDER BY id DESC LIMIT 20`,
+          [like],
+        ),
+      ]);
+      return NextResponse.json({ ok: true, orders, users, products });
+    }
+
+    /* ── الوسائط المرفوعة ── */
+    case "media": {
+      const rows = await q(
+        `SELECT id, kind, file_id, mime, size, created_at FROM media ORDER BY created_at DESC LIMIT 120`,
+      ).catch(() => []);
+      const stat = await one<{ c: string; size: string }>(
+        "SELECT count(*)::text AS c, coalesce(sum(size),0)::text AS size FROM media",
+      ).catch(() => null);
+      return NextResponse.json({ ok: true, rows, stats: { count: Number(stat?.c ?? 0), size: Number(stat?.size ?? 0) } });
     }
 
     /* ── مركز الحماية ── */
@@ -562,7 +655,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
         site: env.siteUrl,
         db: { connected: Boolean(dbPing), now: dbPing?.now ?? null, ms: Date.now() - started },
         counts,
-        webhook,
+        webhook: webhook
+          ? { ...webhook, ok: Boolean(webhook.url) && webhook.url === webhook.expected }
+          : null,
         ai: aiProviders(),
         emoji: await emojiStats().catch(() => null),
         media: { count: Number(media?.c ?? 0), size: Number(media?.size ?? 0) },
@@ -1145,6 +1240,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
 
   /* ── الذكاء الاصطناعي ── */
   if (route === "ai/chat") {
+    await applyAiKeys();
     const text = str(body.text).trim();
     const history = Array.isArray(body.history) ? (body.history as AiMessage[]) : [];
     const rawImage = str(body.image);
@@ -1178,6 +1274,24 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
     }
   }
 
+  if (route === "ai/keys") {
+    const patch: Record<string, unknown> = {};
+    if (body.groq !== undefined) patch.groq_key = str(body.groq).trim();
+    if (body.gemini !== undefined) patch.gemini_key = str(body.gemini).trim();
+    if (body.openrouter !== undefined) patch.openrouter_key = str(body.openrouter).trim();
+    await saveSettings(patch);
+    await applyAiKeys();
+    const results = await testProviders();
+    return NextResponse.json({ ok: true, results, providers: aiProviders() });
+  }
+
+  if (route === "ai/local") {
+    const text = str(body.text).trim();
+    if (!text) return bad("اكتب طلبك أولاً");
+    const plan = localBrain(text, await aiContext());
+    return NextResponse.json({ ok: true, ...plan });
+  }
+
   if (route === "ai/apply") {
     const actions = Array.isArray(body.actions) ? (body.actions as Record<string, unknown>[]) : [];
     const results = [];
@@ -1187,6 +1301,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
   }
 
   if (route === "ai/vision") {
+    await applyAiKeys();
     const file = form?.get("file");
     if (!(file instanceof File)) return bad("أرسل صورة أولاً");
     if (!file.type.startsWith("image/")) return bad("الملف ليس صورة");

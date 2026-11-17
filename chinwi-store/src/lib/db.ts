@@ -95,9 +95,13 @@ CREATE TABLE IF NOT EXISTS users (
   ban_reason TEXT,
   joined_from TEXT,
   password_changed_at TIMESTAMPTZ,
+  messages_count BIGINT NOT NULL DEFAULT 0,
+  clicks_count BIGINT NOT NULL DEFAULT 0,
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS messages_count BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS clicks_count BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS categories (
   id SERIAL PRIMARY KEY,

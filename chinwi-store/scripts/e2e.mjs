@@ -584,9 +584,13 @@ await check("api: الإيموجي المتحرك (استيراد + تعطيل)"
   await waitForMessage(999, (m) => (m.text ?? "").includes("المساعدة"));
 });
 
-await check("api: الذكاء الاصطناعي بدون مفاتيح يعطي خطأ واضح", async () => {
+await check("api: الذكاء الاصطناعي لا يرفض أبداً (يسقط للعقل المحلي)", async () => {
   const res = await adminPost("ai/chat", { text: "كم مبيعاتي؟" });
-  assert.equal(res.status, 502);
+  assert.equal(res.status, 200, `status=${res.status}`);
+  const json = await res.json();
+  assert.equal(json.ok, true);
+  assert.ok(String(json.reply).length > 10, "رد مفيد");
+  assert.ok(["local", "groq", "gemini", "openrouter"].includes(json.provider), `provider=${json.provider}`);
 });
 
 await check("api: إرسال رسالة لمستخدم من اللوحة", async () => {
@@ -712,6 +716,58 @@ await check("api: بوابة الاشتراك ترجع القنوات والإع
   const gate = await adminGet("gate").then((r) => r.json());
   assert.ok(gate.channels.length >= 2);
   assert.ok(String(gate.settings.gate_bypass).includes("A_B_B_X_N"));
+});
+
+await check("dashboard: صفحات AI والأدوات والنشاط تُفتح", async () => {
+  for (const page of ["keys", "activity", "prompts", "search", "tools", "media"]) {
+    const res = await fetch(`${BASE}/admin/${page}`, { headers: { cookie } });
+    assert.equal(res.status, 200, `/${page} → ${res.status}`);
+  }
+});
+
+await check("ai: العقل المحلي ينفّذ الأمر بدون مفاتيح إنترنت", async () => {
+  const res = await adminPost("ai/local", { text: "أضف منتج 9999 جوهرة بسعر 8800 في فري فاير" });
+  const json = await res.json();
+  assert.equal(json.ok, true);
+  assert.equal(json.provider, "local");
+  assert.ok(json.actions.some((a) => a.type === "create_product"), "خطة إضافة منتج");
+  const chat = await adminPost("ai/chat", { text: "أضف منتج 8888 جوهرة بسعر 7700 في فري فاير" });
+  const chatJson = await chat.json();
+  assert.equal(chatJson.ok, true, "الدردشة لا ترفض أبداً");
+  assert.ok(typeof chatJson.reply === "string" && chatJson.reply.length > 10, "رد غير فارغ");
+});
+
+await check("ai: مفاتيح المالك تُحفظ وتُختبر", async () => {
+  const before = await adminGet("ai/status").then((r) => r.json());
+  assert.equal(typeof before.providers.groq, "boolean");
+  const save = await adminPost("ai/keys", { groq: "gsk_test_invalid_key_123456" });
+  const json = await save.json();
+  assert.equal(json.ok, true);
+  assert.ok(json.results && typeof json.results.groq === "object", "نتيجة الفحص موجودة");
+  assert.equal(json.results.groq.ok, false, "المفتاح الوهمي يُكشف");
+  await adminPost("ai/keys", { groq: "" });
+});
+
+await check("api: النشاط يعرض الرسائل والضغطات", async () => {
+  const res = await adminGet("activity").then((r) => r.json());
+  assert.equal(res.ok, true);
+  assert.ok(Number(res.totals.messages) > 0, "عدد الرسائل يُحسب");
+  assert.ok(res.rows.length > 0, "قائمة النشطين");
+  assert.ok("clicks_count" in res.rows[0], "عدّاد الضغطات");
+});
+
+await check("api: البحث الشامل يجد الطلبات والزبائن", async () => {
+  const res = await adminGet("search?q=amine").then((r) => r.json());
+  assert.equal(res.ok, true);
+  assert.ok(res.users.length >= 1, "وجد الزبون");
+});
+
+await check("api: الإذاعة لا تفشل وتصنّف المحظورين", async () => {
+  const res = await adminPost("broadcast", { text: "🎉 اختبار إذاعة E2E" });
+  const json = await res.json();
+  assert.equal(json.ok, true);
+  assert.ok(typeof json.sent === "number", "عدد المُرسل");
+  assert.ok(typeof json.blocked === "number", "تصنيف المحظورين");
 });
 
 /* 10. الصفحات */

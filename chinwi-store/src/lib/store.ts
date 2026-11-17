@@ -28,6 +28,7 @@ export async function upsertUser(from: IncomingUser, source = "bot"): Promise<Us
        username = COALESCE(EXCLUDED.username, users.username),
        first_name = COALESCE(EXCLUDED.first_name, users.first_name),
        last_name = COALESCE(EXCLUDED.last_name, users.last_name),
+       messages_count = users.messages_count + 1,
        last_seen_at = now()
      RETURNING *`,
     [from.id, from.username ?? null, from.first_name ?? null, from.last_name ?? null, source],

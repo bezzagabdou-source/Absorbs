@@ -16,6 +16,9 @@ const GROUPS: NavGroup[] = [
       { href: "/admin/analytics", label: "التحليلات", icon: "📈" },
       { href: "/admin/orders", label: "الطلبات", icon: "🧾", badge: true },
       { href: "/admin/tasks", label: "مهام المالك", icon: "🗒" },
+      { href: "/admin/activity", label: "الأشخاص النشطون", icon: "👀" },
+      { href: "/admin/search", label: "البحث الشامل", icon: "🔎" },
+      { href: "/admin/tools", label: "أدوات سريعة", icon: "🧰" },
     ],
   },
   {
@@ -40,12 +43,17 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/security", label: "مركز الحماية", icon: "🛡" },
       { href: "/admin/gate", label: "بوابة الاشتراك", icon: "🔒" },
+      { href: "/admin/channels", label: "قنوات الاشتراك", icon: "📣" },
       { href: "/admin/logs", label: "سجل النشاطات", icon: "📜" },
     ],
   },
   {
     title: "الذكاء الاصطناعي",
-    items: [{ href: "/admin/ai", label: "شينوي AI", icon: "🧠" }],
+    items: [
+      { href: "/admin/ai", label: "شينوي AI", icon: "🧠" },
+      { href: "/admin/prompts", label: "مكتبة البرومتات", icon: "🧩" },
+      { href: "/admin/keys", label: "مفاتيح AI", icon: "🔑" },
+    ],
   },
   {
     title: "النظام",
@@ -53,6 +61,7 @@ const GROUPS: NavGroup[] = [
       { href: "/admin/broadcast", label: "الإذاعة الجماعية", icon: "📢" },
       { href: "/admin/health", label: "صحة النظام", icon: "🩺" },
       { href: "/admin/backup", label: "النسخ الاحتياطي", icon: "💾" },
+      { href: "/admin/media", label: "الوسائط", icon: "🖼" },
       { href: "/admin/setup", label: "الربط والتشغيل", icon: "🔗" },
       { href: "/admin/settings", label: "الإعدادات", icon: "⚙️" },
     ],

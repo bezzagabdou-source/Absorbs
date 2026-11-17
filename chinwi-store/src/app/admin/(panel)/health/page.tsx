@@ -21,8 +21,8 @@ export default function HealthPage(): React.ReactElement {
   const { data, reload, loading } = useApi<HealthData>("health");
 
   const sync = async () => {
-    const res = await apiPost<{ ok: boolean; count?: number }>("setup/webhook").catch(() => null);
-    toast(res?.ok ? "تم ربط الويبهوك ✅" : "تعذّر الربط", res?.ok ? "ok" : "err");
+    const res = await apiPost<{ ok: boolean; info?: string }>("setup").catch(() => null);
+    toast(res?.ok ? "تم ربط الويبهوك ✅" : `تعذّر الربط: ${res?.info ?? "تحقّق من التوكن"}`, res?.ok ? "ok" : "err");
     reload();
   };
 

@@ -18,8 +18,49 @@ function withTimeout(ms = TIMEOUT): AbortSignal {
   return ctrl.signal;
 }
 
+/** مفاتيح يضبطها المالك من لوحة التحكم — تتقدّم على متغيّرات البيئة */
+const RUNTIME_KEYS: { groq: string; gemini: string; openrouter: string } = { groq: "", gemini: "", openrouter: "" };
+
+export function setAiKeys(keys: { groq?: string; gemini?: string; openrouter?: string }): void {
+  RUNTIME_KEYS.groq = String(keys.groq ?? "").trim();
+  RUNTIME_KEYS.gemini = String(keys.gemini ?? "").trim();
+  RUNTIME_KEYS.openrouter = String(keys.openrouter ?? "").trim();
+}
+
+export function aiKey(provider: "groq" | "gemini" | "openrouter"): string {
+  if (provider === "groq") return RUNTIME_KEYS.groq || env.groqKey;
+  if (provider === "gemini") return RUNTIME_KEYS.gemini || env.geminiKey;
+  return RUNTIME_KEYS.openrouter || env.openrouterKey;
+}
+
 export function aiProviders(): { groq: boolean; gemini: boolean; openrouter: boolean } {
-  return { groq: Boolean(env.groqKey), gemini: Boolean(env.geminiKey), openrouter: Boolean(env.openrouterKey) };
+  return { groq: Boolean(aiKey("groq")), gemini: Boolean(aiKey("gemini")), openrouter: Boolean(aiKey("openrouter")) };
+}
+
+/** فحص سريع لكل مزوّد: يعيد الحالة والخطأ بدقة */
+export async function testProviders(): Promise<Record<string, { ok: boolean; error?: string; ms: number }>> {
+  const out: Record<string, { ok: boolean; error?: string; ms: number }> = {};
+  const probe: { name: "groq" | "gemini" | "openrouter"; run: () => Promise<string> }[] = [
+    { name: "groq", run: () => groqChat([{ role: "user", content: "قل: تمام" }]) },
+    { name: "gemini", run: () => geminiGenerate("قل: تمام") },
+    { name: "openrouter", run: () => openrouterChat([{ role: "user", content: "قل: تمام" }]) },
+  ];
+  await Promise.all(
+    probe.map(async (item) => {
+      const started = Date.now();
+      if (!aiKey(item.name)) {
+        out[item.name] = { ok: false, error: "لا يوجد مفتاح", ms: 0 };
+        return;
+      }
+      try {
+        await item.run();
+        out[item.name] = { ok: true, ms: Date.now() - started };
+      } catch (err) {
+        out[item.name] = { ok: false, error: String(err).slice(0, 220), ms: Date.now() - started };
+      }
+    }),
+  );
+  return out;
 }
 
 /* ───────────────────────── Groq ───────────────────────── */
@@ -27,7 +68,7 @@ export function aiProviders(): { groq: boolean; gemini: boolean; openrouter: boo
 async function groqChat(messages: AiMessage[]): Promise<string> {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
-    headers: { authorization: `Bearer ${env.groqKey}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${aiKey("groq")}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
       messages,
@@ -58,7 +99,7 @@ async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: s
   if (system) body.systemInstruction = { parts: [{ text: system }] };
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.geminiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiKey("gemini")}`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -81,7 +122,7 @@ async function openrouterChat(messages: AiMessage[]): Promise<string> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.openrouterKey}`,
+      authorization: `Bearer ${aiKey("openrouter")}`,
       "content-type": "application/json",
       "HTTP-Referer": env.siteUrl,
       "X-Title": "CHINWI STORE",
@@ -107,60 +148,44 @@ export async function aiChat(
   messages: AiMessage[],
   opts: { system?: string; images?: AiImage[] } = {},
 ): Promise<AiResult> {
-  const errors: string[] = [];
   const images = opts.images ?? [];
   const full: AiMessage[] = opts.system ? [{ role: "system", content: opts.system }, ...messages] : messages;
+  const history = messages
+    .slice(0, -1)
+    .map((m) => `${m.role === "user" ? "المستخدم" : "المساعد"}: ${m.content}`)
+    .join("\n");
+  const last = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
+  const prompt = `${history ? `سياق المحادثة:\n${history}\n\n` : ""}${last}`;
+  const errors: string[] = [];
 
-  if (images.length) {
-    if (env.geminiKey) {
-      try {
-        const last = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
-        const history = messages
-          .slice(0, -1)
-          .map((m) => `${m.role === "user" ? "المستخدم" : "المساعد"}: ${m.content}`)
-          .join("\n");
-        const prompt = `${history ? `سياق المحادثة:\n${history}\n\n` : ""}${last}`;
-        return { text: await geminiGenerate(prompt, images, opts.system), provider: "gemini" };
-      } catch (err) {
-        errors.push(String(err));
-      }
-    }
-    if (env.groqKey && images.length === 0) {
-      /* Groq لا يدعم الصور في هذا المسار */
-    }
-  } else {
-    if (env.groqKey) {
-      try {
-        return { text: await groqChat(full), provider: "groq" };
-      } catch (err) {
-        errors.push(String(err));
-      }
-    }
-    if (env.geminiKey) {
-      try {
-        const history = messages
-          .slice(0, -1)
-          .map((m) => `${m.role === "user" ? "المستخدم" : "المساعد"}: ${m.content}`)
-          .join("\n");
-        const last = messages.filter((m) => m.role === "user").at(-1)?.content ?? "";
-        const prompt = `${history ? `سياق المحادثة:\n${history}\n\n` : ""}${last}`;
-        return { text: await geminiGenerate(prompt, [], opts.system), provider: "gemini" };
-      } catch (err) {
-        errors.push(String(err));
-      }
-    }
-    if (env.openrouterKey) {
-      try {
-        return { text: await openrouterChat(full), provider: "openrouter" };
-      } catch (err) {
-        errors.push(String(err));
-      }
-    }
+  type Attempt = { name: string; run: () => Promise<string> };
+  const attempts: Attempt[] = [];
+  if (images.length && aiKey("gemini")) attempts.push({ name: "gemini", run: () => geminiGenerate(prompt, images, opts.system) });
+  if (!images.length && aiKey("groq")) attempts.push({ name: "groq", run: () => groqChat(full) });
+  if (aiKey("gemini")) attempts.push({ name: "gemini", run: () => geminiGenerate(prompt, images, opts.system) });
+  if (!images.length && aiKey("openrouter")) attempts.push({ name: "openrouter", run: () => openrouterChat(full) });
+
+  if (!attempts.length) {
+    throw new Error("لا يوجد مفتاح ذكاء اصطناعي — أضفه من صفحة «مفاتيح AI» في لوحة التحكم.");
   }
 
-  throw new Error(
-    `لا يوجد مزوّد ذكاء اصطناعي متاح${errors.length ? ` — ${errors.join(" | ").slice(0, 300)}` : ""}`,
-  );
+  // سباق: أول مزوّد ينجح يفوز = أسرع رد ممكن
+  try {
+    const winner = await Promise.any(
+      attempts.map((a) =>
+        a.run().then((text) => {
+          if (!text || text.trim().length < 2) throw new Error(`${a.name}: رد فارغ`);
+          return { text, provider: a.name };
+        }),
+      ),
+    );
+    return winner;
+  } catch (err) {
+    const list = err instanceof AggregateError ? err.errors : [err];
+    for (const e of list) errors.push(String(e));
+  }
+
+  throw new Error(`تعذّر الوصول لمزوّدي الذكاء الاصطناعي — ${errors.join(" | ").slice(0, 300)}`);
 }
 
 /** استخراج JSON من ردّ قد يحتوي على شرح أو Code fence */
@@ -221,6 +246,141 @@ export async function extractProductsFromImage(
   };
 }
 
+
+/* ───────────────────────── العقل المحلي (بلا إنترنت) ───────────────────────── */
+
+const NUM = "(\\d+(?:[.,]\\d+)?)";
+
+function pick(text: string, patterns: RegExp[]): RegExpMatchArray | null {
+  for (const p of patterns) {
+    const m = p.exec(text);
+    if (m) return m;
+  }
+  return null;
+}
+
+/**
+ * «العقل المحلي»: محرّك فهم نوايا عربي يعمل حتى لو فشلت كل مفاتيح AI.
+ * يحوّل الأمر الطبيعي إلى actions حقيقية، ولا يرفض أي طلب.
+ */
+export function localBrain(text: string, context: string): { reply: string; actions: AssistantAction[]; provider: string } {
+  const t = text.trim();
+  const low = t.toLowerCase();
+  const actions: AssistantAction[] = [];
+  const notes: string[] = [];
+
+  const add = (action: AssistantAction, note: string) => {
+    actions.push(action);
+    notes.push(note);
+  };
+
+  // ➕ إضافة منتج
+  const addProduct = pick(t, [
+    /أضف\s+(?:منتج\s+)?(.+?)\s+(?:بسعر|بـ|ب)\s*(\d+(?:[.,]\d+)?)\s*(?:دج|دينار)?\s*(?:في|إلى|الى)?\s*(?:قسم\s+)?(.+)?$/i,
+    /زد\s+(?:منتج\s+)?(.+?)\s+(\d+(?:[.,]\d+)?)/i,
+  ]);
+  if (addProduct && /أضف|زد|ضيف|اضف/.test(t)) {
+    const name = addProduct[1].replace(/["'«»]/g, "").trim();
+    const price = Number(addProduct[2].replace(",", "."));
+    const category = (addProduct[3] ?? "").replace(/["'«»]/g, "").trim();
+    add({ type: "create_product", name, price, category: category || undefined }, `➕ منتج «${name}» بسعر ${price}`);
+  }
+
+  // ✏️ تعديل السعر
+  const setPrice = pick(t, [
+    /(?:عدّل|عدل|غيّر|غير|خلي|اجعل)\s+سعر\s+(.+?)\s+(?:إلى|الى|بـ|ب)\s*(\d+(?:[.,]\d+)?)/i,
+    /سعر\s+(.+?)\s*(?:=|إلى|الى)\s*(\d+(?:[.,]\d+)?)/i,
+  ]);
+  if (setPrice && !actions.length) {
+    add(
+      { type: "update_product", id: setPrice[1].trim(), price: Number(setPrice[2].replace(",", ".")) },
+      `✏️ سعر «${setPrice[1].trim()}» ← ${setPrice[2]}`,
+    );
+  }
+
+  // 💸 رفع/خفض أسعار قسم
+  const bulk = pick(t, [/(?:رفّع|ارفع|رفع|خفّض|خفض|نزّل|نزل)\s+(?:كل\s+)?(?:أسعار|اسعار)\s+(?:قسم\s+)?(.+?)\s+(?:بنسبة|بـ|ب)\s*(\d+(?:[.,]\d+)?)\s*%?/i]);
+  if (bulk) {
+    const pct = Number(bulk[2].replace(",", ".")) * (/خفّض|خفض|نزّل|نزل/.test(t) ? -1 : 1);
+    add({ type: "bulk_price", category: bulk[1].trim(), percent: pct }, `💸 تعديل أسعار «${bulk[1].trim()}» بنسبة ${pct}%`);
+  }
+
+  // 🔨 حظر / فك حظر
+  const ban = pick(t, [/(?:احظر|حظر|بلوكي?)\s+(\d{5,})/i]);
+  if (ban) add({ type: "ban_user", tg_id: Number(ban[1]), reason: "من شينوي AI" }, `🔨 حظر ${ban[1]}`);
+  const unban = pick(t, [/(?:فك|ألغِ|الغ)\s*(?:ال)?حظر\s+(\d{5,})/i]);
+  if (unban) add({ type: "unban_user", tg_id: Number(unban[1]) }, `🔓 فك حظر ${unban[1]}`);
+
+  // 📢 إذاعة
+  const air = pick(t, [/(?:أذع|اذع|إذاعة|اذاعة|أرسل للجميع|ارسل للجميع|بث)\s*[:：]?\s*([\s\S]{4,})/i]);
+  if (air) add({ type: "broadcast", text: air[1].trim() }, `📢 إذاعة لجميع الزبائن`);
+
+  // 🔒 قفل / فتح
+  if (/(?:اقفل|قفل)\s*(?:ال)?بوت/.test(t) && !/فك|افتح|فتح/.test(t)) add({ type: "lock_bot", locked: true }, "🔒 قفل البوت");
+  if (/(?:افتح|فتح|فك)\s*(?:قفل\s*)?(?:ال)?بوت/.test(t)) add({ type: "lock_bot", locked: false }, "🔓 فتح البوت");
+
+  // 🎟 كود خصم
+  const coupon = pick(t, [/(?:كود|كوبون)\s+([A-Za-z0-9_-]{3,})\s*(?:بنسبة|بـ|ب)?\s*(\d+(?:[.,]\d+)?)?\s*%?/]);
+  if (coupon && /(?:أنشئ|انشئ|اعمل|أضف|اضف|سوّي)/.test(t)) {
+    add(
+      { type: "create_coupon", code: coupon[1].toUpperCase(), kind: coupon[2] ? "percent" : "fixed", amount: Number((coupon[2] ?? "0").replace(",", ".")) },
+      `🎟 كود خصم ${coupon[1].toUpperCase()}`,
+    );
+  }
+
+  // ❓ سؤال شائع
+  const faq = pick(t, [/(?:أضف|اضف|ضيف)\s+سؤال\s*[:：]?\s*(.+?)\s*(?:\||جواب|الجواب)\s*[:：]?\s*([\s\S]+)/i]);
+  if (faq) add({ type: "add_faq", question: faq[1].trim(), answer: faq[2].trim() }, "❓ سؤال شائع");
+
+  // 🗒 مهمة
+  const task = pick(t, [/(?:أضف|اضف|ضيف)\s+(?:مهمة|تذكير)\s*[:：]?\s*(.+)/i]);
+  if (task && !faq) add({ type: "add_task", title: task[1].trim() }, "🗒 مهمة");
+
+  // 🗂 قسم جديد
+  const cat = pick(t, [/(?:أضف|اضف|ضيف|أنشئ|انشئ)\s+قسم\s*[:：]?\s*(.+)/i]);
+  if (cat) add({ type: "create_category", name: cat[1].trim(), emoji: "🗂", section: "digital" }, `🗂 قسم «${cat[1].trim()}»`);
+
+  if (actions.length) {
+    return {
+      reply: [
+        "🧠 شينوي AI (المحرّك المحلي — يعمل بلا إنترنت):",
+        "",
+        ...notes.map((n) => `• ${n}`),
+        "",
+        "اضغط «✅ تنفيذ» لتطبيق العمليات فوراً.",
+      ].join("\n"),
+      actions: actions.slice(0, 12),
+      provider: "local",
+    };
+  }
+
+  // ردّ ذكي عام مع بيانات المتجر المختصرة
+  const summary = context
+    .split("\n")
+    .filter((line) => /^(المتجر|الإحصاءات|إعدادات|مستخدمون محظورون)/.test(line))
+    .slice(0, 4)
+    .join("\n");
+  return {
+    reply: [
+      "🧠 شينوي AI (المحرّك المحلي):",
+      summary ? `\n${summary}\n` : "",
+      "أنا جاهز أنفّذ أي تعديل على البوت. أمثلة تفهمها مباشرة:",
+      "• «أضف منتج 1080 جوهرة بسعر 3050 في فري فاير»",
+      "• «عدّل سعر 100 جوهرة إلى 330»",
+      "• «رفّع أسعار قسم فري فاير بنسبة 5%»",
+      "• «أذع: عروض الليلة خصم 10% على تيك توك»",
+      "• «احظر 123456789» / «فك حظر 123456789»",
+      "• «أنشئ كود CHINWI10 بنسبة 10»",
+      "• «اقفل البوت» / «افتح البوت»",
+      "",
+      "ملاحظة: مفاتيح AI الخارجية غير صالحة حالياً — أضف مفتاحاً صالحاً من صفحة «🔑 مفاتيح AI» لتشغيل العقل الكامل (Gemini + Groq).",
+    ].join("\n"),
+    actions: [],
+    provider: "local",
+  };
+}
+
+
 /** المساعد المتجر: يولّد ردًّا عربيًا + خطة عمليات JSON — مع دعم الصور */
 export async function assistantPlan(
   messages: AiMessage[],
@@ -228,9 +388,14 @@ export async function assistantPlan(
   image?: AiImage | null,
 ): Promise<{ reply: string; actions: AssistantAction[]; provider: string }> {
   const system = buildBrain(context);
-  const res = image
-    ? { text: await smartVision(messages, system, image), provider: "gemini" }
-    : await aiChat(messages, { system });
+  let res: { text: string; provider: string };
+  try {
+    res = image ? { text: await smartVision(messages, system, image), provider: "gemini" } : await aiChat(messages, { system });
+  } catch (err) {
+    // لا نرفض أبداً: العقل المحلي ينفّذ الأمر بدون إنترنت
+    const fallback = localBrain(messages[messages.length - 1]?.content ?? "", context);
+    return { ...fallback, reply: `${fallback.reply}\n\n<i>(${String(err).slice(0, 160)})</i>` };
+  }
   const parsed = extractJson<{ reply?: string; actions?: AssistantAction[] }>(res.text);
   if (!parsed) return { reply: res.text.slice(0, 4000), actions: [], provider: res.provider };
   return {
