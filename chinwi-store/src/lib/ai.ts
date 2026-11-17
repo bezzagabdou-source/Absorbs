@@ -94,7 +94,6 @@ async function groqChat(messages: AiMessage[]): Promise<string> {
 /* ───────────────────────── Gemini ───────────────────────── */
 
 async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: string): Promise<string> {
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const parts: Record<string, unknown>[] = [{ text: prompt }];
   for (const img of images) {
     parts.push({ inline_data: { mime_type: img.mime, data: img.data.toString("base64") } });
@@ -105,22 +104,42 @@ async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: s
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiKey("gemini")}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": aiKey("gemini") },
-      body: JSON.stringify(body),
-      signal: withTimeout(45_000),
-    },
+  const key = aiKey("gemini");
+  const models = Array.from(
+    new Set(
+      [process.env.GEMINI_MODEL || "", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"].filter(Boolean),
+    ),
   );
-  if (!res.ok) throw new Error(`gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const json = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  const text = (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
-  if (!text) throw new Error("gemini: empty");
-  return text;
+  let lastErr = "";
+  for (const model of models) {
+    for (const version of ["v1beta", "v1"]) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          // المفاتيح الجديدة (AQ.) تعمل برأس x-goog-api-key أيضاً
+          headers: { "content-type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify(body),
+          signal: withTimeout(45_000),
+        },
+      );
+      const raw = await res.text();
+      if (res.ok) {
+        try {
+          const json = JSON.parse(raw) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+          const text = (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+          if (text) return text;
+          lastErr = "gemini: empty";
+        } catch {
+          lastErr = `gemini: bad json ${raw.slice(0, 100)}`;
+        }
+        continue;
+      }
+      lastErr = `gemini ${res.status} (${model}/${version}): ${raw.slice(0, 200)}`;
+      if (res.status === 401 || res.status === 403) break;
+    }
+  }
+  throw new Error(lastErr);
 }
 
 /* ───────────────────────── OpenRouter ───────────────────────── */
