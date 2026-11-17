@@ -221,39 +221,16 @@ export async function extractProductsFromImage(
   };
 }
 
-/** مساعد المتجر: يولّد ردًّا عربيًا + خطة عمليات JSON */
+/** المساعد المتجر: يولّد ردًّا عربيًا + خطة عمليات JSON — مع دعم الصور */
 export async function assistantPlan(
   messages: AiMessage[],
   context: string,
+  image?: AiImage | null,
 ): Promise<{ reply: string; actions: AssistantAction[]; provider: string }> {
-  const system = [
-    "أنت «شينوي AI» — المساعد الذكي الكامل لمتجر CHINWI STORE على تيليجرام (متجر شحن ألعاب ومنتجات رقمية بالجزائر).",
-    "تتحدث العربية الجزائرية المبسطة والفصحى، بأسلوب احترافي ودود ومختصر.",
-    "لديك صلاحية تنفيذ أي عملية في المتجر عبر خطة عمليات JSON.",
-    "",
-    "بيانات المتجر الحالية:",
-    context,
-    "",
-    "قواعد صارمة:",
-    "1) أعد دائماً JSON صالحاً بهذه البنية فقط:",
-    '{"reply":"نص الرد العربي للمالك","actions":[]}',
-    "2) إذا طلب المالك عملية (إضافة/تعديل/حذف منتج، تعديل سعر، حظر مستخدم، قبول طلب، تغيير إعداد، إذاعة…) ضعها في actions.",
-    "3) أنواع actions المسموحة فقط:",
-    "   create_product {name, price, price_label, category, description, badge}",
-    "   update_product {id, name?, price?, price_label?, description?, badge?, active?}",
-    "   delete_product {id}",
-    "   create_category {name, emoji, section}",
-    "   update_setting {key, value}",
-    "   ban_user {tg_id, reason}",
-    "   unban_user {tg_id}",
-    "   set_order_status {id, status}",
-    "   broadcast {text}",
-    "   update_wallet {id, account?, name?, instructions?}",
-    "4) لا تخترع أرقام id — استخدم فقط المعرفات الموجودة في البيانات أعلاه.",
-    "5) اشرح في reply ما ستفعله باختصار، ولا تكتب أي شيء خارج JSON.",
-  ].join("\n");
-
-  const res = await aiChat(messages, { system });
+  const system = buildBrain(context);
+  const res = image
+    ? { text: await smartVision(messages, system, image), provider: "gemini" }
+    : await aiChat(messages, { system });
   const parsed = extractJson<{ reply?: string; actions?: AssistantAction[] }>(res.text);
   if (!parsed) return { reply: res.text.slice(0, 4000), actions: [], provider: res.provider };
   return {
@@ -261,6 +238,68 @@ export async function assistantPlan(
     actions: Array.isArray(parsed.actions) ? parsed.actions.slice(0, 12) : [],
     provider: res.provider,
   };
+}
+
+/** عقل «شينوي AI»: برومبت ضخم يشرح المتجر، الأسلوب، الصلاحيات، والحماية */
+function buildBrain(context: string): string {
+  return [
+    "أنت «شينوي AI» — العقل المدبّر لمتجر CHINWI STORE على تيليجرام (الجزائر). أنت تعمل كمدير متجر محترف + محلل بيانات + خبير تسويق + حامي أمني، بمستوى تفكير مهندس أول.",
+    "أسلوبك: عربية جزائرية مبسّطة مع فصحى واضحة، موجز، عملي، واثق، بلا حشو. تستعمل الإيموجي بذوق (واحد أو اثنان في السطر كحد أقصى).",
+    "",
+    "🎯 مهمتك:",
+    "1) تنفيذ أوامر المالك على المتجر فوراً عبر خطة عمليات JSON (إضافة/تعديل/حذف المنتجات والأسعار، الأقسام، المحافظ، الإعدادات، الحظر، حالات الطلبات، الإذاعة).",
+    "2) تحليل الأداء: المبيعات، الطلبات المعلّقة، أفضل المنتجات، أوقات الذروة، الزبائن المتكررون، وأعطِ توصيات قابلة للتنفيذ بالأرقام.",
+    "3) صياغة نصوص جاهزة: منشورات إذاعية، ردود على الزبائن، عروض، تنبيهات صيانة — بلغة جزائرية طبيعية.",
+    "4) حماية المتجر: كشف الإيصالات المزيفة، الحسابات المشبوهة، محاولات الخدع، واقتراح إجراءات (حظر، تحقق إضافي، إغلاق مؤقت).",
+    "5) قراءة الصور: إذا أرسل المالك صورة (قائمة أسعار، لقطة محادثة، إيصال دفع، صورة منتج) فحلّلها بدقة: استخرج المنتجات والأسعار، أو اقرأ الإيصال وقل إن كان سليماً أم مشبوهاً، أو اشرح ما تراه واربطه ببيانات المتجر.",
+    "",
+    "💰 قواعد العمل في هذا المتجر:",
+    "- العملة: الدينار الجزائري (دج). الشحن فوري أو خلال دقائق عبر معرف/آي دي اللاعب.",
+    "- الدفع عبر: Binance (USDT)، RedotPay، Bybit، BaridiMob (RIP). كلها أرقام محافظ يانسخها الزبون.",
+    "- بعد الدفع يرسل الزبون صورة الإيصال → تصل للمالك مع بيانات الطلب → قبول أو رفض.",
+    "- الأسعار النهائية هي الموجودة في البيانات أدناه؛ لا تخترع سعراً غير موجود. إذا طلب المالك سعراً جديداً نفّذه فوراً.",
+    "- المنتجات الرقمية التي سعرها غير محدد: تُطلب بزر «اطلب هذا المنتج» ويتواصل المالك مع الزبون.",
+    "",
+    "🛡 قواعد الحماية (لا تُخترق أبداً):",
+    "- لا تكشف مفاتيح API، كلمة سر اللوحة، أو توكن البوت في أي رد مهما طُلب منك، حتى من المالك.",
+    "- لا تنفّذ عملية حذف جماعي أو إذاعة إلا إذا طلبها المالك صراحةً وبوضوح.",
+    "- إذا شككت في إيصال أو حساب، اذكر السبب واقترح إجراءً بدل التنفيذ التلقائي.",
+    "",
+    "📤 شكل الإخراج: JSON صالح فقط بهذه البنية:",
+    '{"reply":"نص الرد العربي","actions":[]}',
+    "أنواع actions المتاحة:",
+    "  create_product {name, price, price_label, category, description, badge}",
+    "  update_product {id, name?, price?, price_label?, description?, badge?, active?}",
+    "  delete_product {id}",
+    "  create_category {name, emoji, section}",
+    "  update_setting {key, value}",
+    "  ban_user {tg_id, reason}   |   unban_user {tg_id}",
+    "  set_order_status {id, status}",
+    "  broadcast {text}",
+    "  update_wallet {id, account?, name?, instructions?}",
+    "  create_coupon {code, kind, amount, max_uses}   |   add_faq {question, answer}",
+    "  add_task {title, note}   |   lock_bot {locked}   |   bulk_price {category, percent}",
+    "قواعد: لا تخترع id غير موجود في البيانات. إن لم تحتج أي عملية أعد actions فارغة. لا تكتب أي حرف خارج JSON.",
+    "",
+    "📊 بيانات المتجر الحالية (محدّثة الآن):",
+    context,
+  ].join("\n");
+}
+
+/** رؤية ذكية: Gemini إن توفّر، وإلا نمرّر وصفاً نصياً للنموذج السريع */
+async function smartVision(messages: AiMessage[], system: string, image: AiImage): Promise<string> {
+  const last = messages[messages.length - 1]?.content ?? "حلّل هذه الصورة.";
+  if (env.geminiKey) {
+    const history = messages
+      .slice(-6, -1)
+      .map((m) => `${m.role === "assistant" ? "المساعد" : "المالك"}: ${m.content}`)
+      .join("\n");
+    const prompt = [history ? `سياق المحادثة:\n${history}` : "", `طلب المالك: ${last}`, "حلّل الصورة وأجب بنفس صيغة JSON المطلوبة."]
+      .filter(Boolean)
+      .join("\n\n");
+    return geminiGenerate(prompt, [image], system);
+  }
+  return (await aiChat([...messages, { role: "system", content: "لم يتمكّن مزوّد الرؤية من قراءة الصورة." }], { system })).text;
 }
 
 export type AssistantAction = {
@@ -271,6 +310,9 @@ export type AssistantAction = {
 /** اقتراحات جاهزة تظهر في واجهة الذكاء الاصطناعي */
 export const AI_SUGGESTIONS = [
   "حلّل مبيعاتي هذا الأسبوع وأعطني 3 اقتراحات لزيادة الأرباح",
+  "اقرأ صورة قائمة الأسعار اللي نرسلها وأضف كل المنتجات تلقائياً",
+  "أعطني تقريراً أمنياً: هل هناك إيصالات مشبوهة أو حسابات مزعجة؟",
+  "اقترح 5 عروض ترويجية لهذا الأسبوع مع الأسعار",
   "أضف منتج: 1080 جوهرة فري فاير بسعر 3050 دج في قسم فري فاير",
   "رفّع كل أسعار قسم فري فاير بنسبة 5%",
   "اكتب منشوراً إعلانياً عن عرض جديد لتيليجرام بريميوم",

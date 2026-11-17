@@ -93,8 +93,8 @@ export default function CategoriesPage(): React.ReactElement {
       {node}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">الأقسام</h1>
-          <p className="mt-1 text-xs text-slate-400">أقسام المتجر كما تظهر في أزرار البوت — أضف/عدّل/رتّب</p>
+          <h1 className="text-2xl font-black text-emerald-950">الأقسام</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">أقسام المتجر كما تظهر في أزرار البوت — أضف/عدّل/رتّب</p>
         </div>
         <Btn onClick={() => setEditing({ name: "", emoji: "📦", section: "games", active: true, sort: 99 })}>
           ➕ قسم جديد
@@ -104,14 +104,14 @@ export default function CategoriesPage(): React.ReactElement {
       {loading && !data ? (
         <Spinner />
       ) : error ? (
-        <p className="text-sm text-red-300">{error}</p>
+        <p className="text-sm text-rose-600">{error}</p>
       ) : categories.length === 0 ? (
         <Empty icon="🗂" title="لا أقسام" />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {categories.map((c) => (
             <Card key={c.id} className="!p-0 overflow-hidden">
-              <div className="relative h-28 bg-black/40">
+              <div className="relative h-28 bg-white/65">
                 {c.image_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={c.image_url} alt={c.name} className="h-full w-full object-cover object-top" />
@@ -120,16 +120,16 @@ export default function CategoriesPage(): React.ReactElement {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0b1118] to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 flex items-center justify-between p-3">
-                  <p className="text-sm font-black text-white">
+                  <p className="text-sm font-black text-emerald-950">
                     {c.emoji} {c.name}
                   </p>
                   <Badge tone={c.active ? "emerald" : "red"}>{c.active ? "ظاهر" : "مخفي"}</Badge>
                 </div>
               </div>
               <div className="p-3">
-                <p className="line-clamp-2 min-h-[2rem] text-[0.7rem] text-slate-400">{c.description || "بدون وصف"}</p>
+                <p className="line-clamp-2 min-h-[2rem] text-[0.7rem] text-emerald-900/65">{c.description || "بدون وصف"}</p>
                 <div className="mt-2 flex items-center justify-between">
-                  <span className="text-[0.68rem] text-slate-500">
+                  <span className="text-[0.68rem] text-emerald-900/55">
                     {c.products_count} منتج • {SECTIONS.find((s) => s.key === c.section)?.label ?? c.section}
                   </span>
                   <div className="flex gap-1">

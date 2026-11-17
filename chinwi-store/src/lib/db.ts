@@ -215,6 +215,55 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS coupons (
+  id serial PRIMARY KEY,
+  code text UNIQUE NOT NULL,
+  kind text NOT NULL DEFAULT 'percent',
+  amount numeric NOT NULL DEFAULT 0,
+  min_amount numeric NOT NULL DEFAULT 0,
+  max_uses integer NOT NULL DEFAULT 0,
+  uses integer NOT NULL DEFAULT 0,
+  active boolean NOT NULL DEFAULT true,
+  note text,
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS faq (
+  id serial PRIMARY KEY,
+  question text NOT NULL,
+  answer text NOT NULL,
+  sort integer NOT NULL DEFAULT 0,
+  active boolean NOT NULL DEFAULT true,
+  hits integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS reviews (
+  id serial PRIMARY KEY,
+  user_id bigint,
+  name text,
+  rating integer NOT NULL DEFAULT 5,
+  body text,
+  product_name text,
+  approved boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS tasks (
+  id serial PRIMARY KEY,
+  title text NOT NULL,
+  note text,
+  done boolean NOT NULL DEFAULT false,
+  priority integer NOT NULL DEFAULT 2,
+  due_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS security_events (
+  id serial PRIMARY KEY,
+  kind text NOT NULL,
+  user_id bigint,
+  detail text,
+  severity text NOT NULL DEFAULT 'info',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS visits (
   id BIGSERIAL PRIMARY KEY,
   path TEXT NOT NULL DEFAULT '/',
@@ -244,6 +293,18 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   // حسابات معفاة من بوابة الاشتراك الإجباري
   gate_bypass: "@A_B_B_X_N",
   banner_image: "/catalog/banner.jpg",
+  logo_image: "/catalog/logo.png",
+  // ── مركز الحماية ──
+  bot_locked: false,
+  lock_message: "🛠 المتجر في صيانة سريعة، نرجع بعد قليل — شكراً لصبرك 💚",
+  rate_limit_per_min: 20,
+  max_orders_per_hour: 6,
+  block_words: [],
+  auto_block_after: 3,
+  anti_fake_receipt: true,
+  require_phone_confirm: false,
+  new_users_quiet_hours: false,
+  security_alert_owner: true,
   maintenance: false,
   maintenance_text: "🛠 المتجر في صيانة سريعة… نرجع لك خلال دقائق.",
   welcome_text:

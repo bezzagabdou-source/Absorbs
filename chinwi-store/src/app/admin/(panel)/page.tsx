@@ -112,7 +112,7 @@ export default function DashboardPage(): React.ReactElement {
   if (error && !data)
     return (
       <Card title="تعذّر التحميل">
-        <p className="text-sm text-red-300">{error}</p>
+        <p className="text-sm text-rose-600">{error}</p>
         <div className="mt-3">
           <Btn onClick={reload}>🔄 إعادة المحاولة</Btn>
         </div>
@@ -125,8 +125,8 @@ export default function DashboardPage(): React.ReactElement {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">لوحة القيادة</h1>
-          <p className="mt-1 text-xs text-slate-400">نظرة شاملة على المتجر، الطلبات والمستخدمين — تُحدَّث تلقائياً</p>
+          <h1 className="text-2xl font-black text-emerald-950">لوحة القيادة</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">نظرة شاملة على المتجر، الطلبات والمستخدمين — تُحدَّث تلقائياً</p>
         </div>
         <div className="flex gap-2">
           <Btn variant="ghost" onClick={reload}>
@@ -146,7 +146,7 @@ export default function DashboardPage(): React.ReactElement {
           <span className="text-sm font-bold text-amber-200">
             🟡 لديك <b>{stats.pending}</b> إيصال بانتظار المراجعة — راجعها الآن لتسريع التسليم
           </span>
-          <span className="text-xs text-amber-300">فتح الطلبات ←</span>
+          <span className="text-xs text-amber-600">فتح الطلبات ←</span>
         </Link>
       )}
 
@@ -160,18 +160,18 @@ export default function DashboardPage(): React.ReactElement {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2" title="📈 المبيعات — آخر 14 يوم" subtitle="الأعمدة تمثّل إجمالي المبيعات المؤكدة يومياً">
           {stats.series.length ? <Bars data={stats.series} /> : <Empty title="لا توجد بيانات بعد" />}
-          <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/5 pt-3 text-center">
+          <div className="mt-4 grid grid-cols-3 gap-3 border-t border-emerald-900/[0.06] pt-3 text-center">
             <div>
-              <p className="text-[0.7rem] text-slate-500">مبيعات الشهر</p>
-              <p className="text-sm font-black text-emerald-400">{money(stats.revenue_month)}</p>
+              <p className="text-[0.7rem] text-emerald-900/55">مبيعات الشهر</p>
+              <p className="text-sm font-black text-emerald-600">{money(stats.revenue_month)}</p>
             </div>
             <div>
-              <p className="text-[0.7rem] text-slate-500">قيد التحقق</p>
-              <p className="text-sm font-black text-amber-300">{stats.status_breakdown.awaiting_review ?? 0}</p>
+              <p className="text-[0.7rem] text-emerald-900/55">قيد التحقق</p>
+              <p className="text-sm font-black text-amber-600">{stats.status_breakdown.awaiting_review ?? 0}</p>
             </div>
             <div>
-              <p className="text-[0.7rem] text-slate-500">مرفوضة</p>
-              <p className="text-sm font-black text-red-400">{stats.status_breakdown.rejected ?? 0}</p>
+              <p className="text-[0.7rem] text-emerald-900/55">مرفوضة</p>
+              <p className="text-sm font-black text-rose-500">{stats.status_breakdown.rejected ?? 0}</p>
             </div>
           </div>
         </Card>
@@ -181,14 +181,14 @@ export default function DashboardPage(): React.ReactElement {
             <ul className="space-y-2.5">
               {stats.top_products.map((p, i) => (
                 <li key={`${p.name}-${i}`} className="flex items-center gap-3">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-xs font-black text-emerald-300">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-xs font-black text-emerald-700">
                     {i + 1}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold text-slate-200">{p.name}</span>
-                    <span className="block text-[0.65rem] text-slate-500">{p.orders} طلب</span>
+                    <span className="block truncate text-xs font-bold text-emerald-900">{p.name}</span>
+                    <span className="block text-[0.65rem] text-emerald-900/55">{p.orders} طلب</span>
                   </span>
-                  <span className="shrink-0 text-xs font-black text-emerald-400">{money(p.revenue)}</span>
+                  <span className="shrink-0 text-xs font-black text-emerald-600">{money(p.revenue)}</span>
                 </li>
               ))}
             </ul>
@@ -228,18 +228,18 @@ export default function DashboardPage(): React.ReactElement {
                     return (
                       <tr key={o.id}>
                         <td>
-                          <span className="block font-mono text-[0.72rem] text-emerald-300">{o.code}</span>
-                          <span className="block max-w-[10rem] truncate text-xs text-slate-300">{o.product_name}</span>
+                          <span className="block font-mono text-[0.72rem] text-emerald-700">{o.code}</span>
+                          <span className="block max-w-[10rem] truncate text-xs text-emerald-900/85">{o.product_name}</span>
                         </td>
-                        <td className="text-xs text-slate-300">
+                        <td className="text-xs text-emerald-900/85">
                           {o.username ? `@${o.username}` : o.first_name || o.user_id}
-                          <span className="block text-[0.62rem] text-slate-600">{o.user_id}</span>
+                          <span className="block text-[0.62rem] text-emerald-900/45">{o.user_id}</span>
                         </td>
-                        <td className="whitespace-nowrap text-xs font-black text-white">{money(o.amount)}</td>
+                        <td className="whitespace-nowrap text-xs font-black text-emerald-950">{money(o.amount)}</td>
                         <td>
                           <Badge tone={st.tone}>{st.label}</Badge>
                         </td>
-                        <td className="whitespace-nowrap text-[0.68rem] text-slate-500">{relative(o.created_at)}</td>
+                        <td className="whitespace-nowrap text-[0.68rem] text-emerald-900/55">{relative(o.created_at)}</td>
                         <td>
                           <div className="flex gap-1">
                             {o.status === "awaiting_review" && (
@@ -274,7 +274,7 @@ export default function DashboardPage(): React.ReactElement {
               <ul className="space-y-2">
                 {data!.users.map((u) => (
                   <li key={u.tg_id} className="flex items-center gap-2.5">
-                    <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-full border border-white/10 bg-black/40 text-xs">
+                    <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-full border border-emerald-900/10 bg-white/65 text-xs">
                       {u.avatar_file_id ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={`/api/avatar/${u.tg_id}`} alt="" className="h-full w-full object-cover" />
@@ -283,10 +283,10 @@ export default function DashboardPage(): React.ReactElement {
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-bold text-slate-200">
+                      <span className="block truncate text-xs font-bold text-emerald-900">
                         {u.first_name || "بدون اسم"} {u.username ? `· @${u.username}` : ""}
                       </span>
-                      <span className="block text-[0.62rem] text-slate-600">{relative(u.created_at)}</span>
+                      <span className="block text-[0.62rem] text-emerald-900/45">{relative(u.created_at)}</span>
                     </span>
                   </li>
                 ))}
@@ -302,12 +302,12 @@ export default function DashboardPage(): React.ReactElement {
                 <li key={l.id} className="flex gap-2 text-[0.7rem]">
                   <span>{levelIcon(l.level)}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-slate-300">{l.action}</span>
-                    <span className="block text-[0.6rem] text-slate-600">{dateTime(l.created_at)}</span>
+                    <span className="block truncate text-emerald-900/85">{l.action}</span>
+                    <span className="block text-[0.6rem] text-emerald-900/45">{dateTime(l.created_at)}</span>
                   </span>
                 </li>
               ))}
-              {!data!.logs.length && <p className="text-xs text-slate-500">لا سجلات بعد.</p>}
+              {!data!.logs.length && <p className="text-xs text-emerald-900/55">لا سجلات بعد.</p>}
             </ul>
           </Card>
         </div>
@@ -322,8 +322,8 @@ export default function DashboardPage(): React.ReactElement {
         ].map((q) => (
           <Link key={q.href} href={q.href} className="panel panel-hover p-4">
             <p className="text-xl">{q.icon}</p>
-            <p className="mt-1 text-xs font-extrabold text-white">{q.t}</p>
-            <p className="text-[0.65rem] text-slate-500">{q.d}</p>
+            <p className="mt-1 text-xs font-extrabold text-emerald-950">{q.t}</p>
+            <p className="text-[0.65rem] text-emerald-900/55">{q.d}</p>
           </Link>
         ))}
       </div>

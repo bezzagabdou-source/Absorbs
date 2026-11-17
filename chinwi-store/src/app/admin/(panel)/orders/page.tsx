@@ -142,8 +142,8 @@ export default function OrdersPage(): React.ReactElement {
       {node}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">الطلبات</h1>
-          <p className="mt-1 text-xs text-slate-400">
+          <h1 className="text-2xl font-black text-emerald-950">الطلبات</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">
             {total.toLocaleString("en-US")} طلب — راجع الإيصالات، اقبل أو ارفض، وتابع التسليم
           </p>
         </div>
@@ -169,7 +169,7 @@ export default function OrdersPage(): React.ReactElement {
               className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                 status === t.key
                   ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/25"
-                  : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                  : "border border-emerald-900/10 bg-white/70 text-emerald-900/85 hover:bg-white/85"
               }`}
             >
               {t.label}
@@ -197,7 +197,7 @@ export default function OrdersPage(): React.ReactElement {
         {loading && !data ? (
           <Spinner />
         ) : error ? (
-          <p className="py-6 text-center text-sm text-red-300">{error}</p>
+          <p className="py-6 text-center text-sm text-rose-600">{error}</p>
         ) : rows.length === 0 ? (
           <Empty icon="🧾" title="لا طلبات في هذا التصنيف" hint="جرّب تغيير الفلتر أو البحث بكود الطلب" />
         ) : (
@@ -223,26 +223,26 @@ export default function OrdersPage(): React.ReactElement {
                       <td>
                         <button
                           onClick={() => openDetail(o.id)}
-                          className="font-mono text-[0.72rem] font-bold text-emerald-300 hover:underline"
+                          className="font-mono text-[0.72rem] font-bold text-emerald-700 hover:underline"
                         >
                           {o.code}
                         </button>
                         {o.kind === "usd" && <Badge tone="violet">💵 USD</Badge>}
                       </td>
-                      <td className="text-xs text-slate-300">
+                      <td className="text-xs text-emerald-900/85">
                         {o.username ? `@${o.username}` : o.first_name || "—"}
-                        <span className="block text-[0.6rem] text-slate-600">{o.user_id}</span>
+                        <span className="block text-[0.6rem] text-emerald-900/45">{o.user_id}</span>
                       </td>
-                      <td className="max-w-[12rem] truncate text-xs text-slate-200">
+                      <td className="max-w-[12rem] truncate text-xs text-emerald-900">
                         {o.product_name}
                         {o.kind === "usd" && o.usd_amount ? ` (${o.usd_amount}$)` : ""}
                       </td>
-                      <td className="whitespace-nowrap text-xs font-black text-white">{money(o.amount, o.currency)}</td>
-                      <td className="text-[0.68rem] text-slate-400">{o.payment_method ?? "—"}</td>
+                      <td className="whitespace-nowrap text-xs font-black text-emerald-950">{money(o.amount, o.currency)}</td>
+                      <td className="text-[0.68rem] text-emerald-900/65">{o.payment_method ?? "—"}</td>
                       <td>
                         <Badge tone={meta.tone}>{meta.label}</Badge>
                       </td>
-                      <td className="whitespace-nowrap text-[0.65rem] text-slate-500">{dateTime(o.created_at)}</td>
+                      <td className="whitespace-nowrap text-[0.65rem] text-emerald-900/55">{dateTime(o.created_at)}</td>
                       <td>
                         <div className="flex gap-1">
                           <Btn size="sm" variant="ghost" onClick={() => openDetail(o.id)}>
@@ -268,7 +268,7 @@ export default function OrdersPage(): React.ReactElement {
             <Btn variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
               ← السابق
             </Btn>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-emerald-900/65">
               {page} / {pages}
             </span>
             <Btn variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
@@ -310,26 +310,26 @@ export default function OrdersPage(): React.ReactElement {
                 {STATUS_META[detail.order.status]?.label ?? detail.order.status}
               </Badge>
               <CopyBtn text={detail.order.code} label="كود الطلب" />
-              <span className="text-xs text-slate-500">{dateTime(detail.order.created_at)}</span>
+              <span className="text-xs text-emerald-900/55">{dateTime(detail.order.created_at)}</span>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-white/8 bg-black/30 p-3">
-                <p className="text-[0.7rem] text-slate-500">المنتج</p>
-                <p className="text-sm font-bold text-white">{detail.order.product_name}</p>
-                <p className="mt-1 text-xs text-emerald-400">
+              <div className="rounded-xl border border-emerald-900/10 bg-white/60 p-3">
+                <p className="text-[0.7rem] text-emerald-900/55">المنتج</p>
+                <p className="text-sm font-bold text-emerald-950">{detail.order.product_name}</p>
+                <p className="mt-1 text-xs text-emerald-600">
                   {money(detail.order.amount, detail.order.currency)}
                   {detail.order.kind === "usd" && detail.order.usd_amount
                     ? ` • ${detail.order.usd_amount}$ × ${detail.order.rate}`
                     : ""}
                 </p>
               </div>
-              <div className="rounded-xl border border-white/8 bg-black/30 p-3">
-                <p className="text-[0.7rem] text-slate-500">الزبون</p>
-                <p className="text-sm font-bold text-white">
+              <div className="rounded-xl border border-emerald-900/10 bg-white/60 p-3">
+                <p className="text-[0.7rem] text-emerald-900/55">الزبون</p>
+                <p className="text-sm font-bold text-emerald-950">
                   {detail.order.username ? `@${detail.order.username}` : detail.order.first_name ?? "—"}
                 </p>
-                <p className="text-xs text-slate-500">{detail.order.user_id}</p>
+                <p className="text-xs text-emerald-900/55">{detail.order.user_id}</p>
                 <div className="mt-2 flex gap-1">
                   <CopyBtn text={detail.order.user_id} label="ID" />
                   <a className="btn btn-ghost px-2 py-1 text-xs" href={`tg://user?id=${detail.order.user_id}`}>
@@ -340,13 +340,13 @@ export default function OrdersPage(): React.ReactElement {
             </div>
 
             {detail.order.details && Object.keys(detail.order.details).length > 0 && (
-              <div className="rounded-xl border border-white/8 bg-black/30 p-3">
-                <p className="mb-2 text-[0.7rem] text-slate-500">بيانات الزبون</p>
+              <div className="rounded-xl border border-emerald-900/10 bg-white/60 p-3">
+                <p className="mb-2 text-[0.7rem] text-emerald-900/55">بيانات الزبون</p>
                 <ul className="space-y-1">
                   {Object.entries(detail.order.details).map(([k, v]) => (
                     <li key={k} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-slate-400">{k}</span>
-                      <span className="flex items-center gap-1 font-mono text-emerald-300">
+                      <span className="text-emerald-900/65">{k}</span>
+                      <span className="flex items-center gap-1 font-mono text-emerald-700">
                         {String(v)} <CopyBtn text={String(v)} label="" />
                       </span>
                     </li>
@@ -356,18 +356,18 @@ export default function OrdersPage(): React.ReactElement {
             )}
 
             <div>
-              <p className="mb-2 text-[0.7rem] text-slate-500">إيصال الدفع</p>
+              <p className="mb-2 text-[0.7rem] text-emerald-900/55">إيصال الدفع</p>
               {detail.order.receipt_file_id ? (
                 <a href={`/api/receipt/${detail.order.id}`} target="_blank">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={`/api/receipt/${detail.order.id}`}
                     alt="الإيصال"
-                    className="max-h-96 w-full rounded-xl border border-white/10 object-contain"
+                    className="max-h-96 w-full rounded-xl border border-emerald-900/10 object-contain"
                   />
                 </a>
               ) : (
-                <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300">لا يوجد إيصال مرفق بعد.</p>
+                <p className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-rose-600">لا يوجد إيصال مرفق بعد.</p>
               )}
             </div>
 

@@ -88,6 +88,37 @@ function mentions(user: TgUser | UserRow): string {
   return escapeHtml(("first_name" in user && user.first_name) || "بدون اسم");
 }
 
+
+/* ───────────────────────── حماية ───────────────────────── */
+
+const rateBuckets = new Map<number, { count: number; start: number }>();
+
+/** حدّ رسائل بسيط في الذاكرة لكل مستخدم (نافذة دقيقة) */
+function rateLimitOk(userId: number, limit: number): boolean {
+  if (!Number.isFinite(limit) || limit <= 0) return true;
+  const now = Date.now();
+  const bucket = rateBuckets.get(userId);
+  if (!bucket || now - bucket.start > 60_000) {
+    rateBuckets.set(userId, { count: 1, start: now });
+    return true;
+  }
+  bucket.count += 1;
+  return bucket.count <= limit;
+}
+
+/** تنبيه المالك بحدث أمني (مرة واحدة لكل حدث) */
+async function notifyOwnerSecurity(text: string): Promise<void> {
+  try {
+    const s = await allSettings();
+    if (!settingBool(s, "security_alert_owner", true)) return;
+    const ownerId = Number(s.owner_chat_id ?? 0);
+    if (!ownerId) return;
+    await sendMessage(ownerId, `🛡 <b>تنبيه أمني</b>\n${text}`);
+  } catch {
+    /* صامت */
+  }
+}
+
 /* ───────────────────────── بوابة الاشتراك ───────────────────────── */
 
 type SubState = { ok: boolean; missing: ChannelRow[]; unverifiable: ChannelRow[] };
@@ -543,16 +574,39 @@ async function createOrderAndShowPayment(
   s: SettingsMap,
 ): Promise<void> {
   const cur = settingString(s, "currency", "دج");
+  // 🎟 تطبيق كود الخصم المفعّل (إن وُجد) مرة واحدة
+  const user = await getUser(userId);
+  const coupon = (user?.state ?? {}) as Record<string, unknown>;
+  let amount = Number(p.price ?? 0);
+  let couponNote = "";
+  const code = typeof coupon.code === "string" ? coupon.code : "";
+  if (code && amount > 0) {
+    const row = await one<{ kind: string; amount: number; uses: number; max_uses: number; active: boolean }>(
+      "SELECT kind, amount, uses, max_uses, active FROM coupons WHERE code = $1 AND active = true",
+      [code],
+    );
+    if (row) {
+      const discount = row.kind === "percent" ? Math.round((amount * Number(row.amount)) / 100) : Number(row.amount);
+      const next = Math.max(0, amount - discount);
+      if (next !== amount) {
+        couponNote = `\n🎟 كود <code>${escapeHtml(code)}</code>: خصم ${money(amount - next, cur)}`;
+        amount = next;
+        await q("UPDATE coupons SET uses = uses + 1 WHERE code = $1", [code]);
+      }
+    }
+    await clearUserState(userId);
+  }
   const order = await createOrder({
     userId,
     kind: "product",
     productId: p.id,
     productName: p.name,
-    amount: Number(p.price ?? 0),
+    amount,
     currency: cur,
     details: values,
     status: "pending_payment",
   });
+  if (couponNote) await sendMessage(chatId, `✅ طُبّق الخصم على طلبك ${order.code}${couponNote}`);
   await showPaymentOptions(chatId, order, s);
 }
 
@@ -1009,6 +1063,50 @@ async function route(update: TgUpdate): Promise<void> {
     return;
   }
 
+  // 🔒 قفل أمني فوري من لوحة التحكم
+  if (settingBool(s, "bot_locked", false) && !isAdminUser(user)) {
+    await sendMessage(
+      msg.chat.id,
+      settingString(s, "lock_message", "🛠 المتجر في صيانة سريعة، نرجع بعد قليل 💚"),
+      kb([[link(`💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T")}`)]]),
+    );
+    return;
+  }
+
+  // 🚫 الكلمات الممنوعة + الحظر التلقائي
+  if (!isAdminUser(user) && msg.text) {
+    const words = (s.block_words ?? []) as string[];
+    const lowered = msg.text.toLowerCase();
+    const hit = Array.isArray(words) ? words.find((w) => typeof w === "string" && w && lowered.includes(String(w).toLowerCase())) : undefined;
+    if (hit) {
+      const limit = Math.max(1, settingNumber(s, "auto_block_after", 3));
+      const prev = await one<{ c: string }>(
+        "SELECT count(*)::text AS c FROM security_events WHERE user_id = $1 AND kind = 'block_word' AND created_at > now() - interval '1 day'",
+        [from.id],
+      );
+      const strikes = Number(prev?.c ?? 0) + 1;
+      await q("INSERT INTO security_events (kind, user_id, detail, severity) VALUES ('block_word',$1,$2,'warn')", [
+        from.id,
+        `كلمة ممنوعة: ${String(hit).slice(0, 40)}`,
+      ]);
+      if (strikes >= limit) {
+        await q("UPDATE users SET is_blocked = true WHERE tg_id = $1", [from.id]);
+        await q("INSERT INTO security_events (kind, user_id, detail, severity) VALUES ('auto_block',$1,'حظر تلقائي بعد تكرار المخالفة','danger')", [from.id]);
+        notifyOwnerSecurity(`🚫 حظر تلقائي: ${mentions(from)} (${from.id}) — كرّر كلمة ممنوعة ${strikes} مرات.`);
+        await sendMessage(msg.chat.id, "🚫 تم إيقاف حسابك مؤقتاً بسبب مخالفة قواعد الاستخدام.");
+        return;
+      }
+      await sendMessage(msg.chat.id, `⚠️ رسالتك تحتوي كلمة غير مسموحة. تنبيه ${strikes}/${limit} — التكرار يؤدي لإيقاف الحساب.`);
+      return;
+    }
+  }
+
+  // ⚡️ حدّ المعدّل: حماية من الإغراق
+  if (!isAdminUser(user) && !rateLimitOk(from.id, settingNumber(s, "rate_limit_per_min", 20))) {
+    await sendMessage(msg.chat.id, "⏳ بلاش سرعة! جرب بعد شوي.");
+    return;
+  }
+
   const text = (msg.text ?? "").trim();
   const chatId = msg.chat.id;
 
@@ -1091,6 +1189,57 @@ async function route(update: TgUpdate): Promise<void> {
     }
     if (cmd === "/id") {
       await sendMessage(chatId, `🆔 معرّفك: <code>${from.id}</code>`);
+      return;
+    }
+    if (cmd === "/faq") {
+      const rows = await q<{ question: string; answer: string }>(
+        "SELECT question, answer FROM faq WHERE active = true ORDER BY sort ASC, id ASC LIMIT 12",
+      );
+      if (!rows.length) {
+        await sendMessage(chatId, "❓ ما زال ما عندنا أسئلة مسجلة — اسأل الدعم مباشرة 👇", kb([[b(`💬 الدعم`, "support")]]));
+        return;
+      }
+      const body = rows.map((r, i) => `${i + 1}️⃣ <b>${escapeHtml(r.question)}</b>\n${escapeHtml(r.answer)}`).join("\n\n");
+      await sendMessage(chatId, `❓ <b>الأسئلة الشائعة</b>\n━━━━━━━━━━━━━━━\n${body}`, kb([[b(`💬 الدعم`, "support"), b(`🏠 الرئيسية`, "home")]]));
+      return;
+    }
+    if (cmd === "/reviews") {
+      const rows = await q<{ name: string | null; rating: number; body: string | null }>(
+        "SELECT name, rating, body FROM reviews WHERE approved = true ORDER BY created_at DESC LIMIT 8",
+      );
+      if (!rows.length) {
+        await sendMessage(chatId, "⭐️ ما زالت ما عندنا تقييمات معتمدة — كن أول من يقيّمنا!", kb([[b(`🛍 المتجر`, "home")]]));
+        return;
+      }
+      const body = rows
+        .map((r) => `${"⭐️".repeat(Math.max(1, Math.min(5, r.rating)))}\n<b>${escapeHtml(r.name ?? "زبون")}</b>: ${escapeHtml((r.body ?? "").slice(0, 200))}`)
+        .join("\n\n");
+      await sendMessage(chatId, `⭐️ <b>آراء زبائننا</b>\n━━━━━━━━━━━━━━━\n${body}`, kb([[b(`🛍 المتجر`, "home")]]));
+      return;
+    }
+    if (cmd === "/coupon") {
+      const code = payload.trim().toUpperCase();
+      if (!code) {
+        await sendMessage(chatId, "🎟 اكتب الكود هكذا: <code>/coupon CHINWI10</code>");
+        return;
+      }
+      const c = await one<{ code: string; kind: string; amount: number; uses: number; max_uses: number; active: boolean; expires_at: string | null }>(
+        "SELECT * FROM coupons WHERE code = $1 AND active = true",
+        [code],
+      );
+      const expired = c?.expires_at ? new Date(c.expires_at).getTime() < Date.now() : false;
+      const exhausted = Boolean(c && c.max_uses > 0 && c.uses >= c.max_uses);
+      if (!c || expired || exhausted) {
+        await sendMessage(chatId, "❌ الكود غير صالح أو منتهي.", kb([[b(`🛍 المتجر`, "home")]]));
+        return;
+      }
+      await setUserState(from.id, "coupon", { code: c.code, kind: c.kind, amount: Number(c.amount) });
+      const label = c.kind === "percent" ? `خصم ${c.amount}%` : `خصم ${money(Number(c.amount), settingString(s, "currency", "دج"))}`;
+      await sendMessage(
+        chatId,
+        `🎟 <b>تم تفعيل الكود</b> ${escapeHtml(c.code)}\n✅ ${label} — يُطبَّق على طلبك القادم.`,
+        kb([[b(`🛍 تسوّق الآن`, "home")]]),
+      );
       return;
     }
     await sendMainMenu(chatId, s, user);

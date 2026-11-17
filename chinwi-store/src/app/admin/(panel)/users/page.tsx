@@ -95,8 +95,8 @@ export default function UsersPage(): React.ReactElement {
       {node}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">المستخدمون</h1>
-          <p className="mt-1 text-xs text-slate-400">
+          <h1 className="text-2xl font-black text-emerald-950">المستخدمون</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">
             {(data?.total ?? 0).toLocaleString("en-US")} حساب — صورهم، نشاطهم، طلباتهم وحظرهم
           </p>
         </div>
@@ -122,7 +122,7 @@ export default function UsersPage(): React.ReactElement {
               className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                 filter === f.key
                   ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/25"
-                  : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                  : "border border-emerald-900/10 bg-white/70 text-emerald-900/85 hover:bg-white/85"
               }`}
             >
               {f.label}
@@ -136,15 +136,15 @@ export default function UsersPage(): React.ReactElement {
         {loading && !data ? (
           <Spinner />
         ) : error ? (
-          <p className="py-6 text-center text-sm text-red-300">{error}</p>
+          <p className="py-6 text-center text-sm text-rose-600">{error}</p>
         ) : rows.length === 0 ? (
           <Empty icon="👥" title="لا مستخدمين مطابقين" />
         ) : (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {rows.map((u) => (
-              <div key={u.tg_id} className="rounded-xl border border-white/8 bg-black/25 p-3 transition hover:border-emerald-500/30">
+              <div key={u.tg_id} className="rounded-xl border border-emerald-900/10 bg-white/55 p-3 transition hover:border-emerald-500/30">
                 <div className="flex items-center gap-3">
-                  <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-black/50 text-sm">
+                  <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-emerald-900/10 bg-black/50 text-sm">
                     {u.avatar_file_id ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img src={`/api/avatar/${u.tg_id}`} alt="" className="h-full w-full object-cover" />
@@ -158,10 +158,10 @@ export default function UsersPage(): React.ReactElement {
                     />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-white">
+                    <p className="truncate text-sm font-bold text-emerald-950">
                       {u.first_name || "بدون اسم"} {u.last_name ?? ""}
                     </p>
-                    <p className="truncate text-[0.68rem] text-slate-500">
+                    <p className="truncate text-[0.68rem] text-emerald-900/55">
                       {u.username ? `@${u.username}` : `ID ${u.tg_id}`}
                     </p>
                   </div>
@@ -173,17 +173,17 @@ export default function UsersPage(): React.ReactElement {
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-1 text-center">
-                  <div className="rounded-lg bg-white/5 py-1.5">
-                    <p className="text-[0.6rem] text-slate-500">طلبات</p>
-                    <p className="text-xs font-black text-white">{u.orders_count}</p>
+                  <div className="rounded-lg bg-white/70 py-1.5">
+                    <p className="text-[0.6rem] text-emerald-900/55">طلبات</p>
+                    <p className="text-xs font-black text-emerald-950">{u.orders_count}</p>
                   </div>
-                  <div className="rounded-lg bg-white/5 py-1.5">
-                    <p className="text-[0.6rem] text-slate-500">أنفق</p>
-                    <p className="text-xs font-black text-emerald-400">{money(u.total_spent)}</p>
+                  <div className="rounded-lg bg-white/70 py-1.5">
+                    <p className="text-[0.6rem] text-emerald-900/55">أنفق</p>
+                    <p className="text-xs font-black text-emerald-600">{money(u.total_spent)}</p>
                   </div>
-                  <div className="rounded-lg bg-white/5 py-1.5">
-                    <p className="text-[0.6rem] text-slate-500">آخر ظهور</p>
-                    <p className="text-[0.65rem] font-bold text-slate-300">{relative(u.last_seen_at)}</p>
+                  <div className="rounded-lg bg-white/70 py-1.5">
+                    <p className="text-[0.6rem] text-emerald-900/55">آخر ظهور</p>
+                    <p className="text-[0.65rem] font-bold text-emerald-900/85">{relative(u.last_seen_at)}</p>
                   </div>
                 </div>
 
@@ -233,7 +233,7 @@ export default function UsersPage(): React.ReactElement {
             <Btn variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
               ← السابق
             </Btn>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-emerald-900/65">
               {page} / {pages}
             </span>
             <Btn variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
@@ -270,8 +270,8 @@ export default function UsersPage(): React.ReactElement {
           </>
         }
       >
-        <p className="mb-2 text-xs text-slate-400">
-          إلى: <b className="text-white">{message?.user.first_name ?? message?.user.tg_id}</b> — يدعم HTML (&lt;b&gt;، &lt;i&gt;، &lt;code&gt;)
+        <p className="mb-2 text-xs text-emerald-900/65">
+          إلى: <b className="text-emerald-950">{message?.user.first_name ?? message?.user.tg_id}</b> — يدعم HTML (&lt;b&gt;، &lt;i&gt;، &lt;code&gt;)
         </p>
         <Textarea
           rows={5}
@@ -286,7 +286,7 @@ export default function UsersPage(): React.ReactElement {
         {detail && (
           <div className="space-y-4">
             <div className="flex items-center gap-4">
-              <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-full border border-white/10 bg-black/40 text-2xl">
+              <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-full border border-emerald-900/10 bg-white/65 text-2xl">
                 {detail.user.avatar_file_id ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img src={`/api/avatar/${detail.user.tg_id}`} alt="" className="h-full w-full object-cover" />
@@ -295,8 +295,8 @@ export default function UsersPage(): React.ReactElement {
                 )}
               </span>
               <div>
-                <p className="text-lg font-black text-white">{detail.user.first_name ?? "بدون اسم"}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-lg font-black text-emerald-950">{detail.user.first_name ?? "بدون اسم"}</p>
+                <p className="text-xs text-emerald-900/65">
                   {detail.user.username ? `@${detail.user.username}` : "—"} • ID {detail.user.tg_id}
                 </p>
                 <div className="mt-1 flex gap-1">
@@ -315,9 +315,9 @@ export default function UsersPage(): React.ReactElement {
                 { k: "انضم", v: dateTime(detail.user.created_at) },
                 { k: "آخر ظهور", v: relative(detail.user.last_seen_at) },
               ].map((x) => (
-                <div key={x.k} className="rounded-xl bg-white/5 p-2.5 text-center">
-                  <p className="text-[0.62rem] text-slate-500">{x.k}</p>
-                  <p className="text-xs font-bold text-white">{String(x.v)}</p>
+                <div key={x.k} className="rounded-xl bg-white/70 p-2.5 text-center">
+                  <p className="text-[0.62rem] text-emerald-900/55">{x.k}</p>
+                  <p className="text-xs font-bold text-emerald-950">{String(x.v)}</p>
                 </div>
               ))}
             </div>
@@ -345,20 +345,20 @@ export default function UsersPage(): React.ReactElement {
                     <Link
                       key={o.id}
                       href={`/admin/orders?focus=${o.id}`}
-                      className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-xs hover:bg-white/10"
+                      className="flex items-center justify-between rounded-lg bg-white/70 px-3 py-2 text-xs hover:bg-white/85"
                     >
-                      <span className="font-mono text-emerald-300">{o.code}</span>
-                      <span className="truncate px-2 text-slate-300">{o.product_name}</span>
-                      <span className="font-bold text-white">{money(o.amount)}</span>
+                      <span className="font-mono text-emerald-700">{o.code}</span>
+                      <span className="truncate px-2 text-emerald-900/85">{o.product_name}</span>
+                      <span className="font-bold text-emerald-950">{money(o.amount)}</span>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">لا طلبات.</p>
+                <p className="text-xs text-emerald-900/55">لا طلبات.</p>
               )}
             </div>
 
-            <div className="border-t border-white/8 pt-3">
+            <div className="border-t border-emerald-900/10 pt-3">
               <Btn
                 variant="red"
                 size="sm"

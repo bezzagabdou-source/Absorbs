@@ -34,32 +34,32 @@ export default function SetupPage(): React.ReactElement {
   };
 
   if (loading && !data) return <Spinner />;
-  if (error) return <p className="text-sm text-red-300">{error}</p>;
+  if (error) return <p className="text-sm text-rose-600">{error}</p>;
   const connected = data && data.url === data.expected && data.url;
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-black text-white">الربط والتشغيل</h1>
-        <p className="mt-1 text-xs text-slate-400">حالة الويبهوك، بيانات البوت، وخطوات التشغيل الكاملة</p>
+        <h1 className="text-2xl font-black text-emerald-950">الربط والتشغيل</h1>
+        <p className="mt-1 text-xs text-emerald-900/65">حالة الويبهوك، بيانات البوت، وخطوات التشغيل الكاملة</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="🔗 حالة الويبهوك (Webhook)">
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-xl border border-white/8 bg-black/25 px-3 py-2.5">
-              <span className="text-xs text-slate-400">الحالة</span>
+            <div className="flex items-center justify-between rounded-xl border border-emerald-900/10 bg-white/55 px-3 py-2.5">
+              <span className="text-xs text-emerald-900/65">الحالة</span>
               <Badge tone={connected ? "emerald" : "red"}>{connected ? "متصل ويعمل ✅" : "غير مربوط"}</Badge>
             </div>
-            <div className="rounded-xl border border-white/8 bg-black/25 px-3 py-2.5">
-              <p className="mb-1 text-[0.68rem] text-slate-500">الرابط المسجّل حالياً</p>
-              <p className="break-all font-mono text-[0.7rem] text-emerald-300" dir="ltr">
+            <div className="rounded-xl border border-emerald-900/10 bg-white/55 px-3 py-2.5">
+              <p className="mb-1 text-[0.68rem] text-emerald-900/55">الرابط المسجّل حالياً</p>
+              <p className="break-all font-mono text-[0.7rem] text-emerald-700" dir="ltr">
                 {data?.url || "—"}
               </p>
             </div>
-            <div className="rounded-xl border border-white/8 bg-black/25 px-3 py-2.5">
-              <p className="mb-1 text-[0.68rem] text-slate-500">الرابط المتوقع</p>
-              <p className="break-all font-mono text-[0.7rem] text-slate-300" dir="ltr">
+            <div className="rounded-xl border border-emerald-900/10 bg-white/55 px-3 py-2.5">
+              <p className="mb-1 text-[0.68rem] text-emerald-900/55">الرابط المتوقع</p>
+              <p className="break-all font-mono text-[0.7rem] text-emerald-900/85" dir="ltr">
                 {data?.expected}
               </p>
             </div>
@@ -73,39 +73,39 @@ export default function SetupPage(): React.ReactElement {
               {data?.expected && <CopyBtn text={data.expected} label="نسخ الرابط" />}
             </div>
             {data?.lastError && (
-              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[0.7rem] text-red-300">
+              <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[0.7rem] text-rose-600">
                 آخر خطأ: {data.lastError} {data.lastErrorAt ? `— ${dateTime(new Date(data.lastErrorAt).toISOString())}` : ""}
               </p>
             )}
-            <p className="text-[0.68rem] leading-6 text-slate-500">
+            <p className="text-[0.68rem] leading-6 text-emerald-900/55">
               البوت يسجّل الويبهوك تلقائياً عند أول طلب للدالة على Vercel (also عبر cron اليومي). إذا لم يعمل، اضغط الزر أعلاه.
             </p>
           </div>
         </Card>
 
         <Card title="🤖 بيانات البوت">
-          <ul className="space-y-2 text-xs text-slate-300">
+          <ul className="space-y-2 text-xs text-emerald-900/85">
             <li className="flex items-center justify-between">
               <span>معرّف البوت</span>
-              <span className="font-mono text-slate-400">{data?.botId || "—"}</span>
+              <span className="font-mono text-emerald-900/65">{data?.botId || "—"}</span>
             </li>
             <li className="flex items-center justify-between">
               <span>اسم المستخدم</span>
-              <span className="font-mono text-emerald-300" dir="ltr">
+              <span className="font-mono text-emerald-700" dir="ltr">
                 @{data?.botUsername || "—"}
               </span>
             </li>
             <li className="flex items-center justify-between">
               <span>المستخدمون في قاعدة البيانات</span>
-              <span className="font-bold text-white">{data?.users ?? 0}</span>
+              <span className="font-bold text-emerald-950">{data?.users ?? 0}</span>
             </li>
             <li className="flex items-center justify-between">
               <span>حساب المالك (لإشعارات الطلبات)</span>
-              <span className="font-mono text-amber-300">{data?.ownerId || "غير محدد — افتح البوت من حسابك"}</span>
+              <span className="font-mono text-amber-600">{data?.ownerId || "غير محدد — افتح البوت من حسابك"}</span>
             </li>
             <li className="flex items-center justify-between">
               <span>تحديثات معلّقة</span>
-              <span className="text-slate-400">{data?.pending ?? 0}</span>
+              <span className="text-emerald-900/65">{data?.pending ?? 0}</span>
             </li>
           </ul>
           {data?.botUsername && (
@@ -116,7 +116,7 @@ export default function SetupPage(): React.ReactElement {
         </Card>
 
         <Card title="✅ قائمة التشغيل" className="lg:col-span-2">
-          <ol className="space-y-2 text-xs leading-6 text-slate-300">
+          <ol className="space-y-2 text-xs leading-6 text-emerald-900/85">
             {[
               ["إضافة البوت مشرفاً في قنوات الاشتراك", "قناة 1 و2 — من صفحة «قنوات الاشتراك» اضغط اختبار"],
               ["فتح البوت من حساب المالك (/start)", "يتعرّف البوت على حسابك تلقائياً ويصلك كل إشعار طلب"],
@@ -125,12 +125,12 @@ export default function SetupPage(): React.ReactElement {
               ["تفعيل الذكاء الاصطناعي", "مفاتيح Groq وGemini مربوطة — جرّبه من صفحة «الذكاء الاصطناعي»"],
             ].map(([title, hint], i) => (
               <li key={i} className="flex gap-2">
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500/20 text-[0.65rem] font-black text-emerald-300">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500/20 text-[0.65rem] font-black text-emerald-700">
                   {i + 1}
                 </span>
                 <span>
-                  <b className="text-white">{title}</b>
-                  <span className="block text-[0.68rem] text-slate-500">{hint}</span>
+                  <b className="text-emerald-950">{title}</b>
+                  <span className="block text-[0.68rem] text-emerald-900/55">{hint}</span>
                 </span>
               </li>
             ))}

@@ -55,9 +55,9 @@ export default function ChannelsPage(): React.ReactElement {
     <div className="space-y-4">
       {node}
       <div>
-        <h1 className="text-2xl font-black text-white">قنوات الاشتراك الإجباري</h1>
-        <p className="mt-1 text-xs text-slate-400">
-          لا يستطيع الزبون استخدام البوت قبل الاشتراك في هذه القنوات — يجب أن يكون البوت <b className="text-amber-300">مشرفاً</b> في كل قناة ليتمكن من التحقق.
+        <h1 className="text-2xl font-black text-emerald-950">قنوات الاشتراك الإجباري</h1>
+        <p className="mt-1 text-xs text-emerald-900/65">
+          لا يستطيع الزبون استخدام البوت قبل الاشتراك في هذه القنوات — يجب أن يكون البوت <b className="text-amber-600">مشرفاً</b> في كل قناة ليتمكن من التحقق.
         </p>
       </div>
 
@@ -80,7 +80,7 @@ export default function ChannelsPage(): React.ReactElement {
       {loading && !data ? (
         <Spinner />
       ) : error ? (
-        <p className="text-sm text-red-300">{error}</p>
+        <p className="text-sm text-rose-600">{error}</p>
       ) : channels.length === 0 ? (
         <Empty icon="🔒" title="لا قنوات مضافة" hint="أضف قناتك لتفعيل الاشتراك الإجباري" />
       ) : (
@@ -89,8 +89,8 @@ export default function ChannelsPage(): React.ReactElement {
             <Card key={c.id} className="!p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-white">{c.title || c.chat}</p>
-                  <a href={c.url} target="_blank" className="block truncate text-[0.7rem] text-emerald-400 hover:underline" dir="ltr">
+                  <p className="truncate text-sm font-black text-emerald-950">{c.title || c.chat}</p>
+                  <a href={c.url} target="_blank" className="block truncate text-[0.7rem] text-emerald-600 hover:underline" dir="ltr">
                     {c.url}
                   </a>
                 </div>
@@ -130,7 +130,7 @@ export default function ChannelsPage(): React.ReactElement {
       )}
 
       <Card title="ℹ️ كيف أضيف البوت مشرفاً؟">
-        <ol className="list-inside list-decimal space-y-1 text-xs leading-6 text-slate-400">
+        <ol className="list-inside list-decimal space-y-1 text-xs leading-6 text-emerald-900/65">
           <li>افتح القناة → إدارة القناة → المشرفون.</li>
           <li>أضف البوت (@{data ? "bot" : "bot"}) وامنحه صلاحية «إضافة مشرفين» أو أي صلاحية قراءة.</li>
           <li>ارجع هنا واضغط «اختبار» للتأكد.</li>

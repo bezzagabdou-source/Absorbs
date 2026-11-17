@@ -92,14 +92,14 @@ export default function SettingsPage(): React.ReactElement {
   };
 
   if (loading && !data) return <Spinner />;
-  if (error) return <p className="text-sm text-red-300">{error}</p>;
+  if (error) return <p className="text-sm text-rose-600">{error}</p>;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">الإعدادات</h1>
-          <p className="mt-1 text-xs text-slate-400">تحكم كامل في هوية المتجر، التشغيل، الأمان والإيموجي المتحرك</p>
+          <h1 className="text-2xl font-black text-emerald-950">الإعدادات</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">تحكم كامل في هوية المتجر، التشغيل، الأمان والإيموجي المتحرك</p>
         </div>
         <Btn onClick={save} disabled={saving}>
           {saving ? "جارٍ الحفظ…" : "💾 حفظ التغييرات"}
@@ -200,7 +200,7 @@ export default function SettingsPage(): React.ReactElement {
               <Badge tone={data?.emoji.enabled ? "emerald" : "slate"}>
                 {data?.emoji.enabled ? "مفعّل" : "معطّل"}
               </Badge>
-              <span className="text-xs text-slate-400">{data?.emoji.count ?? 0} إيموجي في المكتبة</span>
+              <span className="text-xs text-emerald-900/65">{data?.emoji.count ?? 0} إيموجي في المكتبة</span>
               <Btn
                 size="sm"
                 variant="ghost"
@@ -238,7 +238,7 @@ export default function SettingsPage(): React.ReactElement {
                 </Btn>
               </div>
             </Field>
-            <p className="text-[0.68rem] leading-6 text-slate-500">
+            <p className="text-[0.68rem] leading-6 text-emerald-900/55">
               إذا رفض تيليجرام الإيموجي المتحرك يرسل البوت الرسالة بإيموجي عادي تلقائياً — لا يتم فقدان أي رسالة.
             </p>
           </div>
@@ -260,14 +260,14 @@ export default function SettingsPage(): React.ReactElement {
             <Btn variant="red" onClick={changePassword} disabled={!pwd.current || pwd.next.length < 6}>
               🔑 تغيير كلمة السر
             </Btn>
-            <p className="text-[0.68rem] leading-6 text-slate-500">
+            <p className="text-[0.68rem] leading-6 text-emerald-900/55">
               كلمة السر مخزّنة بتشفير scrypt. في حال فقدانها استخدم متغيّر البيئة <code>ADMIN_PASSWORD</code> في Vercel.
             </p>
           </div>
         </Card>
 
         <Card title="🔌 حالة الربط">
-          <ul className="space-y-2 text-xs text-slate-300">
+          <ul className="space-y-2 text-xs text-emerald-900/85">
             <li className="flex items-center justify-between">
               <span>قاعدة البيانات (Neon)</span>
               <Badge tone="emerald">متصلة</Badge>
@@ -286,7 +286,7 @@ export default function SettingsPage(): React.ReactElement {
             </li>
             <li className="flex items-center justify-between">
               <span>الموقع</span>
-              <span className="text-[0.68rem] text-slate-500" dir="ltr">
+              <span className="text-[0.68rem] text-emerald-900/55" dir="ltr">
                 {data?.site}
               </span>
             </li>

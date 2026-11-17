@@ -118,6 +118,10 @@ await db.query("DELETE FROM orders; DELETE FROM ai_messages; DELETE FROM broadca
 await db.query("DELETE FROM settings WHERE key IN ('emoji_map','webhook_url','webhook_set_at')");
 await db.query("UPDATE settings SET value = 'false'::jsonb WHERE key = 'emoji_animated'");
 await db.query("UPDATE settings SET value = 'false'::jsonb WHERE key = 'maintenance'");
+await db.query("UPDATE settings SET value = 'false'::jsonb WHERE key = 'bot_locked'");
+// الاختبار يرسل عشرات الرسائل في دقيقة واحدة — نرفع حدّ المعدّل أثناءه فقط
+await db.query("UPDATE settings SET value = '500'::jsonb WHERE key = 'rate_limit_per_min'");
+await db.query("DELETE FROM security_events");
 await db.query("UPDATE settings SET value = 'true'::jsonb WHERE key = 'require_subscription'");
 await db.query("UPDATE settings SET value = 'false'::jsonb WHERE key = 'gate_warned'");
 
@@ -598,6 +602,116 @@ await check("api: إذاعة جماعية تصل للجميع", async () => {
   assert.ok(res.sent >= 3);
   await waitForMessage(555, (m) => (m.text ?? "").includes("عرض خاص اليوم"));
   await waitForMessage(777, (m) => (m.text ?? "").includes("عرض خاص اليوم"));
+});
+
+/* 9. لوحة التحكم الشاملة: صفحات وميزات جديدة */
+await check("dashboard: صفحات جديدة تعمل مع الجلسة", async () => {
+  for (const page of ["security", "gate", "coupons", "faq", "reviews", "tasks", "analytics", "health", "backup"]) {
+    const res = await fetch(`${BASE}/admin/${page}`, { headers: { cookie } });
+    assert.equal(res.status, 200, `/${page} → ${res.status}`);
+  }
+});
+
+await check("api: مركز الحماية يرجع الإعدادات والأحداث", async () => {
+  const res = await adminGet("security");
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.ok(json.settings, "settings موجودة");
+  assert.ok(Array.isArray(json.events), "events مصفوفة");
+  assert.ok("rate_limit_per_min" in json.settings, "حد المعدّل موجود");
+});
+
+await check("api: قفل البوت يوقف كل الرسائل غير الإدارية", async () => {
+  await adminPost("security/lock");
+  await sleep(400);
+  await membership({ "@ft_H_N_O": "member", "@CHNawaa": "member" });
+  await resetSent();
+  await sendUpdate(msg(users.buyer, "/start"));
+  const locked = await waitForMessage(555, (m) => (m.text ?? "").includes("صيانة") || (m.text ?? "").includes("قفل"));
+  assert.ok(locked, "رسالة القفل وصلت");
+  await adminPost("security/unlock");
+});
+
+await check("api: كلمات ممنوعة تحظر بعد تكرار المخالفة", async () => {
+  await adminPost("security/save", { block_words: ["سبام_تجريبي"], auto_block_after: 2 });
+  await db.query("DELETE FROM security_events WHERE user_id = 999");
+  await db.query("UPDATE users SET is_blocked = false WHERE tg_id = 999");
+  await resetSent();
+  await sendUpdate(msg(users.other, "سبام_تجريبي"));
+  const warn = await waitForMessage(999, (m) => (m.text ?? "").includes("كلمة غير مسموحة"));
+  assert.ok(warn);
+  await sendUpdate(msg(users.other, "سبام_تجريبي مرة أخرى"));
+  await sleep(1200);
+  const blocked = await db.query("select is_blocked from users where tg_id = 999");
+  assert.equal(blocked.rows[0]?.is_blocked, true, "تم الحظر التلقائي");
+  await db.query("update users set is_blocked = false where tg_id = 999");
+  await adminPost("security/save", { block_words: [] });
+});
+
+await check("api: أكواد الخصم CRUD + أمر /coupon في البوت", async () => {
+  const created = await adminPost("coupons", { code: "E2E10", kind: "percent", amount: 10, max_uses: 5 });
+  assert.equal(created.status, 200);
+  const list = await adminGet("coupons").then((r) => r.json());
+  assert.ok(list.rows.some((c) => c.code === "E2E10"), "الكود موجود");
+  await resetSent();
+  await sendUpdate(msg(users.buyer, "/coupon E2E10"));
+  const ok = await waitForMessage(555, (m) => (m.text ?? "").includes("تم تفعيل الكود"));
+  assert.ok(ok, "تم تفعيل الكود في البوت");
+  await resetSent();
+  await sendUpdate(msg(users.buyer, "/coupon WRONGCODE"));
+  const bad = await waitForMessage(555, (m) => (m.text ?? "").includes("غير صالح"));
+  assert.ok(bad, "الكود الخاطئ مرفوض");
+  const id = list.rows.find((c) => c.code === "E2E10").id;
+  await adminPost(`coupons/${id}/delete`);
+});
+
+await check("api: الأسئلة الشائعة تُدار وتظهر بأمر /faq", async () => {
+  await adminPost("faq", { question: "وقت الشحن؟", answer: "من 5 إلى 30 دقيقة", sort: 1 });
+  const list = await adminGet("faq").then((r) => r.json());
+  assert.ok(list.rows.some((r) => r.question === "وقت الشحن؟"));
+  await resetSent();
+  await sendUpdate(msg(users.buyer, "/faq"));
+  const shown = await waitForMessage(555, (m) => (m.text ?? "").includes("وقت الشحن؟"));
+  assert.ok(shown, "السؤال ظهر في البوت");
+});
+
+await check("api: التقييمات تُعتمد وتظهر بأمر /reviews", async () => {
+  await adminPost("reviews", { name: "أمين", rating: 5, body: "خدمة سريعة جداً", approved: true });
+  const list = await adminGet("reviews").then((r) => r.json());
+  assert.ok(list.rows.some((r) => r.body === "خدمة سريعة جداً"));
+  await resetSent();
+  await sendUpdate(msg(users.buyer, "/reviews"));
+  const shown = await waitForMessage(555, (m) => (m.text ?? "").includes("خدمة سريعة جداً"));
+  assert.ok(shown, "التقييم ظهر في البوت");
+});
+
+await check("api: المهام تُضاف وتُنجز", async () => {
+  const add = await adminPost("tasks", { title: "تحديث أسعار فري فاير" });
+  assert.equal(add.status, 200);
+  const list = await adminGet("tasks").then((r) => r.json());
+  const task = list.rows.find((t) => t.title === "تحديث أسعار فري فاير");
+  assert.ok(task, "المهمة موجودة");
+  await adminPost(`tasks/${task.id}/toggle`);
+  const after = await adminGet("tasks").then((r) => r.json());
+  assert.equal(after.rows.find((t) => t.id === task.id).done, true, "أُنجزت");
+  await adminPost(`tasks/${task.id}/delete`);
+});
+
+await check("api: التحليلات وصحة النظام ترجع بيانات حقيقية", async () => {
+  const analytics = await adminGet("analytics?days=30").then((r) => r.json());
+  assert.equal(analytics.ok, true);
+  assert.ok(Array.isArray(analytics.series) && analytics.series.length >= 30, "سلسلة زمنية");
+  assert.ok(analytics.top, "أفضل المنتجات");
+  const health = await adminGet("health").then((r) => r.json());
+  assert.equal(health.db.connected, true);
+  assert.ok(health.counts.products > 0);
+  assert.equal(typeof health.ai.gemini, "boolean", "حالة مزوّدي AI");
+});
+
+await check("api: بوابة الاشتراك ترجع القنوات والإعفاءات", async () => {
+  const gate = await adminGet("gate").then((r) => r.json());
+  assert.ok(gate.channels.length >= 2);
+  assert.ok(String(gate.settings.gate_bypass).includes("A_B_B_X_N"));
 });
 
 /* 10. الصفحات */

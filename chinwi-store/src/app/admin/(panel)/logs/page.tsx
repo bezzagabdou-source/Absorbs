@@ -41,8 +41,8 @@ export default function LogsPage(): React.ReactElement {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">سجل النشاطات</h1>
-          <p className="mt-1 text-xs text-slate-400">كل عملية في المتجر مسجّلة هنا (طلبات، تعديلات، دخول، ذكاء اصطناعي…)</p>
+          <h1 className="text-2xl font-black text-emerald-950">سجل النشاطات</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">كل عملية في المتجر مسجّلة هنا (طلبات، تعديلات، دخول، ذكاء اصطناعي…)</p>
         </div>
         <Btn variant="ghost" onClick={reload}>
           🔄 تحديث
@@ -59,7 +59,7 @@ export default function LogsPage(): React.ReactElement {
                 setPage(1);
               }}
               className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                level === l.key ? "bg-emerald-500 text-black" : "border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                level === l.key ? "bg-emerald-500 text-black" : "border border-emerald-900/10 bg-white/70 text-emerald-900/85 hover:bg-white/85"
               }`}
             >
               {l.label}
@@ -70,7 +70,7 @@ export default function LogsPage(): React.ReactElement {
         {loading && !data ? (
           <Spinner />
         ) : error ? (
-          <p className="py-6 text-sm text-red-300">{error}</p>
+          <p className="py-6 text-sm text-rose-600">{error}</p>
         ) : rows.length === 0 ? (
           <Empty icon="📜" title="لا سجلات" />
         ) : (
@@ -88,15 +88,15 @@ export default function LogsPage(): React.ReactElement {
               <tbody>
                 {rows.map((l) => (
                   <tr key={l.id}>
-                    <td className="whitespace-nowrap font-mono text-[0.72rem] text-emerald-300">{l.action}</td>
+                    <td className="whitespace-nowrap font-mono text-[0.72rem] text-emerald-700">{l.action}</td>
                     <td>
                       <Badge tone={TONE[l.level] ?? "slate"}>{l.level}</Badge>
                     </td>
-                    <td className="text-xs text-slate-400">{l.actor ?? "—"}</td>
-                    <td className="max-w-[26rem] truncate text-[0.68rem] text-slate-500" dir="ltr">
+                    <td className="text-xs text-emerald-900/65">{l.actor ?? "—"}</td>
+                    <td className="max-w-[26rem] truncate text-[0.68rem] text-emerald-900/55" dir="ltr">
                       {l.details ? JSON.stringify(l.details) : "—"}
                     </td>
-                    <td className="whitespace-nowrap text-[0.66rem] text-slate-500">{dateTime(l.created_at)}</td>
+                    <td className="whitespace-nowrap text-[0.66rem] text-emerald-900/55">{dateTime(l.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -109,7 +109,7 @@ export default function LogsPage(): React.ReactElement {
             <Btn variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
               ← السابق
             </Btn>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-emerald-900/65">
               {page} / {pages}
             </span>
             <Btn variant="ghost" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>

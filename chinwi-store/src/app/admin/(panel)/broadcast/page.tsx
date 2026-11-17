@@ -38,8 +38,8 @@ export default function BroadcastPage(): React.ReactElement {
     <div className="space-y-4">
       {node}
       <div>
-        <h1 className="text-2xl font-black text-white">الإذاعة الجماعية</h1>
-        <p className="mt-1 text-xs text-slate-400">رسالة واحدة لكل مستخدمي البوت (يدعم HTML: &lt;b&gt; &lt;i&gt; &lt;code&gt; &lt;a&gt;)</p>
+        <h1 className="text-2xl font-black text-emerald-950">الإذاعة الجماعية</h1>
+        <p className="mt-1 text-xs text-emerald-900/65">رسالة واحدة لكل مستخدمي البوت (يدعم HTML: &lt;b&gt; &lt;i&gt; &lt;code&gt; &lt;a&gt;)</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -49,7 +49,7 @@ export default function BroadcastPage(): React.ReactElement {
             <Btn onClick={send} disabled={busy || !text.trim()}>
               {busy ? "جارٍ الإرسال…" : "📢 إرسال للجميع"}
             </Btn>
-            <span className="text-[0.7rem] text-slate-500">{text.length} حرف</span>
+            <span className="text-[0.7rem] text-emerald-900/55">{text.length} حرف</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {templates.map((t, i) => (
@@ -61,13 +61,13 @@ export default function BroadcastPage(): React.ReactElement {
         </Card>
 
         <Card title="👁 معاينة" subtitle="كما ستظهر في تيليجرام (تقريباً)">
-          <div className="rounded-2xl border border-white/10 bg-[#17212b] p-3">
+          <div className="rounded-2xl border border-emerald-900/10 bg-[#17212b] p-3">
             <div
-              className="whitespace-pre-wrap rounded-xl bg-[#212d3b] px-3 py-2 text-sm leading-7 text-slate-100"
+              className="whitespace-pre-wrap rounded-xl bg-[#212d3b] px-3 py-2 text-sm leading-7 text-emerald-900"
               dangerouslySetInnerHTML={{ __html: text.replace(/</g, "&lt;").replace(/&lt;(\/?)(b|i|code|a[^&]*)&gt;/g, "<$1$2>") || "…" }}
             />
           </div>
-          <p className="mt-2 text-[0.65rem] text-slate-500">عدد المستلمين المتوقع: {data?.users?.count ?? "…"}</p>
+          <p className="mt-2 text-[0.65rem] text-emerald-900/55">عدد المستلمين المتوقع: {data?.users?.count ?? "…"}</p>
         </Card>
       </div>
 
@@ -79,15 +79,15 @@ export default function BroadcastPage(): React.ReactElement {
         ) : (
           <div className="space-y-2">
             {data!.rows.map((b) => (
-              <div key={b.id} className="rounded-xl border border-white/8 bg-black/25 p-3">
+              <div key={b.id} className="rounded-xl border border-emerald-900/10 bg-white/55 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="line-clamp-2 flex-1 text-xs text-slate-300">{b.body}</p>
+                  <p className="line-clamp-2 flex-1 text-xs text-emerald-900/85">{b.body}</p>
                   <div className="flex shrink-0 gap-1">
                     <Badge tone="emerald">✅ {b.sent}</Badge>
                     {b.failed > 0 && <Badge tone="red">❌ {b.failed}</Badge>}
                   </div>
                 </div>
-                <p className="mt-1 text-[0.62rem] text-slate-600">{dateTime(b.created_at)}</p>
+                <p className="mt-1 text-[0.62rem] text-emerald-900/45">{dateTime(b.created_at)}</p>
               </div>
             ))}
           </div>

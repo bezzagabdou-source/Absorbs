@@ -69,8 +69,8 @@ export default function WalletsPage(): React.ReactElement {
       {node}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">طرق الدفع</h1>
-          <p className="mt-1 text-xs text-slate-400">المحافظ والأرقام التي يحوّل إليها الزبائن — تُعرض داخل البوت بأزرار نسخ</p>
+          <h1 className="text-2xl font-black text-emerald-950">طرق الدفع</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">المحافظ والأرقام التي يحوّل إليها الزبائن — تُعرض داخل البوت بأزرار نسخ</p>
         </div>
         <Btn onClick={() => setEditing({ name: "", emoji: "💳", kind: "other", active: true, sort: 99 })}>➕ طريقة دفع</Btn>
       </div>
@@ -78,7 +78,7 @@ export default function WalletsPage(): React.ReactElement {
       {loading && !data ? (
         <Spinner />
       ) : error ? (
-        <p className="text-sm text-red-300">{error}</p>
+        <p className="text-sm text-rose-600">{error}</p>
       ) : wallets.length === 0 ? (
         <Empty icon="💳" title="لا طرق دفع" hint="أضف Binance، RedotPay، Bybit، BaridiMob…" />
       ) : (
@@ -86,16 +86,16 @@ export default function WalletsPage(): React.ReactElement {
           {wallets.map((w) => (
             <Card key={w.id} className="!p-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-white">
+                <p className="text-sm font-black text-emerald-950">
                   {w.emoji} {w.name}
                 </p>
                 <Badge tone={w.active ? "emerald" : "red"}>{w.active ? "نشط" : "معطّل"}</Badge>
               </div>
-              <p className="mt-3 break-all rounded-lg bg-black/40 px-2 py-1.5 font-mono text-[0.75rem] text-emerald-300" dir="ltr">
+              <p className="mt-3 break-all rounded-lg bg-white/65 px-2 py-1.5 font-mono text-[0.75rem] text-emerald-700" dir="ltr">
                 {w.account}
               </p>
-              <p className="mt-1 text-[0.66rem] text-slate-500">{w.holder || "—"}</p>
-              <p className="mt-2 line-clamp-2 min-h-[2rem] text-[0.66rem] text-slate-500">{w.instructions}</p>
+              <p className="mt-1 text-[0.66rem] text-emerald-900/55">{w.holder || "—"}</p>
+              <p className="mt-2 line-clamp-2 min-h-[2rem] text-[0.66rem] text-emerald-900/55">{w.instructions}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 <CopyBtn text={w.account} label="نسخ" />
                 <Btn size="sm" variant="ghost" onClick={() => setEditing({ ...w })}>

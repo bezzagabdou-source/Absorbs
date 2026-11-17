@@ -176,8 +176,8 @@ export default function ProductsPage(): React.ReactElement {
       {node}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-white">المنتجات</h1>
-          <p className="mt-1 text-xs text-slate-400">
+          <h1 className="text-2xl font-black text-emerald-950">المنتجات</h1>
+          <p className="mt-1 text-xs text-emerald-900/65">
             {products.length} منتج — تحكم كامل في الأسعار، الصور، الحقول المطلوبة والظهور
           </p>
         </div>
@@ -213,7 +213,7 @@ export default function ProductsPage(): React.ReactElement {
         {loading && !data ? (
           <Spinner />
         ) : error ? (
-          <p className="py-6 text-center text-sm text-red-300">{error}</p>
+          <p className="py-6 text-center text-sm text-rose-600">{error}</p>
         ) : products.length === 0 ? (
           <Empty icon="📦" title="لا منتجات" hint="أضف منتجك الأول أو استورد قائمة أسعار بالصورة من صفحة الذكاء الاصطناعي" />
         ) : (
@@ -235,7 +235,7 @@ export default function ProductsPage(): React.ReactElement {
                   <tr key={p.id}>
                     <td>
                       <div className="flex items-center gap-2">
-                        <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg border border-white/10 bg-black/40 text-sm">
+                        <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg border border-emerald-900/10 bg-white/65 text-sm">
                           {p.image_url ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img src={p.image_url} alt="" className="h-full w-full object-cover" />
@@ -245,21 +245,21 @@ export default function ProductsPage(): React.ReactElement {
                         </span>
                         <span className="min-w-0">
                           <span className="flex items-center gap-1">
-                            <span className="max-w-[13rem] truncate text-xs font-bold text-white">{p.name}</span>
+                            <span className="max-w-[13rem] truncate text-xs font-bold text-emerald-950">{p.name}</span>
                             {p.featured && <span title="مميز">⭐️</span>}
                           </span>
-                          <span className="block max-w-[15rem] truncate text-[0.62rem] text-slate-500">
+                          <span className="block max-w-[15rem] truncate text-[0.62rem] text-emerald-900/55">
                             {p.badge || p.description || `#${p.id}`}
                           </span>
                         </span>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap text-[0.7rem] text-slate-400">{p.category_name ?? "—"}</td>
-                    <td className="whitespace-nowrap text-xs font-black text-emerald-400">
-                      {p.price !== null ? money(p.price) : <span className="text-amber-300">{p.price_label || "سعر خاص"}</span>}
+                    <td className="whitespace-nowrap text-[0.7rem] text-emerald-900/65">{p.category_name ?? "—"}</td>
+                    <td className="whitespace-nowrap text-xs font-black text-emerald-600">
+                      {p.price !== null ? money(p.price) : <span className="text-amber-600">{p.price_label || "سعر خاص"}</span>}
                     </td>
-                    <td className="text-[0.68rem] text-slate-400">{p.fields?.length ?? 0}</td>
-                    <td className="text-[0.68rem] text-slate-400">{p.sold}</td>
+                    <td className="text-[0.68rem] text-emerald-900/65">{p.fields?.length ?? 0}</td>
+                    <td className="text-[0.68rem] text-emerald-900/65">{p.sold}</td>
                     <td>
                       <button onClick={() => toggleActive(p)}>
                         <Badge tone={p.active ? "emerald" : "red"}>{p.active ? "ظاهر" : "مخفي"}</Badge>
@@ -398,9 +398,9 @@ export default function ProductsPage(): React.ReactElement {
               <Toggle checked={editing.featured ?? false} onChange={(v) => setEditing({ ...editing, featured: v })} label="مميز ⭐️" />
             </div>
 
-            <div className="rounded-xl border border-white/8 bg-black/25 p-3">
+            <div className="rounded-xl border border-emerald-900/10 bg-white/55 p-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-200">الحقول المطلوبة من الزبون</p>
+                <p className="text-xs font-bold text-emerald-900">الحقول المطلوبة من الزبون</p>
                 <Btn
                   size="sm"
                   variant="ghost"
@@ -414,7 +414,7 @@ export default function ProductsPage(): React.ReactElement {
                   ➕ حقل
                 </Btn>
               </div>
-              <p className="mt-1 text-[0.65rem] text-slate-500">
+              <p className="mt-1 text-[0.65rem] text-emerald-900/55">
                 مثال: آيدي اللاعب، اسم المستخدم… يسألها البوت قبل إنشاء الطلب.
               </p>
               <div className="mt-2 space-y-2">
@@ -484,7 +484,7 @@ export default function ProductsPage(): React.ReactElement {
               ))}
             </Select>
           </Field>
-          <p className="text-[0.7rem] text-amber-300">⚠️ ينطبق فقط على المنتجات التي لها سعر محدد.</p>
+          <p className="text-[0.7rem] text-amber-600">⚠️ ينطبق فقط على المنتجات التي لها سعر محدد.</p>
         </div>
       </Modal>
     </div>

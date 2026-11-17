@@ -118,7 +118,7 @@ export function Toaster(): React.ReactElement {
 
 export function Spinner({ label }: { label?: string }): React.ReactElement {
   return (
-    <div className="flex items-center justify-center gap-3 py-14 text-sm text-slate-400">
+    <div className="flex items-center justify-center gap-3 py-14 text-sm text-emerald-900/65">
       <span className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-400/30 border-t-emerald-400" />
       {label ?? "جاري التحميل…"}
     </div>
@@ -143,8 +143,8 @@ export function Card({
       {(title || action) && (
         <header className="mb-4 flex items-start justify-between gap-3">
           <div>
-            {title && <h2 className="text-base font-extrabold text-white">{title}</h2>}
-            {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
+            {title && <h2 className="text-base font-extrabold text-emerald-950">{title}</h2>}
+            {subtitle && <p className="mt-0.5 text-xs text-emerald-900/65">{subtitle}</p>}
           </div>
           {action}
         </header>
@@ -168,10 +168,10 @@ export function Stat({
   tone?: "emerald" | "red" | "sky" | "amber" | "violet";
 }): React.ReactElement {
   const tones: Record<string, string> = {
-    emerald: "from-emerald-500/20 to-emerald-500/0 text-emerald-300 border-emerald-500/25",
-    red: "from-red-500/20 to-red-500/0 text-red-300 border-red-500/25",
-    sky: "from-sky-500/20 to-sky-500/0 text-sky-300 border-sky-500/25",
-    amber: "from-amber-500/20 to-amber-500/0 text-amber-300 border-amber-500/25",
+    emerald: "from-emerald-500/20 to-emerald-500/0 text-emerald-700 border-emerald-500/25",
+    red: "from-red-500/20 to-red-500/0 text-rose-600 border-red-500/25",
+    sky: "from-sky-500/20 to-sky-500/0 text-sky-600 border-sky-500/25",
+    amber: "from-amber-500/20 to-amber-500/0 text-amber-600 border-amber-500/25",
     violet: "from-violet-500/20 to-violet-500/0 text-violet-300 border-violet-500/25",
   };
   return (
@@ -179,9 +179,9 @@ export function Stat({
       <div className={`absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${tones[tone]} opacity-40`} />
       <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-[0.72rem] font-bold tracking-wide text-slate-400">{label}</p>
-          <p className="mt-1.5 text-2xl font-black text-white">{value}</p>
-          {hint && <p className="mt-1 text-[0.7rem] text-slate-500">{hint}</p>}
+          <p className="text-[0.72rem] font-bold tracking-wide text-emerald-900/65">{label}</p>
+          <p className="mt-1.5 text-2xl font-black text-emerald-950">{value}</p>
+          {hint && <p className="mt-1 text-[0.7rem] text-emerald-900/55">{hint}</p>}
         </div>
         {icon && <span className="text-2xl opacity-90">{icon}</span>}
       </div>
@@ -229,11 +229,11 @@ export function Badge({
   tone?: "emerald" | "red" | "amber" | "slate" | "sky" | "violet";
 }): React.ReactElement {
   const tones: Record<string, string> = {
-    emerald: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-    red: "bg-red-500/15 text-red-300 border-red-500/30",
-    amber: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-    slate: "bg-white/5 text-slate-300 border-white/10",
-    sky: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+    emerald: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+    red: "bg-red-500/15 text-rose-600 border-red-500/30",
+    amber: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+    slate: "bg-white/70 text-emerald-900/85 border-emerald-900/10",
+    sky: "bg-sky-500/15 text-sky-600 border-sky-500/30",
     violet: "bg-violet-500/15 text-violet-300 border-violet-500/30",
   };
   return <span className={`chip ${tones[tone]}`}>{children}</span>;
@@ -252,7 +252,7 @@ export function Field({
     <div>
       <label className="label">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-[0.7rem] text-slate-500">{hint}</p>}
+      {hint && <p className="mt-1 text-[0.7rem] text-emerald-900/55">{hint}</p>}
     </div>
   );
 }
@@ -284,11 +284,11 @@ export function Toggle({
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-right transition hover:border-emerald-500/30"
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-emerald-900/10 bg-white/55 px-3 py-2.5 text-right transition hover:border-emerald-500/30"
     >
       <span>
-        <span className="block text-sm font-bold text-slate-100">{label}</span>
-        {hint && <span className="block text-[0.7rem] text-slate-500">{hint}</span>}
+        <span className="block text-sm font-bold text-emerald-900">{label}</span>
+        {hint && <span className="block text-[0.7rem] text-emerald-900/55">{hint}</span>}
       </span>
       <span
         className={`relative h-6 w-11 shrink-0 rounded-full transition ${
@@ -332,8 +332,8 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-3 backdrop-blur-sm sm:p-6">
       <div className={`panel fade-in my-6 w-full ${wide ? "max-w-4xl" : "max-w-xl"} p-5`}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-white">{title}</h3>
-          <button onClick={onClose} className="rounded-lg px-2 py-1 text-slate-400 hover:bg-white/10 hover:text-white">
+          <h3 className="text-lg font-extrabold text-emerald-950">{title}</h3>
+          <button onClick={onClose} className="rounded-lg px-2 py-1 text-emerald-900/65 hover:bg-white/85 hover:text-emerald-950">
             ✕
           </button>
         </div>
@@ -348,8 +348,8 @@ export function Empty({ icon = "🗂", title, hint }: { icon?: string; title: st
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
       <span className="text-4xl opacity-60">{icon}</span>
-      <p className="text-sm font-bold text-slate-300">{title}</p>
-      {hint && <p className="max-w-sm text-xs text-slate-500">{hint}</p>}
+      <p className="text-sm font-bold text-emerald-900/85">{title}</p>
+      {hint && <p className="max-w-sm text-xs text-emerald-900/55">{hint}</p>}
     </div>
   );
 }
@@ -392,7 +392,7 @@ export function Bars({
           const h = Math.max(3, Math.round((d.revenue / max) * height));
           return (
             <div key={`${d.day}-${i}`} className="group relative flex flex-1 flex-col items-center justify-end">
-              <div className="pointer-events-none absolute -top-8 z-10 hidden whitespace-nowrap rounded-md border border-white/10 bg-black/90 px-2 py-1 text-[0.65rem] text-emerald-300 group-hover:block">
+              <div className="pointer-events-none absolute -top-8 z-10 hidden whitespace-nowrap rounded-md border border-emerald-900/10 bg-black/90 px-2 py-1 text-[0.65rem] text-emerald-700 group-hover:block">
                 {d.revenue.toLocaleString("en-US")} {currency} · {d.orders} طلب
               </div>
               <div
@@ -403,7 +403,7 @@ export function Bars({
           );
         })}
       </div>
-      <div className="mt-2 flex justify-between text-[0.62rem] text-slate-500">
+      <div className="mt-2 flex justify-between text-[0.62rem] text-emerald-900/55">
         <span>{data[0]?.day?.slice(5)}</span>
         <span>آخر 14 يوم</span>
         <span>{data.at(-1)?.day?.slice(5)}</span>
@@ -430,7 +430,7 @@ export function SearchBox({
   return (
     <div className="relative">
       <Input value={local} onChange={(e) => setLocal(e.target.value)} placeholder={placeholder} className="pr-9" />
-      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">🔎</span>
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-emerald-900/55">🔎</span>
     </div>
   );
 }
@@ -516,7 +516,7 @@ export function useConfirm(): {
             </>
           }
         >
-          <p className="text-sm text-slate-300">{state.message}</p>
+          <p className="text-sm text-emerald-900/85">{state.message}</p>
         </Modal>
       ) : null,
     [state],

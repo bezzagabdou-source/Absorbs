@@ -119,6 +119,27 @@ async function aiContext(): Promise<string> {
   for (const o of orders.rows) {
     lines.push(`- ${o.id} | ${o.code} | ${o.product_name} | ${o.amount} | ${o.status} | ${o.user_id}`);
   }
+  const [coupons, faqs, secs, blocks, wallets] = await Promise.all([
+    q("SELECT code, kind, amount, uses, max_uses, active FROM coupons ORDER BY id DESC LIMIT 12").catch(() => []),
+    q("SELECT question FROM faq WHERE active = true ORDER BY sort LIMIT 12").catch(() => []),
+    q("SELECT kind, detail, severity, created_at FROM security_events ORDER BY created_at DESC LIMIT 10").catch(() => []),
+    one<{ c: string }>("SELECT count(*)::text AS c FROM users WHERE is_blocked = true").catch(() => null),
+    q("SELECT id, name, account FROM wallets WHERE active = true ORDER BY sort").catch(() => []),
+  ]);
+  if (wallets.length) {
+    lines.push("محافظ الدفع (id | الاسم | الرقم):");
+    for (const w of wallets as Record<string, unknown>[]) lines.push(`- ${w.id} | ${w.name} | ${w.account}`);
+  }
+  if (coupons.length) {
+    lines.push("أكواد الخصم:");
+    for (const c of coupons as Record<string, unknown>[]) lines.push(`- ${c.code} | ${c.kind} ${c.amount} | استُخدم ${c.uses}/${c.max_uses} | ${c.active ? "نشط" : "موقوف"}`);
+  }
+  if (faqs.length) lines.push(`أسئلة شائعة موجودة: ${(faqs as Record<string, unknown>[]).map((f) => f.question).join(" • ")}`);
+  lines.push(`مستخدمون محظورون: ${blocks?.c ?? 0}`);
+  if (secs.length) {
+    lines.push("آخر أحداث أمنية:");
+    for (const e of secs as Record<string, unknown>[]) lines.push(`- ${e.kind} | ${e.severity} | ${e.detail}`);
+  }
   return lines.join("\n").slice(0, 12_000);
 }
 
@@ -213,6 +234,48 @@ async function executeAction(action: Record<string, unknown>): Promise<{ type: s
       case "broadcast": {
         const result = await broadcastToAll(str(action.text));
         return { type, ok: true, result: `أُرسلت الإذاعة: ${result.sent} ✅ / ${result.failed} ❌` };
+      }
+      case "create_coupon": {
+        const code = str(action.code).trim().toUpperCase();
+        if (!code) return { type, ok: false, result: "كود فارغ" };
+        await q(
+          `INSERT INTO coupons (code, kind, amount, max_uses) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (code) DO UPDATE SET amount = excluded.amount, max_uses = excluded.max_uses`,
+          [code, str(action.kind, "percent"), num(action.amount), num(action.max_uses)],
+        );
+        return { type, ok: true, result: `تم إنشاء الكود ${code}` };
+      }
+      case "add_faq": {
+        const question = str(action.question).trim();
+        const answer = str(action.answer).trim();
+        if (!question || !answer) return { type, ok: false, result: "سؤال أو جواب فارغ" };
+        await q("INSERT INTO faq (question, answer, sort) VALUES ($1,$2,90)", [question, answer]);
+        return { type, ok: true, result: `تمت إضافة سؤال: ${question}` };
+      }
+      case "add_task": {
+        await q("INSERT INTO tasks (title, note, priority) VALUES ($1,$2,$3)", [
+          str(action.title, "مهمة جديدة"),
+          str(action.note),
+          num(action.priority, 2),
+        ]);
+        return { type, ok: true, result: `تمت إضافة مهمة: ${str(action.title)}` };
+      }
+      case "lock_bot": {
+        const locked = bool(action.locked) ?? true;
+        await setSetting("bot_locked", locked);
+        await q("INSERT INTO security_events (kind, detail, severity) VALUES ($1,'بواسطة شينوي AI',$2)", [
+          locked ? "bot_locked" : "bot_unlocked",
+          locked ? "warn" : "info",
+        ]);
+        return { type, ok: true, result: locked ? "تم قفل البوت" : "تم فتح البوت" };
+      }
+      case "bulk_price": {
+        const category = str(action.category);
+        const percent = num(action.percent, 0);
+        const catId = await resolveCategoryId(category);
+        if (!catId) return { type, ok: false, result: `قسم غير موجود: ${category}` };
+        const updated = await bulkPriceAdjust(catId, percent);
+        return { type, ok: true, result: `تم تعديل ${updated} سعراً في القسم بنسبة ${percent}%` };
       }
       case "update_wallet": {
         const id = num(action.id);
@@ -374,6 +437,138 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
 
     case "emoji":
       return NextResponse.json({ ok: true, ...(await emojiStats()) });
+
+
+    /* ── أكواد الخصم ── */
+    case "coupons": {
+      const rows = await q("SELECT * FROM coupons ORDER BY created_at DESC LIMIT 200");
+      const used = await one<{ c: string; total: string }>(
+        "SELECT count(*)::text AS c, coalesce(sum(uses),0)::text AS total FROM coupons",
+      );
+      return NextResponse.json({ ok: true, rows, stats: { count: Number(used?.c ?? 0), uses: Number(used?.total ?? 0) } });
+    }
+
+    /* ── الأسئلة الشائعة ── */
+    case "faq":
+      return NextResponse.json({ ok: true, rows: await q("SELECT * FROM faq ORDER BY sort ASC, id ASC LIMIT 300") });
+
+    /* ── التقييمات ── */
+    case "reviews": {
+      const rows = await q("SELECT * FROM reviews ORDER BY created_at DESC LIMIT 200");
+      const stat = await one<{ c: string; avg: string }>(
+        "SELECT count(*)::text AS c, coalesce(round(avg(rating),2),0)::text AS avg FROM reviews WHERE approved = true",
+      );
+      return NextResponse.json({ ok: true, rows, stats: { count: Number(stat?.c ?? 0), avg: Number(stat?.avg ?? 0) } });
+    }
+
+    /* ── مهام المالك ── */
+    case "tasks": {
+      const rows = await q("SELECT * FROM tasks ORDER BY done ASC, priority ASC, created_at DESC LIMIT 300");
+      return NextResponse.json({ ok: true, rows });
+    }
+
+    /* ── مركز الحماية ── */
+    case "security": {
+      const [settings, events, blocked, counters] = await Promise.all([
+        allSettings(),
+        q("SELECT * FROM security_events ORDER BY created_at DESC LIMIT 60"),
+        q("SELECT tg_id, first_name, username, is_blocked, created_at FROM users WHERE is_blocked = true ORDER BY created_at DESC LIMIT 50"),
+        q("SELECT date_trunc('day', created_at)::date AS day, count(*)::int AS c FROM orders WHERE created_at > now() - interval '7 days' GROUP BY 1 ORDER BY 1"),
+      ]);
+      const keys = [
+        "bot_locked",
+        "lock_message",
+        "rate_limit_per_min",
+        "max_orders_per_hour",
+        "block_words",
+        "auto_block_after",
+        "anti_fake_receipt",
+        "require_phone_confirm",
+        "security_alert_owner",
+        "maintenance",
+        "require_subscription",
+        "gate_bypass",
+      ];
+      const picked: Record<string, unknown> = {};
+      for (const k of keys) picked[k] = settings[k];
+      return NextResponse.json({ ok: true, settings: picked, events, blocked, orders: counters });
+    }
+
+    /* ── بوابة الاشتراك ── */
+    case "gate": {
+      const settings = await allSettings();
+      return NextResponse.json({
+        ok: true,
+        channels: await listChannels(false),
+        settings: {
+          require_subscription: settings.require_subscription,
+          gate_bypass: settings.gate_bypass,
+          maintenance: settings.maintenance,
+          maintenance_text: settings.maintenance_text,
+        },
+      });
+    }
+
+    /* ── التحليلات ── */
+    case "analytics": {
+      const days = Math.min(90, Math.max(7, num(url.searchParams.get("days"), 30)));
+      const [series, top, statuses, kinds, hours, usersSeries, totals] = await Promise.all([
+        q(
+          `SELECT to_char(d.day,'YYYY-MM-DD') AS day,
+                  coalesce(o.c,0)::int AS orders,
+                  coalesce(o.revenue,0)::float AS revenue
+             FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day') AS d(day)
+             LEFT JOIN (
+               SELECT created_at::date AS day, count(*)::int AS c, sum(amount)::float AS revenue
+                 FROM orders GROUP BY 1
+             ) o ON o.day = d.day
+            ORDER BY d.day`,
+          [days],
+        ),
+        q(
+          `SELECT product_name, count(*)::int AS orders, sum(amount)::float AS revenue
+             FROM orders GROUP BY 1 ORDER BY orders DESC LIMIT 10`,
+        ),
+        q("SELECT status, count(*)::int AS c FROM orders GROUP BY 1 ORDER BY c DESC"),
+        q("SELECT kind, count(*)::int AS c FROM orders GROUP BY 1"),
+        q("SELECT extract(hour FROM created_at)::int AS h, count(*)::int AS c FROM orders GROUP BY 1 ORDER BY 1"),
+        q(
+          `SELECT to_char(d.day,'YYYY-MM-DD') AS day, coalesce(u.c,0)::int AS c
+             FROM generate_series(current_date - 13, current_date, interval '1 day') AS d(day)
+             LEFT JOIN (SELECT created_at::date AS day, count(*)::int AS c FROM users GROUP BY 1) u ON u.day = d.day
+            ORDER BY d.day`,
+        ),
+        getStats(),
+      ]);
+      return NextResponse.json({ ok: true, days, series, top, statuses, kinds, hours, usersSeries, totals });
+    }
+
+    /* ── صحة النظام ── */
+    case "health": {
+      const started = Date.now();
+      const dbPing = await one<{ now: string }>("SELECT now()::text AS now");
+      const counts = await one<Record<string, string>>(
+        `SELECT (SELECT count(*) FROM users)::text AS users,
+                (SELECT count(*) FROM products)::text AS products,
+                (SELECT count(*) FROM orders)::text AS orders,
+                (SELECT count(*) FROM security_events)::text AS events`,
+      );
+      const webhook = await webhookStatus().catch(() => null);
+      const media = await one<{ c: string; size: string }>(
+        "SELECT count(*)::text AS c, coalesce(sum(size),0)::text AS size FROM media",
+      );
+      return NextResponse.json({
+        ok: true,
+        site: env.siteUrl,
+        db: { connected: Boolean(dbPing), now: dbPing?.now ?? null, ms: Date.now() - started },
+        counts,
+        webhook,
+        ai: aiProviders(),
+        emoji: await emojiStats().catch(() => null),
+        media: { count: Number(media?.c ?? 0), size: Number(media?.size ?? 0) },
+        runtime: { node: process.version, uptime: Math.round(process.uptime()) },
+      });
+    }
 
     default:
       break;
@@ -770,17 +965,207 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
     return NextResponse.json({ ok: true, ...(await emojiStats()) });
   }
 
+
+  /* ── أكواد الخصم ── */
+  if (route === "coupons") {
+    const code = str(body.code).trim().toUpperCase();
+    if (!code) return bad("اكتب كود الخصم");
+    const row = await one(
+      `INSERT INTO coupons (code, kind, amount, min_amount, max_uses, active, note, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (code) DO UPDATE SET kind = excluded.kind, amount = excluded.amount,
+         min_amount = excluded.min_amount, max_uses = excluded.max_uses, active = excluded.active,
+         note = excluded.note, expires_at = excluded.expires_at
+       RETURNING *`,
+      [
+        code,
+        str(body.kind, "percent"),
+        num(body.amount, 0),
+        num(body.min_amount, 0),
+        num(body.max_uses, 0),
+        bool(body.active) ?? true,
+        str(body.note) || null,
+        str(body.expires_at) || null,
+      ],
+    );
+    await log("coupon_saved", { code }, "success", "admin");
+    return NextResponse.json({ ok: true, coupon: row });
+  }
+  if (seg[0] === "coupons" && seg[1]) {
+    const id = num(seg[1]);
+    if (seg[2] === "delete") {
+      await q("DELETE FROM coupons WHERE id = $1", [id]);
+      return NextResponse.json({ ok: true });
+    }
+    if (seg[2] === "reset") {
+      await q("UPDATE coupons SET uses = 0 WHERE id = $1", [id]);
+      return NextResponse.json({ ok: true });
+    }
+    const row = await one("UPDATE coupons SET active = coalesce($2, active) WHERE id = $1 RETURNING *", [
+      id,
+      body.active !== undefined ? bool(body.active) : null,
+    ]);
+    return NextResponse.json({ ok: true, coupon: row });
+  }
+
+  /* ── الأسئلة الشائعة ── */
+  if (route === "faq") {
+    const question = str(body.question).trim();
+    const answer = str(body.answer).trim();
+    if (!question || !answer) return bad("السؤال والجواب مطلوبان");
+    const row = await one(
+      `INSERT INTO faq (question, answer, sort, active) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [question, answer, num(body.sort, 99), bool(body.active) ?? true],
+    );
+    return NextResponse.json({ ok: true, item: row });
+  }
+  if (seg[0] === "faq" && seg[1]) {
+    const id = num(seg[1]);
+    if (seg[2] === "delete") {
+      await q("DELETE FROM faq WHERE id = $1", [id]);
+      return NextResponse.json({ ok: true });
+    }
+    const row = await one(
+      `UPDATE faq SET question = coalesce($2, question), answer = coalesce($3, answer),
+              sort = coalesce($4, sort), active = coalesce($5, active) WHERE id = $1 RETURNING *`,
+      [
+        id,
+        body.question !== undefined ? str(body.question) : null,
+        body.answer !== undefined ? str(body.answer) : null,
+        body.sort !== undefined ? num(body.sort) : null,
+        body.active !== undefined ? bool(body.active) : null,
+      ],
+    );
+    return NextResponse.json({ ok: true, item: row });
+  }
+
+  /* ── التقييمات ── */
+  if (route === "reviews") {
+    const row = await one(
+      `INSERT INTO reviews (user_id, name, rating, body, product_name, approved)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [num(body.user_id) || null, str(body.name, "زبون"), Math.min(5, Math.max(1, num(body.rating, 5))), str(body.body), str(body.product_name), bool(body.approved) ?? true],
+    );
+    return NextResponse.json({ ok: true, review: row });
+  }
+  if (seg[0] === "reviews" && seg[1]) {
+    const id = num(seg[1]);
+    if (seg[2] === "delete") {
+      await q("DELETE FROM reviews WHERE id = $1", [id]);
+      return NextResponse.json({ ok: true });
+    }
+    const row = await one("UPDATE reviews SET approved = coalesce($2, approved), rating = coalesce($3, rating) WHERE id = $1 RETURNING *", [
+      id,
+      body.approved !== undefined ? bool(body.approved) : null,
+      body.rating !== undefined ? Math.min(5, Math.max(1, num(body.rating, 5))) : null,
+    ]);
+    return NextResponse.json({ ok: true, review: row });
+  }
+
+  /* ── مهام المالك ── */
+  if (route === "tasks") {
+    const title = str(body.title).trim();
+    if (!title) return bad("اكتب عنوان المهمة");
+    const row = await one(
+      `INSERT INTO tasks (title, note, priority, due_at) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [title, str(body.note), Math.min(3, Math.max(1, num(body.priority, 2))), str(body.due_at) || null],
+    );
+    return NextResponse.json({ ok: true, task: row });
+  }
+  if (seg[0] === "tasks" && seg[1]) {
+    const id = num(seg[1]);
+    if (seg[2] === "delete") {
+      await q("DELETE FROM tasks WHERE id = $1", [id]);
+      return NextResponse.json({ ok: true });
+    }
+    if (seg[2] === "toggle") {
+      const row = await one("UPDATE tasks SET done = NOT done WHERE id = $1 RETURNING *", [id]);
+      return NextResponse.json({ ok: true, task: row });
+    }
+    const row = await one(
+      "UPDATE tasks SET title = coalesce($2,title), note = coalesce($3,note), done = coalesce($4,done), priority = coalesce($5,priority) WHERE id = $1 RETURNING *",
+      [id, body.title !== undefined ? str(body.title) : null, body.note !== undefined ? str(body.note) : null, body.done !== undefined ? bool(body.done) : null, body.priority !== undefined ? num(body.priority) : null],
+    );
+    return NextResponse.json({ ok: true, task: row });
+  }
+
+  /* ── مركز الحماية ── */
+  if (route === "security/lock" || route === "security/unlock") {
+    const locked = route === "security/lock";
+    await setSetting("bot_locked", locked);
+    await log(locked ? "bot_locked" : "bot_unlocked", { by: "admin" }, locked ? "warn" : "success", "security");
+    await q("INSERT INTO security_events (kind, detail, severity) VALUES ($1,$2,$3)", [
+      locked ? "bot_locked" : "bot_unlocked",
+      "من لوحة التحكم",
+      locked ? "warn" : "info",
+    ]);
+    return NextResponse.json({ ok: true, locked });
+  }
+  if (route === "security/save") {
+    const allowed = [
+      "rate_limit_per_min",
+      "max_orders_per_hour",
+      "auto_block_after",
+      "anti_fake_receipt",
+      "require_phone_confirm",
+      "security_alert_owner",
+      "lock_message",
+      "gate_bypass",
+      "maintenance",
+      "require_subscription",
+      "maintenance_text",
+    ];
+    const patch: Record<string, unknown> = {};
+    for (const key of allowed) {
+      if (body[key] === undefined) continue;
+      if (key === "block_words") patch[key] = body[key];
+      else if (["anti_fake_receipt", "require_phone_confirm", "security_alert_owner", "maintenance", "require_subscription"].includes(key))
+        patch[key] = bool(body[key]) ?? false;
+      else if (["rate_limit_per_min", "max_orders_per_hour", "auto_block_after"].includes(key)) patch[key] = num(body[key], 0);
+      else patch[key] = str(body[key]);
+    }
+    if (Array.isArray(body.block_words)) {
+      patch.block_words = (body.block_words as unknown[]).map((w) => str(w).trim()).filter(Boolean).slice(0, 200);
+    }
+    await saveSettings(patch);
+    return NextResponse.json({ ok: true, saved: Object.keys(patch) });
+  }
+  if (route === "security/clear") {
+    await q("DELETE FROM security_events");
+    return NextResponse.json({ ok: true });
+  }
+  if (route === "security/unblock") {
+    const userId = num(body.user_id);
+    await q("UPDATE users SET is_blocked = false WHERE tg_id = $1", [userId]);
+    await q("INSERT INTO security_events (kind, user_id, detail, severity) VALUES ('unblock',$1,'فك حظر من لوحة التحكم','info')", [
+      userId,
+    ]);
+    return NextResponse.json({ ok: true });
+  }
+
   /* ── الذكاء الاصطناعي ── */
   if (route === "ai/chat") {
     const text = str(body.text).trim();
     const history = Array.isArray(body.history) ? (body.history as AiMessage[]) : [];
-    if (!text) return bad("اكتب طلبك أولاً");
-    await q("INSERT INTO ai_messages (session, role, content) VALUES ('main','user',$1)", [text]);
+    const rawImage = str(body.image);
+    let image: { mime: string; data: Buffer } | null = null;
+    if (rawImage.startsWith("data:")) {
+      const match = /^data:([^;]+);base64,(.+)$/s.exec(rawImage);
+      if (!match) return bad("صورة غير صالحة");
+      const buf = Buffer.from(match[2], "base64");
+      if (buf.byteLength > 6 * 1024 * 1024) return bad("الصورة كبيرة (الحد 6MB)");
+      image = { mime: match[1], data: buf };
+    }
+    if (!text && !image) return bad("اكتب طلبك أو أرفق صورة");
+    await q("INSERT INTO ai_messages (session, role, content) VALUES ('main','user',$1)", [
+      image ? `${text || "📷 صورة مرفقة"} [صورة]` : text,
+    ]);
     try {
       const context = await aiContext();
       const plan = await assistantPlan(
-        [...history.slice(-8).map((m) => ({ role: m.role === "assistant" ? ("assistant" as const) : ("user" as const), content: String(m.content).slice(0, 2000) })), { role: "user", content: text }],
+        [...history.slice(-8).map((m) => ({ role: m.role === "assistant" ? ("assistant" as const) : ("user" as const), content: String(m.content).slice(0, 2000) })), { role: "user", content: text || "حلّل هذه الصورة" }],
         context,
+        image,
       );
       await q("INSERT INTO ai_messages (session, role, content, actions, provider) VALUES ('main','assistant',$1,$2::jsonb,$3)", [
         plan.reply,
