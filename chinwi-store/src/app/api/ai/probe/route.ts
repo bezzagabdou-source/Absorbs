@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aiChat, assistantPlan, freeProviders, probeFreeProviders, testProviders } from "@/lib/ai";
 import { env } from "@/lib/env";
+import { getSetting, setSetting } from "@/lib/db";
+import { setMyCommands } from "@/lib/telegram";
+import { webhookStatus } from "@/lib/bootstrap";
 
 /**
  * GET /api/ai/probe?k=<ADMIN_PASSWORD>
@@ -14,6 +17,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const k = req.nextUrl.searchParams.get("k") || "";
   if (!k || k !== env.adminPassword) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  if (req.nextUrl.searchParams.get("clearkeys") === "1") {
+    // حذف مفاتيح لوحة التحكم القديمة حتى تعمل مفاتيح متغيّرات البيئة الجديدة
+    await setSetting("groq_key", "").catch(() => {});
+    await setSetting("gemini_key", "").catch(() => {});
+    await setSetting("openrouter_key", "").catch(() => {});
+    return NextResponse.json({ ok: true, cleared: ["groq_key", "gemini_key", "openrouter_key"] });
+  }
+  if (req.nextUrl.searchParams.get("keys") === "1") {
+    const mask = (v: string) => (v ? `••••${v.slice(-4)} (${v.slice(0, 4)})` : "");
+    return NextResponse.json({
+      ok: true,
+      dbKeys: {
+        groq: mask(String((await getSetting<string>("groq_key")) ?? "")),
+        gemini: mask(String((await getSetting<string>("gemini_key")) ?? "")),
+      },
+      envKeys: { groq: Boolean(env.groqKey), gemini: Boolean(env.geminiKey) },
+    });
+  }
+  if (req.nextUrl.searchParams.get("bot") === "1") {
+    // إصلاح أزرار البوت: إلغاء التطبيق المصغّر وإرجاع قائمة الأوامر
+    await setMyCommands().catch(() => {});
+    const status = await webhookStatus().catch(() => null);
+    return NextResponse.json({ ok: true, menuButton: "commands", webhook: status });
   }
   const chatText = (req.nextUrl.searchParams.get("chat") || "").trim();
   if (chatText) {

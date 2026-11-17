@@ -409,9 +409,8 @@ export async function setMyCommands(): Promise<void> {
         { command: "help", description: "ℹ️ المساعدة" },
       ],
     });
-    await tg("setChatMenuButton", {
-      menu_button: { type: "web_app", text: "🛍 المتجر", web_app: { url: `${env.siteUrl}/` } },
-    }).catch(() => {});
+    // لا تطبيق مصغّر: زر المتجر يُلغى ويبقى زر القائمة العادي (commands)
+    await tg("setChatMenuButton", { menu_button: { type: "commands" } }).catch(() => {});
   } catch (err) {
     console.error("[telegram] setMyCommands failed", err);
   }

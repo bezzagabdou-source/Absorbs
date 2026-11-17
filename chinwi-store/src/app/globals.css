@@ -293,15 +293,15 @@ table.data tbody tr:hover {
 }
 
 /* ── منع تكبير الشاشة (الزوم) عند الكتابة في الجوال أو الضغط على الحقول ── */
+input,
+textarea,
+select,
+.input,
+[contenteditable="true"] {
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+}
 @media (max-width: 820px) {
-  input,
-  textarea,
-  select,
-  .input,
-  [contenteditable="true"] {
-    font-size: 16px !important;
-    line-height: 1.5 !important;
-  }
   textarea {
     min-height: 96px;
   }

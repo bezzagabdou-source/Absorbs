@@ -66,22 +66,29 @@ export async function testProviders(): Promise<Record<string, { ok: boolean; err
 /* ───────────────────────── Groq ───────────────────────── */
 
 async function groqChat(messages: AiMessage[]): Promise<string> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { authorization: `Bearer ${aiKey("groq")}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-      messages,
-      temperature: 0.4,
-      max_tokens: 2400,
-    }),
-    signal: withTimeout(),
-  });
-  if (!res.ok) throw new Error(`groq ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const text = json.choices?.[0]?.message?.content;
-  if (!text) throw new Error("groq: empty");
-  return text;
+  const models = Array.from(
+    new Set([process.env.GROQ_MODEL || "", "openai/gpt-oss-120b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"].filter(Boolean)),
+  );
+  let lastErr = "";
+  for (const model of models) {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { authorization: `Bearer ${aiKey("groq")}`, "content-type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature: 0.4, max_tokens: 2400 }),
+      signal: withTimeout(),
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const text = json.choices?.[0]?.message?.content;
+      if (text) return text;
+      lastErr = "groq: empty";
+      continue;
+    }
+    lastErr = `groq ${res.status} (${model}): ${(await res.text()).slice(0, 160)}`;
+    // مفتاح خاطئ → لا فائدة من تجربة نماذج أخرى
+    if (res.status === 401 || res.status === 403) break;
+  }
+  throw new Error(lastErr);
 }
 
 /* ───────────────────────── Gemini ───────────────────────── */
@@ -102,7 +109,7 @@ async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: s
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiKey("gemini")}`,
     {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-goog-api-key": aiKey("gemini") },
       body: JSON.stringify(body),
       signal: withTimeout(45_000),
     },
@@ -485,7 +492,9 @@ export async function assistantPlan(
   } catch (err) {
     // لا نرفض أبداً: العقل المحلي ينفّذ الأمر بدون إنترنت
     const fallback = localBrain(messages[messages.length - 1]?.content ?? "", context);
-    return { ...fallback, reply: `${fallback.reply}\n\n<i>(${String(err).slice(0, 160)})</i>` };
+    void err;
+    console.error("[ai] كل المزوّدات فشلت:", String(err).slice(0, 300));
+    return { ...fallback, provider: "local" };
   }
   const parsed = extractJson<{ reply?: string; actions?: AssistantAction[] }>(res.text);
   const lastText = messages[messages.length - 1]?.content ?? "";
