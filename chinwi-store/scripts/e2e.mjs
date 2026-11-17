@@ -748,6 +748,18 @@ await check("ai: مفاتيح المالك تُحفظ وتُختبر", async () 
   await adminPost("ai/keys", { groq: "" });
 });
 
+await check("ai: تنفيذ فعلي فوري بدون زر (لا قبول وهمي)", async () => {
+  const name = `فحص تنفيذ ${Date.now() % 100000}`;
+  const res = await adminPost("ai/chat", { text: `أضف منتج ${name} بسعر 777 في فري فاير` });
+  const json = await res.json();
+  assert.equal(json.ok, true);
+  assert.ok(Array.isArray(json.results) && json.results.length > 0, "العمليات نُفّذت وأُعيدت نتائجها");
+  assert.ok(json.results.some((r) => r.ok), "عملية ناجحة على الأقل");
+  const products = await adminGet("products?limit=100").then((r) => r.json());
+  const found = (products.products ?? products.rows ?? []).some((p) => String(p.name).includes(name));
+  assert.ok(found, "المنتج موجود فعلاً في قاعدة البيانات");
+});
+
 await check("ai: المزوّدات المجانية بلا مفاتيح مفحوصة فعلياً", async () => {
   const json = await adminGet("ai/test").then((r) => r.json());
   assert.equal(json.ok === true || json.ok === false, true, "الفحص يعمل");
