@@ -132,7 +132,9 @@ async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: s
   );
   let lastErr = "";
   let tried = models;
+  const deadline = Date.now() + 12_000;
   for (const model of tried) {
+    if (Date.now() > deadline) break;
     for (const version of ["v1beta", "v1"]) {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
@@ -161,10 +163,12 @@ async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: s
     }
   }
   // كل الأسماء الثابتة فشلت → نجلب أسماء النماذج المتاحة من Google ونعيد المحاولة
-  const discovered = (await geminiModelList(key)).filter((m) => !tried.includes(m)).slice(0, 4);
+  const discovered =
+    Date.now() > deadline ? [] : (await geminiModelList(key)).filter((m) => !tried.includes(m)).slice(0, 3);
   if (discovered.length) {
     tried = discovered;
     for (const model of discovered) {
+      if (Date.now() > deadline + 20_000) break;
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
         {
