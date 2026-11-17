@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Badge, Btn, Card, Field, Input, Spinner, Stat, apiGet, apiPost, toast } from "@/components/ui";
 
-type TestResult = Record<string, { ok: boolean; error?: string; ms: number }>;
+type TestResult = Record<string, { ok: boolean; error?: string; ms: number; sample?: string }>;
+type AiTestResp = { results: TestResult; free?: TestResult; freeList?: { id: string; label: string }[] };
 type Status = {
   providers: { groq: boolean; gemini: boolean; openrouter: boolean };
   keys: { groq: string; gemini: string; openrouter: string };
@@ -19,6 +20,7 @@ const PROVIDERS: { id: "groq" | "gemini" | "openrouter"; name: string; icon: str
 export default function KeysPage(): React.ReactElement {
   const [status, setStatus] = useState<Status | null>(null);
   const [tests, setTests] = useState<TestResult | null>(null);
+  const [free, setFree] = useState<TestResult | null>(null);
   const [form, setForm] = useState({ groq: "", gemini: "", openrouter: "" });
   const [busy, setBusy] = useState(false);
 
@@ -29,8 +31,11 @@ export default function KeysPage(): React.ReactElement {
 
   useEffect(() => {
     load();
-    apiGet<{ results: TestResult }>("ai/test")
-      .then((r) => setTests(r.results))
+    apiGet<AiTestResp>("ai/test")
+      .then((r) => {
+        setTests(r.results);
+        setFree(r.free ?? null);
+      })
       .catch(() => {});
   }, []);
 
@@ -53,10 +58,12 @@ export default function KeysPage(): React.ReactElement {
   const test = async () => {
     setBusy(true);
     try {
-      const res = await apiGet<{ results: TestResult }>("ai/test");
+      const res = await apiGet<AiTestResp>("ai/test");
       setTests(res.results);
+      setFree(res.free ?? null);
       const ok = Object.values(res.results).filter((r) => r.ok).length;
-      toast(`${ok} مزوّد يعمل من 3`);
+      const okFree = Object.values(res.free ?? {}).filter((r) => r.ok).length;
+      toast(`${ok} مزوّد بمفتاح + ${okFree} مزوّد مجاني يعملون الآن`);
     } finally {
       setBusy(false);
     }
@@ -131,7 +138,23 @@ export default function KeysPage(): React.ReactElement {
               <li>🛟 لو فشلوا كلهم: العقل المحلي ينفّذ الأوامر بدون إنترنت.</li>
               <li>🖼 الصور تُقرأ بـ Gemini (يحتاج مفتاح Gemini صالح).</li>
               <li>🔒 المفاتيح لا تظهر كاملة في الواجهة أبداً.</li>
+              <li>🆓 مزوّدات مجانية بلا مفاتيح تعمل دائماً — الذكاء الاصطناعي لا يتوقّف.</li>
             </ul>
+          </Card>
+
+          <Card title="🆓 مزوّدات مجانية (بلا مفاتيح)" subtitle="تعمل الآن بدون أي مفتاح — فحص حقيقي">
+            <div className="space-y-2">
+              {free && Object.entries(free).map(([id, row]) => (
+                <div key={id} className="flex items-center justify-between rounded-2xl bg-white/70 px-3 py-2">
+                  <span className="text-[0.76rem] font-bold text-emerald-950">{id}</span>
+                  <span className="flex items-center gap-2 text-[0.6rem] font-bold text-emerald-900/50">
+                    {row.ok ? `${row.ms} ms` : "غير متاح"}
+                    <Badge tone={row.ok ? "emerald" : "amber"}>{row.ok ? "يعمل" : "لا يعمل"}</Badge>
+                  </span>
+                </div>
+              ))}
+              {!free && <p className="text-xs font-bold text-emerald-900/55">اضغط «فحص المزوّدين» لعرض النتائج.</p>}
+            </div>
           </Card>
         </div>
       </div>

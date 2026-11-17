@@ -76,7 +76,7 @@ export default function HealthPage(): React.ReactElement {
   const aiTotal = rows.length;
   const aiWorking = aiOk > 0;
 
-  const checks: { label: string; ok: boolean; note: string }[] = [
+  const checks: { label: string; ok: boolean; note: string; optional?: boolean }[] = [
     { label: "قاعدة البيانات (Postgres)", ok: Boolean(db?.connected), note: db?.connected ? "متصل" : "منقطع" },
     { label: "الويبهوك مربوط بتليجرام", ok: Boolean(hook?.ok), note: hook?.ok ? "مرتبط" : "غير مرتبط" },
     {
@@ -97,7 +97,8 @@ export default function HealthPage(): React.ReactElement {
     {
       label: "إيموجي متحرك داخل رسائل تليجرام",
       ok: Boolean(data?.emoji?.enabled && (data?.emoji?.total ?? 0) > 0),
-      note: data?.emoji?.enabled ? `${data?.emoji?.total ?? 0} رمز مربوط` : "يحتاج بوت Premium/Fragment — اختياري",
+      note: data?.emoji?.enabled ? `${data?.emoji?.total ?? 0} رمز مربوط` : "اختياري — يحتاج بوت Premium/Fragment",
+      optional: true,
     },
   ];
 
@@ -144,7 +145,9 @@ export default function HealthPage(): React.ReactElement {
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="text-[0.62rem] font-bold text-emerald-900/50">{row.note}</span>
-                  <Badge tone={row.ok ? "emerald" : "red"}>{row.ok ? "سليم" : "يحتاج ضبط"}</Badge>
+                  <Badge tone={row.ok ? "emerald" : row.optional ? "amber" : "red"}>
+                    {row.ok ? "سليم" : row.optional ? "اختياري" : "يحتاج ضبط"}
+                  </Badge>
                 </span>
               </div>
             ))}
