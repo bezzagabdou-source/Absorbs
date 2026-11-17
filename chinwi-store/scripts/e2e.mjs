@@ -184,6 +184,26 @@ await check("menu: زر الألعاب يفتح قائمة فري فاير و ب
   assert.ok(hasButton(games, "eFootball"));
 });
 
+await check("gate: الحساب المعفى @A_B_B_X_N يدخل بلا اشتراك", async () => {
+  await membership({ "@ft_H_N_O": "left", "@CHNawaa": "left" });
+  await resetSent();
+  const exempt = { id: 777, is_bot: false, first_name: "Owner", username: "A_B_B_X_N", language_code: "ar" };
+  await sendUpdate(msg(exempt, "/start"));
+  await waitForMessage(777, (m) => (m.text ?? "").includes("اختر القسم"));
+  const st = await mockState();
+  assert.ok(!st.sent.some((m) => (m.text ?? "").includes("الاشتراك إجباري")), "لا بوابة للحساب المعفى");
+});
+
+await check("buttons: القائمة الرئيسية خضراء والدعم أحمر", async () => {
+  await membership({ "@ft_H_N_O": "member", "@CHNawaa": "member" });
+  await resetSent();
+  await sendUpdate(msg({ id: 777, is_bot: false, first_name: "Owner", username: "A_B_B_X_N" }, "/start"));
+  const menu = await waitForMessage(777, (m) => (m.text ?? "").includes("اختر القسم"));
+  const btns = buttonsOf(menu);
+  assert.ok(btns.some((x) => (x.text ?? "").includes("🎮") && x.style === "success"), "زر الألعاب أخضر");
+  assert.ok(btns.some((x) => (x.text ?? "").includes("📞") && x.style === "danger"), "زر الدعم أحمر");
+});
+
 await check("gate: تظهر البوابة حتى لو تعذّر التحقق ثم تفتح بزر «تحققت»", async () => {
   await membership({ "@ft_H_N_O": "__error", "@CHNawaa": "__error" });
   await resetSent();
@@ -217,14 +237,12 @@ await check("category: يعرض العروض كأزرار مع الأسعار", 
   assert.ok(hasButton(card, "320 دج"));
   assert.ok(card.photo, "يجب إرسال صورة القسم");
   assert.ok(hasButton(card, "فري فاير"), "هيدر القسم زر");
-  assert.ok(
-    buttonsOf(card).some((x) => (x.text ?? "").startsWith("🔴") && (x.text ?? "").includes("320 دج")),
-    "زر السعر أحمر",
-  );
-  assert.ok(
-    buttonsOf(card).some((x) => (x.text ?? "").startsWith("🟢") && (x.text ?? "").includes("100 جوهرة")),
-    "زر الاسم أخضر",
-  );
+  const priceBtn = buttonsOf(card).find((x) => (x.text ?? "").startsWith("💰") && (x.text ?? "").includes("320 دج"));
+  assert.ok(priceBtn, "زر السعر موجود");
+  assert.equal(priceBtn.style, "danger", "زر السعر أحمر (danger)");
+  const nameBtn = buttonsOf(card).find((x) => (x.text ?? "").startsWith("💎") && (x.text ?? "").includes("100 جوهرة"));
+  assert.ok(nameBtn, "زر الاسم موجود");
+  assert.equal(nameBtn.style, "success", "زر الاسم أخضر (success)");
 });
 
 await check("product: بطاقة المنتج + زر الشراء", async () => {
@@ -242,8 +260,8 @@ await check("top: زر الأكثر مبيعاً يعرض العروض كأزر�
   await sendUpdate(cb(users.buyer, "top"));
   const top = await waitForMessage(555, (m) => (m.text ?? "").includes("الأكثر مبيعاً"));
   assert.ok(hasButton(top, "🏠"));
-  assert.ok(buttonsOf(top).some((x) => (x.text ?? "").startsWith("🔴")), "أزرار أسعار حمراء");
-  assert.ok(buttonsOf(top).some((x) => (x.text ?? "").startsWith("🟢")), "أزرار أسماء خضراء");
+  assert.ok(buttonsOf(top).some((x) => (x.text ?? "").startsWith("💰")), "أزرار أسعار 💰");
+  assert.ok(buttonsOf(top).some((x) => !(x.text ?? "").startsWith("💰") && !(x.text ?? "").startsWith("🏠")), "أزرار أسماء بإيموجي");
 });
 
 await check("search: زر البحث ثم كتابة اسم يظهر النتائج", async () => {

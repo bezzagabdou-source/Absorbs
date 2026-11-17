@@ -38,6 +38,7 @@ import {
   sendMessage,
   sendPhoto,
   setEmojiMap,
+  type ButtonStyle,
   type InlineButton,
   type InlineKeyboard,
   type TgCallbackQuery,
@@ -53,14 +54,26 @@ const G = "🟢";
 const R = "🔴";
 const Y = "🟢";
 
-function b(text: string, callback_data: string): InlineButton {
-  return { text, callback_data };
+/** الأزرار التي تُلوَّن أحمر: الرجوع والإلغاء والرفض */
+function isDanger(cb: string | undefined, text: string): boolean {
+  if (!cb) return /^(❌|🔙|🗑|⛔️)/.test(text);
+  return /^(cancel:|rej:|rm:|del:|unblock:)/.test(cb) || /^(❌|🔙)/.test(text);
 }
-function link(text: string, url: string): InlineButton {
-  return { text, url };
+/** تلوين تلقائي: أخضر للعمليات، أحمر للرجوع/الإلغاء، بلا لون للعناوين */
+function paint<T extends InlineButton>(btn: T): T {
+  if (btn.style) return btn;
+  if (btn.callback_data === "nop" && !/^(💰)/.test(btn.text)) return btn;
+  return { ...btn, style: isDanger(btn.callback_data, btn.text) ? "danger" : "success" };
+}
+
+function b(text: string, callback_data: string, style?: ButtonStyle): InlineButton {
+  return style ? { text, callback_data, style } : paint({ text, callback_data });
+}
+function link(text: string, url: string, style?: ButtonStyle): InlineButton {
+  return style ? { text, url, style } : paint({ text, url });
 }
 function kb(rows: InlineButton[][]): InlineKeyboard {
-  return { inline_keyboard: rows.filter((r) => r.length > 0) };
+  return { inline_keyboard: rows.filter((r) => r.length > 0).map((r) => r.map((x) => paint(x))) };
 }
 
 function imgUrl(path: string | null): string | null {
@@ -120,23 +133,41 @@ async function sendSubscriptionGate(
   channels: ChannelRow[],
 ): Promise<void> {
   const rows: InlineButton[][] = channels.map((ch) => [
-    link(`${G} اشترك في ${ch.title || ch.chat}`, ch.url || `https://t.me/${ch.chat.replace(/^@/, "")}`),
+    link(`📣 اشترك في ${ch.title || ch.chat}`, ch.url || `https://t.me/${ch.chat.replace(/^@/, "")}`),
   ]);
-  rows.push([link(`${G} 💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`)]);
-  rows.push([b(`${G} 🔄 تحقق من الاشتراك`, "chk")]);
+  rows.push([link(`💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`)]);
+  rows.push([b(`🔄 تحقق من الاشتراك`, "chk")]);
 
   const text = [
     "🔒 <b>الاشتراك إجباري — خطوة واحدة فقط</b>",
+    "━━━━━━━━━━━━━━━",
+    "🎁 باش تستفيد من <b>كل</b> خدمات المتجر، اشترك في القنوات التالية 👇",
     "",
-    "باش تستفيد من كل خدمات المتجر، لازم تشترك في القنوات التالية:",
     ...channels.map((ch) => {
       const bad = state.missing.includes(ch);
-      return `• <b>${escapeHtml(ch.title || ch.chat)}</b>${bad ? " — ⚠️ لم تشترك بعد" : ""}`;
+      return `${bad ? "📣" : "✅"} <b>${escapeHtml(ch.title || ch.chat)}</b>${bad ? " — <i>لم تشترك بعد</i>" : ""}`;
     }),
-    "",
-    "<i>بعد ما تشترك اضغط «✅ تحققت من الاشتراك» 👇</i>",
+    "━━━━━━━━━━━━━━━",
+    "⚡️ الاشتراك يمنحك: أسعار خاصة، عروض حصرية، ودعماً أسرع.",
+    "👇 بعد ما تشترك اضغط <b>«🔄 تحقق من الاشتراك»</b>",
   ].join("\n");
   await sendMessage(chatId, text, kb(rows));
+}
+
+/** حسابات معفاة من الاشتراك الإجباري (يوزرات أو أرقام آي دي، مفصولة بفاصلة) */
+function gateExemptList(s: SettingsMap): string[] {
+  return settingString(s, "gate_bypass", "@A_B_B_X_N")
+    .split(/[,\s]+/)
+    .map((x) => x.replace(/^@/, "").trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isGateExempt(s: SettingsMap, userId: number, user: UserRow | null): boolean {
+  const list = gateExemptList(s);
+  if (!list.length) return false;
+  if (list.includes(String(userId))) return true;
+  const un = (user?.username ?? "").replace(/^@/, "").toLowerCase();
+  return Boolean(un) && list.includes(un);
 }
 
 async function guardSubscription(
@@ -146,6 +177,8 @@ async function guardSubscription(
   user: UserRow | null,
 ): Promise<boolean> {
   if (!settingBool(s, "require_subscription", true)) return true;
+  // حسابات معفاة (مثل صاحب المتجر) تمرّ مباشرة بلا بوابة
+  if (isGateExempt(s, userId, user)) return true;
   const channels = await listChannels(true);
   if (!channels.length) return true;
   const state = await subscriptionState(userId, channels);
@@ -191,38 +224,47 @@ function priceLabel(p: ProductRow, s: SettingsMap): string {
 
 /* ───────────────────────── القوائم ───────────────────────── */
 
-async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null, editFrom?: number): Promise<void> {
+async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null, editFrom?: number, withBanner = false): Promise<void> {
   const cats = await listCategories({ activeOnly: true });
   const bySlug = (slug: string): CategoryRow | undefined => cats.find((c) => c.slug === slug);
   const support = settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "");
 
   const rows: InlineButton[][] = [];
-  rows.push([b(`${G} 🎮 شحن الألعاب الرقمية`, "games")]);
+  rows.push([b(`🎮 شحن الألعاب الرقمية`, "games")]);
   const tg = bySlug("telegram");
-  if (tg) rows.push([b(`${G} 🌟 شحن تليجرام بريموم`, `cat:${tg.id}`)]);
+  if (tg) rows.push([b(`🌟 شحن تليجرام بريموم`, `cat:${tg.id}`)]);
   const tt = bySlug("tiktok");
-  if (tt) rows.push([b(`${G} 🎵 شحن عملات تيك توك`, `cat:${tt.id}`)]);
+  if (tt) rows.push([b(`🎵 شحن عملات تيك توك`, `cat:${tt.id}`)]);
   const digital = bySlug("digital");
-  if (digital) rows.push([b(`${G} 🤖 المنتجات الرقمية والذكاء الاصطناعي`, `cat:${digital.id}`)]);
-  rows.push([b(`${G} 🔥 الأكثر مبيعاً`, "top"), b(`${G} 🔍 بحث`, "search")]);
-  rows.push([b(`${G} 💵 بيع وشراء الدولار للمتجر`, "usd")]);
-  rows.push([b(`${G} 🧾 طلباتي`, "orders"), b(`${G} 👤 حسابي`, "account")]);
-  rows.push([link(`${R} 📞 الدعم الفني وتواصل مع المالك`, `https://t.me/${support}`)]);
-  if (isAdminUser(user)) rows.push([b(`${G} 🛡 لوحة الإدارة`, "adm")]);
+  if (digital) rows.push([b(`🤖 المنتجات الرقمية والذكاء الاصطناعي`, `cat:${digital.id}`)]);
+  rows.push([b(`🔥 الأكثر مبيعاً`, "top"), b(`🔍 بحث`, "search")]);
+  rows.push([b(`💵 بيع وشراء الدولار للمتجر`, "usd")]);
+  rows.push([b(`🧾 طلباتي`, "orders"), b(`👤 حسابي`, "account")]);
+  rows.push([link(`📞 الدعم الفني وتواصل مع المالك`, `https://t.me/${support}`, "danger")]);
+  if (isAdminUser(user)) rows.push([b(`🛡 لوحة الإدارة`, "adm")]);
 
   const text = [
-    `👑 <b>${escapeHtml(settingString(s, "store_name", "CHINWI STORE"))}</b>`,
+    `👑 <b>${escapeHtml(settingString(s, "store_name", "CHINWI STORE"))}</b>  ✨`,
     `<i>${escapeHtml(settingString(s, "store_tagline", ""))}</i>`,
-    "",
+    "━━━━━━━━━━━━━━━",
     settingString(s, "welcome_text", ""),
     "",
     `📣 ${escapeHtml(settingString(s, "announcement", ""))}`,
-    "",
-    `👤 مرحباً <b>${mentions(user ?? { id: chatId } as TgUser)}</b>`,
-    "<b>اختر القسم الذي تريده 👇</b>",
+    "━━━━━━━━━━━━━━━",
+    `👤 مرحباً <b>${mentions(user ?? { id: chatId } as TgUser)}</b> — نوّرت المتجر 🌟`,
+    "🎯 <b>اختر القسم الذي تريده 👇</b>",
   ].join("\n");
 
   void editFrom;
+  if (withBanner) {
+    const banner = imgUrl(settingString(s, "banner_image", "/catalog/banner.jpg"));
+    try {
+      await sendPhoto(chatId, { url: banner }, text, kb(rows));
+      return;
+    } catch {
+      /* لو رفض تيليجرام الصورة/الوصف نرسل نصاً */
+    }
+  }
   await sendMessage(chatId, text, kb(rows));
 }
 
@@ -230,7 +272,7 @@ async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null
 async function sendGamesMenu(chatId: number, s: SettingsMap): Promise<void> {
   const cats = (await listCategories({ activeOnly: true })).filter((c) => c.section === "games");
   if (!cats.length) {
-    await sendMessage(chatId, `${R} لا توجد أقسام ألعاب حالياً.`, kb([[b(`${R} 🏠 الرئيسية`, "home")]]));
+    await sendMessage(chatId, `⚠️ لا توجد أقسام ألعاب حالياً.`, kb([[b(`🏠 الرئيسية`, "home")]]));
     return;
   }
   const counts = new Map<number, number>();
@@ -240,9 +282,9 @@ async function sendGamesMenu(chatId: number, s: SettingsMap): Promise<void> {
     counts.set(Number(row.category_id), Number(row.c));
   }
   const rows: InlineButton[][] = cats.map((c) => [
-    b(`${G} ${c.emoji} ${c.name}${counts.get(c.id) ? ` (${counts.get(c.id)})` : ""}`, `cat:${c.id}`),
+    b(`${c.emoji} ${c.name}${counts.get(c.id) ? ` (${counts.get(c.id)})` : ""}`, `cat:${c.id}`),
   ]);
-  rows.push([b(`${R} 🏠 الرئيسية`, "home")]);
+  rows.push([b(`🏠 الرئيسية`, "home")]);
   await sendMessage(
     chatId,
     [
@@ -258,7 +300,7 @@ async function sendGamesMenu(chatId: number, s: SettingsMap): Promise<void> {
 async function sendCategory(chatId: number, categoryId: number, s: SettingsMap): Promise<void> {
   const cat = await getCategory(categoryId);
   if (!cat) {
-    await sendMessage(chatId, `${R} هذا القسم غير موجود.`, kb([[b(`${R} رجوع`, "home")]]));
+    await sendMessage(chatId, `⚠️ هذا القسم غير موجود.`, kb([[b(`🔙 رجوع`, "home")]]));
     return;
   }
   const products = await listProducts({ categoryId, activeOnly: true });
@@ -266,7 +308,7 @@ async function sendCategory(chatId: number, categoryId: number, s: SettingsMap):
     await sendMessage(
       chatId,
       `${cat.emoji} <b>${escapeHtml(cat.name)}</b>\n\n${R} لا توجد عروض في هذا القسم حالياً.`,
-      kb([[b(`${R} رجوع`, "home")]]),
+      kb([[b(`🔙 رجوع`, "home")]]),
     );
     return;
   }
@@ -277,11 +319,11 @@ async function sendCategory(chatId: number, categoryId: number, s: SettingsMap):
   // كل عرض = زر سعر أحمر + زر اسم أخضر
   for (const p of products) {
     rows.push([
-      b(`${R} ${priceLabel(p, s)}`, "nop"),
-      b(`${G} ${guessEmoji(p.name, cat.emoji)} ${shortName(p.name)}`, `prd:${p.id}`),
+      b(`💰 ${priceLabel(p, s)}`, "nop", "danger"),
+      b(`${guessEmoji(p.name, cat.emoji)} ${shortName(p.name)}`, `prd:${p.id}`),
     ]);
   }
-  rows.push([b(`${R} 🏠 الرئيسية`, "home"), b(`${G} 🔍 بحث`, "search")]);
+  rows.push([b(`🏠 الرئيسية`, "home"), b(`🔍 بحث`, "search")]);
 
   const caption = [
     `${cat.emoji} <b>${escapeHtml(cat.name)}</b>`,
@@ -301,17 +343,17 @@ async function sendTop(chatId: number, s: SettingsMap): Promise<void> {
     "SELECT * FROM products WHERE active = true ORDER BY sold DESC, price ASC NULLS LAST LIMIT 12",
   );
   if (!products.length) {
-    await sendMessage(chatId, `${R} لا توجد عروض حالياً.`, kb([[b(`${R} رجوع`, "home")]]));
+    await sendMessage(chatId, `⚠️ لا توجد عروض حالياً.`, kb([[b(`🔙 رجوع`, "home")]]));
     return;
   }
   const rows: InlineButton[][] = [[b("🔥 — الأكثر مبيعاً —", "nop")]];
   for (const p of products) {
     rows.push([
-      b(`${R} ${priceLabel(p, s)}`, "nop"),
-      b(`${G} ${guessEmoji(p.name)} ${shortName(p.name)}`, `prd:${p.id}`),
+      b(`💰 ${priceLabel(p, s)}`, "nop", "danger"),
+      b(`${guessEmoji(p.name)} ${shortName(p.name)}`, `prd:${p.id}`),
     ]);
   }
-  rows.push([b(`${R} 🏠 الرئيسية`, "home"), b(`${G} 🔍 بحث`, "search")]);
+  rows.push([b(`🏠 الرئيسية`, "home"), b(`🔍 بحث`, "search")]);
   await sendMessage(
     chatId,
     [
@@ -331,7 +373,7 @@ async function sendSearchPrompt(chatId: number, s: SettingsMap): Promise<void> {
       "",
       "اكتب اسم المنتج أو جزءاً منه في المحادثة (مثال: <code>جوهرة</code>، <code>بيس</code>، <code>بريميوم</code>) وسأعرض لك النتائج فوراً.",
     ].join("\n"),
-    kb([[b(`${R} 🏠 الرئيسية`, "home")]]),
+    kb([[b(`🏠 الرئيسية`, "home")]]),
   );
 }
 
@@ -344,7 +386,7 @@ function priceShort(p: ProductRow, s: SettingsMap): string {
 async function sendProduct(chatId: number, productId: number, s: SettingsMap): Promise<void> {
   const p = await getProduct(productId);
   if (!p || !p.active) {
-    await sendMessage(chatId, `${R} هذا العرض غير متوفر حالياً.`, kb([[b(`${R} رجوع`, "home")]]));
+    await sendMessage(chatId, `⚠️ هذا العرض غير متوفر حالياً.`, kb([[b(`🔙 رجوع`, "home")]]));
     return;
   }
   const cur = settingString(s, "currency", "دج");
@@ -355,16 +397,16 @@ async function sendProduct(chatId: number, productId: number, s: SettingsMap): P
   const wallets = await listWallets(true);
   const rows: InlineButton[][] = [];
   if (p.price === null || p.price === undefined) {
-    rows.push([b(`${G} 📩 اطلب هذا المنتج`, `ask:${p.id}`)]);
+    rows.push([b(`📩 اطلب هذا المنتج`, `ask:${p.id}`)]);
   } else {
-    rows.push([b(`${G} 🛒 شراء الآن — ${money(p.price, cur)}`, `buy:${p.id}`)]);
+    rows.push([b(`🛒 شراء الآن — ${money(p.price, cur)}`, `buy:${p.id}`)]);
   }
   // أرقام محافظ المالك تظهر مباشرة مع المنتج (زر نسخ لكل محفظة)
   for (const w of wallets.slice(0, 5)) {
-    rows.push([{ text: `${G} 📋 ${w.name} — ${w.account}`, copy_text: { text: w.account } }]);
+    rows.push([{ text: `📋 ${w.name} — ${w.account}`, copy_text: { text: w.account }, style: "primary" }]);
   }
-  rows.push([b(`${G} 🧾 طلباتي`, "orders")]);
-  rows.push([b(`${R} رجوع للقسم`, `cat:${p.category_id}`)]);
+  rows.push([b(`🧾 طلباتي`, "orders")]);
+  rows.push([b(`🔙 رجوع للقسم`, `cat:${p.category_id}`)]);
 
   const details = (p.fields ?? []).map((f) => `• ${escapeHtml(f.label)}`).join("\n");
   const caption = [
@@ -448,7 +490,7 @@ function orderSummary(o: OrderRow, s: SettingsMap): string {
 async function startPurchase(chatId: number, productId: number, userId: number, s: SettingsMap): Promise<void> {
   const p = await getProduct(productId);
   if (!p || !p.active) {
-    await sendMessage(chatId, `${R} هذا العرض لم يعد متوفراً.`, kb([[b(`${R} رجوع`, "home")]]));
+    await sendMessage(chatId, `⚠️ هذا العرض لم يعد متوفراً.`, kb([[b(`🔙 رجوع`, "home")]]));
     return;
   }
   if (p.price === null || p.price === undefined) {
@@ -461,8 +503,8 @@ async function startPurchase(chatId: number, productId: number, userId: number, 
         "اضغط على الزر لإرسال طلبك، وسيتواصل معك المالك بالسعر والتفاصيل 👇",
       ].join("\n"),
       kb([
-        [b(`${G} 📩 إرسال طلب السعر`, `ask:${p.id}`)],
-        [b(`${R} رجوع`, `cat:${p.category_id}`)],
+        [b(`📩 إرسال طلب السعر`, `ask:${p.id}`)],
+        [b(`🔙 رجوع`, `cat:${p.category_id}`)],
       ]),
     );
     return;
@@ -486,7 +528,7 @@ async function startPurchase(chatId: number, productId: number, userId: number, 
       ]
         .filter(Boolean)
         .join("\n"),
-      kb([[b(`${R} ❌ إلغاء`, "home")]]),
+      kb([[b(`❌ إلغاء`, "home")]]),
     );
     return;
   }
@@ -516,9 +558,9 @@ async function createOrderAndShowPayment(
 
 async function walletsRows(orderId: number, wallets: WalletRow[]): Promise<InlineButton[][]> {
   const rows: InlineButton[][] = wallets.map((w) => [
-    b(`${G} ${w.emoji} ${w.name} — ${w.account}`, `pw:${orderId}:${w.id}`),
+    b(`${w.emoji} ${w.name} — ${w.account}`, `pw:${orderId}:${w.id}`),
   ]);
-  rows.push([b(`${R} ❌ إلغاء الطلب`, `cancel:${orderId}`)]);
+  rows.push([b(`❌ إلغاء الطلب`, `cancel:${orderId}`)]);
   return rows;
 }
 
@@ -526,7 +568,7 @@ async function showPaymentOptions(chatId: number, order: OrderRow, s: SettingsMa
   const wallets = await listWallets(true);
   const cur = settingString(s, "currency", "دج");
   if (!wallets.length) {
-    await sendMessage(chatId, `${R} لا توجد طرق دفع مضافة حالياً، تواصل مع الدعم.`, kb([[b(`${G} 💬 الدعم`, "support")]]));
+    await sendMessage(chatId, `⚠️ لا توجد طرق دفع مضافة حالياً، تواصل مع الدعم.`, kb([[b(`💬 الدعم`, "support")]]));
     return;
   }
   const text = [
@@ -549,7 +591,7 @@ async function showWalletDetails(chatId: number, orderId: number, walletId: numb
   const wallets = await listWallets(true);
   const wallet = wallets.find((w) => w.id === walletId);
   if (!order || !wallet) {
-    await sendMessage(chatId, `${R} بيانات غير صحيحة.`, kb([[b(`${R} رجوع`, "home")]]));
+    await sendMessage(chatId, `⚠️ بيانات غير صحيحة.`, kb([[b(`🔙 رجوع`, "home")]]));
     return;
   }
   const cur = settingString(s, "currency", "دج");
@@ -579,9 +621,9 @@ async function showWalletDetails(chatId: number, orderId: number, walletId: numb
     chatId,
     text,
     kb([
-      [{ text: `${G} 📋 نسخ العنوان`, copy_text: { text: wallet.account } }],
-      [b(`${G} ✅ تم الدفع — إرسال الإيصال`, `paid:${order.id}`)],
-      [b(`${R} 🔴 تغيير وسيلة الدفع`, `pay:${order.id}`)],
+      [{ text: `📋 نسخ العنوان`, copy_text: { text: wallet.account } }],
+      [b(`✅ تم الدفع — إرسال الإيصال`, `paid:${order.id}`)],
+      [b(`🔄 تغيير وسيلة الدفع`, `pay:${order.id}`)],
     ]),
   );
 }
@@ -598,7 +640,7 @@ async function askReceipt(chatId: number, order: OrderRow, userId: number, s: Se
       "",
       "<i>يمكنك إرسال صورة أو ملف PDF — سنتحقق منه بسرعة.</i>",
     ].join("\n"),
-    kb([[b(`${R} ❌ إلغاء`, `cancel:${order.id}`)]]),
+    kb([[b(`❌ إلغاء`, `cancel:${order.id}`)]]),
   );
 }
 
@@ -612,7 +654,7 @@ async function submitReceipt(
   const fileId = msg.photo?.at(-1)?.file_id ?? msg.document?.file_id;
   const kind = msg.photo ? "photo" : "document";
   if (!fileId) {
-    await sendMessage(chatId, `${R} أرسل صورة الإيصال من فضلك.`, kb([[b(`${R} إلغاء`, `cancel:${order.id}`)]]));
+    await sendMessage(chatId, `⚠️ أرسل صورة الإيصال من فضلك.`, kb([[b(`❌ إلغاء`, `cancel:${order.id}`)]]));
     return;
   }
   const updated = await attachReceipt(order.id, fileId, kind);
@@ -632,8 +674,8 @@ async function submitReceipt(
       "🔔 سنُعلمك هنا مباشرة بعد المراجعة.",
     ].join("\n"),
     kb([
-      [b(`${G} 🧾 طلباتي`, "orders")],
-      [b(`${G} 🏠 القائمة الرئيسية`, "home")],
+      [b(`🧾 طلباتي`, "orders")],
+      [b(`🏠 القائمة الرئيسية`, "home")],
     ]),
   );
 
@@ -656,16 +698,16 @@ async function submitReceipt(
     .join("\n");
 
   await notifyOwnerPhoto(fileId, caption, kb([
-    [b(`${G} ✅ قبول الطلب`, `apv:${order.id}`), b(`${R} ❌ رفض`, `rej:${order.id}`)],
-    [link(`${G} 🌐 لوحة التحكم`, `${env.siteUrl}/admin`)],
+    [b(`✅ قبول الطلب`, `apv:${order.id}`), b(`❌ رفض`, `rej:${order.id}`)],
+    [link(`🌐 لوحة التحكم`, `${env.siteUrl}/admin`)],
   ]));
   await log("receipt_submitted", { order: order.code, user: user.tg_id }, "info", String(user.tg_id));
 }
 
 async function showUsdIntro(chatId: number, s: SettingsMap): Promise<void> {
   const rates = (Array.isArray(s.usd_rates) ? (s.usd_rates as number[]) : [250, 255]).filter((n) => Number(n) > 0);
-  const rows = rates.map((r) => [b(`${G} 💵 1$ = ${r} دج`, `usdr:${r}`)]);
-  rows.push([b(`${R} رجوع`, "home")]);
+  const rows = rates.map((r) => [b(`💵 1$ = ${r} دج`, `usdr:${r}`)]);
+  rows.push([b(`🔙 رجوع`, "home")]);
   await sendMessage(
     chatId,
     [
@@ -694,7 +736,7 @@ async function usdAskAmount(chatId: number, rate: number, userId: number, s: Set
       "",
       `📉 الحد الأدنى: ${settingNumber(s, "usd_min", 5)}$`,
     ].join("\n"),
-    kb([[b(`${R} ❌ إلغاء`, "home")]]),
+    kb([[b(`❌ إلغاء`, "home")]]),
   );
 }
 
@@ -712,9 +754,9 @@ async function supportScreen(chatId: number, s: SettingsMap): Promise<void> {
       `• أو راسلنا مباشرة: @${handle}`,
     ].join("\n"),
     kb([
-      [b(`${G} ✍️ اكتب رسالتك للمالك`, "msgowner")],
-      [link(`${G} 💬 محادثة مباشرة`, `https://t.me/${handle}`)],
-      [b(`${R} رجوع`, "home")],
+      [b(`✍️ اكتب رسالتك للمالك`, "msgowner")],
+      [link(`💬 محادثة مباشرة`, `https://t.me/${handle}`)],
+      [b(`🔙 رجوع`, "home")],
     ]),
   );
 }
@@ -733,8 +775,8 @@ async function accountScreen(chatId: number, user: UserRow, s: SettingsMap): Pro
       user.is_blocked ? "\n🔴 حسابك محظور — تواصل مع الدعم." : "",
     ].join("\n"),
     kb([
-      [b(`${G} 🧾 طلباتي`, "orders"), b(`${G} 💬 الدعم`, "support")],
-      [b(`${R} رجوع`, "home")],
+      [b(`🧾 طلباتي`, "orders"), b(`💬 الدعم`, "support")],
+      [b(`🔙 رجوع`, "home")],
     ]),
   );
 }
@@ -745,14 +787,14 @@ async function myOrders(chatId: number, userId: number, s: SettingsMap): Promise
     await sendMessage(
       chatId,
       "🧾 <b>طلباتي</b>\n\nلا توجد طلبات بعد — ابدأ التسوق الآن 👇",
-      kb([[b(`${G} 🛍 المتجر`, "home")]]),
+      kb([[b(`🛍 المتجر`, "home")]]),
     );
     return;
   }
   const buttons: InlineButton[][] = rows.map((o) => [
     b(`${o.status === "approved" || o.status === "delivered" ? G : o.status === "rejected" ? R : Y} ${o.code} — ${o.product_name.slice(0, 22)}`, `ord:${o.id}`),
   ]);
-  buttons.push([b(`${G} 🏠 القائمة`, "home")]);
+  buttons.push([b(`🏠 القائمة`, "home")]);
   await sendMessage(
     chatId,
     [
@@ -791,10 +833,10 @@ async function adminPanel(chatId: number, s: SettingsMap): Promise<void> {
     chatId,
     text,
     kb([
-      [b(`${R} 🔴 الإيصالات المعلّقة`, "adm:pending")],
-      [b(`${G} 📊 إحصائيات`, "adm:stats"), b(`${G} 👥 المستخدمون`, "adm:users")],
-      [b(`${G} 📢 إذاعة جماعية`, "adm:broadcast")],
-      [b(`${G} 🧾 آخر الطلبات`, "adm:orders")],
+      [b(`📩 الإيصالات المعلّقة`, "adm:pending")],
+      [b(`📊 إحصائيات`, "adm:stats"), b(`👥 المستخدمون`, "adm:users")],
+      [b(`📢 إذاعة جماعية`, "adm:broadcast")],
+      [b(`🧾 آخر الطلبات`, "adm:orders")],
       [
         b(
           `${settingBool(s, "require_subscription", true) ? G : R} اشتراك إجباري`,
@@ -802,9 +844,9 @@ async function adminPanel(chatId: number, s: SettingsMap): Promise<void> {
         ),
         b(`${settingBool(s, "maintenance", false) ? R : G} وضع الصيانة`, "adm:togmaint"),
       ],
-      [b(`${G} 👁 معاينة بوابة الاشتراك`, "adm:gateprev")],
-      [{ text: `${G} 🌐 فتح لوحة التحكم الكاملة`, web_app: { url: `${env.siteUrl}/admin` } }],
-      [b(`${R} إغلاق`, "home")],
+      [b(`👁 معاينة بوابة الاشتراك`, "adm:gateprev")],
+      [{ text: `🌐 فتح لوحة التحكم الكاملة`, web_app: { url: `${env.siteUrl}/admin` } }],
+      [b(`🔙 إغلاق`, "home")],
     ]),
   );
 }
@@ -835,7 +877,7 @@ async function adminStats(chatId: number, s: SettingsMap): Promise<void> {
     ]
       .filter(Boolean)
       .join("\n"),
-    kb([[b(`${R} رجوع`, "adm")]]),
+    kb([[b(`🔙 رجوع`, "adm")]]),
   );
 }
 
@@ -857,8 +899,8 @@ async function adminUsers(chatId: number, s: SettingsMap): Promise<void> {
       .filter(Boolean)
       .join("\n"),
     kb([
-      [{ text: `${G} 🌐 إدارة المستخدمين (حظر/رسالة)`, web_app: { url: `${env.siteUrl}/admin/users` } }],
-      [b(`${R} رجوع`, "adm")],
+      [{ text: `🌐 إدارة المستخدمين (حظر/رسالة)`, web_app: { url: `${env.siteUrl}/admin/users` } }],
+      [b(`🔙 رجوع`, "adm")],
     ]),
   );
 }
@@ -876,7 +918,7 @@ async function adminLastOrders(chatId: number, s: SettingsMap): Promise<void> {
       ...rows.map((o) => [
         b(`${o.status === "delivered" || o.status === "approved" ? G : R} ${o.code} — ${money(o.amount, settingString(s, "currency", "دج"))}`, `admo:${o.id}`),
       ]),
-      [b(`${R} رجوع`, "adm")],
+      [b(`🔙 رجوع`, "adm")],
     ]),
   );
 }
@@ -884,7 +926,7 @@ async function adminLastOrders(chatId: number, s: SettingsMap): Promise<void> {
 async function adminPending(chatId: number, s: SettingsMap): Promise<void> {
   const { rows } = await listOrders({ status: "review", limit: 10 });
   if (!rows.length) {
-    await sendMessage(chatId, "✅ لا توجد إيصالات بانتظار المراجعة.", kb([[b(`${R} رجوع`, "adm")]]));
+    await sendMessage(chatId, "✅ لا توجد إيصالات بانتظار المراجعة.", kb([[b(`🔙 رجوع`, "adm")]]));
     return;
   }
   await sendMessage(
@@ -892,9 +934,9 @@ async function adminPending(chatId: number, s: SettingsMap): Promise<void> {
     `🟡 <b>${rows.length} إيصال بانتظار المراجعة</b>\nاختر الطلب للمراجعة:`,
     kb([
       ...rows.map((o) => [
-        b(`${R} ${o.code} — ${money(o.amount, settingString(s, "currency", "دج"))}`, `admo:${o.id}`),
+        b(`📩 ${o.code} — ${money(o.amount, settingString(s, "currency", "دج"))}`, `admo:${o.id}`),
       ]),
-      [b(`${R} رجوع`, "adm")],
+      [b(`🔙 رجوع`, "adm")],
     ]),
   );
 }
@@ -917,10 +959,10 @@ async function adminOrderView(chatId: number, orderId: number, s: SettingsMap): 
     .join("\n");
   const rows: InlineButton[][] = [];
   if (o.status === "awaiting_review" || o.status === "pending_payment") {
-    rows.push([b(`${G} ✅ قبول`, `apv:${o.id}`), b(`${R} ❌ رفض`, `rej:${o.id}`)]);
+    rows.push([b(`✅ قبول`, `apv:${o.id}`), b(`❌ رفض`, `rej:${o.id}`)]);
   }
-  rows.push([b(`${G} 🚚 تم التسليم`, `dlv:${o.id}`)]);
-  rows.push([b(`${R} رجوع`, "adm:pending")]);
+  rows.push([b(`🚚 تم التسليم`, `dlv:${o.id}`)]);
+  rows.push([b(`🔙 رجوع`, "adm:pending")]);
   if (o.receipt_file_id) {
     await sendPhoto(chatId, { fileId: o.receipt_file_id }, text, kb(rows));
   } else {
@@ -963,7 +1005,7 @@ async function route(update: TgUpdate): Promise<void> {
   }
 
   if (settingBool(s, "maintenance", false) && !isAdminUser(user)) {
-    await sendMessage(msg.chat.id, settingString(s, "maintenance_text", "🛠 صيانة"), kb([[link(`${G} 💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T")}`)]]));
+    await sendMessage(msg.chat.id, settingString(s, "maintenance_text", "🛠 صيانة"), kb([[link(`💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T")}`)]]));
     return;
   }
 
@@ -995,7 +1037,7 @@ async function route(update: TgUpdate): Promise<void> {
           return;
         }
       }
-      await sendMainMenu(chatId, s, user);
+      await sendMainMenu(chatId, s, user, undefined, true);
       return;
     }
     if (cmd === "/shop") {
@@ -1021,14 +1063,14 @@ async function route(update: TgUpdate): Promise<void> {
     }
     if (cmd === "/admin") {
       if (!isAdminUser(user)) {
-        await sendMessage(chatId, `${R} هذا الأمر للمالك فقط.`, kb([[b(`${R} رجوع`, "home")]]));
+        await sendMessage(chatId, `⚠️ هذا الأمر للمالك فقط.`, kb([[b(`🔙 رجوع`, "home")]]));
         return;
       }
       await adminPanel(chatId, s);
       return;
     }
     if (cmd === "/help") {
-      await sendMessage(chatId, helpText(s), kb([[b(`${G} 🏠 القائمة`, "home")]]));
+      await sendMessage(chatId, helpText(s), kb([[b(`🏠 القائمة`, "home")]]));
       return;
     }
     if (cmd === "/redeem" || cmd === "/cancel") {
@@ -1041,9 +1083,9 @@ async function route(update: TgUpdate): Promise<void> {
       const tgId = Number(target);
       if (tgId > 0 && body.length) {
         await sendMessage(tgId, `💬 <b>رسالة من إدارة المتجر</b>\n\n${escapeHtml(body.join(" "))}`);
-        await sendMessage(chatId, `${G} تم الإرسال.`);
+        await sendMessage(chatId, `تم الإرسال.`);
       } else {
-        await sendMessage(chatId, `${R} الصيغة: <code>/reply 123456789 نص الرسالة</code>`);
+        await sendMessage(chatId, `⚠️ الصيغة: <code>/reply 123456789 نص الرسالة</code>`);
       }
       return;
     }
@@ -1059,8 +1101,8 @@ async function route(update: TgUpdate): Promise<void> {
   if (text.length >= 2) {
     const found = await listProducts({ search: text, activeOnly: true, limit: 6 });
     if (found.length) {
-      const rows = found.map((p) => [b(`${G} ${priceShort(p, s)}`, `prd:${p.id}`)]);
-      rows.push([b(`${R} 🏠 القائمة`, "home")]);
+      const rows = found.map((p) => [b(`${priceShort(p, s)}`, `prd:${p.id}`)]);
+      rows.push([b(`🏠 القائمة`, "home")]);
       await sendMessage(
         chatId,
         `🔎 نتائج البحث عن «${escapeHtml(text)}»:\nاختر المنتج 👇`,
@@ -1106,14 +1148,14 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
     const order = await getOrder(orderId);
     if (!order) {
       await clearUserState(user.tg_id);
-      await sendMessage(chatId, `${R} الطلب غير موجود.`, kb([[b(`${G} 🏠 القائمة`, "home")]]));
+      await sendMessage(chatId, `⚠️ الطلب غير موجود.`, kb([[b(`🏠 القائمة`, "home")]]));
       return true;
     }
     if (!msg.photo && !msg.document) {
       await sendMessage(
         chatId,
         "📸 من فضلك أرسل <b>صورة الإيصال</b> أو ملف PDF.\n\nللإلغاء اضغط الزر 👇",
-        kb([[b(`${R} ❌ إلغاء`, `cancel:${orderId}`)]]),
+        kb([[b(`❌ إلغاء`, `cancel:${orderId}`)]]),
       );
       return true;
     }
@@ -1126,14 +1168,14 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
     const p = await getProduct(productId);
     if (!p) {
       await clearUserState(user.tg_id);
-      await sendMessage(chatId, `${R} المنتج غير متوفر.`, kb([[b(`${G} 🏠 القائمة`, "home")]]));
+      await sendMessage(chatId, `⚠️ المنتج غير متوفر.`, kb([[b(`🏠 القائمة`, "home")]]));
       return true;
     }
     const fields = p.fields ?? [];
     let index = Number(data.index ?? 0);
     const values = (data.values ?? {}) as Record<string, string>;
     if (!text) {
-      await sendMessage(chatId, `${R} أرسل قيمة صحيحة من فضلك.`);
+      await sendMessage(chatId, `⚠️ أرسل قيمة صحيحة من فضلك.`);
       return true;
     }
     values[fields[index].key] = text.slice(0, 200);
@@ -1150,7 +1192,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
           f.label,
           f.placeholder ? `<i>${escapeHtml(f.placeholder)}</i>` : "",
         ].filter(Boolean).join("\n"),
-        kb([[b(`${R} ❌ إلغاء`, "home")]]),
+        kb([[b(`❌ إلغاء`, "home")]]),
       );
       return true;
     }
@@ -1167,15 +1209,15 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
     const amount = Number(text.replace(/[^\d.,]/g, "").replace(",", "."));
     const min = settingNumber(s, "usd_min", 5);
     if (!Number.isFinite(amount) || amount <= 0) {
-      await sendMessage(chatId, `${R} أرسل رقماً صحيحاً (مثال: 10).`);
+      await sendMessage(chatId, `⚠️ أرسل رقماً صحيحاً (مثال: 10).`);
       return true;
     }
     if (amount < min) {
-      await sendMessage(chatId, `${R} الحد الأدنى ${min}$ — أرسل كمية أكبر.`);
+      await sendMessage(chatId, `⚠️ الحد الأدنى ${min}$ — أرسل كمية أكبر.`);
       return true;
     }
     if (amount > 100000) {
-      await sendMessage(chatId, `${R} الكمية كبيرة جداً، تواصل مع المالك.`);
+      await sendMessage(chatId, `⚠️ الكمية كبيرة جداً، تواصل مع المالك.`);
       return true;
     }
     await clearUserState(user.tg_id);
@@ -1198,7 +1240,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
   if (state === "msgowner") {
     await clearUserState(user.tg_id);
     if (!text) {
-      await sendMessage(chatId, `${R} اكتب رسالتك أولاً.`);
+      await sendMessage(chatId, `⚠️ اكتب رسالتك أولاً.`);
       return true;
     }
     await notifyOwner(
@@ -1211,12 +1253,12 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
         "",
         `<i>للرد: /reply ${user.tg_id} نص الرد</i>`,
       ].join("\n"),
-      kb([[link(`${G} 💬 فتح المحادثة`, `tg://user?id=${user.tg_id}`)]]),
+      kb([[link(`💬 فتح المحادثة`, `tg://user?id=${user.tg_id}`)]]),
     );
     await sendMessage(
       chatId,
       "✅ <b>وصلت رسالتك للمالك</b>\nسنرد عليك في أقرب وقت 🙏",
-      kb([[b(`${G} 🏠 القائمة`, "home")]]),
+      kb([[b(`🏠 القائمة`, "home")]]),
     );
     return true;
   }
@@ -1236,7 +1278,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
       }
     }
     await q("INSERT INTO broadcasts (body, sent, failed) VALUES ($1,$2,$3)", [text, sent, failed]);
-    await sendMessage(chatId, `📢 <b>تم الإرسال</b>\n✅ ${sent} | ❌ ${failed}`, kb([[b(`${R} رجوع`, "adm")]]));
+    await sendMessage(chatId, `📢 <b>تم الإرسال</b>\n✅ ${sent} | ❌ ${failed}`, kb([[b(`🔙 رجوع`, "adm")]]));
     return true;
   }
 
@@ -1257,11 +1299,11 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
         "إذا كنت تعتقد أن هناك خطأ، تواصل مع الدعم 💬",
       ].filter(Boolean).join("\n"),
       kb([
-        [b(`${G} 💬 الدعم`, "support")],
-        [b(`${G} 🛒 إعادة المحاولة`, `prd:${order.product_id ?? 0}`)],
+        [b(`💬 الدعم`, "support")],
+        [b(`🛒 إعادة المحاولة`, `prd:${order.product_id ?? 0}`)],
       ]),
     );
-    await sendMessage(chatId, `${G} تم الرفض وإعلام الزبون.`, kb([[b(`${R} رجوع`, "adm:pending")]]));
+    await sendMessage(chatId, `تم الرفض وإعلام الزبون.`, kb([[b(`🔙 رجوع`, "adm:pending")]]));
     return true;
   }
 
@@ -1280,7 +1322,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
       category_id: cat?.id ?? null,
       description: desc.join(" | "),
     });
-    await sendMessage(chatId, `✅ تمت إضافة <b>${escapeHtml(p.name)}</b> في قسم ${escapeHtml(cat?.name ?? "-")}.`, kb([[b(`${G} 🛡 اللوحة`, "adm")]]));
+    await sendMessage(chatId, `✅ تمت إضافة <b>${escapeHtml(p.name)}</b> في قسم ${escapeHtml(cat?.name ?? "-")}.`, kb([[b(`🛡 اللوحة`, "adm")]]));
     return true;
   }
 
@@ -1399,8 +1441,8 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
           "<i>يمكنك أيضاً مراسلة المالك مباشرة من زر الدعم.</i>",
         ].join("\n"),
         kb([
-          [b(`${G} 💬 الدعم`, "support")],
-          [b(`${G} 🛍 متابعة التسوق`, "home")],
+          [b(`💬 الدعم`, "support")],
+          [b(`🛍 متابعة التسوق`, "home")],
         ]),
       );
       await notifyOwner(
@@ -1412,8 +1454,8 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
           `🧾 <code>${order.code}</code>`,
         ].join("\n"),
         kb([
-          [link(`${G} 💬 مراسلة الزبون`, `tg://user?id=${from.id}`)],
-          [link(`${G} 🌐 لوحة التحكم`, `${env.siteUrl}/admin/orders`)],
+          [link(`💬 مراسلة الزبون`, `tg://user?id=${from.id}`)],
+          [link(`🌐 لوحة التحكم`, `${env.siteUrl}/admin/orders`)],
         ]),
       );
       return;
@@ -1456,14 +1498,14 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
       if (!o || Number(o.user_id) !== from.id) return;
       const rows: InlineButton[][] = [];
       if (o.status === "pending_payment") {
-        rows.push([b(`${G} 💳 إكمال الدفع`, `pay:${o.id}`)]);
-        rows.push([b(`${R} ❌ إلغاء الطلب`, `cancel:${o.id}`)]);
+        rows.push([b(`💳 إكمال الدفع`, `pay:${o.id}`)]);
+        rows.push([b(`❌ إلغاء الطلب`, `cancel:${o.id}`)]);
       }
       if (o.status === "awaiting_review") {
-        rows.push([b(`${G} 📸 إعادة إرسال الإيصال`, `paid:${o.id}`)]);
+        rows.push([b(`📸 إعادة إرسال الإيصال`, `paid:${o.id}`)]);
       }
-      rows.push([b(`${G} 💬 الدعم`, "support")]);
-      rows.push([b(`${R} رجوع`, "orders")]);
+      rows.push([b(`💬 الدعم`, "support")]);
+      rows.push([b(`🔙 رجوع`, "orders")]);
       const body = [
         orderSummary(o, s),
         Object.entries(o.details ?? {}).length
@@ -1491,13 +1533,13 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
     }
     case "help": {
       await answerCallback(cq.id);
-      await sendMessage(chatId, helpText(s), kb([[b(`${G} 🏠 القائمة`, "home")]]));
+      await sendMessage(chatId, helpText(s), kb([[b(`🏠 القائمة`, "home")]]));
       return;
     }
     case "msgowner": {
       await answerCallback(cq.id, "✍️ اكتب رسالتك الآن");
       await setUserState(from.id, "msgowner", {});
-      await sendMessage(chatId, "✍️ اكتب رسالتك الآن وسنوصلها للمالك مباشرة.", kb([[b(`${R} إلغاء`, "support")]]));
+      await sendMessage(chatId, "✍️ اكتب رسالتك الآن وسنوصلها للمالك مباشرة.", kb([[b(`🔙 إلغاء`, "support")]]));
       return;
     }
     case "usd": {
@@ -1544,8 +1586,8 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
               "افتح صفحة الإذاعة من الزر أدناه 👇",
             ].join("\n"),
             kb([
-              [{ text: `${G} 🌐 فتح صفحة الإذاعة`, web_app: { url: `${env.siteUrl}/admin/broadcast` } }],
-              [b(`${R} رجوع`, "adm")],
+              [{ text: `🌐 فتح صفحة الإذاعة`, web_app: { url: `${env.siteUrl}/admin/broadcast` } }],
+              [b(`🔙 رجوع`, "adm")],
             ]),
           );
           return;
@@ -1600,8 +1642,8 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
           "⭐️ لا تنسَ متابعة قنواتنا للعروض الجديدة.",
         ].join("\n"),
         kb([
-          [b(`${G} 🛍 طلب جديد`, "home")],
-          [b(`${G} 💬 الدعم`, "support")],
+          [b(`🛍 طلب جديد`, "home")],
+          [b(`💬 الدعم`, "support")],
         ]),
       );
       await sendMessage(chatId, `✅ الطلب <code>${order.code}</code> تم تسليمه وإعلام الزبون.`);
@@ -1614,7 +1656,7 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
       await sendMessage(
         chatId,
         "✍️ أرسل سبب الرفض (أو أرسل <code>-</code> لرفض بدون سبب):",
-        kb([[b(`${R} إلغاء`, "adm:pending")]]),
+        kb([[b(`🔙 إلغاء`, "adm:pending")]]),
       );
       return;
     }

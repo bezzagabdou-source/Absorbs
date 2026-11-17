@@ -241,6 +241,9 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   support_username: "F_Q_Q_T",
   owner_chat_id: 0,
   require_subscription: true,
+  // حسابات معفاة من بوابة الاشتراك الإجباري
+  gate_bypass: "@A_B_B_X_N",
+  banner_image: "/catalog/banner.jpg",
   maintenance: false,
   maintenance_text: "🛠 المتجر في صيانة سريعة… نرجع لك خلال دقائق.",
   welcome_text:

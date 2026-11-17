@@ -50,6 +50,8 @@ export default function SettingsPage(): React.ReactElement {
         "support_username",
         "owner_username",
         "require_subscription",
+        "gate_bypass",
+        "banner_image",
         "maintenance",
         "maintenance_text",
         "receipt_note",
@@ -126,6 +128,17 @@ export default function SettingsPage(): React.ReactElement {
             </Field>
             <Field label="الشريط الإعلاني في البوت">
               <Input value={String(form.announcement ?? "")} onChange={(e) => set("announcement", e.target.value)} />
+            </Field>
+            <Field label="حسابات معفاة من الاشتراك الإجباري (يوزرات أو آي دي، مفصولة بفاصلة)">
+              <Input
+                value={String(form.gate_bypass ?? "")}
+                onChange={(e) => set("gate_bypass", e.target.value)}
+                dir="ltr"
+                placeholder="@A_B_B_X_N"
+              />
+            </Field>
+            <Field label="صورة البانر في رسالة الترحيب (مسار أو رابط)">
+              <Input value={String(form.banner_image ?? "")} onChange={(e) => set("banner_image", e.target.value)} dir="ltr" />
             </Field>
             <Field label="رسالة الترحيب (HTML مسموح)">
               <Textarea rows={4} value={String(form.welcome_text ?? "")} onChange={(e) => set("welcome_text", e.target.value)} />

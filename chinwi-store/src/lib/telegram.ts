@@ -5,12 +5,19 @@ import { env } from "./env";
  * كل رسالة خارجة تمر من هنا: إيموجي متحرك (اختياري) + احتياط تلقائي + أزرار منظمة.
  */
 
+/** ألوان أزرار تيليجرام الرسمية (Bot API 9.0+): danger = أحمر، success = أخضر، primary = أزرق */
+export type ButtonStyle = "success" | "danger" | "primary";
+
 export type InlineButton = {
   text: string;
   callback_data?: string;
   url?: string;
   copy_text?: { text: string };
   web_app?: { url: string };
+  /** لون الزر: success أخضر / danger أحمر */
+  style?: ButtonStyle;
+  /** إيموجي متحرك (custom emoji) قبل نص الزر */
+  icon_custom_emoji_id?: string;
 };
 
 export type InlineKeyboard = { inline_keyboard: InlineButton[][] };
