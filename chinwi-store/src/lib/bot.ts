@@ -753,7 +753,6 @@ async function submitReceipt(
 
   await notifyOwnerPhoto(fileId, caption, kb([
     [b(`✅ قبول الطلب`, `apv:${order.id}`), b(`❌ رفض`, `rej:${order.id}`)],
-    [link(`🌐 لوحة التحكم`, `${env.siteUrl}/admin`)],
   ]));
   await log("receipt_submitted", { order: order.code, user: user.tg_id }, "info", String(user.tg_id));
 }
@@ -899,7 +898,6 @@ async function adminPanel(chatId: number, s: SettingsMap): Promise<void> {
         b(`${settingBool(s, "maintenance", false) ? R : G} وضع الصيانة`, "adm:togmaint"),
       ],
       [b(`👁 معاينة بوابة الاشتراك`, "adm:gateprev")],
-      [{ text: `🌐 فتح لوحة التحكم الكاملة`, web_app: { url: `${env.siteUrl}/admin` } }],
       [b(`🔙 إغلاق`, "home")],
     ]),
   );
@@ -953,8 +951,7 @@ async function adminUsers(chatId: number, s: SettingsMap): Promise<void> {
       .filter(Boolean)
       .join("\n"),
     kb([
-      [{ text: `🌐 إدارة المستخدمين (حظر/رسالة)`, web_app: { url: `${env.siteUrl}/admin/users` } }],
-      [b(`🔙 رجوع`, "adm")],
+      [b(`👥 إدارة المستخدمين`, "adm:users"), b(`🔙 رجوع`, "adm")],
     ]),
   );
 }
@@ -1605,7 +1602,6 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
         ].join("\n"),
         kb([
           [link(`💬 مراسلة الزبون`, `tg://user?id=${from.id}`)],
-          [link(`🌐 لوحة التحكم`, `${env.siteUrl}/admin/orders`)],
         ]),
       );
       return;
@@ -1736,8 +1732,7 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
               "افتح صفحة الإذاعة من الزر أدناه 👇",
             ].join("\n"),
             kb([
-              [{ text: `🌐 فتح صفحة الإذاعة`, web_app: { url: `${env.siteUrl}/admin/broadcast` } }],
-              [b(`🔙 رجوع`, "adm")],
+              [b(`📢 قسم الإذاعة`, "adm:broadcast"), b(`🔙 رجوع`, "adm")],
             ]),
           );
           return;

@@ -53,6 +53,7 @@ const GROUPS: NavGroup[] = [
       { href: "/admin/ai", label: "شينوي AI", icon: "🧠" },
       { href: "/admin/prompts", label: "مكتبة البرومتات", icon: "🧩" },
       { href: "/admin/keys", label: "مفاتيح AI", icon: "🔑" },
+      { href: "/admin/emoji", label: "إيموجي متحرك", icon: "✨" },
     ],
   },
   {

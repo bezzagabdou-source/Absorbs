@@ -142,6 +142,82 @@ async function openrouterChat(messages: AiMessage[]): Promise<string> {
   return text;
 }
 
+
+/* ───────── مزوّدون مجانيون بلا مفاتيح — الذكاء الاصطناعي يعمل دائماً ───────── */
+
+export type FreeId = "pollinations" | "pollinations-gen" | "hackclub" | "ovh";
+
+type FreeEndpoint = { id: FreeId; label: string; url: string; model?: string };
+
+const FREE_ENDPOINTS: FreeEndpoint[] = [
+  {
+    id: "pollinations",
+    label: "Pollinations · GPT-OSS",
+    url: "https://text.pollinations.ai/openai",
+    model: process.env.POLLINATIONS_MODEL || "openai-fast",
+  },
+  {
+    id: "pollinations-gen",
+    label: "Pollinations Gen",
+    url: "https://gen.pollinations.ai/v1/chat/completions",
+    model: process.env.POLLINATIONS_GEN_MODEL || "openai",
+  },
+  { id: "hackclub", label: "Hack Club AI", url: "https://ai.hackclub.com/chat/completions" },
+  {
+    id: "ovh",
+    label: "OVHcloud AI",
+    url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
+    model: process.env.OVH_MODEL || "Meta-Llama-3_3-70B-Instruct",
+  },
+];
+
+export function freeProviders(): { id: FreeId; label: string }[] {
+  return FREE_ENDPOINTS.map((e) => ({ id: e.id, label: e.label }));
+}
+
+async function freeChat(ep: FreeEndpoint, messages: AiMessage[], ms = 22_000): Promise<string> {
+  const body: Record<string, unknown> = { messages, temperature: 0.35, max_tokens: 1800, stream: false };
+  if (ep.model) body.model = ep.model;
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (ep.id.startsWith("pollinations")) headers.referer = `${env.siteUrl}/`;
+  const res = await fetch(ep.url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal: withTimeout(ms),
+  });
+  const raw = await res.text();
+  if (!res.ok) throw new Error(`${ep.id} ${res.status}: ${raw.slice(0, 140)}`);
+  let text = "";
+  try {
+    const json = JSON.parse(raw) as { choices?: { message?: { content?: string }; text?: string }[] };
+    text = String(json.choices?.[0]?.message?.content ?? json.choices?.[0]?.text ?? "").trim();
+  } catch {
+    text = raw.trim();
+  }
+  if (!text || text.length < 2) throw new Error(`${ep.id}: رد فارغ`);
+  return text;
+}
+
+/** فحص المزوّدين المجانيين (بلا مفاتيح) — للوحة الصحة والتشخيص */
+export async function probeFreeProviders(): Promise<
+  Record<string, { ok: boolean; error?: string; ms: number; sample?: string }>
+> {
+  const out: Record<string, { ok: boolean; error?: string; ms: number; sample?: string }> = {};
+  await Promise.all(
+    FREE_ENDPOINTS.map(async (ep) => {
+      const started = Date.now();
+      try {
+        const text = await freeChat(ep, [{ role: "user", content: "قل كلمة واحدة: تمام" }], 25_000);
+        out[ep.id] = { ok: true, ms: Date.now() - started, sample: text.slice(0, 80) };
+      } catch (err) {
+        out[ep.id] = { ok: false, error: String(err).slice(0, 200), ms: Date.now() - started };
+      }
+    }),
+  );
+  return out;
+}
+
 /* ───────────────────────── واجهة موحّدة ───────────────────────── */
 
 export async function aiChat(
@@ -159,33 +235,32 @@ export async function aiChat(
   const errors: string[] = [];
 
   type Attempt = { name: string; run: () => Promise<string> };
-  const attempts: Attempt[] = [];
-  if (images.length && aiKey("gemini")) attempts.push({ name: "gemini", run: () => geminiGenerate(prompt, images, opts.system) });
-  if (!images.length && aiKey("groq")) attempts.push({ name: "groq", run: () => groqChat(full) });
-  if (aiKey("gemini")) attempts.push({ name: "gemini", run: () => geminiGenerate(prompt, images, opts.system) });
-  if (!images.length && aiKey("openrouter")) attempts.push({ name: "openrouter", run: () => openrouterChat(full) });
+  const settle = (name: string, text: string): { text: string; provider: string } => {
+    if (!text || text.trim().length < 2) throw new Error(`${name}: رد فارغ`);
+    return { text, provider: name };
+  };
 
-  if (!attempts.length) {
-    throw new Error("لا يوجد مفتاح ذكاء اصطناعي — أضفه من صفحة «مفاتيح AI» في لوحة التحكم.");
+  // المرحلة 1: المزوّدون المفاتيح (أعلى جودة) — سباق لأسرع رد
+  const keyed: Attempt[] = [];
+  if (images.length && aiKey("gemini")) keyed.push({ name: "gemini", run: () => geminiGenerate(prompt, images, opts.system) });
+  if (aiKey("groq")) keyed.push({ name: "groq", run: () => groqChat(full) });
+  if (aiKey("gemini")) keyed.push({ name: "gemini", run: () => geminiGenerate(prompt, images, opts.system) });
+  if (aiKey("openrouter")) keyed.push({ name: "openrouter", run: () => openrouterChat(full) });
+
+  // المرحلة 2: المزوّدون المجانيون بلا مفاتيح — تعمل حتى بدون أي مفتاح
+  const free: Attempt[] = images.length ? [] : FREE_ENDPOINTS.map((ep) => ({ name: ep.id, run: () => freeChat(ep, full) }));
+
+  for (const group of [keyed, free]) {
+    if (!group.length) continue;
+    try {
+      return await Promise.any(group.map((a) => a.run().then((text) => settle(a.name, text))));
+    } catch (err) {
+      const list = err instanceof AggregateError ? err.errors : [err];
+      for (const e of list) errors.push(String(e));
+    }
   }
 
-  // سباق: أول مزوّد ينجح يفوز = أسرع رد ممكن
-  try {
-    const winner = await Promise.any(
-      attempts.map((a) =>
-        a.run().then((text) => {
-          if (!text || text.trim().length < 2) throw new Error(`${a.name}: رد فارغ`);
-          return { text, provider: a.name };
-        }),
-      ),
-    );
-    return winner;
-  } catch (err) {
-    const list = err instanceof AggregateError ? err.errors : [err];
-    for (const e of list) errors.push(String(e));
-  }
-
-  throw new Error(`تعذّر الوصول لمزوّدي الذكاء الاصطناعي — ${errors.join(" | ").slice(0, 300)}`);
+  throw new Error(`تعذّر الوصول لكل مزوّدي الذكاء الاصطناعي — ${errors.join(" | ").slice(0, 300)}`);
 }
 
 /** استخراج JSON من ردّ قد يحتوي على شرح أو Code fence */

@@ -748,6 +748,25 @@ await check("ai: مفاتيح المالك تُحفظ وتُختبر", async () 
   await adminPost("ai/keys", { groq: "" });
 });
 
+await check("ai: المزوّدات المجانية بلا مفاتيح مفحوصة فعلياً", async () => {
+  const json = await adminGet("ai/test").then((r) => r.json());
+  assert.equal(json.ok === true || json.ok === false, true, "الفحص يعمل");
+  assert.ok(json.free && typeof json.free === "object", "قسم المزوّدات المجانية موجود");
+  assert.ok(Object.keys(json.free).length >= 3, "على الأقل 3 مزوّدات مجانية");
+  assert.ok(Array.isArray(json.freeList), "قائمة المزوّدات");
+  for (const row of Object.values(json.free)) assert.equal(typeof row.ok, "boolean");
+});
+
+await check("api: /api/ai/probe محمي بالكلمة السرية", async () => {
+  const anon = await fetch(`${BASE}/api/ai/probe`);
+  assert.equal(anon.status, 401, "بلا كلمة سرية = 401");
+  const res = await fetch(`${BASE}/api/ai/probe?k=${encodeURIComponent("TestPass123")}`);
+  const json = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(json.ok === true || json.ok === false, true);
+  assert.ok(json.free && json.freeList, "تفاصيل المزوّدات المجانية");
+});
+
 await check("api: النشاط يعرض الرسائل والضغطات", async () => {
   const res = await adminGet("activity").then((r) => r.json());
   assert.equal(res.ok, true);
@@ -783,6 +802,18 @@ await check("pages: لوحة التحكم تحمي الصفحات", async () => 
   assert.ok([307, 302, 308].includes(res.status), `status=${res.status}`);
   const login = await fetch(`${BASE}/admin/login`);
   assert.equal(login.status, 200);
+});
+
+await check("pages: صفحة الإيموجي المتحرك تعمل", async () => {
+  const res = await fetch(`${BASE}/admin/emoji`, { headers: { cookie } });
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.ok(/إيموجي متحرك/.test(html), "العنوان موجود");
+});
+
+await check("pages: صفحة صحة النظام تعرض فحص AI المباشر", async () => {
+  const res = await fetch(`${BASE}/admin/health`, { headers: { cookie } });
+  assert.equal(res.status, 200);
 });
 
 await check("pages: صفحة الطلبات تعمل مع الجلسة", async () => {

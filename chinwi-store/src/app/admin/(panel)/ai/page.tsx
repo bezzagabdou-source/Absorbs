@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ANIMATED_EMOJIS, ANIMATED_EMOJI_CSS } from "@/lib/animated-emoji";
 import {
   Badge,
   Btn,
@@ -124,9 +125,15 @@ export default function AiPage(): React.ReactElement {
 
   return (
     <div className="space-y-4">
+      <style dangerouslySetInnerHTML={{ __html: ANIMATED_EMOJI_CSS }} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-emerald-950">🧠 المساعد الذكي</h1>
+          <div className="flex items-center gap-1 text-2xl">
+            {ANIMATED_EMOJIS.filter((e) => ["fire", "bolt", "gem", "rocket"].includes(e.id)).map((e) => (
+              <span key={e.id} dangerouslySetInnerHTML={{ __html: e.html }} />
+            ))}
+          </div>
+          <h1 className="mt-1 text-2xl font-black text-emerald-950">🧠 المساعد الذكي</h1>
           <p className="mt-1 text-xs text-emerald-900/65">
             يتحدث معك، يحلّل متجرك، يحلّل الصور، وينفّذ أي عملية (إضافة منتجات، تعديل أسعار، حظر، إذاعة…)
           </p>
@@ -134,7 +141,7 @@ export default function AiPage(): React.ReactElement {
         <div className="flex flex-wrap gap-1.5">
           {providers &&
             Object.entries(providers).map(([key, on]) => (
-              <Badge key={key} tone={on ? "emerald" : "slate"}>
+              <Badge key={key} tone={on ? "emerald" : "amber"}>
                 {key === "groq" ? "⚡️ Groq" : key === "gemini" ? "💎 Gemini" : "🌐 OpenRouter"} {on ? "متصل" : "غير مربوط"}
               </Badge>
             ))}

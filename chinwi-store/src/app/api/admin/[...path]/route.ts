@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { AI_SUGGESTIONS, aiProviders, assistantPlan, extractProductsFromImage, setAiKeys, testProviders, localBrain, type AiMessage } from "@/lib/ai";
+import { AI_SUGGESTIONS, aiProviders, assistantPlan, extractProductsFromImage, setAiKeys, testProviders, probeFreeProviders, freeProviders, localBrain, type AiMessage } from "@/lib/ai";
 import {
   COOKIE_NAME,
   changePassword,
@@ -447,9 +447,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
 
     case "ai/test": {
       await applyAiKeys();
-      const results = await testProviders();
-      const okCount = Object.values(results).filter((r) => r.ok).length;
-      return NextResponse.json({ ok: true, results, okCount });
+      const [results, free] = await Promise.all([testProviders(), probeFreeProviders()]);
+      const okCount =
+        Object.values(results).filter((r) => r.ok).length + Object.values(free).filter((r) => r.ok).length;
+      const total = Object.keys(results).length + Object.keys(free).length;
+      return NextResponse.json({ ok: okCount > 0, results, free, freeList: freeProviders(), okCount, total });
     }
 
     case "ai/history": {
@@ -1270,7 +1272,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
       ]);
       return NextResponse.json({ ok: true, ...plan });
     } catch (err) {
-      return bad(String(err).slice(0, 400), 502);
+      // ممنوع أن يرفض: لو فشلت كل المزوّدات ننفّذ محلياً بدل إرجاع خطأ
+      const fallback = localBrain(text || "حلّل هذه الصورة", await aiContext().catch(() => ""));
+      await q(
+        "INSERT INTO ai_messages (session, role, content, actions, provider) VALUES ('main','assistant',$1,$2::jsonb,$3)",
+        [fallback.reply, JSON.stringify(fallback.actions ?? []), "local"],
+      ).catch(() => null);
+      return NextResponse.json({ ok: true, ...fallback, provider: "local", note: String(err).slice(0, 200) });
     }
   }
 
