@@ -344,7 +344,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "ببجي موبايل",
     emoji: "🔫",
     section: "games",
-    image: "/catalog/games/pubg.jpg",
+    image: "/catalog/games/pubg-poster.jpg",
     description: "شحن UC ببجي موبايل رسمي بأفضل سعر — تسليم سريع بالآي دي.",
     products: [{ name: "60 UC", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "325 UC", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "660 UC", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -353,7 +353,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "كول أوف ديوتي موبايل",
     emoji: "🎯",
     section: "games",
-    image: "/catalog/games/codm.png",
+    image: "/catalog/games/codm-poster.jpg",
     description: "شحن CP لكول أوف ديوتي موبايل — فتح الصناديق والباتل باس.",
     products: [{ name: "80 CP", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "420 CP", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "880 CP", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -362,7 +362,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "FC موبايل",
     emoji: "⚽️",
     section: "games",
-    image: "/catalog/games/fcmobile.png",
+    image: "/catalog/games/fcmobile-poster.jpg",
     description: "شحن عملات FC موبايل لفتح اللاعبين والصناديق.",
     products: [{ name: "250 FC", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "1050 FC", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "2200 FC", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -371,7 +371,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "فورتنايت",
     emoji: "🛠",
     section: "games",
-    image: "/catalog/games/fortnite.jpg",
+    image: "/catalog/games/fortnite-poster.jpg",
     description: "شحن V-Bucks فورتنايت — سكينات وتحدّيات.",
     products: [{ name: "1000 V-Bucks", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "2800 V-Bucks", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "5000 V-Bucks", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -380,7 +380,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "كلاش أوف كلانس",
     emoji: "🏰",
     section: "games",
-    image: "/catalog/games/coc.png",
+    image: "/catalog/games/coc-poster.jpg",
     description: "جواهر كلاش أوف كلانس — تطوير سريع للقرية.",
     products: [{ name: "500 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "1200 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "2500 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -389,7 +389,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "براول ستارز",
     emoji: "⭐️",
     section: "games",
-    image: "/catalog/games/brawl.png",
+    image: "/catalog/games/brawl-poster.jpg",
     description: "جواهر براول ستارز + باتل باس.",
     products: [{ name: "30 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "80 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "170 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -398,7 +398,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "كلاش رويال",
     emoji: "👑",
     section: "games",
-    image: "/catalog/games/clashroyale.png",
+    image: "/catalog/games/clashroyale-poster.jpg",
     description: "جواهر كلاش رويال وصناديق الترقية.",
     products: [{ name: "500 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "1200 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "2500 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -407,7 +407,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "روبلكس",
     emoji: "🧱",
     section: "games",
-    image: "/catalog/games/roblox.jpg",
+    image: "/catalog/games/roblox-poster.jpg",
     description: "شحن Robux لحساب روبلكس.",
     products: [{ name: "400 Robux", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "800 Robux", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "1700 Robux", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -416,7 +416,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "جينشين إمباكت",
     emoji: "🌀",
     section: "games",
-    image: "/catalog/games/genshin.png",
+    image: "/catalog/games/genshin-poster.jpg",
     description: "شحن Genesis Crystals لجينشين إمباكت.",
     products: [{ name: "300 Crystal", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "980 Crystal", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "1980 Crystal", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -425,7 +425,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "موبايل ليجندز",
     emoji: "🗡",
     section: "games",
-    image: "/catalog/games/mlbb.png",
+    image: "/catalog/games/mlbb-poster.jpg",
     description: "شحن دايموندز موبايل ليجندز بانغ بانغ.",
     products: [{ name: "86 Diamond", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "172 Diamond", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "257 Diamond", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -451,7 +451,7 @@ const GAME_SEED: SeedCategory[] = [
 
 /** يضيف الألعاب الجديدة ويصحّح صور الأقسام الموجودة — مرة واحدة، وبدون حذف أي شي */
 export async function ensureGameCatalog(): Promise<void> {
-  const done = Number((await getSetting<number>("catalog_games_v2")) ?? 0);
+  const done = Number((await getSetting<number>("catalog_games_v3")) ?? 0);
   if (done) return;
   const existing = await pool().query("SELECT id, slug FROM categories");
   const bySlug = new Map<string, number>();
@@ -475,9 +475,10 @@ export async function ensureGameCatalog(): Promise<void> {
       );
     }
   }
-  // تصحيح صور الأقسام القديمة (كان قسم PES يحمل صورة تيك توك)
-  await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'efootball'", ["/catalog/games/efootball.jpg"]);
-  await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'freefire' AND (image_url IS NULL OR image_url <> $1)", ["/catalog/games/freefire.png"]);
+  // تصحيح صور الأقسام: بوسترات الأسعار الأصلية في مكانها + بوستر لكل لعبة جديدة
+  await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'efootball'", ["/catalog/pes-poster.jpg"]);
+  await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'freefire'", ["/catalog/freefire-poster.jpg"]);
+  await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'tiktok'", ["/catalog/tiktok-poster.jpg"]);
   // محفظة Flexy — المتجر يقبل الشراء بها (وللمالك أيضاً)
   await pool().query(
     `INSERT INTO wallets (name, emoji, kind, account, holder, instructions, sort)
@@ -487,7 +488,7 @@ export async function ensureGameCatalog(): Promise<void> {
   );
   // إزالة الحد الأدنى لشراء الدولار
   await setSetting("usd_min", 0);
-  await setSetting("catalog_games_v2", 1);
+  await setSetting("catalog_games_v3", 1);
   await log("catalog_games", { games: GAME_SEED.length }, "success", "system");
 }
 
