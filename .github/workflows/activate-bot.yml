@@ -1,0 +1,67 @@
+name: Activate CHINWI bot (webhook)
+
+on:
+  push:
+    branches:
+      - arena/38dcf496-absorbs
+    paths:
+      - ".github/chinwi-url.txt"
+      - ".github/workflows/activate-bot.yml"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "رابط الموقع (اختياري — الافتراضي من .github/chinwi-url.txt)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: تحديد الرابط
+        id: target
+        run: |
+          URL="${{ github.event.inputs.url }}"
+          if [ -z "$URL" ] && [ -f .github/chinwi-url.txt ]; then
+            URL="$(tr -d ' \n\r' < .github/chinwi-url.txt)"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "الهدف: $URL"
+
+      - name: انتظار جاهزية النشر
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          for i in $(seq 1 40); do
+            CODE=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 20 "$URL/api/health" || true)
+            echo "محاولة $i → HTTP $CODE"
+            if [ "$CODE" = "200" ]; then
+              cat /tmp/health.json
+              echo
+              if grep -q '"connected":true' /tmp/health.json; then
+                echo "✅ الموقع متصل بقاعدة البيانات"
+                exit 0
+              fi
+            fi
+            sleep 15
+          done
+          echo "⚠️ الموقع لم يصبح جاهزاً بعد — أكمل التفعيل يدوياً من لوحة التحكم"
+          exit 0
+
+      - name: تفعيل الويبهوك (تشغيل البوت)
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          echo "→ تشغيل /api/cron/heartbeat"
+          curl -s --max-time 60 -X POST "$URL/api/cron/heartbeat" || true
+          echo
+          curl -s --max-time 60 "$URL/api/cron/heartbeat" | tee /tmp/heartbeat.json
+          echo
+          if grep -q '"ok":true' /tmp/heartbeat.json; then
+            echo "🎉 البوت مفعّل والويبهوك مربوط"
+          else
+            echo "⚠️ التفعيل التلقائي لم ينجح — افتح صفحة «الربط والتشغيل» واضغط زر الربط"
+          fi

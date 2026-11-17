@@ -1,0 +1,10 @@
+{
+  "name": "chinwi-dev-harness",
+  "private": true,
+  "type": "module",
+  "description": "أدوات اختبار محلية فقط (Postgres داخل العملية) — لا تُثبّت في الإنتاج",
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@electric-sql/pglite-socket": "^0.2.19"
+  }
+}
