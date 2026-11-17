@@ -145,27 +145,32 @@ async function openrouterChat(messages: AiMessage[]): Promise<string> {
 
 /* ───────── مزوّدون مجانيون بلا مفاتيح — الذكاء الاصطناعي يعمل دائماً ───────── */
 
-export type FreeId = "pollinations" | "pollinations-gen" | "hackclub" | "ovh";
+export type FreeId = "pollinations" | "pollinations-openai" | "pollinations-get" | "ovh";
 
 type FreeEndpoint = { id: FreeId; label: string; url: string; model?: string };
 
 const FREE_ENDPOINTS: FreeEndpoint[] = [
   {
     id: "pollinations",
-    label: "Pollinations · GPT-OSS",
+    label: "Pollinations · GPT-OSS (مجاني)",
     url: "https://text.pollinations.ai/openai",
     model: process.env.POLLINATIONS_MODEL || "openai-fast",
   },
   {
-    id: "pollinations-gen",
-    label: "Pollinations Gen",
-    url: "https://gen.pollinations.ai/v1/chat/completions",
-    model: process.env.POLLINATIONS_GEN_MODEL || "openai",
+    id: "pollinations-openai",
+    label: "Pollinations · OpenAI (مجاني)",
+    url: "https://text.pollinations.ai/openai",
+    model: process.env.POLLINATIONS_MODEL_2 || "openai",
   },
-  { id: "hackclub", label: "Hack Club AI", url: "https://ai.hackclub.com/proxy/v1/chat/completions" },
+  {
+    id: "pollinations-get",
+    label: "Pollinations · GET (مجاني)",
+    url: "https://text.pollinations.ai/",
+    model: process.env.POLLINATIONS_MODEL_3 || "openai-fast",
+  },
   {
     id: "ovh",
-    label: "OVHcloud AI",
+    label: "OVHcloud AI (مجاني)",
     url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
     model: process.env.OVH_MODEL || "Meta-Llama-3_3-70B-Instruct",
   },
@@ -175,7 +180,17 @@ export function freeProviders(): { id: FreeId; label: string }[] {
   return FREE_ENDPOINTS.map((e) => ({ id: e.id, label: e.label }));
 }
 
-async function freeChat(ep: FreeEndpoint, messages: AiMessage[], ms = 22_000): Promise<string> {
+async function freeChat(ep: FreeEndpoint, messages: AiMessage[], ms = 20_000): Promise<string> {
+  // نمط GET البسيط في Pollinations: أسرع وأخف من JSON
+  if (ep.id === "pollinations-get") {
+    const prompt = messages.map((m) => `${m.role === "system" ? "تعليمات" : m.role === "user" ? "المستخدم" : "المساعد"}: ${m.content}`).join("\n");
+    const url = `${ep.url}${encodeURIComponent(prompt.slice(0, 3500))}?model=${encodeURIComponent(ep.model || "openai-fast")}`;
+    const res = await fetch(url, { headers: { referer: `${env.siteUrl}/` }, signal: withTimeout(ms) });
+    const text = (await res.text()).trim();
+    if (!res.ok) throw new Error(`pollinations-get ${res.status}: ${text.slice(0, 120)}`);
+    if (!text || text.length < 2 || text.startsWith("{")) throw new Error("pollinations-get: رد غير صالح");
+    return text;
+  }
   const body: Record<string, unknown> = { messages, temperature: 0.35, max_tokens: 1800, stream: false };
   if (ep.model) body.model = ep.model;
   const headers: Record<string, string> = { "content-type": "application/json" };

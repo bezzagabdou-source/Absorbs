@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { freeProviders, probeFreeProviders, testProviders } from "@/lib/ai";
+import { aiChat, freeProviders, probeFreeProviders, testProviders } from "@/lib/ai";
 import { env } from "@/lib/env";
 
 /**
@@ -14,6 +14,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const k = req.nextUrl.searchParams.get("k") || "";
   if (!k || k !== env.adminPassword) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  const chatText = (req.nextUrl.searchParams.get("chat") || "").trim();
+  if (chatText) {
+    // فحص كامل لسلسلة المحادثة الحقيقية: أي مزوّد ردّ فعلاً؟
+    const started = Date.now();
+    try {
+      const res = await aiChat([{ role: "user", content: chatText.slice(0, 600) }], {
+        system: "أنت مساعد متجر رقمي. أجب بجملة واحدة قصيرة بالعربية.",
+      });
+      return NextResponse.json({
+        ok: true,
+        provider: res.provider,
+        ms: Date.now() - started,
+        reply: res.text.slice(0, 400),
+      });
+    } catch (err) {
+      return NextResponse.json({ ok: false, error: String(err).slice(0, 400), ms: Date.now() - started });
+    }
   }
   const only = (req.nextUrl.searchParams.get("only") || "").trim();
   const compact = req.nextUrl.searchParams.get("compact") === "1";
