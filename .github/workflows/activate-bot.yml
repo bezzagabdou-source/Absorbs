@@ -65,3 +65,25 @@ jobs:
           else
             echo "⚠️ التفعيل التلقائي لم ينجح — افتح صفحة «الربط والتشغيل» واضغط زر الربط"
           fi
+
+      - name: فحص شامل بعد التفعيل (متجر + لوحة + ويبهوك)
+        run: |
+          URL="${{ steps.target.outputs.url }}"
+          echo "── الصفحة الرئيسية ──"
+          curl -s -o /dev/null -w "GET / → HTTP %{http_code}\n" --max-time 30 "$URL/"
+          echo "── صفحة لوحة التحكم ──"
+          curl -s -o /dev/null -w "GET /admin/login → HTTP %{http_code}\n" --max-time 30 "$URL/admin/login" || true
+          echo "── تسجيل دخول لوحة التحكم ──"
+          curl -s -o /tmp/login.json -w "POST /api/admin/login → HTTP %{http_code}\n" --max-time 30 \
+            -H "content-type: application/json" \
+            -d "{\"password\":\"ChinwiStore@2026\"}" \
+            "$URL/api/admin/login"
+          cat /tmp/login.json; echo
+          echo "── جلسة الإدارة ──"
+          curl -s -c /tmp/cj -o /dev/null --max-time 30 -H "content-type: application/json" \
+            -d "{\"password\":\"ChinwiStore@2026\"}" "$URL/api/admin/login"
+          curl -s -b /tmp/cj --max-time 30 "$URL/api/admin/session" | head -c 600; echo
+          echo "── الإحصائيات ──"
+          curl -s -b /tmp/cj --max-time 30 "$URL/api/admin/stats" | head -c 600; echo
+          echo "── المنتجات في القاعدة ──"
+          curl -s -b /tmp/cj --max-time 30 "$URL/api/admin/products" | head -c 400; echo
