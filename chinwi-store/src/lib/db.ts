@@ -434,7 +434,7 @@ const GAME_SEED: SeedCategory[] = [
     name: "ماينكرافت",
     emoji: "🟩",
     section: "games",
-    image: "/catalog/games/minecraft.jpg",
+    image: "/catalog/games/minecraft-poster.jpg",
     description: "شحن Minecoins وحسابات ماينكرافت.",
     products: [{ name: "1720 Coin", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "3500 Coin", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "5000 Coin", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
@@ -443,15 +443,16 @@ const GAME_SEED: SeedCategory[] = [
     name: "ستامبل جايز",
     emoji: "🏃",
     section: "games",
-    image: "/catalog/games/stumble.png",
+    image: "/catalog/games/stumble-poster.jpg",
     description: "شحن جواهر ستامبل جايز وسكينات.",
     products: [{ name: "100 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 2 }, { name: "300 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 3 }, { name: "700 جوهرة", priceLabel: "تواصل مع المالك", fields: GAME_FIELDS, sort: 4 }],
   },
 ];
 
-/** يضيف الألعاب الجديدة ويصحّح صور الأقسام الموجودة — مرة واحدة، وبدون حذف أي شي */
+/** يضيف الألعاب الجديدة ويصحّح صور الأقسام الموجودة — مرة واحدة، وبدون حذف أي شي
+ * v4: بوسترات Minecraft + Stumble Guys (اكتملت كل البوسترات الـ12) */
 export async function ensureGameCatalog(): Promise<void> {
-  const done = Number((await getSetting<number>("catalog_games_v3")) ?? 0);
+  const done = Number((await getSetting<number>("catalog_games_v4")) ?? 0);
   if (done) return;
   const existing = await pool().query("SELECT id, slug FROM categories");
   const bySlug = new Map<string, number>();
@@ -488,7 +489,7 @@ export async function ensureGameCatalog(): Promise<void> {
   );
   // إزالة الحد الأدنى لشراء الدولار
   await setSetting("usd_min", 0);
-  await setSetting("catalog_games_v3", 1);
+  await setSetting("catalog_games_v4", 1);
   await log("catalog_games", { games: GAME_SEED.length }, "success", "system");
 }
 

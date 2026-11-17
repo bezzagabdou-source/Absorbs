@@ -137,11 +137,20 @@ await check("seed: الأقسام والمحافظ والقنوات", async () =
   const slugs = cats.rows.map((r) => r.slug);
   for (const slug of ["freefire", "efootball", "tiktok", "telegram", "digital"]) assert.ok(slugs.includes(slug), slug);
   const wallets = await db.query("select name, account, emoji from wallets order by sort");
-  assert.equal(wallets.rowCount, 4);
+  assert.equal(wallets.rowCount, 5);
   assert.equal(wallets.rows[0].account, "1210865168");
   assert.equal(wallets.rows[2].name, "Bybit");
   assert.equal(wallets.rows[1].emoji, "🟣");
   assert.equal(wallets.rows[3].account, "00799999004327338404");
+  assert.equal(wallets.rows[4].name, "Flexy");
+  // بوسترات الألعاب الـ12 كلها مربوطة (Minecraft + Stumble اكتملا أخيراً)
+  const gameCats = await db.query("select slug, image_url from categories where section = 'games' order by slug");
+  const bySlug = Object.fromEntries(gameCats.rows.map((r) => [r.slug, r.image_url]));
+  assert.equal(bySlug.minecraft, "/catalog/games/minecraft-poster.jpg");
+  assert.equal(bySlug.stumble, "/catalog/games/stumble-poster.jpg");
+  for (const slug of ["pubg", "codm", "fcmobile", "fortnite", "coc", "brawl", "clashroyale", "roblox", "genshin", "mlbb"]) {
+    assert.ok(String(bySlug[slug] ?? "").endsWith("-poster.jpg"), `${slug}=${bySlug[slug]}`);
+  }
   const channels = await db.query("select chat from channels order by sort");
   assert.deepEqual(channels.rows.map((r) => r.chat), ["@ft_H_N_O", "@CHNawaa"]);
   const digit = await db.query("select count(*)::int as c from products where price is null");
