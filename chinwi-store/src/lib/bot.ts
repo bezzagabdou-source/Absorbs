@@ -123,7 +123,7 @@ async function sendSubscriptionGate(
     link(`${G} اشترك في ${ch.title || ch.chat}`, ch.url || `https://t.me/${ch.chat.replace(/^@/, "")}`),
   ]);
   rows.push([link(`${G} 💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`)]);
-  rows.push([b(`${G} ✅ تحققت من الاشتراك`, "chk")]);
+  rows.push([b(`${G} 🔄 تحقق من الاشتراك`, "chk")]);
 
   const text = [
     "🔒 <b>الاشتراك إجباري — خطوة واحدة فقط</b>",

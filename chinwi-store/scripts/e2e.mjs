@@ -132,9 +132,11 @@ await check("seed: الأقسام والمحافظ والقنوات", async () =
   const cats = await db.query("select slug from categories order by sort");
   const slugs = cats.rows.map((r) => r.slug);
   for (const slug of ["freefire", "efootball", "tiktok", "telegram", "digital"]) assert.ok(slugs.includes(slug), slug);
-  const wallets = await db.query("select name, account from wallets order by sort");
+  const wallets = await db.query("select name, account, emoji from wallets order by sort");
   assert.equal(wallets.rowCount, 4);
   assert.equal(wallets.rows[0].account, "1210865168");
+  assert.equal(wallets.rows[2].name, "Bybit");
+  assert.equal(wallets.rows[1].emoji, "🟣");
   assert.equal(wallets.rows[3].account, "00799999004327338404");
   const channels = await db.query("select chat from channels order by sort");
   assert.deepEqual(channels.rows.map((r) => r.chat), ["@ft_H_N_O", "@CHNawaa"]);
@@ -155,7 +157,7 @@ await check("start: بوابة الاشتراك الإجباري (أزرار ا�
   const gate = await waitForMessage(555, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
   assert.ok(hasButton(gate, "ft_H_N_O"));
   assert.ok(hasButton(gate, "CHNawaa"));
-  assert.ok(hasButton(gate, "تحققت"));
+  assert.ok(hasButton(gate, "تحقق من الاشتراك"));
   const state = await mockState();
   assert.ok(!state.sent.some((m) => (m.text ?? "").includes("اختر القسم")), "يجب ألا تظهر القائمة قبل الاشتراك");
 });
@@ -187,7 +189,7 @@ await check("gate: تظهر البوابة حتى لو تعذّر التحقق �
   await resetSent();
   await sendUpdate(msg(users.other, "/start"));
   const gate = await waitForMessage(999, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
-  assert.ok(hasButton(gate, "تحققت"));
+  assert.ok(hasButton(gate, "تحقق من الاشتراك"));
   const st = await mockState();
   assert.ok(!st.sent.some((m) => (m.text ?? "").includes("اختر القسم")), "لا تُفتح القائمة قبل التحقق");
   // المحاولة الأولى تُرفض (لا يمكن التحقق) — المحاولة الثانية تفتح
@@ -263,7 +265,7 @@ await check("buy: يطلب الآيدي ثم يعرض طرق الدفع", async 
   const pay = await waitForMessage(555, (m) => (m.text ?? "").includes("إتمام الدفع"));
   assert.ok(hasButton(pay, "Binance"));
   assert.ok(hasButton(pay, "RedotPay"));
-  assert.ok(hasButton(pay, "PayPal"));
+  assert.ok(hasButton(pay, "Bybit"));
   assert.ok(hasButton(pay, "BaridiMob"));
   const order = (await db.query("select * from orders order by id desc limit 1")).rows[0];
   assert.equal(Number(order.amount), 320);
@@ -384,7 +386,7 @@ await check("admin: أزرار اللوحة تفتح صفحاتها (إيصال�
   await resetSent();
   await sendUpdate(cb(users.owner, "adm:gateprev"));
   const gate = await waitForMessage(777, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
-  assert.ok(hasButton(gate, "تحققت"));
+  assert.ok(hasButton(gate, "تحقق من الاشتراك"));
 });
 
 await check("ban: الحظر يمنع الزبون من الاستخدام", async () => {

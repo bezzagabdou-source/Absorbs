@@ -80,7 +80,7 @@ export default function WalletsPage(): React.ReactElement {
       ) : error ? (
         <p className="text-sm text-red-300">{error}</p>
       ) : wallets.length === 0 ? (
-        <Empty icon="💳" title="لا طرق دفع" hint="أضف Binance، RedotPay، PayPal، BaridiMob…" />
+        <Empty icon="💳" title="لا طرق دفع" hint="أضف Binance، RedotPay، Bybit، BaridiMob…" />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {wallets.map((w) => (
