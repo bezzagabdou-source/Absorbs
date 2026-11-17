@@ -83,6 +83,7 @@ chinwi-store/
 | البند | القيمة |
 | --- | --- |
 | المتجر | <https://chinwi-store.vercel.app> |
+| البوت | <https://t.me/chinwistorebot> (`@chinwistorebot`) |
 | لوحة التحكم | <https://chinwi-store.vercel.app/admin> |
 | الويبهوك | <https://chinwi-store.vercel.app/api/telegram/webhook> |
 | فحص الصحة | <https://chinwi-store.vercel.app/api/health> |
