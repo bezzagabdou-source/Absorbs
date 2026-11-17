@@ -30,16 +30,16 @@ function checkText(value) {
 }
 // 🔒 حدود الصلاحيات (تُفرض في الكود لا في البرومبت):
 //  • كود ft-panel للقراءة فقط؛ المساعد يعدّل فيها المتغيرات (env_set) وليس الملفات.
-//  • قناة الاشتراك الإجباري @mxabdou مقفولة: أي تعديل يحذفها أو يعطّل قفلها يُرفض.
+//  • قنوات الاشتراك الإجباري @mxabdou و@mosaba9atmx مقفولة: أي تعديل يحذفها أو يعطّل قفلها يُرفض.
 const LOCK_RULES = [
-  { path: 'ft-contest-bot/src/lib/types.ts', must: [/PINNED_CHANNELS\s*=\s*\[[^\]]*["']@mxabdou["']/] },
+  { path: 'ft-contest-bot/src/lib/types.ts', must: [/PINNED_CHANNELS\s*=\s*\[[^\]]*["']@mxabdou["']/, /PINNED_CHANNELS\s*=\s*\[[^\]]*["']@mosaba9atmx["']/] },
   { path: 'ft-contest-bot/src/lib/settings.ts', must: [/withPinnedChannels/, /lockedChannels/, /system:locked-channels/, /PINNED_CHANNELS/] },
   { path: 'ft-contest-bot/src/lib/bot.ts', must: [/requiredChannelsOf/, /PINNED_CHANNELS/, /lockedChannels/, /checkChannels/] },
 ];
 function assertWriteAllowed(path, next) {
   if (/^ft-panel(?:\/|$)/.test(path)) throw new Error('كود لوحة ft-panel محمي: المساعد يقدر يغيّر فقط متغيراتها (env_set)، ويعدّل كود ft-contest-bot');
   const rule = LOCK_RULES.find(r => r.path === path);
-  if (rule && rule.must.some(re => !re.test(next))) throw new Error('قناة الاشتراك الإجباري @mxabdou مقفولة: لا يمكن حذفها أو تغيير آلية قفلها');
+  if (rule && rule.must.some(re => !re.test(next))) throw new Error('قنوات الاشتراك الإجباري @mxabdou و@mosaba9atmx مقفولة: لا يمكن حذفها أو تغيير آلية قفلها');
 }
 const sha = value => crypto.createHash('sha256').update(String(value)).digest('hex');
 const clip = (value, max = 45_000) => String(value).length > max ? String(value).slice(0, max) + '\n… (diff truncated)' : String(value);

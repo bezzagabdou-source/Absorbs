@@ -32,7 +32,7 @@ export type Contest = {
  * فأي بلايص (إلا تحيّدت من اللوحة كترجع)، والبوابة كتطبق على كل واحد كيدخل
  * للخاص (جديد كان ولا قديم) فكل رسالة وزر.
  */
-export const PINNED_CHANNELS = ["@mxabdou"];
+export const PINNED_CHANNELS = ["@mxabdou", "@mosaba9atmx"];
 
 export type Settings = {
   /** 🔒 قنوات مقفولة (من الكود + سجل system:locked-channels ف قاعدة البيانات): تتزاد فقط، ما تتحيّدش */
