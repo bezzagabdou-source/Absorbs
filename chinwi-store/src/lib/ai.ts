@@ -93,6 +93,26 @@ async function groqChat(messages: AiMessage[]): Promise<string> {
 
 /* ───────────────────────── Gemini ───────────────────────── */
 
+
+/** قائمة النماذج المتاحة فعلياً لهذا المفتاح — تحلّ مشكلة أسماء النماذج المتغيّرة */
+async function geminiModelList(key: string): Promise<string[]> {
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`, {
+      headers: { "x-goog-api-key": key },
+      signal: withTimeout(10_000),
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { models?: { name?: string; supportedGenerationMethods?: string[] }[] };
+    return (json.models ?? [])
+      .filter((m) => (m.supportedGenerationMethods ?? []).includes("generateContent"))
+      .map((m) => String(m.name ?? "").replace(/^models\//, ""))
+      .filter((name) => /gemini/i.test(name))
+      .sort((a, b) => (/flash/i.test(b) ? 1 : 0) - (/flash/i.test(a) ? 1 : 0));
+  } catch {
+    return [];
+  }
+}
+
 async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: string): Promise<string> {
   const parts: Record<string, unknown>[] = [{ text: prompt }];
   for (const img of images) {
@@ -111,7 +131,8 @@ async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: s
     ),
   );
   let lastErr = "";
-  for (const model of models) {
+  let tried = models;
+  for (const model of tried) {
     for (const version of ["v1beta", "v1"]) {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
@@ -137,6 +158,34 @@ async function geminiGenerate(prompt: string, images: AiImage[] = [], system?: s
       }
       lastErr = `gemini ${res.status} (${model}/${version}): ${raw.slice(0, 200)}`;
       if (res.status === 401 || res.status === 403) break;
+    }
+  }
+  // كل الأسماء الثابتة فشلت → نجلب أسماء النماذج المتاحة من Google ونعيد المحاولة
+  const discovered = (await geminiModelList(key)).filter((m) => !tried.includes(m)).slice(0, 4);
+  if (discovered.length) {
+    tried = discovered;
+    for (const model of discovered) {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify(body),
+          signal: withTimeout(45_000),
+        },
+      );
+      const raw = await res.text();
+      if (!res.ok) {
+        lastErr = `gemini ${res.status} (${model}): ${raw.slice(0, 200)}`;
+        continue;
+      }
+      try {
+        const json = JSON.parse(raw) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+        const text = (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+        if (text) return text;
+      } catch {
+        lastErr = `gemini: bad json ${raw.slice(0, 100)}`;
+      }
     }
   }
   throw new Error(lastErr);
