@@ -68,7 +68,8 @@ jobs:
       - name: فحص تحويل الجذر إلى البوت (لا موقع مصغّر)
         run: |
           URL="${{ steps.target.outputs.url }}"
-          read -r CODE LOC < <(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" --max-time 30 "$URL/")
+          CODE=$(curl -s -o /dev/null -D /tmp/root-headers.txt -w "%{http_code}" --max-time 30 "$URL/")
+          LOC=$(grep -i '^location:' /tmp/root-headers.txt | head -1 | tr -d '\r' | cut -d' ' -f2-)
           echo "GET / → HTTP $CODE → $LOC"
           case "$CODE" in 301|302|307|308) ;; *) echo "❌ يجب أن يحوّل الجذر إلى البوت"; exit 1;; esac
           case "$LOC" in *t.me/*) ;; *) echo "❌ التحويل لا يشير إلى تيليجرام"; exit 1;; esac
