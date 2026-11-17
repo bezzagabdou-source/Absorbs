@@ -65,14 +65,14 @@ jobs:
           grep -q '/api/telegram/webhook' /tmp/heartbeat.json
           echo "🎉 الويبهوك مربوط بالبوت"
 
-      - name: فحص الصفحة الرئيسية
+      - name: فحص تحويل الجذر إلى البوت (لا موقع مصغّر)
         run: |
           URL="${{ steps.target.outputs.url }}"
-          CODE=$(curl -s -o /tmp/home.html -w "%{http_code}" --max-time 30 "$URL/")
-          echo "GET / → HTTP $CODE"
-          test "$CODE" = "200"
-          grep -q "CHINWI" /tmp/home.html || grep -q "شينوي" /tmp/home.html
-          echo "✅ المتجر يعمل"
+          read -r CODE LOC < <(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" --max-time 30 "$URL/")
+          echo "GET / → HTTP $CODE → $LOC"
+          case "$CODE" in 301|302|307|308) ;; *) echo "❌ يجب أن يحوّل الجذر إلى البوت"; exit 1;; esac
+          case "$LOC" in *t.me/*) ;; *) echo "❌ التحويل لا يشير إلى تيليجرام"; exit 1;; esac
+          echo "✅ الجذر يحوّل إلى البوت"
 
       - name: فحص صفحة دخول اللوحة
         run: |

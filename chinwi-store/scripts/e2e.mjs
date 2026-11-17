@@ -117,6 +117,9 @@ console.log("\n🚀 CHINWI STORE — E2E test\n");
 await db.query("DELETE FROM orders; DELETE FROM ai_messages; DELETE FROM broadcasts; DELETE FROM logs; DELETE FROM users;");
 await db.query("DELETE FROM settings WHERE key IN ('emoji_map','webhook_url','webhook_set_at')");
 await db.query("UPDATE settings SET value = 'false'::jsonb WHERE key = 'emoji_animated'");
+await db.query("UPDATE settings SET value = 'false'::jsonb WHERE key = 'maintenance'");
+await db.query("UPDATE settings SET value = 'true'::jsonb WHERE key = 'require_subscription'");
+await db.query("UPDATE settings SET value = 'false'::jsonb WHERE key = 'gate_warned'");
 
 /* 0. الصحة */
 await check("health: قاعدة البيانات متصلة والمنتجات مزروعة", async () => {
@@ -168,6 +171,21 @@ await check("chk: التحقق يفتح القائمة الرئيسية بعد �
   assert.ok(hasButton(menu, "طلباتي"));
 });
 
+await check("gate: تظهر البوابة حتى لو تعذّر التحقق ثم تفتح بزر «تحققت»", async () => {
+  await membership({ "@ft_H_N_O": "__error", "@CHNawaa": "__error" });
+  await resetSent();
+  await sendUpdate(msg(users.other, "/start"));
+  const gate = await waitForMessage(999, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
+  assert.ok(hasButton(gate, "تحققت"));
+  const st = await mockState();
+  assert.ok(!st.sent.some((m) => (m.text ?? "").includes("اختر القسم")), "لا تُفتح القائمة قبل التحقق");
+  await resetSent();
+  await sendUpdate(cb(users.other, "chk"));
+  const menu = await waitForMessage(999, (m) => (m.text ?? "").includes("CHINWI STORE"));
+  assert.ok(hasButton(menu, "فري فاير"));
+  await membership({ "@ft_H_N_O": "member", "@CHNawaa": "member" });
+});
+
 /* 2. تصفح القسم والمنتج */
 const ff = (await db.query("select id from categories where slug = 'freefire'")).rows[0];
 const product = (
@@ -188,6 +206,9 @@ await check("product: بطاقة المنتج + زر الشراء", async () => 
   await sendUpdate(cb(users.buyer, `prd:${product.id}`));
   const card = await waitForMessage(555, (m) => (m.text ?? "").includes("100 جوهرة") && hasButton(m, "شراء الآن"));
   assert.ok(hasButton(card, "شراء الآن"));
+  assert.ok(hasButton(card, "1210865168"), "أرقام محافظ المالك تظهر مع المنتج");
+  assert.ok(hasButton(card, "1681967118"), "RedotPay يظهر مع المنتج");
+  assert.ok((card.text ?? "").includes("الدفع إلى المالك"), "قسم الدفع في وصف المنتج");
 });
 
 /* 3. الشراء: حقل مطلوب → الدفع */
@@ -307,6 +328,20 @@ await check("admin: المالك يفتح لوحة البوت", async () => {
   const panel = await waitForMessage(777, (m) => (m.text ?? "").includes("لوحة تحكم البوت"));
   assert.ok(hasButton(panel, "الإيصالات المعلّقة"));
   assert.ok(hasButton(panel, "إحصائيات"));
+  assert.ok(hasButton(panel, "معاينة بوابة الاشتراك"));
+});
+
+await check("admin: أزرار اللوحة تفتح صفحاتها (إيصالات/إحصائيات/معاينة البوابة)", async () => {
+  await resetSent();
+  await sendUpdate(cb(users.owner, "adm:pending"));
+  await waitForMessage(777, (m) => (m.text ?? "").includes("بانتظار المراجعة") || (m.text ?? "").includes("لا توجد إيصالات"));
+  await resetSent();
+  await sendUpdate(cb(users.owner, "adm:stats"));
+  await waitForMessage(777, (m) => (m.text ?? "").includes("إحصائيات المتجر"));
+  await resetSent();
+  await sendUpdate(cb(users.owner, "adm:gateprev"));
+  const gate = await waitForMessage(777, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
+  assert.ok(hasButton(gate, "تحققت"));
 });
 
 await check("ban: الحظر يمنع الزبون من الاستخدام", async () => {
@@ -493,11 +528,11 @@ await check("api: إذاعة جماعية تصل للجميع", async () => {
 });
 
 /* 10. الصفحات */
-await check("pages: الموقع العام يعرض المنتجات", async () => {
-  const html = await fetch(BASE).then((r) => r.text());
-  assert.ok(html.includes("CHINWI STORE"));
-  assert.ok(html.includes("100 جوهرة"));
-  assert.ok(html.includes("1210865168"));
+await check("pages: الجذر يحوّل مباشرة إلى البوت (لا موقع مصغّر)", async () => {
+  const res = await fetch(BASE, { redirect: "manual" });
+  assert.ok([307, 302, 308].includes(res.status), `status=${res.status}`);
+  const loc = res.headers.get("location") ?? "";
+  assert.ok(loc.includes("t.me/"), `location=${loc}`);
 });
 
 await check("pages: لوحة التحكم تحمي الصفحات", async () => {

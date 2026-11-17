@@ -82,7 +82,7 @@ chinwi-store/
 
 | البند | القيمة |
 | --- | --- |
-| المتجر | <https://chinwi-store.vercel.app> |
+| الدخول إلى البوت | <https://chinwi-store.vercel.app> (يحوّل مباشرة إلى تيليجرام — لا موقع مصغّر) |
 | البوت | <https://t.me/chinwistorebot> (`@chinwistorebot`) |
 | لوحة التحكم | <https://chinwi-store.vercel.app/admin> |
 | الويبهوك | <https://chinwi-store.vercel.app/api/telegram/webhook> |

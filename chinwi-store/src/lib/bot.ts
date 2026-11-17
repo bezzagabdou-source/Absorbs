@@ -1,4 +1,4 @@
-import { allSettings, log, one, q } from "./db";
+import { allSettings, log, one, q, setSetting } from "./db";
 import { env } from "./env";
 import { money, shortDate } from "./format";
 import {
@@ -51,7 +51,7 @@ import type { CategoryRow, ChannelRow, OrderRow, ProductRow, SettingsMap, UserRo
 
 const G = "🟢";
 const R = "🔴";
-const Y = "🟡";
+const Y = "🟢";
 
 function b(text: string, callback_data: string): InlineButton {
   return { text, callback_data };
@@ -77,16 +77,66 @@ function mentions(user: TgUser | UserRow): string {
 
 /* ───────────────────────── بوابة الاشتراك ───────────────────────── */
 
-type SubState = { ok: boolean; missing: ChannelRow[] };
+type SubState = { ok: boolean; missing: ChannelRow[]; unverifiable: ChannelRow[] };
 
 async function subscriptionState(userId: number, channels: ChannelRow[]): Promise<SubState> {
   const missing: ChannelRow[] = [];
+  const unverifiable: ChannelRow[] = [];
   for (const ch of channels) {
     const status = await getChatMemberStatus(ch.chat, userId);
-    if (!status) continue; // تعذّر التحقق (البوت ليس مشرفاً) → لا نمنع المستخدم
+    if (!status) {
+      unverifiable.push(ch);
+      continue;
+    }
     if (!["creator", "administrator", "member"].includes(status)) missing.push(ch);
   }
-  return { ok: missing.length === 0, missing };
+  return { ok: missing.length === 0, missing, unverifiable };
+}
+
+/** تنبيه للمالك مرة واحدة فقط: البوت ليس مشرفاً في القنوات */
+async function warnOwnerUnverifiedOnce(): Promise<void> {
+  try {
+    const s = await loadSettings();
+    if (settingBool(s, "gate_warned", false)) return;
+    await notifyOwner(
+      [
+        "⚠️ <b>تنبيه إداري</b>",
+        "",
+        "البوت لم يستطع التحقق من اشتراك الزبائن في القنوات (ليس مشرفاً فيها).",
+        "أضف البوت <b>مشرفاً</b> في القنوات حتى يعمل التحقق التلقائي بدقة.",
+      ].join("\n"),
+    );
+    await setSetting("gate_warned", true);
+  } catch {
+    /* لا نعطّل التدفق */
+  }
+}
+
+/** رسالة بوابة الاشتراك — أزرار خضراء للقنوات + زر التحقق */
+async function sendSubscriptionGate(
+  chatId: number,
+  s: SettingsMap,
+  state: SubState,
+  channels: ChannelRow[],
+): Promise<void> {
+  const rows: InlineButton[][] = channels.map((ch) => [
+    link(`${G} اشترك في ${ch.title || ch.chat}`, ch.url || `https://t.me/${ch.chat.replace(/^@/, "")}`),
+  ]);
+  rows.push([link(`${G} 💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`)]);
+  rows.push([b(`${G} ✅ تحققت من الاشتراك`, "chk")]);
+
+  const text = [
+    "🔒 <b>الاشتراك إجباري — خطوة واحدة فقط</b>",
+    "",
+    "باش تستفيد من كل خدمات المتجر، لازم تشترك في القنوات التالية:",
+    ...channels.map((ch) => {
+      const bad = state.missing.includes(ch);
+      return `• <b>${escapeHtml(ch.title || ch.chat)}</b>${bad ? " — ⚠️ لم تشترك بعد" : ""}`;
+    }),
+    "",
+    "<i>بعد ما تشترك اضغط «✅ تحققت من الاشتراك» 👇</i>",
+  ].join("\n");
+  await sendMessage(chatId, text, kb(rows));
 }
 
 async function guardSubscription(
@@ -96,29 +146,13 @@ async function guardSubscription(
   user: UserRow | null,
 ): Promise<boolean> {
   if (!settingBool(s, "require_subscription", true)) return true;
-  if (isAdminUser(user)) return true;
   const channels = await listChannels(true);
   if (!channels.length) return true;
   const state = await subscriptionState(userId, channels);
-  if (state.ok) {
-    if (user && !user.created_at) return true;
-    return true;
-  }
-  const rows: InlineButton[][] = channels.map((ch) => [link(`${G} اشترك في ${ch.title || ch.chat}`, ch.url || `https://t.me/${ch.chat.replace(/^@/, "")}`)]);
-  rows.push([link(`${G} الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`)]);
-  rows.push([b(`${G} تحققت من الاشتراك ✅`, "chk")]);
-  await sendMessage(
-    chatId,
-    [
-      "🔒 <b>الاشتراك إجباري</b>",
-      "",
-      "باش تستفيد من كل خدمات المتجر، لازم تشترك في القنوات التالية:",
-      ...state.missing.map((ch) => `• <b>${escapeHtml(ch.title || ch.chat)}</b>`),
-      "",
-      "<i>بعد ما تشترك اضغط على زر التحقق 👇</i>",
-    ].join("\n"),
-    kb(rows),
-  );
+  // نفتح القائمة فقط إذا تحقّقنا فعلياً من الاشتراك في كل القنوات
+  if (state.ok && state.unverifiable.length === 0) return true;
+  void user; // المالك يرى البوابة أيضاً (للمعاينة) ثم يكمل بزر التحقق
+  await sendSubscriptionGate(chatId, s, state, channels);
   return false;
 }
 
@@ -144,7 +178,7 @@ async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null
     link(`${G} 💬 الدعم المباشر`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`),
     b(`${G} ℹ️ المساعدة`, "help"),
   ]);
-  if (isAdminUser(user)) rows.push([b(`${Y} 🛡 لوحة الإدارة`, "adm")]);
+  if (isAdminUser(user)) rows.push([b(`${G} 🛡 لوحة الإدارة`, "adm")]);
 
   const text = [
     `👑 <b>${escapeHtml(settingString(s, "store_name", "CHINWI STORE"))}</b>`,
@@ -219,11 +253,16 @@ async function sendProduct(chatId: number, productId: number, s: SettingsMap): P
     p.price === null || p.price === undefined
       ? "📩 <b>السعر غير محدد</b> — تواصل مع المالك لتحديد السعر"
       : `💰 السعر: <b>${money(p.price, cur)}</b>`;
+  const wallets = await listWallets(true);
   const rows: InlineButton[][] = [];
   if (p.price === null || p.price === undefined) {
     rows.push([b(`${G} 📩 اطلب هذا المنتج`, `ask:${p.id}`)]);
   } else {
     rows.push([b(`${G} 🛒 شراء الآن — ${money(p.price, cur)}`, `buy:${p.id}`)]);
+  }
+  // أرقام محافظ المالك تظهر مباشرة مع المنتج (زر نسخ لكل محفظة)
+  for (const w of wallets.slice(0, 5)) {
+    rows.push([{ text: `${G} 📋 ${w.name} — ${w.account}`, copy_text: { text: w.account } }]);
   }
   rows.push([b(`${G} 🧾 طلباتي`, "orders")]);
   rows.push([b(`${R} رجوع للقسم`, `cat:${p.category_id}`)]);
@@ -238,6 +277,9 @@ async function sendProduct(chatId: number, productId: number, s: SettingsMap): P
     details ? `\n📝 <b>المعلومات المطلوبة:</b>\n${details}` : "",
     p.stock !== null ? `\n📦 المتوفر: <b>${p.stock}</b>` : "",
     p.sold ? `\n🔥 تم بيعه: <b>${p.sold}</b> مرة` : "",
+    wallets.length
+      ? `\n💳 <b>الدفع إلى المالك:</b>\n${wallets.map((w) => `• ${w.emoji} ${escapeHtml(w.name)}: <code>${escapeHtml(w.account)}</code>`).join("\n")}\n<i>اضغط على الزر لنسخ الرقم، ثم أرسل الإيصال هنا بعد التحويل.</i>`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -650,7 +692,7 @@ async function adminPanel(chatId: number, s: SettingsMap): Promise<void> {
     chatId,
     text,
     kb([
-      [b(`${Y} 🟡 الإيصالات المعلّقة`, "adm:pending")],
+      [b(`${R} 🔴 الإيصالات المعلّقة`, "adm:pending")],
       [b(`${G} 📊 إحصائيات`, "adm:stats"), b(`${G} 👥 المستخدمون`, "adm:users")],
       [b(`${G} 📢 إذاعة جماعية`, "adm:broadcast")],
       [b(`${G} 🧾 آخر الطلبات`, "adm:orders")],
@@ -661,8 +703,81 @@ async function adminPanel(chatId: number, s: SettingsMap): Promise<void> {
         ),
         b(`${settingBool(s, "maintenance", false) ? R : G} وضع الصيانة`, "adm:togmaint"),
       ],
+      [b(`${G} 👁 معاينة بوابة الاشتراك`, "adm:gateprev")],
       [{ text: `${G} 🌐 فتح لوحة التحكم الكاملة`, web_app: { url: `${env.siteUrl}/admin` } }],
       [b(`${R} إغلاق`, "home")],
+    ]),
+  );
+}
+
+async function adminStats(chatId: number, s: SettingsMap): Promise<void> {
+  const cur = settingString(s, "currency", "دج");
+  const totals = await one<{ all: string; week: string; approved: string; users: string }>(
+    `SELECT (SELECT count(*) FROM orders)::text AS all,
+      (SELECT count(*) FROM orders WHERE created_at > now() - interval '7 days')::text AS week,
+      (SELECT COALESCE(sum(amount),0) FROM orders WHERE status IN ('approved','delivered'))::text AS approved,
+      (SELECT count(*) FROM users)::text AS users`,
+  );
+  const top = await q<{ product_name: string; c: string }>(
+    "SELECT product_name, count(*)::text AS c FROM orders GROUP BY product_name ORDER BY count(*) DESC LIMIT 5",
+  );
+  await sendMessage(
+    chatId,
+    [
+      "📊 <b>إحصائيات المتجر</b>",
+      "",
+      `👥 المستخدمون: <b>${Number(totals?.users ?? 0)}</b>`,
+      `🧾 كل الطلبات: <b>${Number(totals?.all ?? 0)}</b>`,
+      `🗓 آخر 7 أيام: <b>${Number(totals?.week ?? 0)}</b>`,
+      `💰 المبيعات المؤكدة: <b>${money(totals?.approved ?? 0, cur)}</b>`,
+      "",
+      top.length ? "🔥 <b>الأكثر مبيعاً:</b>" : "",
+      ...top.map((r) => `• ${escapeHtml(r.product_name)} — ${r.c}`),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    kb([[b(`${R} رجوع`, "adm")]]),
+  );
+}
+
+async function adminUsers(chatId: number, s: SettingsMap): Promise<void> {
+  const rows = await q<{ tg_id: string; first_name: string | null; username: string | null; created_at: string }>(
+    "SELECT tg_id, first_name, username, created_at::text FROM users ORDER BY created_at DESC LIMIT 12",
+  );
+  await sendMessage(
+    chatId,
+    [
+      "👥 <b>آخر المستخدمين</b>",
+      "",
+      rows.length ? "" : "لا يوجد مستخدمون بعد.",
+      ...rows.map(
+        (r) =>
+          `• ${escapeHtml(r.first_name || "-")}${r.username ? ` (@${escapeHtml(r.username)})` : ""} — <code>${r.tg_id}</code> — ${shortDate(r.created_at)}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    kb([
+      [{ text: `${G} 🌐 إدارة المستخدمين (حظر/رسالة)`, web_app: { url: `${env.siteUrl}/admin/users` } }],
+      [b(`${R} رجوع`, "adm")],
+    ]),
+  );
+}
+
+async function adminLastOrders(chatId: number, s: SettingsMap): Promise<void> {
+  const { rows } = await listOrders({ limit: 10 });
+  await sendMessage(
+    chatId,
+    [
+      "🧾 <b>آخر الطلبات</b>",
+      "",
+      rows.length ? "اضغط على الطلب للمراجعة:" : "لا توجد طلبات بعد.",
+    ].join("\n"),
+    kb([
+      ...rows.map((o) => [
+        b(`${o.status === "delivered" || o.status === "approved" ? G : R} ${o.code} — ${money(o.amount, settingString(s, "currency", "دج"))}`, `admo:${o.id}`),
+      ]),
+      [b(`${R} رجوع`, "adm")],
     ]),
   );
 }
@@ -678,7 +793,7 @@ async function adminPending(chatId: number, s: SettingsMap): Promise<void> {
     `🟡 <b>${rows.length} إيصال بانتظار المراجعة</b>\nاختر الطلب للمراجعة:`,
     kb([
       ...rows.map((o) => [
-        b(`${Y} ${o.code} — ${money(o.amount, settingString(s, "currency", "دج"))}`, `admo:${o.id}`),
+        b(`${R} ${o.code} — ${money(o.amount, settingString(s, "currency", "دج"))}`, `admo:${o.id}`),
       ]),
       [b(`${R} رجوع`, "adm")],
     ]),
@@ -1066,7 +1181,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
       category_id: cat?.id ?? null,
       description: desc.join(" | "),
     });
-    await sendMessage(chatId, `✅ تمت إضافة <b>${escapeHtml(p.name)}</b> في قسم ${escapeHtml(cat?.name ?? "-")}.`, kb([[b(`${Y} 🛡 اللوحة`, "adm")]]));
+    await sendMessage(chatId, `✅ تمت إضافة <b>${escapeHtml(p.name)}</b> في قسم ${escapeHtml(cat?.name ?? "-")}.`, kb([[b(`${G} 🛡 اللوحة`, "adm")]]));
     return true;
   }
 
@@ -1098,11 +1213,19 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
     case "chk": {
       const channels = await listChannels(true);
       const state = await subscriptionState(from.id, channels);
-      if (state.ok) {
+      if (state.ok && state.unverifiable.length === 0) {
         await answerCallback(cq.id, "✅ تم التحقق — أهلاً بك!", true);
+        await clearUserState(from.id);
+        await sendMainMenu(chatId, s, user);
+      } else if (state.ok) {
+        // تعذّر التحقق التلقائي (البوت ليس مشرفاً) → نمرّر الزبون مع تنبيه للمالك
+        await answerCallback(cq.id, "⚠️ تعذّر التحقق التلقائي — تفضّل", true);
+        await warnOwnerUnverifiedOnce();
+        await clearUserState(from.id);
         await sendMainMenu(chatId, s, user);
       } else {
         await answerCallback(cq.id, `❌ لم تشترك بعد في: ${state.missing.map((c) => c.title || c.chat).join(", ")}`, true);
+        await sendSubscriptionGate(chatId, s, state, channels);
       }
       return;
     }
@@ -1210,7 +1333,7 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
         rows.push([b(`${R} ❌ إلغاء الطلب`, `cancel:${o.id}`)]);
       }
       if (o.status === "awaiting_review") {
-        rows.push([b(`${Y} 📸 إعادة إرسال الإيصال`, `paid:${o.id}`)]);
+        rows.push([b(`${G} 📸 إعادة إرسال الإيصال`, `paid:${o.id}`)]);
       }
       rows.push([b(`${G} 💬 الدعم`, "support")]);
       rows.push([b(`${R} رجوع`, "orders")]);
@@ -1266,9 +1389,65 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
         await answerCallback(cq.id, "هذا القسم للمالك فقط", true);
         return;
       }
-      await answerCallback(cq.id);
-      await adminPanel(chatId, s);
-      return;
+      switch (a1) {
+        case "pending":
+          await answerCallback(cq.id);
+          await adminPending(chatId, s);
+          return;
+        case "stats":
+          await answerCallback(cq.id);
+          await adminStats(chatId, s);
+          return;
+        case "users":
+          await answerCallback(cq.id);
+          await adminUsers(chatId, s);
+          return;
+        case "orders":
+          await answerCallback(cq.id);
+          await adminLastOrders(chatId, s);
+          return;
+        case "broadcast":
+          await answerCallback(cq.id);
+          await sendMessage(
+            chatId,
+            [
+              "📢 <b>إذاعة جماعية</b>",
+              "",
+              "الإذاعة تُرسل من لوحة التحكم مع معاينة وعدّاد وصول.",
+              "افتح صفحة الإذاعة من الزر أدناه 👇",
+            ].join("\n"),
+            kb([
+              [{ text: `${G} 🌐 فتح صفحة الإذاعة`, web_app: { url: `${env.siteUrl}/admin/broadcast` } }],
+              [b(`${R} رجوع`, "adm")],
+            ]),
+          );
+          return;
+        case "gateprev": {
+          await answerCallback(cq.id, "👁 هذه بوابة الزبائن");
+          const chans = await listChannels(true);
+          const st = await subscriptionState(from.id, chans);
+          await sendSubscriptionGate(chatId, s, st, chans);
+          return;
+        }
+        case "togsub": {
+          const next = !settingBool(s, "require_subscription", true);
+          await q("UPDATE settings SET value = $2::jsonb WHERE key = 'require_subscription'", [JSON.stringify(next)]);
+          await answerCallback(cq.id, next ? "🔒 الاشتراك إجباري" : "🔓 الاشتراك اختياري", true);
+          await adminPanel(chatId, { ...s, require_subscription: next });
+          return;
+        }
+        case "togmaint": {
+          const next = !settingBool(s, "maintenance", false);
+          await q("UPDATE settings SET value = $2::jsonb WHERE key = 'maintenance'", [JSON.stringify(next)]);
+          await answerCallback(cq.id, next ? "🛠 وضع الصيانة مفعّل" : "✅ المتجر يعمل", true);
+          await adminPanel(chatId, { ...s, maintenance: next });
+          return;
+        }
+        default:
+          await answerCallback(cq.id);
+          await adminPanel(chatId, s);
+          return;
+      }
     }
     case "admo": {
       if (!isAdminUser(user)) return;

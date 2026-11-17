@@ -84,6 +84,9 @@ const server = http.createServer(async (req, res) => {
     case "getChatMember": {
       const chat = String(payload.chat_id || "");
       const status = state.memberships[chat] ?? "member";
+      if (status === "__error") {
+        return json(res, { ok: false, error_code: 400, description: "Bad Request: member list is inaccessible" });
+      }
       return json(res, { ok: true, result: { status, user: { id: payload.user_id, is_bot: false } } });
     }
     case "getChat":
