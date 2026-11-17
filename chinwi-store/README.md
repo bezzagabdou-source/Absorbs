@@ -78,6 +78,26 @@ chinwi-store/
 
 ---
 
+## 🌐 النشر الحالي (نسخة تعمل الآن)
+
+| البند | القيمة |
+| --- | --- |
+| المتجر | <https://chinwi-store.vercel.app> |
+| لوحة التحكم | <https://chinwi-store.vercel.app/admin> |
+| الويبهوك | <https://chinwi-store.vercel.app/api/telegram/webhook> |
+| فحص الصحة | <https://chinwi-store.vercel.app/api/health> |
+| مشروع Vercel | `chinwi-store` — Root Directory: `chinwi-store` — Framework: Next.js |
+| قاعدة البيانات | Neon Postgres (74 منتجاً + 4 محافظ + قناتان تُزرع تلقائياً) |
+| كلمة سر اللوحة | في متغيّر البيئة `ADMIN_PASSWORD` على Vercel فقط — **لا تُكتب في الكود** |
+
+**إعادة النشر بعد أي تعديل:**
+
+```bash
+git add -A && git commit -m "update" && git push origin <الفرع>
+```
+
+ثم إمّا أن يُنشئ Vercel نشراً جديداً تلقائياً (إن ربطت المستودع من: Project → Settings → Git)، أو أنشئ نشراً يدوياً عبر Vercel API. ملف `.github/workflows/activate-bot.yml` يفحص بعد كل Push: صحة الموقع، ربط الويبهوك، الصفحة الرئيسية، صفحة الدخول، وحماية اللوحة.
+
 ## 🚀 النشر على Vercel (5 خطوات)
 
 1. **ارفع المشروع** إلى GitHub (المجلد `chinwi-store`).

@@ -37,6 +37,14 @@ export async function bootstrap(): Promise<{
   const me = await getMe();
   if (!me) return { db: true, bot: false, webhook: "", error: "تعذّر قراءة بيانات البوت (توكن غير صالح؟)" };
 
+  // نحفظ يوزرنيم البوت حتى تستخدمه الصفحة العامة ولوحة التحكم في روابط t.me
+  if (me.username) {
+    const savedName = await getSetting<string>("bot_username").catch(() => "");
+    if (savedName !== me.username) {
+      await setSetting("bot_username", me.username).catch(() => {});
+    }
+  }
+
   const desired = `${env.siteUrl}/api/telegram/webhook`;
   const lastAt = Number((await getSetting<number>("webhook_set_at")) ?? 0);
   const lastUrl = String((await getSetting<string>("webhook_url")) ?? "");
