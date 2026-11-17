@@ -22,6 +22,20 @@ export type InlineButton = {
 
 export type InlineKeyboard = { inline_keyboard: InlineButton[][] };
 
+/** إزالة ألوان الأزرار (style) — تُستخدم كاحتياط لو رفض العميل الحقل */
+export function stripButtonStyles(kbd: InlineKeyboard): InlineKeyboard {
+  return {
+    inline_keyboard: kbd.inline_keyboard.map((row) =>
+      row.map((btn) => {
+        if (!btn.style) return btn;
+        const { style: _style, ...rest } = btn;
+        return rest as InlineButton;
+      }),
+    ),
+  };
+}
+
+
 export type TgUser = {
   id: number;
   is_bot?: boolean;
@@ -216,7 +230,11 @@ export async function sendMessage(
   const kbd = decorateKeyboard(keyboard);
   if (kbd) base.reply_markup = kbd;
 
+  const plainKbd = kbd ? stripButtonStyles(kbd) : null;
+
   const attempts: Array<Record<string, unknown>> = [{ ...base, text: richify(html) }, { ...base, text: html }];
+  // احتياط: بعض إصدارات تيليجرام القديمة قد ترفض حقل style — نُعيد المحاولة بأزرار بلا ألوان
+  if (plainKbd) attempts.push({ ...base, text: html, reply_markup: plainKbd });
   if (kbd && Object.keys(cachedEmojiMap.map).length) {
     attempts.push({ ...base, text: html, reply_markup: keyboard });
   }
