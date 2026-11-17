@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { aiChat, assistantPlan, freeProviders, probeFreeProviders, testProviders } from "@/lib/ai";
 import { env } from "@/lib/env";
 import { getSetting, setSetting } from "@/lib/db";
+import { listCategories, listWallets } from "@/lib/store";
 import { setMyCommands } from "@/lib/telegram";
 import { webhookStatus } from "@/lib/bootstrap";
 
@@ -24,6 +25,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     await setSetting("gemini_key", "").catch(() => {});
     await setSetting("openrouter_key", "").catch(() => {});
     return NextResponse.json({ ok: true, cleared: ["groq_key", "gemini_key", "openrouter_key"] });
+  }
+  if (req.nextUrl.searchParams.get("games") === "1") {
+    const cats = await listCategories();
+    return NextResponse.json({
+      ok: true,
+      total: cats.length,
+      games: cats
+        .filter((c) => c.section === "games")
+        .map((c) => ({ id: c.id, slug: c.slug, name: c.name, image: c.image_url })),
+      wallets: (await listWallets()).map((w) => ({ name: w.name, kind: w.kind })),
+      usdMin: await getSetting<number>("usd_min"),
+    });
   }
   if (req.nextUrl.searchParams.get("keys") === "1") {
     const mask = (v: string) => (v ? `••••${v.slice(-4)} (${v.slice(0, 4)})` : "");

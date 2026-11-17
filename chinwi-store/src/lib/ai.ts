@@ -487,6 +487,18 @@ export function localBrain(text: string, context: string): { reply: string; acti
 
   // 🔒 قفل / فتح
   if (/(?:اقفل|قفل)\s*(?:ال)?بوت/.test(t) && !/فك|افتح|فتح/.test(t)) add({ type: "lock_bot", locked: true }, "🔒 قفل البوت");
+  // 🛠 إغلاق/تشغيل المتجر (صيانة)
+  if (/(?:اغلق|أغلق|غلق|اوقف|أوقف|وقف|عطل)\s*(?:ال)?(?:بوت|متجر|ستور)/i.test(t) && !/افتح|شغل|شغّل|فتح/.test(t))
+    add({ type: "maintenance", on: true }, "🛠 إيقاف البوت (صيانة)");
+  if (/(?:شغل|شغّل|افتح|فتح|رجع|ارجع|أرجع)\s*(?:ال)?(?:بوت|متجر|ستور)/i.test(t))
+    add({ type: "maintenance", on: false }, "✅ تشغيل البوت");
+  // 🚫 حظر/إحضار شخص بالاسم أو المعرف
+  const banMatch = /(?:احضر|أحضر|احظر|أحظر|طرد|اطرد|بلوك|حظر)\s+(?:ال)?(?:شخص\s+|مستخدم\s+|ال)?(@?[A-Za-z0-9_\u0600-\u06FF]{2,40})/i.exec(t);
+  if (banMatch && !/فك|الغ|إلغاء|الغي/.test(t)) add({ type: "ban_user", username: banMatch[1].replace(/^@/, ""), reason: "أمر المالك عبر شينوي AI" }, `🚫 حظر ${banMatch[1]}`);
+  if (/(?:فك|الغ|إلغاء|الغي)\s*(?:ال)?حظر\s*(?:عن\s*)?(@?[A-Za-z0-9_\u0600-\u06FF]{2,40})/i.test(t)) {
+    const m = /(?:فك|الغ|إلغاء|الغي)\s*(?:ال)?حظر\s*(?:عن\s*)?(@?[A-Za-z0-9_\u0600-\u06FF]{2,40})/i.exec(t);
+    if (m) add({ type: "unban_user", username: m[1].replace(/^@/, "") }, `✅ إلغاء حظر ${m[1]}`);
+  }
   if (/(?:افتح|فتح|فك)\s*(?:قفل\s*)?(?:ال)?بوت/.test(t)) add({ type: "lock_bot", locked: false }, "🔓 فتح البوت");
 
   // 🎟 كود خصم
@@ -621,13 +633,16 @@ function buildBrain(context: string): string {
     "  delete_product {id}",
     "  create_category {name, emoji, section}",
     "  update_setting {key, value}",
-    "  ban_user {tg_id, reason}   |   unban_user {tg_id}",
+    "  ban_user {tg_id أو username, reason}   |   unban_user {tg_id أو username}   |   send_message {tg_id أو username, text}",
     "  set_order_status {id, status}",
     "  broadcast {text}",
     "  update_wallet {id, account?, name?, instructions?}",
     "  create_coupon {code, kind, amount, max_uses}   |   add_faq {question, answer}",
     "  add_task {title, note}   |   lock_bot {locked}   |   bulk_price {category, percent}",
-    "قواعد: لا تخترع id غير موجود في البيانات. إن لم تحتج أي عملية أعد actions فارغة. لا تكتب أي حرف خارج JSON.",
+    "  maintenance {on: true|false}   |   delete_category {category}   |   create_wallet {name, emoji, account, instructions}",
+    "قواعد صارمة: لا تقل «تم» أو «أضفت» أو «حظرت» أو «أغلقت» إلا إذا أضفت العملية داخل actions — الكود ينفّذها فوراً ويعرض النتيجة الحقيقية للمالك.",
+    "لا تخترع id غير موجود في البيانات. إن لم تحتج أي عملية أعد actions فارغة. لا تكتب أي حرف خارج JSON.",
+    "أمثلة: «أغلق البوت» → maintenance {on:true}. «شغّل البوت» → maintenance {on:false}. «احضر فلان» → ban_user {username}. «افتح الحظر» → unban_user. «أضف منتج…» → create_product. «أرسل لفلان…» → send_message.",
     "",
     "📊 بيانات المتجر الحالية (محدّثة الآن):",
     context,

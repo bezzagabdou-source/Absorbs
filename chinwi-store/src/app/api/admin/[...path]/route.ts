@@ -172,6 +172,39 @@ async function resolveCategoryId(ref: unknown): Promise<number | null> {
   return null;
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  create_product: "إضافة منتج",
+  update_product: "تعديل منتج",
+  delete_product: "حذف منتج",
+  create_category: "إضافة قسم",
+  delete_category: "حذف قسم",
+  update_setting: "تعديل إعداد",
+  ban_user: "حظر مستخدم",
+  unban_user: "إلغاء حظر",
+  set_order_status: "حالة طلب",
+  broadcast: "إذاعة",
+  create_coupon: "كود خصم",
+  add_faq: "سؤال شائع",
+  add_task: "مهمة",
+  lock_bot: "قفل/فتح البوت",
+  maintenance: "وضع الصيانة",
+  bulk_price: "تعديل أسعار جماعي",
+  update_wallet: "تعديل محفظة",
+  send_message: "رسالة لمستخدم",
+};
+
+async function findUserId(action: Record<string, unknown>): Promise<number> {
+  const direct = num(action.tg_id ?? action.user_id ?? action.id);
+  if (direct) return direct;
+  const raw = str(action.username ?? action.user ?? action.name).replace(/^@/, "").trim();
+  if (!raw) return 0;
+  const row = await one<{ tg_id: string }>(
+    "SELECT tg_id FROM users WHERE lower(username) = lower($1) OR lower(first_name) = lower($1) LIMIT 1",
+    [raw],
+  );
+  return Number(row?.tg_id ?? 0);
+}
+
 async function executeAction(action: Record<string, unknown>): Promise<{ type: string; ok: boolean; result: string }> {
   const type = str(action.type);
   try {
@@ -224,14 +257,45 @@ async function executeAction(action: Record<string, unknown>): Promise<{ type: s
         await setSetting(key, action.value);
         return { type, ok: true, result: `تم تحديث الإعداد ${key}` };
       }
+      case "create_wallet": {
+        const name = str(action.name, "محفظة جديدة");
+        const created = await createWallet({
+          name,
+          emoji: str(action.emoji, "💳"),
+          kind: str(action.kind, "other"),
+          account: str(action.account),
+          holder: str(action.holder, name),
+          instructions: str(action.instructions, "أرسل صورة الإيصال بعد التحويل."),
+        });
+        return { type, ok: true, result: `أُنشئت المحفظة #${created.id} — ${created.name}` };
+      }
+      case "maintenance": {
+        const on = bool(action.on ?? action.enabled) ?? true;
+        await setSetting("maintenance", on);
+        return { type, ok: true, result: on ? "تم إيقاف البوت (وضع الصيانة) — الزبائن يرون رسالة صيانة" : "تم تشغيل البوت من جديد" };
+      }
+      case "delete_category": {
+        const catId = await resolveCategoryId(str(action.category ?? action.name));
+        if (!catId) return { type, ok: false, result: "قسم غير موجود" };
+        await deleteCategory(catId);
+        return { type, ok: true, result: `تم حذف القسم #${catId} بمنتجاته` };
+      }
+      case "send_message": {
+        const tgId = await findUserId(action);
+        if (!tgId) return { type, ok: false, result: "لم أجد المستخدم" };
+        await sendToUser(tgId, str(action.text, "رسالة من إدارة المتجر"));
+        return { type, ok: true, result: `أُرسلت رسالة إلى ${tgId}` };
+      }
       case "ban_user": {
-        const tgId = num(action.tg_id);
+        const tgId = await findUserId(action);
+        if (!tgId) return { type, ok: false, result: "لم أجد المستخدم" };
         await setUserFlags(tgId, { is_blocked: true, ban_reason: str(action.reason, "حظر من لوحة التحكم") });
         await sendToUser(tgId, "🔴 تم حظر حسابك من استخدام المتجر.\nللاستفسار تواصل مع الدعم.");
         return { type, ok: true, result: `تم حظر ${tgId}` };
       }
       case "unban_user": {
-        const tgId = num(action.tg_id);
+        const tgId = await findUserId(action);
+        if (!tgId) return { type, ok: false, result: "لم أجد المستخدم" };
         await setUserFlags(tgId, { is_blocked: false, ban_reason: "" });
         return { type, ok: true, result: `تم إلغاء حظر ${tgId}` };
       }
@@ -1265,12 +1329,22 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
         context,
         image,
       );
+      // تنفيذ فوري حقيقي: لا "قبول وهمي" — كل عملية تُنفَّذ الآن وتُعاد نتيجتها
+      const results: { type: string; ok: boolean; result: string }[] = [];
+      for (const action of (plan.actions ?? []).slice(0, 12)) {
+        results.push(await executeAction(action as Record<string, unknown>));
+      }
+      if (results.length) await log("ai_actions", { results }, "success", "ai");
+      const summary = results
+        .map((r) => `${r.ok ? "✅" : "⚠️"} ${ACTION_LABELS[r.type] ?? r.type}: ${r.result}`)
+        .join("\n");
+      const reply = summary ? `${plan.reply}\n\n<b>النتيجة الفعلية:</b>\n${summary}` : plan.reply;
       await q("INSERT INTO ai_messages (session, role, content, actions, provider) VALUES ('main','assistant',$1,$2::jsonb,$3)", [
-        plan.reply,
+        reply,
         JSON.stringify(plan.actions ?? []),
         plan.provider,
       ]);
-      return NextResponse.json({ ok: true, ...plan });
+      return NextResponse.json({ ok: true, ...plan, reply, results });
     } catch (err) {
       // ممنوع أن يرفض: لو فشلت كل المزوّدات ننفّذ محلياً بدل إرجاع خطأ
       const fallback = localBrain(text || "حلّل هذه الصورة", await aiContext().catch(() => ""));

@@ -770,7 +770,7 @@ async function showUsdIntro(chatId: number, s: SettingsMap): Promise<void> {
       "",
       ...rates.map((r) => `• <b>1$ = ${r} دج</b>`),
       "",
-      `📉 الحد الأدنى: <b>${settingNumber(s, "usd_min", 5)}$</b>`,
+      `✅ لا يوجد حد أدنى — أي كمية من 1$ مقبولة`,
       "اختر سعر الصرف 👇",
     ].join("\n"),
     kb(rows),
@@ -787,7 +787,7 @@ async function usdAskAmount(chatId: number, rate: number, userId: number, s: Set
       `أرسل الكمية التي تريد بيعها بالدولار (رقم فقط).`,
       `مثال: <code>10</code> يعني 10$ = <b>${money(10 * rate, s.currency as string)}</b>`,
       "",
-      `📉 الحد الأدنى: ${settingNumber(s, "usd_min", 5)}$`,
+      `✅ لا يوجد حد أدنى — أي كمية من 1$ مقبولة`,
     ].join("\n"),
     kb([[b(`❌ إلغاء`, "home")]]),
   );
@@ -1353,7 +1353,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
   if (state.startsWith("usd:")) {
     const rate = Number(state.split(":")[1]) || 250;
     const amount = Number(text.replace(/[^\d.,]/g, "").replace(",", "."));
-    const min = settingNumber(s, "usd_min", 5);
+    const min = 0; // أُلغي الحد الأدنى بناءً على طلب المالك
     if (!Number.isFinite(amount) || amount <= 0) {
       await sendMessage(chatId, `⚠️ أرسل رقماً صحيحاً (مثال: 10).`);
       return true;
