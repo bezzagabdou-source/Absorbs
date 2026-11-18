@@ -282,7 +282,7 @@ async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null
   rows.push([b(`💵 بيع وشراء الدولار للمتجر`, "usd")]);
   rows.push([b(`🎉 المسابقات وجمع النقاط`, "contest", "primary")]);
   rows.push([b(`🧾 طلباتي`, "orders"), b(`👤 حسابي`, "account")]);
-  rows.push([link(`📞 الدعم الفني وتواصل مع المالك`, `https://t.me/${support}`, "danger")]);
+  rows.push([link(`🔗 بوت تواصل`, `https://t.me/chinwicontactbot`), link(`📞 الدعم الفني وتواصل مع المالك`, `https://t.me/${support}`, "danger")]);
   if (isAdminUser(user)) rows.push([b(`🛡 لوحة الإدارة`, "adm")]);
 
   const text = [
@@ -991,7 +991,7 @@ async function supportScreen(chatId: number, s: SettingsMap): Promise<void> {
     ].join("\n"),
     kb([
       [b(`✍️ اكتب رسالتك للمالك`, "msgowner")],
-      [link(`💬 محادثة مباشرة`, `https://t.me/${handle}`)],
+      [link(`🔗 بوت تواصل`, `https://t.me/chinwicontactbot`), link(`💬 محادثة مباشرة`, `https://t.me/${handle}`)],
       [b(`🔙 رجوع`, "home")],
     ]),
   );
