@@ -10,7 +10,12 @@
     "test:e2e": "node scripts/e2e.mjs",
     "dev:telegram": "node scripts/mock-telegram.mjs",
     "dev:db": "node scripts/dev/mock-db.mjs",
-    "dev:all": "node scripts/run-local.mjs"
+    "dev:all": "node scripts/run-local.mjs",
+    "gen:codebase": "node scripts/gen-codebase.mjs",
+    "prebuild": "node scripts/gen-codebase.mjs",
+    "predev": "node scripts/gen-codebase.mjs",
+    "predev:all": "node scripts/gen-codebase.mjs",
+    "pretypecheck": "node scripts/gen-codebase.mjs"
   },
   "dependencies": {
     "next": "16.2.6",

@@ -788,6 +788,21 @@ await check("ai: العقل المحلي ينفّذ الأمر بدون مفات
   assert.ok(typeof chatJson.reply === "string" && chatJson.reply.length > 10, "رد غير فارغ");
 });
 
+await check("ai: المهندس AI يقرأ كود البوت ويكشف حالة GitHub", async () => {
+  const list = await adminGet("ai-code?action=list").then((r) => r.json());
+  assert.equal(list.ok, true);
+  assert.ok(Array.isArray(list.manifest) && list.manifest.length >= 50, "خريطة الكود محمّلة");
+  assert.ok(list.manifest.some((f) => f.path === "src/lib/bot.ts"), "ملف البوت موجود في الخريطة");
+  const status = await adminGet("ai-code?action=status").then((r) => r.json());
+  assert.equal(status.ok, true);
+  assert.equal(typeof status.github_token, "boolean");
+  const file = await adminGet(`ai-code?action=file&path=${encodeURIComponent("package.json")}`).then((r) => r.json());
+  assert.equal(file.ok, true);
+  assert.ok(file.content.includes("chinwi-store"), "قراءة ملف حقيقي");
+  const plan = await adminPost("ai-code", { action: "plan", request: "" }).then((r) => r.json());
+  assert.equal(plan.ok, false, "طلب فارغ يُرفض بأدب");
+});
+
 await check("ai: مفاتيح المالك تُحفظ وتُختبر", async () => {
   const before = await adminGet("ai/status").then((r) => r.json());
   assert.equal(typeof before.providers.groq, "boolean");

@@ -12,6 +12,15 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
+
+// التقط ذاكرة «المهندس AI» قبل الإقلاع
+try {
+  const { spawnSync } = await import("node:child_process");
+  spawnSync(process.execPath, ["scripts/gen-codebase.mjs"], { cwd: root, stdio: "inherit" });
+} catch (err) {
+  console.warn("[gen-codebase] تعذّر توليده:", err);
+}
+
 const preflight = path.join(root, "scripts/dev/node_modules/@electric-sql/pglite");
 
 if (!existsSync(preflight)) {

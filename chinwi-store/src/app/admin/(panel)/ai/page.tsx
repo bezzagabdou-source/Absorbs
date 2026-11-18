@@ -70,7 +70,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 export default function AiPage(): React.ReactElement {
-  const [tab, setTab] = useState<"chat" | "vision">("chat");
+  const [tab, setTab] = useState<"chat" | "vision" | "engineer">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -178,6 +178,12 @@ export default function AiPage(): React.ReactElement {
           className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === "vision" ? "bg-emerald-500 text-black" : "border border-emerald-900/10 bg-white/70 text-emerald-900/85"}`}
         >
           🖼 تحليل صورة أسعار
+        </button>
+        <button
+          onClick={() => setTab("engineer")}
+          className={`rounded-xl px-4 py-2 text-sm font-bold ${tab === "engineer" ? "bg-emerald-500 text-black" : "border border-emerald-900/10 bg-white/70 text-emerald-900/85"}`}
+        >
+          👨‍💻 المهندس AI
         </button>
         <Btn
           variant="ghost"
@@ -347,8 +353,10 @@ export default function AiPage(): React.ReactElement {
             </Card>
           </div>
         </div>
-      ) : (
+      ) : tab === "vision" ? (
         <VisionPanel categories={cats?.categories ?? []} />
+      ) : (
+        <EngineerPanel />
       )}
     </div>
   );
@@ -508,3 +516,323 @@ function VisionPanel({ categories }: { categories: { id: number; name: string; e
 
 /* حالة الحقل التي لا تُستخدم لكن نُبقيها للتوثيق */
 void Field;
+
+/* ───────────────────────── 👨‍💻 المهندس AI ───────────────────────── */
+
+type CodeEntry = { path: string; lines: number; bytes: number };
+type EngineerPlanFile = { path: string; action: "modify" | "create"; content: string };
+type EngineerPlan = {
+  ok: boolean;
+  summary?: string;
+  plan?: string[];
+  risk?: "low" | "medium" | "high";
+  risk_notes?: string;
+  files?: EngineerPlanFile[];
+  chosen?: string[];
+  provider?: string;
+  dropped?: string[];
+  error?: string;
+  clarify?: string | null;
+};
+type EngineerApply = { ok: boolean; branch?: string; pr_number?: number; pr_url?: string; commit_sha?: string; error?: string; need_token?: boolean };
+type EngineerStatus = { ok: boolean; github_token: boolean; repo: string; base_branch: string };
+type FileDiff = { start: number; removed: string[]; added: string[] };
+
+const RISK_TONE: Record<string, { label: string; cls: string }> = {
+  low: { label: "خطر منخفض", cls: "bg-emerald-500/15 text-emerald-800 border-emerald-500/30" },
+  medium: { label: "خطر متوسط", cls: "bg-amber-500/15 text-amber-800 border-amber-500/30" },
+  high: { label: "خطر عالي — راجع بعينك", cls: "bg-rose-500/15 text-rose-800 border-rose-500/30" },
+};
+
+function computeDiff(oldText: string | undefined, newText: string): FileDiff {
+  const oldLines = (oldText ?? "").split("\n");
+  const newLines = newText.split("\n");
+  let start = 0;
+  while (start < Math.min(oldLines.length, newLines.length) && oldLines[start] === newLines[start]) start++;
+  let oldEnd = oldLines.length;
+  let newEnd = newLines.length;
+  while (oldEnd > start && newEnd > start && oldLines[oldEnd - 1] === newLines[newEnd - 1]) {
+    oldEnd--;
+    newEnd--;
+  }
+  return { start, removed: oldLines.slice(start, oldEnd), added: newLines.slice(start, newEnd) };
+}
+
+const CODE_CHIPS = [
+  "ضيف زر جديد في صفحة الطلبات يفتح تفاصيل الطلب",
+  "صلّح عرض الأسعار في صفحة المنتج يكون أكبر وأوضح",
+  "أضف حقل ملاحظة داخل شاشة إتمام الطلب",
+  "غيّر نص الترحيب في بداية البوت لحاجة جذابة",
+];
+
+function EngineerPanel(): React.ReactElement {
+  const [manifest, setManifest] = useState<CodeEntry[] | null>(null);
+  const [query, setQuery] = useState("");
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string>("");
+  const [status, setStatus] = useState<EngineerStatus | null>(null);
+  const [request, setRequest] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [plan, setPlan] = useState<EngineerPlan | null>(null);
+  const [oldFiles, setOldFiles] = useState<Record<string, string>>({});
+  const [apply, setApply] = useState<EngineerApply | null>(null);
+  const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    apiGet<{ ok: boolean; manifest: CodeEntry[] }>("ai-code?action=list")
+      .then((res) => setManifest(res.manifest ?? []))
+      .catch(() => setManifest([]));
+    apiGet<EngineerStatus>("ai-code?action=status")
+      .then(setStatus)
+      .catch(() => setStatus(null));
+  }, []);
+
+  useEffect(() => {
+    if (!previewPath) return;
+    setPreview("…");
+    apiGet<{ ok: boolean; content: string }>(`ai-code?action=file&path=${encodeURIComponent(previewPath)}`)
+      .then((res) => setPreview(res.content ?? ""))
+      .catch(() => setPreview("تعذّرت قراءة الملف"));
+  }, [previewPath]);
+
+  const runPlan = async () => {
+    const req = request.trim();
+    if (req.length < 4) {
+      toast("اكتب طلبك بتفاصيل أكثر");
+      return;
+    }
+    setBusy(true);
+    setPlan(null);
+    setApply(null);
+    setOldFiles({});
+    try {
+      const res = await apiPost<EngineerPlan>("ai-code", { action: "plan", request: req });
+      setPlan(res);
+      if (res.ok && res.files) {
+        const entries = await Promise.all(
+          res.files.map(async (f) => {
+            try {
+              const old = await apiGet<{ ok: boolean; content: string }>(`ai-code?action=file&path=${encodeURIComponent(f.path)}`);
+              return [f.path, old.content ?? ""] as const;
+            } catch {
+              return [f.path, ""] as const;
+            }
+          }),
+        );
+        setOldFiles(Object.fromEntries(entries));
+      }
+    } catch (err) {
+      setPlan({ ok: false, error: String(err).replace(/^Error:\s*/, "") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runApply = async () => {
+    if (!plan?.ok || !plan.files?.length) return;
+    setBusy(true);
+    try {
+      const res = await apiPost<EngineerApply>("ai-code", {
+        action: "apply",
+        title: (plan.summary || request.trim()).slice(0, 80),
+        body: request.trim(),
+        files: plan.files,
+      });
+      setApply(res);
+      if (res.ok) toast("تم إنشاء فرع + Pull Request 🎉");
+    } catch (err) {
+      setApply({ ok: false, error: String(err).replace(/^Error:\s*/, "") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runMerge = async () => {
+    if (!apply?.pr_number) return;
+    if (!window.confirm(`ادمج PR #${apply.pr_number} في الفرع الإنتاج (main)؟ Vercel سيعيد البناء تلقائياً — راجع الفروق قبل التأكيد!`)) return;
+    setMerging(true);
+    try {
+      const res = await apiPost<{ ok: boolean; error?: string }>("ai-code", { action: "merge", number: apply.pr_number });
+      if (res.ok) toast("✅ تم الدمج — الإنتاج سيتحدث بعد انتهاء بناء Vercel");
+      else toast(`❌ ${res.error ?? "فشل الدمج"}`);
+    } catch (err) {
+      toast(`❌ ${String(err)}`);
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const filtered = (manifest ?? []).filter((f) => !query.trim() || f.path.toLowerCase().includes(query.trim().toLowerCase()));
+  const totalKb = manifest ? Math.round(manifest.reduce((sum, f) => sum + f.bytes, 0) / 1024) : 0;
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-[0.72rem] font-bold text-amber-900">
+          <span>⚠️</span>
+          <span>
+            المهندس AI يقرأ <b>كود البوت كاملاً</b> ويبرمجه — التعديلات تصل كفرع + Pull Request على GitHub، ولا تُنشر للإنتاج إلا بعد دمجك أنت.
+          </span>
+        </div>
+
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-black text-emerald-950">👨‍💻 إلى المهندس: شنو حاب تدير في البوت؟</p>
+              <p className="mt-0.5 text-[0.68rem] text-emerald-900/60">اكتب بأي صياغة — يفهم، يحلّل الملفات الحقيقية، ثم يكتب الكود كامل.</p>
+            </div>
+            <div className="flex gap-1.5">
+              <Badge tone={status?.github_token ? "emerald" : "amber"}>{status?.github_token ? "🔑 GitHub مربوط" : "🔑 GITHUB_TOKEN ناقص"}</Badge>
+              <Badge tone="slate">{manifest?.length ?? "…"} ملف · {totalKb}KB</Badge>
+            </div>
+          </div>
+          <Textarea
+            className="mt-3 min-h-24"
+            placeholder="مثال: «ضيف صفحة جديدة في اللوحة تعرض أرباحي لكل منتج مع زر تصدير Excel»…"
+            value={request}
+            onChange={(e) => setRequest(e.target.value)}
+          />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {CODE_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                onClick={() => setRequest(chip)}
+                className="rounded-full border border-emerald-900/10 bg-emerald-500/5 px-2.5 py-1 text-[0.65rem] font-bold text-emerald-900/80 hover:bg-emerald-500/10"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Btn onClick={runPlan} disabled={busy} className="gap-2">
+              {busy ? <Spinner /> : "🧠"} حلّل وبرمج
+            </Btn>
+            {busy && <span className="text-[0.7rem] text-emerald-900/60">يقرأ الكود ويكتب الحل… (قد يأخذ حتى دقيقة)</span>}
+          </div>
+        </Card>
+
+        {plan && !plan.ok && (
+          <Card className="border-rose-500/30 bg-rose-500/5 p-4">
+            <p className="text-sm font-black text-rose-800">تعذّرت البرمجة</p>
+            {plan.clarify ? (
+              <p className="mt-1 text-xs text-rose-900/90">سؤال التوضيح: {plan.clarify}</p>
+            ) : (
+              <p className="mt-1 text-xs text-rose-900/90">{plan.error}</p>
+            )}
+          </Card>
+        )}
+
+        {plan?.ok && (
+          <Card className="p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-black text-emerald-950">📋 خطة التغيير</p>
+              {plan.risk && <span className={`rounded-full border px-2.5 py-0.5 text-[0.68rem] font-black ${RISK_TONE[plan.risk]?.cls}`}>{RISK_TONE[plan.risk]?.label}</span>}
+              {plan.provider && <span className="text-[0.62rem] text-emerald-900/50">via {plan.provider}</span>}
+            </div>
+            <p className="mt-2 text-xs font-bold leading-6 text-emerald-950/90">{plan.summary}</p>
+            {plan.plan && plan.plan.length > 0 && (
+              <ol className="mt-2 list-decimal space-y-1 pr-5 text-[0.72rem] leading-6 text-emerald-950/90">
+                {plan.plan.map((step, i) => <li key={i}>{step}</li>)}
+              </ol>
+            )}
+            {plan.risk_notes && <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-[0.68rem] leading-6 text-amber-900">⚠️ {plan.risk_notes}</p>}
+            {plan.dropped && plan.dropped.length > 0 && <p className="mt-1 text-[0.65rem] text-rose-700">ملفات رُفضت أمنياً: {plan.dropped.join("، ")}</p>}
+
+            <p className="mt-3 text-[0.72rem] font-black text-emerald-950">📦 الملفات ({plan.files?.length ?? 0}):</p>
+            <div className="mt-1.5 space-y-2">
+              {plan.files?.map((f) => {
+                const diff = computeDiff(oldFiles[f.path], f.content);
+                return (
+                  <details key={f.path} className="rounded-xl border border-emerald-900/10 bg-white/60">
+                    <summary className="cursor-pointer select-none px-3 py-2 text-[0.7rem] font-bold text-emerald-950">
+                      <span dir="ltr" className="font-mono">{f.action === "create" ? "➕" : "✏️"} {f.path}</span>
+                      <span className="mr-2 text-[0.62rem] font-black"><span className="text-emerald-700">+{diff.added.length}</span> / <span className="text-rose-600">-{diff.removed.length}</span></span>
+                    </summary>
+                    <div dir="ltr" className="max-h-80 overflow-auto border-t border-emerald-900/10 p-2 font-mono text-[0.65rem] leading-5">
+                      {diff.removed.slice(0, 150).map((line, i) => (
+                        <div key={`r${i}`} className="whitespace-pre-wrap bg-rose-500/10 text-rose-800">- {line}</div>
+                      ))}
+                      {diff.added.slice(0, 200).map((line, i) => (
+                        <div key={`a${i}`} className="whitespace-pre-wrap bg-emerald-500/10 text-emerald-900">+ {line}</div>
+                      ))}
+                      {diff.added.length > 200 && <div className="text-emerald-900/60">… و{diff.added.length - 200} سطر آخر</div>}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+
+            {!apply?.ok && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Btn onClick={runApply} disabled={busy} className="gap-2">
+                  {busy ? <Spinner /> : "🚀"} طبّق: فرع + Pull Request
+                </Btn>
+                <span className="text-[0.62rem] text-emerald-900/55">يفتح PR على GitHub — ولا شيء يتغير في الإنتاج قبل دمجك</span>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {apply && !apply.ok && (
+          <Card className="border-amber-500/30 bg-amber-500/5 p-4">
+            <p className="text-sm font-black text-amber-900">التطبيق لم يكتمل</p>
+            <p className="mt-1 text-[0.72rem] leading-6 text-amber-900/90">{apply.error}</p>
+            {apply.need_token && (
+              <ol className="mt-2 list-decimal space-y-1 pr-5 text-[0.7rem] leading-6 text-amber-900">
+                <li>افتح github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate token</li>
+                <li>Repository: <b>bezzagabdou-source/Absorbs</b> فقط · Permissions: <b>Contents: Read &amp; Write</b> و <b>Pull requests: Read &amp; Write</b></li>
+                <li>Vercel → مشروع <b>chinwi-store</b> → Settings → Environment Variables → أضف متغير باسم <b dir="ltr">GITHUB_TOKEN</b> (Production+Preview) ثم أعد النشر</li>
+                <li>⚠️ التوكن ما يدخلش للشات ولا للكود — يبقى سرّي في Vercel فقط</li>
+              </ol>
+            )}
+          </Card>
+        )}
+
+        {apply?.ok && (
+          <Card className="border-emerald-500/30 bg-emerald-500/5 p-4">
+            <p className="text-sm font-black text-emerald-900">✅ التعديل صار فرع + PR رقم #{apply.pr_number}</p>
+            <p dir="ltr" className="mt-1 font-mono text-[0.65rem] text-emerald-900/70">{apply.branch} · {apply.commit_sha?.slice(0, 8)}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {apply.pr_url && (
+                <a href={apply.pr_url} target="_blank" rel="noreferrer" className="rounded-xl border border-emerald-600/30 bg-emerald-600/10 px-3 py-2 text-[0.72rem] font-black text-emerald-800 hover:bg-emerald-600/20">
+                  🔍 افتح الـ PR وراجع
+                </a>
+              )}
+              <Btn variant="ghost" onClick={runMerge} disabled={merging} className="gap-2">
+                {merging ? <Spinner /> : "🔀"} ادمج الـPR للإنتاج الآن
+              </Btn>
+            </div>
+            <p className="mt-2 text-[0.62rem] leading-5 text-emerald-900/60">الدمج يعيد بناء Vercel تلقائياً (الفرع main مربوط بالإنتاج). لو ما حدثش خلال دقائق، أعد النشر من لوحة Vercel.</p>
+          </Card>
+        )}
+      </div>
+
+      <Card className="flex max-h-[46rem] flex-col p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[0.75rem] font-black text-emerald-950">🗂 ملفات البوت</p>
+          <span className="text-[0.62rem] text-emerald-900/50">{filtered.length}/{manifest?.length ?? 0}</span>
+        </div>
+        <Input dir="ltr" className="mt-2 text-left text-[0.72rem]" placeholder="ابحث عن ملف… (search)" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+          {filtered.map((f) => (
+            <button
+              key={f.path}
+              onClick={() => setPreviewPath(f.path)}
+              className={`block w-full rounded-lg px-2 py-1.5 text-right font-mono text-[0.62rem] leading-5 hover:bg-emerald-500/5 ${previewPath === f.path ? "bg-emerald-500/10 font-black text-emerald-900" : "text-emerald-950/80"}`}
+            >
+              <span dir="ltr" className="block truncate">{f.path}</span>
+              <span className="text-[0.55rem] text-emerald-900/45">{f.lines} سطر · {(f.bytes / 1024).toFixed(1)}KB</span>
+            </button>
+          ))}
+          {manifest && filtered.length === 0 && <Empty title="لا توجد ملفات مطابقة" />}
+        </div>
+        {previewPath && (
+          <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-emerald-900/10 pt-2">
+            <p dir="ltr" className="truncate text-[0.62rem] font-black text-emerald-900/70">{previewPath}</p>
+            <pre dir="ltr" className="mt-1 max-h-64 flex-1 overflow-auto rounded-xl bg-slate-950 p-2 text-left font-mono text-[0.6rem] leading-4 text-emerald-100/90">{preview}</pre>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
