@@ -996,6 +996,16 @@ async function migrateOnce(query: Query): Promise<void> {
     await query("UPDATE wallets SET emoji = '🟡' WHERE account = '1210865168'");
     await query("UPDATE wallets SET emoji = '🟢' WHERE account = '00799999004327338404'");
   });
+
+  // 📉 تصفير الإحصائيات والمبيعات الوهمية — يبدأ الحساب من الصفر الآن (الطلبات تبقى محفوظة)
+  await bump("migr_zero_stats_v1", async () => {
+    await query("UPDATE products SET sold = 0");
+    const iso = new Date().toISOString();
+    await query(
+      "INSERT INTO settings (key, value, updated_at) VALUES ('stats_reset_at', $1::jsonb, now()) ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()",
+      [JSON.stringify(iso)],
+    );
+  });
 }
 
 const SEED_CHANNELS = [

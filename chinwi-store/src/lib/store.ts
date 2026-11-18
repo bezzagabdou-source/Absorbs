@@ -1,4 +1,4 @@
-import { allSettings, log, one, q } from "./db";
+import { allSettings, getSetting, log, one, q, setSetting } from "./db";
 import type {
   CategoryRow,
   ChannelRow,
@@ -8,7 +8,6 @@ import type {
   UserRow,
   WalletRow,
 } from "./types";
-import { getSetting, setSetting } from "./db";
 
 /* ───────────────────────── المستخدمون ───────────────────────── */
 
@@ -453,13 +452,17 @@ export type StatsPayload = {
 };
 
 export async function getStats(): Promise<StatsPayload> {
+  // 📈 تصفير الإحصائيات: لو stats_reset_at مضبوط، نحوسب فقط ما بعده
+  const resetRaw = await getSetting<string>("stats_reset_at");
+  const resetDate = resetRaw ? new Date(resetRaw) : null;
+  const rs = resetDate && !Number.isNaN(resetDate.getTime()) ? ` AND created_at >= '${resetDate.toISOString()}'` : "";
   const [u, o, p, c] = await Promise.all([
     one<{ total: string; today: string; active: string; blocked: string }>(
       `SELECT count(*)::text AS total,
         count(*) FILTER (WHERE created_at > now() - interval '24 hours')::text AS today,
         count(*) FILTER (WHERE last_seen_at > now() - interval '24 hours')::text AS active,
         count(*) FILTER (WHERE is_blocked)::text AS blocked
-       FROM users`,
+       FROM users WHERE true${rs}`,
     ),
     one<{
       total: string;
@@ -477,7 +480,7 @@ export async function getStats(): Promise<StatsPayload> {
         COALESCE(sum(amount) FILTER (WHERE status IN ('approved','delivered') AND created_at > now() - interval '24 hours'),0)::text AS revenue_today,
         COALESCE(sum(amount) FILTER (WHERE status IN ('approved','delivered') AND created_at > date_trunc('month', now())),0)::text AS revenue_month,
         COALESCE(sum(usd_amount) FILTER (WHERE kind = 'usd' AND status IN ('approved','delivered')),0)::text AS usd
-       FROM orders`,
+       FROM orders WHERE true${rs}`,
     ),
     one<{ total: string }>("SELECT count(*)::text AS total FROM products"),
     one<{ total: string }>("SELECT count(*)::text AS total FROM categories"),
@@ -488,14 +491,14 @@ export async function getStats(): Promise<StatsPayload> {
        SELECT generate_series(current_date - interval '13 days', current_date, interval '1 day')::date AS day
      )
      SELECT to_char(d.day, 'YYYY-MM-DD') AS day,
-       (SELECT count(*) FROM orders WHERE created_at::date = d.day)::text AS orders,
-       (SELECT COALESCE(sum(amount),0) FROM orders WHERE created_at::date = d.day AND status IN ('approved','delivered'))::text AS revenue,
-       (SELECT count(*) FROM users WHERE created_at::date = d.day)::text AS users
+       (SELECT count(*) FROM orders WHERE created_at::date = d.day${rs})::text AS orders,
+       (SELECT COALESCE(sum(amount),0) FROM orders WHERE created_at::date = d.day AND status IN ('approved','delivered')${rs})::text AS revenue,
+       (SELECT count(*) FROM users WHERE created_at::date = d.day${rs})::text AS users
      FROM days d ORDER BY d.day`,
   );
 
   const statusRows = await q<{ status: string; count: string }>(
-    "SELECT status, count(*)::text AS count FROM orders GROUP BY status",
+    `SELECT status, count(*)::text AS count FROM orders WHERE true${rs} GROUP BY status`,
   );
   const status_breakdown: Record<string, number> = {};
   for (const r of statusRows) status_breakdown[r.status] = Number(r.count);
@@ -503,7 +506,7 @@ export async function getStats(): Promise<StatsPayload> {
   const top = await q<{ name: string; orders: string; revenue: string }>(
     `SELECT product_name AS name, count(*)::text AS orders,
        COALESCE(sum(amount),0)::text AS revenue
-     FROM orders WHERE status IN ('approved','delivered')
+     FROM orders WHERE status IN ('approved','delivered')${rs}
      GROUP BY product_name ORDER BY count(*) DESC LIMIT 6`,
   );
 
