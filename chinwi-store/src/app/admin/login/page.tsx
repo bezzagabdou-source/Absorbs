@@ -33,7 +33,7 @@ export default function LoginPage(): React.ReactElement {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+    <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden p-4">
       <Toaster />
       <div className="aurora-blob" style={{ width: 420, height: 420, top: -120, right: -80, background: "rgba(16,185,129,.45)" }} />
       <div className="aurora-blob" style={{ width: 360, height: 360, bottom: -140, left: -60, background: "rgba(56,189,248,.4)", animationDelay: "2s" }} />

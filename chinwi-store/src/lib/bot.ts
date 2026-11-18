@@ -3,11 +3,14 @@ import {
   claimDailyGift,
   creditReferral,
   dailyGiftStatus,
+  decideRedemption,
+  deliverRedemption,
   listPrizes,
   redeemPrize,
   referralLink,
   referralStats,
   topReferrers,
+  type RedemptionRow,
 } from "./points";
 import { env } from "./env";
 import { money, shortDate } from "./format";
@@ -41,6 +44,7 @@ import {
 } from "./store";
 import {
   answerCallback,
+  editMessage,
   escapeHtml,
   getChatMemberStatus,
   getUserAvatarFileId,
@@ -1842,10 +1846,121 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
           `🎁 ${escapeHtml(res.redemption?.prize_title ?? "")} — ${res.redemption?.points ?? 0} نقطة`,
           `👤 ${mentions(user as unknown as TgUser)} — <code>${from.id}</code>`,
           "",
-          "<i>يمكنك الموافقة من لوحة التحكم ← المسابقات</i>",
+          "اضغط «✅ موافقة» فوق، أو من لوحة التحكم ← المسابقات",
         ].join("\n"),
-        kb([[link(`💬 مراسلة الزبون`, `tg://user?id=${from.id}`)]]),
+        kb([
+          [
+            b(`✅ موافقة`, `rapp:${res.redemption?.id ?? 0}`, "success"),
+            b(`❌ رفض`, `rrej:${res.redemption?.id ?? 0}`, "danger"),
+          ],
+          [link(`💬 مراسلة الزبون`, `tg://user?id=${from.id}`)],
+        ]),
       ).catch(() => null);
+      return;
+    }
+    case "rapp":
+    case "rrej": {
+      if (!isAdminUser(user)) {
+        await answerCallback(cq.id, "للمالك فقط", true);
+        return;
+      }
+      const id = Number(a1);
+      if (!Number.isFinite(id) || id <= 0) {
+        await answerCallback(cq.id, "طلب غير صالح", true);
+        return;
+      }
+      const approve = head === "rapp";
+      const redemption = await decideRedemption(id, approve ? "approved" : "rejected");
+      if (!redemption) {
+        await answerCallback(cq.id, "الطلب غير موجود", true);
+        return;
+      }
+      const winner = await one<{ username: string | null; first_name: string | null }>(
+        "SELECT username, first_name FROM users WHERE tg_id = $1",
+        [redemption.user_id],
+      );
+      const name = winner?.first_name || "زبون";
+      const handle = winner?.username ? `@${escapeHtml(winner.username)}` : `<code>${redemption.user_id}</code>`;
+      await answerCallback(cq.id, approve ? "✅ تمت الموافقة" : "❌ تم الرفض");
+      await sendToUser(
+        Number(redemption.user_id),
+        approve
+          ? [
+              "🎉 <b>تمت الموافقة على جائزتك</b>",
+              "",
+              `🎁 ${escapeHtml(redemption.prize_title)}`,
+              `⭐️ خُصمت: <b>${redemption.points}</b> نقطة`,
+              "",
+              "⏱ سيتواصل معك المالك للتسليم قريباً.",
+            ].join("\n")
+          : [
+              "⚠️ <b>تم رفض طلب الجائزة</b>",
+              "",
+              `🎁 ${escapeHtml(redemption.prize_title)}`,
+              `⭐️ أُعيدت <b>${redemption.points}</b> نقطة إلى رصيدك.`,
+            ].join("\n"),
+      ).catch(() => null);
+      const msgId = cq.message?.message_id;
+      if (msgId) {
+        const text = approve
+          ? [
+              "🎁 <b>طلب استبدال جائزة</b> — <b>✅ مقبول</b>",
+              "",
+              `🎁 ${escapeHtml(redemption.prize_title)} — ${redemption.points} نقطة`,
+              `👤 ${escapeHtml(name)} — ${handle}`,
+              "",
+              "بعد ما تسلّم الجائزة فعلياً للزبون، اضغط «📦 تم التسليم» باش نبشرو الجميع 🎉",
+            ].join("\n")
+          : [
+              "🎁 <b>طلب استبدال جائزة</b> — <b>🔴 مرفوض</b>",
+              "",
+              `🎁 ${escapeHtml(redemption.prize_title)} — ${redemption.points} نقطة`,
+              `👤 ${escapeHtml(name)} — ${handle}`,
+            ].join("\n");
+        await editMessage(
+          chatId,
+          msgId,
+          text,
+          approve
+            ? kb([[b(`📦 تم التسليم`, `rdlv:${id}`, "success"), link(`💬 مراسلة الزبون`, `tg://user?id=${redemption.user_id}`)]])
+            : undefined,
+        ).catch(() => null);
+      }
+      return;
+    }
+    case "rdlv": {
+      if (!isAdminUser(user)) {
+        await answerCallback(cq.id, "للمالك فقط", true);
+        return;
+      }
+      const id = Number(a1);
+      if (!Number.isFinite(id) || id <= 0) {
+        await answerCallback(cq.id, "طلب غير صالح", true);
+        return;
+      }
+      const result = await announcePrizeDelivery(id);
+      if (!result.ok) {
+        await answerCallback(cq.id, result.reason ?? "تعذّر التسليم", true);
+        return;
+      }
+      await answerCallback(cq.id, "📦 مبروك — تم التسليم وتبشير الجميع 🎉", true);
+      const msgId = cq.message?.message_id;
+      if (msgId) {
+        const r = result.redemption;
+        const handle = r.username ? `@${escapeHtml(r.username)}` : `<code>${r.user_id}</code>`;
+        await editMessage(
+          chatId,
+          msgId,
+          [
+            "🎁 <b>طلب استبدال جائزة</b> — <b>📦 تم التسليم</b> ✅",
+            "",
+            `🎁 ${escapeHtml(r.prize_title)}`,
+            `👤 ${escapeHtml(r.first_name || "زبون")} — ${handle}`,
+            "",
+            `📣 وصلت رسالة الخبر لكل الزبائن (${result.sent} وصلت)`,
+          ].join("\n"),
+        ).catch(() => null);
+      }
       return;
     }
     case "search": {
@@ -2251,4 +2366,35 @@ export async function sendToUser(tgId: number, body: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** 📣 تسليم جائزة للفائز + إعلان الخبر لكل الزبائن (المسابقات) */
+export async function announcePrizeDelivery(
+  redemptionId: number,
+): Promise<{ ok: true; sent: number; failed: number; redemption: RedemptionRow } | { ok: false; reason: string }> {
+  const delivered = await deliverRedemption(redemptionId);
+  if (!delivered.ok) return { ok: false, reason: delivered.reason };
+  const r = delivered.redemption;
+  const name = r.first_name || "زبون";
+  const handle = r.username ? `@${escapeHtml(r.username)}` : `<code>${r.user_id}</code>`;
+  const body = [
+    "🎉 <b>تم تسليم هدية!</b>",
+    "",
+    `🎁 <b>${escapeHtml(r.prize_title)}</b>`,
+    `👤 الفائز: <b>${escapeHtml(name)}</b> (${handle})`,
+    "",
+    "🍀 كن أنت الجاي — اجمع النقاط من المسابقات وراسل البوت!",
+  ].join("\n");
+  const result = await broadcastToAll(body);
+  await sendToUser(
+    Number(r.user_id),
+    [
+      "🎁 <b>تم تسليم جائزتك!</b>",
+      "",
+      `🎁 ${escapeHtml(r.prize_title)}`,
+      "",
+      "مبروك! 💚 شكراً على ثقتك في CHINWI STORE",
+    ].join("\n"),
+  ).catch(() => null);
+  return { ok: true, sent: result.sent, failed: result.failed, redemption: r };
 }

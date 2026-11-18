@@ -58,6 +58,7 @@ const STATUS_LABEL: Record<string, string> = {
   pending: "⏳ معلق",
   approved: "✅ مقبول",
   rejected: "🔴 مرفوض",
+  delivered: "📦 تم التسليم",
 };
 
 export default function ContestsPage(): React.ReactElement {
@@ -108,7 +109,17 @@ export default function ContestsPage(): React.ReactElement {
   const decide = async (r: Redemption, action: "approve" | "reject") => {
     try {
       await apiPost(`redemptions/${r.id}`, { action });
-      toast(action === "approve" ? "تمت الموافقة وإرسال إشعار للزبون 🎉" : "تم الرفض وإعادة النقاط للزبون");
+      toast(action === "approve" ? "تمت الموافقة وإرسال إشعار للزبون 🎉 — يظهر زر «📦 تم التسليم» في سجل الطلبات تحت" : "تم الرفض وإعادة النقاط للزبون");
+      reload();
+    } catch (e) {
+      toast(String((e as Error).message), "err");
+    }
+  };
+
+  const deliver = async (r: Redemption) => {
+    try {
+      const res = await apiPost<{ ok: boolean; sent?: number }>(`redemptions/${r.id}/deliver`, {});
+      toast(`📦 تم التسليم — وصلت رسالة التهنئة لـ ${res.sent ?? 0} زبون 🎉`);
       reload();
     } catch (e) {
       toast(String((e as Error).message), "err");
@@ -171,7 +182,7 @@ export default function ContestsPage(): React.ReactElement {
                     <td className="text-[0.72rem] text-emerald-900/60">{dateTime(r.created_at)}</td>
                     <td>
                       <div className="flex gap-1.5">
-                        <Btn size="sm" onClick={() => decide(r, "approve")}>✅ تسليم</Btn>
+                        <Btn size="sm" onClick={() => decide(r, "approve")}>✅ موافقة</Btn>
                         <Btn size="sm" variant="red" onClick={() => decide(r, "reject")}>🔴 رفض</Btn>
                       </div>
                     </td>
@@ -291,8 +302,8 @@ export default function ContestsPage(): React.ReactElement {
             {referrals.length === 0 ? (
               <Empty icon="🔗" title="لا إحالات مسجلة" hint="ستظهر هنا كل شخص دخل من رابط إحالة مع صاحبه" />
             ) : (
-              <div className="max-h-[28rem] overflow-y-auto">
-                <table className="data">
+              <div className="max-h-[28rem] overflow-auto">
+                <table className="data min-w-[620px]">
                   <thead>
                     <tr>
                       <th>دخل من</th>
@@ -340,6 +351,7 @@ export default function ContestsPage(): React.ReactElement {
                   <th>النقاط</th>
                   <th>الحالة</th>
                   <th>التاريخ</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -352,11 +364,18 @@ export default function ContestsPage(): React.ReactElement {
                     </td>
                     <td className="font-black text-violet-800">⭐️ {r.points}</td>
                     <td>
-                      <Badge tone={r.status === "approved" ? "emerald" : r.status === "rejected" ? "red" : "amber"}>
+                      <Badge tone={r.status === "approved" || r.status === "delivered" ? "emerald" : r.status === "rejected" ? "red" : "amber"}>
                         {STATUS_LABEL[r.status] ?? r.status}
                       </Badge>
                     </td>
                     <td className="text-[0.68rem] text-emerald-900/60">{dateTime(r.created_at)}</td>
+                    <td>
+                      {r.status === "approved" ? (
+                        <Btn size="sm" onClick={() => deliver(r)} title="تم التسليم فعلياً — يبشّر الجميع">
+                          📦 تم التسليم
+                        </Btn>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

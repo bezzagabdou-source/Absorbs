@@ -258,3 +258,25 @@ export async function claimDailyGift(
   await log("daily_gift", { user: userId, points }, "info", String(userId));
   return { ok: true, points };
 }
+
+/** 📦 تسليم جائزة مقبولة — تتبدّل الحالة إلى delivered + إرجاع صف الطلب مع بيانات الزبون */
+export async function deliverRedemption(
+  id: number,
+): Promise<{ ok: true; redemption: RedemptionRow } | { ok: false; reason: string }> {
+  const current = await one<RedemptionRow>(
+    `SELECT r.*, u.username, u.first_name FROM redemptions r LEFT JOIN users u ON u.tg_id = r.user_id WHERE r.id = $1`,
+    [id],
+  );
+  if (!current) return { ok: false, reason: "الطلب غير موجود" };
+  if (current.status === "delivered") return { ok: false, reason: "الجائزة تسلّمت بالفعل ✅" };
+  if (current.status !== "approved") return { ok: false, reason: "وافق على الطلب أولاً ثم سلّمها ✅" };
+  const updated = await one<RedemptionRow>(
+    "UPDATE redemptions SET status = 'delivered', updated_at = now() WHERE id = $1 RETURNING *",
+    [id],
+  );
+  await log("redemption_delivered", { id }, "success", "admin");
+  return {
+    ok: true,
+    redemption: { ...(updated as RedemptionRow), username: current.username, first_name: current.first_name },
+  };
+}

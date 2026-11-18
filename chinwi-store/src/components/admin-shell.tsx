@@ -142,7 +142,7 @@ export function AdminShell({ children }: { children: React.ReactNode }): React.R
   }, [query]);
 
   return (
-    <div className="relative min-h-screen lg:flex">
+    <div className="relative min-h-[100dvh] lg:flex">
       <Toaster />
 
       {/* هالات زجاجية في الخلفية */}
@@ -161,7 +161,7 @@ export function AdminShell({ children }: { children: React.ReactNode }): React.R
 
       {/* الشريط الجانبي الزجاجي */}
       <aside
-        className={`fixed inset-y-0 right-0 z-50 flex w-[19rem] max-w-[88vw] flex-col border-l border-white/70 bg-white/80 backdrop-blur-2xl transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`fixed inset-y-0 right-0 z-50 flex w-[19rem] max-w-[88vw] flex-col border-l border-white/70 bg-white/80 backdrop-blur-2xl transition-transform duration-300 lg:sticky lg:top-0 lg:h-[100dvh] lg:translate-x-0 ${
           open ? "translate-x-0 shadow-2xl" : "translate-x-full lg:translate-x-0"
         }`}
       >

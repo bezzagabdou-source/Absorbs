@@ -45,7 +45,7 @@ import {
   updateProduct,
   updateWallet,
 } from "@/lib/store";
-import { broadcastToAll, sendToUser } from "@/lib/bot";
+import { announcePrizeDelivery, broadcastToAll, sendToUser } from "@/lib/bot";
 import {
   createPrize,
   decideRedemption,
@@ -1101,6 +1101,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
     if (body.sort !== undefined) patch.sort = num(body.sort);
     const prize = await updatePrize(id, patch as never);
     return NextResponse.json({ ok: Boolean(prize), prize });
+  }
+
+  /* ── المسابقات: تسليم جائزة بعد الموافقة → الحالة delivered + إعلان للجميع ── */
+  if (seg[0] === "redemptions" && seg[1] && seg[2] === "deliver") {
+    const id = num(seg[1]);
+    const result = await announcePrizeDelivery(id);
+    if (!result.ok) return bad(result.reason, 400);
+    return NextResponse.json({ ok: true, sent: result.sent, failed: result.failed });
   }
 
   /* ── المسابقات: طلبات الجوائز ── */

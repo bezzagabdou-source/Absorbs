@@ -998,6 +998,15 @@ async function migrateOnce(query: Query): Promise<void> {
   });
 
   // 📉 تصفير الإحصائيات والمبيعات الوهمية — يبدأ الحساب من الصفر الآن (الطلبات تبقى محفوظة)
+  await bump("migr_prizes_djezzy_only_v1", async () => {
+    await query(
+      "UPDATE prizes SET title = '10 فليكسي (جيزي فقط)', note = 'رصيد 10 فليكسي يُسلَّم عبر محفظة Flexy — جيزي فقط' WHERE title = '10 فليكسي'",
+    );
+    await query(
+      "UPDATE prizes SET title = '20 فليكسي (جيزي فقط)', note = 'رصيد 20 فليكسي يُسلَّم عبر محفظة Flexy — جيزي فقط' WHERE title = '20 فليكسي'",
+    );
+  });
+
   await bump("migr_zero_stats_v1", async () => {
     await query("UPDATE products SET sold = 0");
     const iso = new Date().toISOString();
@@ -1016,8 +1025,8 @@ const SEED_CHANNELS = [
 
 /* ── جوائز المسابقات (قابلة للتعديل من لوحة التحكم) ── */
 export const PRIZE_SEED = [
-  { title: "10 فليكسي", points: 25, icon: "💠", note: "رصيد 10 فليكسي يُسلَّم عبر محفظة Flexy", sort: 1 },
-  { title: "20 فليكسي", points: 50, icon: "💠", note: "رصيد 20 فليكسي يُسلَّم عبر محفظة Flexy", sort: 2 },
+  { title: "10 فليكسي (جيزي فقط)", points: 25, icon: "💠", note: "رصيد 10 فليكسي يُسلَّم عبر محفظة Flexy — جيزي فقط", sort: 1 },
+  { title: "20 فليكسي (جيزي فقط)", points: 50, icon: "💠", note: "رصيد 20 فليكسي يُسلَّم عبر محفظة Flexy — جيزي فقط", sort: 2 },
   { title: "0.5 دولار", points: 70, icon: "💵", note: "نصف دولار يُسلَّم عبر إحدى المحافظ", sort: 3 },
   { title: "وساطة مجانية", points: 20, icon: "🤝", note: "وساطة مجانية بينك وبين المالك", sort: 4 },
 ];
