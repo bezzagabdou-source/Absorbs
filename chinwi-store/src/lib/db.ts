@@ -540,9 +540,9 @@ const GAME_SEED: SeedCategory[] = [
 ];
 
 /** يضيف الألعاب الجديدة ويصحّح صور الأقسام الموجودة — مرة واحدة، وبدون حذف أي شي
- * v5: قسم «ألعاب غير مذكورة» + بطاقات المتاجر (Steam/Google Play/Xbox…) + قناة @chinwichi */
+ * v6: طرق الدفع — فقط Binance/RedotPay/Bybit، وإخفاء Flexy/BaridiMob، ومنتجات Konami بالحساب */
 export async function ensureGameCatalog(): Promise<void> {
-  const done = Number((await getSetting<number>("catalog_games_v5")) ?? 0);
+  const done = Number((await getSetting<number>("catalog_games_v6")) ?? 0);
   if (done) return;
   const existing = await pool().query("SELECT id, slug FROM categories");
   const bySlug = new Map<string, number>();
@@ -570,13 +570,6 @@ export async function ensureGameCatalog(): Promise<void> {
   await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'efootball'", ["/catalog/pes-poster.jpg"]);
   await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'freefire'", ["/catalog/freefire-poster.jpg"]);
   await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'tiktok'", ["/catalog/tiktok-poster.jpg"]);
-  // محفظة Flexy — المتجر يقبل الشراء بها (وللمالك أيضاً)
-  await pool().query(
-    `INSERT INTO wallets (name, emoji, kind, account, holder, instructions, sort)
-     SELECT $1,$2,$3,$4,$5,$6,$7
-     WHERE NOT EXISTS (SELECT 1 FROM wallets WHERE lower(name) LIKE '%flexy%')`,
-    ["Flexy", "💠", "flexy", "ضع رقم/معرّف Flexy هنا من لوحة التحكم", "Flexy", "ادفع عبر Flexy ثم أرسل صورة الإيصال — الشحن فوري بعد التأكيد.", 5],
-  );
   // 📣 قناة الاشتراك الإجباري الجديدة @chinwichi (مع بقاء القناتين السابقتين)
   await pool().query(
     `INSERT INTO channels (chat, title, url, sort, active)
@@ -605,9 +598,36 @@ export async function ensureGameCatalog(): Promise<void> {
     const merged = [...new Set([...ratesList, 250, 255, 310])].sort((a, b) => a - b);
     await setSetting("usd_rates", merged);
   }
+  // 💳 v6: طرق الدفع — نعرض فقط Binance / RedotPay / Bybit (إخفاء Flexy وBaridiMob من واجهة الزبون)
+  await pool().query(
+    `UPDATE wallets SET active = false
+     WHERE lower(name) LIKE '%flexy%'
+        OR lower(name) LIKE '%baridimob%'
+        OR account = '00799999004327338404'`,
+  );
+  // 🔐 v6: eFootball (Konami) لا يدعم الشحن بالآي دي — كل منتجاته «شحن بالحساب» والمالك يدخل للحساب
+  const pesFields = JSON.stringify(PES_FIELDS);
+  await pool().query(
+    `UPDATE products
+     SET fields = $1::jsonb,
+         description = '🔐 شحن بالحساب — لعبة Konami لا تدعم الشحن بالآي دي. المالك يدخل لحسابك لإتمام الشحن، والسعر والتفعيل يحدده المالك.',
+         badge = COALESCE(badge, '🔐 شحن بالحساب')
+     WHERE category_id = (SELECT id FROM categories WHERE slug = 'efootball')`,
+    [pesFields],
+  );
+  await pool().query(
+    `UPDATE categories
+     SET description = 'شحن كوينز وباقات eFootball PES بالحساب — المالك يدخل لحسابك (Konami) لإتمام الشحن، والسعر والتفعيل يحدده المالك.'
+     WHERE slug = 'efootball'`,
+  );
+  // 💠 v6: منتجات Flexy تُخفى من المتجر — Flexy يبقى فقط كسعر «310 دج (فليكسي)» في بيع الدولار للمالك
+  await pool().query(
+    `UPDATE products SET active = false
+     WHERE lower(name) LIKE '%flexy%' OR lower(name) LIKE '%فليكسي%'`,
+  );
   // إزالة الحد الأدنى لشراء الدولار
   await setSetting("usd_min", 0);
-  await setSetting("catalog_games_v5", 1);
+  await setSetting("catalog_games_v6", 1);
   await log("catalog_games", { games: GAME_SEED.length }, "success", "system");
 }
 

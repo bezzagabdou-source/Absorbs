@@ -643,7 +643,7 @@ function orderSummary(o: OrderRow, s: SettingsMap): string {
   return [
     `🧾 طلب <b>#${o.code}</b>`,
     `📦 ${escapeHtml(o.product_name)}`,
-    o.kind === "usd" ? `💵 الكمية: <b>${o.usd_amount}$</b> × ${o.rate} = <b>${money(o.amount, cur)}</b>` : `💰 المبلغ: <b>${money(o.amount, cur)}</b>`,
+    o.kind === "usd" ? `💵 الكمية: <b>${o.usd_amount}$</b> × ${usdRateLabel(o.rate)} = <b>${money(o.amount, cur)}</b>` : `💰 المبلغ: <b>${money(o.amount, cur)}</b>`,
     `📊 الحالة: ${ORDER_STATUS_LABEL[o.status] ?? o.status}`,
     `🗓 ${shortDate(o.created_at)}`,
   ].join("\n");
@@ -766,7 +766,7 @@ async function showPaymentOptions(chatId: number, order: OrderRow, s: SettingsMa
     `🧾 رقم الطلب: <code>${order.code}</code>`,
     `📦 ${escapeHtml(order.product_name)}`,
     order.kind === "usd"
-      ? `💵 ${order.usd_amount}$ × ${order.rate} دج = <b>${money(order.amount, cur)}</b>`
+      ? `💵 ${order.usd_amount}$ × ${usdRateLabel(order.rate)} = <b>${money(order.amount, cur)}</b>`
       : `💰 المبلغ المطلوب: <b>${money(order.amount, cur)}</b>`,
     "",
     "اختر وسيلة الدفع المناسبة لك 👇",
@@ -873,7 +873,7 @@ async function submitReceipt(
     "",
     `🧾 <code>${updated?.code ?? order.code}</code>`,
     `📦 ${escapeHtml(order.product_name)}`,
-    order.kind === "usd" ? `💵 ${order.usd_amount}$ (${order.rate} دج/$) = ${money(order.amount, cur)}` : `💰 ${money(order.amount, cur)}`,
+    order.kind === "usd" ? `💵 ${order.usd_amount}$ (${usdRateLabel(order.rate)}/$) = ${money(order.amount, cur)}` : `💰 ${money(order.amount, cur)}`,
     order.payment_method ? `💳 ${escapeHtml(order.payment_method)}` : "",
     `👤 ${mentions(user)} — <code>${user.tg_id}</code>`,
     Object.entries(order.details ?? {}).length
@@ -892,9 +892,16 @@ async function submitReceipt(
   await log("receipt_submitted", { order: order.code, user: user.tg_id }, "info", String(user.tg_id));
 }
 
+/** 310 دج تُعرض دوماً مع (فليكسي) — بقية الأسعار عادية */
+function usdRateLabel(rate: number | string | null | undefined): string {
+  const r = Number(rate);
+  if (!Number.isFinite(r) || r <= 0) return "—";
+  return r === 310 ? "310 دج (فليكسي)" : `${r} دج`;
+}
+
 async function showUsdIntro(chatId: number, s: SettingsMap): Promise<void> {
   const rates = (Array.isArray(s.usd_rates) ? (s.usd_rates as number[]) : [250, 255]).filter((n) => Number(n) > 0);
-  const rows = rates.map((r) => [b(`💵 1$ = ${r} دج`, `usdr:${r}`)]);
+  const rows = rates.map((r) => [b(`💵 1$ = ${usdRateLabel(r)}`, `usdr:${r}`)]);
   rows.push([b(`🔙 رجوع`, "home")]);
   await sendMessage(
     chatId,
@@ -903,7 +910,7 @@ async function showUsdIntro(chatId: number, s: SettingsMap): Promise<void> {
       "",
       "نشتري منك الدولار بأفضل سعر في السوق 💱",
       "",
-      ...rates.map((r) => `• <b>1$ = ${r} دج</b>`),
+      ...rates.map((r) => `• <b>1$ = ${usdRateLabel(r)}</b>`),
       "",
       `✅ لا يوجد حد أدنى — أي كمية من 1$ مقبولة`,
       "اختر سعر الصرف 👇",
@@ -917,7 +924,7 @@ async function usdAskAmount(chatId: number, rate: number, userId: number, s: Set
   await sendMessage(
     chatId,
     [
-      `💵 <b>سعر الصرف المختار: 1$ = ${rate} دج</b>`,
+      `💵 <b>سعر الصرف المختار: 1$ = ${usdRateLabel(rate)}</b>`,
       "",
       `أرسل الكمية التي تريد بيعها بالدولار (رقم فقط).`,
       `مثال: <code>10</code> يعني 10$ = <b>${money(10 * rate, s.currency as string)}</b>`,
@@ -1546,7 +1553,7 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
       rate,
       usdAmount: amount,
       status: "pending_payment",
-      details: { "الكمية بالدولار": `${amount}$`, "سعر الصرف": `${rate} دج` },
+      details: { "الكمية بالدولار": `${amount}$`, "سعر الصرف": usdRateLabel(rate) },
     });
     await showPaymentOptions(chatId, order, s);
     return true;
@@ -1969,7 +1976,7 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
       return;
     }
     case "usdr": {
-      await answerCallback(cq.id, `1$ = ${a1} دج`);
+      await answerCallback(cq.id, `1$ = ${usdRateLabel(a1)}`);
       await usdAskAmount(chatId, Number(a1), from.id, s);
       return;
     }
