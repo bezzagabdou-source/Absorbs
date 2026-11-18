@@ -138,18 +138,20 @@ await check("seed: الأقسام والمحافظ والقنوات", async () =
   for (const slug of ["freefire", "efootball", "tiktok", "telegram", "digital"]) assert.ok(slugs.includes(slug), slug);
   assert.ok(slugs.includes("other-games"), "other-games");
   assert.ok(slugs.includes("giftcards"), "giftcards");
-  // طرق الدفع: فقط Binance / RedotPay / Bybit نشطة (Flexy وBaridiMob مخفية)
+  // طرق الدفع النشطة: Binance / RedotPay / Bybit / BaridiMob (Flexy مخفي فقط)
   const wallets = await db.query("select name, account, emoji from wallets where active = true order by sort");
-  assert.equal(wallets.rowCount, 3);
+  assert.equal(wallets.rowCount, 4);
   assert.equal(wallets.rows[0].account, "1210865168");
   assert.equal(wallets.rows[0].name, "Binance (USDT)");
   assert.equal(wallets.rows[1].name, "RedotPay");
   assert.equal(wallets.rows[1].emoji, "🟣");
   assert.equal(wallets.rows[2].name, "Bybit");
+  assert.equal(wallets.rows[3].name, "BaridiMob");
+  assert.equal(wallets.rows[3].account, "00799999004327338404");
   const hidden = await db.query("select lower(name) as n, active from wallets");
   const byName = Object.fromEntries(hidden.rows.map((r) => [r.n, r.active]));
   assert.ok(!("flexy" in byName) || byName["flexy"] === false, "Flexy مخفي");
-  assert.ok(byName["baridimob"] === false, "BaridiMob مخفي");
+  assert.equal(byName["baridimob"], true, "BaridiMob ظاهر");
   // بوسترات الألعاب الـ12 كلها مربوطة (Minecraft + Stumble اكتملا أخيراً)
   const gameCats = await db.query("select slug, image_url from categories where section = 'games' order by slug");
   const bySlug = Object.fromEntries(gameCats.rows.map((r) => [r.slug, r.image_url]));
@@ -325,7 +327,7 @@ await check("buy: يطلب الآيدي ثم يعرض طرق الدفع", async 
   assert.ok(hasButton(pay, "Binance"));
   assert.ok(hasButton(pay, "RedotPay"));
   assert.ok(hasButton(pay, "Bybit"));
-  assert.ok(!hasButton(pay, "BaridiMob"), "BaridiMob مخفي");
+  assert.ok(hasButton(pay, "BaridiMob"), "BaridiMob ظاهر");
   assert.ok(!hasButton(pay, "Flexy"), "Flexy مخفي");
   const order = (await db.query("select * from orders order by id desc limit 1")).rows[0];
   assert.equal(Number(order.amount), 320);

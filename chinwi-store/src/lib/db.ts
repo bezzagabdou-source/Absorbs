@@ -552,7 +552,7 @@ const GAME_SEED: SeedCategory[] = [
 /** يضيف الألعاب الجديدة ويصحّح صور الأقسام الموجودة — مرة واحدة، وبدون حذف أي شي
  * v7: نصوص PES بسيطة — «شحن بالحساب» + «تواصل مع المالك» في كل منتج */
 export async function ensureGameCatalog(): Promise<void> {
-  const done = Number((await getSetting<number>("catalog_games_v7")) ?? 0);
+  const done = Number((await getSetting<number>("catalog_games_v8")) ?? 0);
   if (done) return;
   const existing = await pool().query("SELECT id, slug FROM categories");
   const bySlug = new Map<string, number>();
@@ -608,12 +608,17 @@ export async function ensureGameCatalog(): Promise<void> {
     const merged = [...new Set([...ratesList, 250, 255, 310])].sort((a, b) => a - b);
     await setSetting("usd_rates", merged);
   }
-  // 💳 v6: طرق الدفع — نعرض فقط Binance / RedotPay / Bybit (إخفاء Flexy وBaridiMob من واجهة الزبون)
+  // 💳 v6: Flexy مخفي من واجهة الزبون (يبقى فقط كسعر «310 دج (فليكسي)» في بيع الدولار)
   await pool().query(
     `UPDATE wallets SET active = false
-     WHERE lower(name) LIKE '%flexy%'
-        OR lower(name) LIKE '%baridimob%'
-        OR account = '00799999004327338404'`,
+     WHERE lower(name) LIKE '%flexy%'`,
+  );
+  // 💳 v8: BaridiMob رجع — يظهر في الدفع لكل المنتجات مع باقي الطرق
+  await pool().query(
+    `UPDATE wallets SET active = true, account = '00799999004327338404',
+        kind = 'baridimob', emoji = '🟢', holder = 'RIP / CCP',
+        instructions = 'حوّل عبر تطبيق BaridiMob إلى رقم RIP ثم أرسل صورة الوصل.'
+     WHERE lower(name) = 'baridimob' OR account = '00799999004327338404'`,
   );
   // 🔐 v6: eFootball (Konami) لا يدعم الشحن بالآي دي — كل منتجاته «شحن بالحساب» والمالك يدخل للحساب
   const pesFields = JSON.stringify(PES_FIELDS);
@@ -657,7 +662,7 @@ export async function ensureGameCatalog(): Promise<void> {
   );
   // إزالة الحد الأدنى لشراء الدولار
   await setSetting("usd_min", 0);
-  await setSetting("catalog_games_v7", 1);
+  await setSetting("catalog_games_v8", 1);
   await log("catalog_games", { games: GAME_SEED.length }, "success", "system");
 }
 
