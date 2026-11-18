@@ -17,7 +17,7 @@ import {
 import { sendMessage, sendSticker } from "@/lib/telegram";
 import { listRecentUsers, usersCount } from "@/lib/users";
 import { createContest, deleteContest, getContest, listContests, updateContest } from "@/lib/contests";
-import { getSettings, saveSettings, normalizeChannels } from "@/lib/settings";
+import { getSettings, saveSettings, normalizeChannels, pinnedChannels, pinnedLockMessage } from "@/lib/settings";
 import { sendMessage as tgSend } from "@/lib/telegram";
 import { aiGenerate, aiStatus } from "@/lib/ai";
 import { storageInfo } from "@/lib/store";
@@ -426,8 +426,13 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
         ] as const) {
           if (s[key] !== undefined) patch[key] = String(s[key]);
         }
-        for (const key of ["requireJoin", "autoApproveJoins", "aiEnabled"] as const) {
+        for (const key of ["autoApproveJoins", "aiEnabled"] as const) {
           if (s[key] !== undefined) patch[key] = Boolean(s[key]);
+        }
+        // 🔒 البوابة ما تتطفاش ما دامت القنوات المثبّتة موجودة
+        if (s.requireJoin !== undefined) {
+          if (!s.requireJoin) return bad("🔒 بوابة الاشتراك الإجباري مقفولة شغّالة: ما تتطفاش ما دامت القنوات المثبّتة موجودة فالكود.", 409);
+          patch.requireJoin = true;
         }
         if (s.groupTarget !== undefined) patch.groupTarget = Math.max(1, Math.floor(Number(s.groupTarget) || 20));
         if (s.adminIds !== undefined) {
@@ -436,9 +441,13 @@ async function runOp(body: Record<string, unknown>): Promise<OpResult> {
             .filter((x) => /^\d+$/.test(x));
         }
         if (s.requiredChannels !== undefined) {
-          patch.requiredChannels = normalizeChannels(
+          const channels = normalizeChannels(
             Array.isArray(s.requiredChannels) ? s.requiredChannels.join(",") : String(s.requiredChannels),
           );
+          // 🔒 منع باتّ: القنوات المثبّتة فالكود ما تتزحش
+          const missing = pinnedChannels().filter((chat) => !channels.includes(chat));
+          if (missing.length) return bad(pinnedLockMessage(missing), 409);
+          patch.requiredChannels = channels;
         }
         const next = await saveSettings(patch);
         return ok({settings: next});

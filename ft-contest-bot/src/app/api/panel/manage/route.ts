@@ -8,7 +8,7 @@ import {
   getPointsConfig, invitesOf, isBanned, listRequests, pushAdminLog, readAdminLog, savePointsConfig,
   saveRewards, setBalance, setBanned, setJoinGroup, topBalances, type PointsConfig, type Reward, type SectionId,
 } from "@/lib/rewards";
-import { getSettings, normalizeChannels, saveSettings } from "@/lib/settings";
+import { getSettings, normalizeChannels, pinnedChannels, pinnedLockMessage, saveSettings } from "@/lib/settings";
 import { getStats } from "@/lib/stats";
 import { storageInfo } from "@/lib/store";
 import { sendMessage } from "@/lib/telegram";
@@ -325,12 +325,21 @@ export async function POST(request: NextRequest) {
           patch[key] = value;
         }
       for (const key of ["welcomeText", "rulesText"] as const) if (input[key] !== undefined) patch[key] = str(input[key], key, 3500, true);
-      for (const key of ["requireJoin", "aiEnabled", "maintenanceMode", "autoApproveJoins"] as const) if (input[key] !== undefined) patch[key] = bool(input[key], key);
+      for (const key of ["aiEnabled", "maintenanceMode", "autoApproveJoins"] as const) if (input[key] !== undefined) patch[key] = bool(input[key], key);
+      // 🔒 البوابة ما تتطفاش: القنوات المثبّتة كتفرض الاشتراك دائماً
+      if (input.requireJoin !== undefined) {
+        const gate = bool(input.requireJoin, "requireJoin");
+        if (!gate) return fail("🔒 بوابة الاشتراك الإجباري مقفولة شغّالة: ما تتطفاش ما دامت القنوات المثبّتة موجودة فالكود.", 409);
+        patch.requireJoin = true;
+      }
       if (input.groupTarget !== undefined) patch.groupTarget = number(input.groupTarget, "هدف المجموعة", 1, 1_000_000);
       if (input.requiredChannels !== undefined) {
         if (!Array.isArray(input.requiredChannels) || input.requiredChannels.length > 20 || input.requiredChannels.some((v) => typeof v !== "string")) return fail("قائمة القنوات غير صالحة");
         const channels = normalizeChannels(input.requiredChannels);
         if (channels.some((c) => !/^@[A-Za-z0-9_]{4,32}$/.test(c) && !/^-\d{5,20}$/.test(c))) return fail("استعمل @username أو معرّف قناة صالح");
+        // 🔒 منع باتّ: القنوات المثبّتة فالكود ما تتزحش — كنرفضو الطلب كامل بدل ما نصلّحو بسكات
+        const missing = pinnedChannels().filter((chat) => !channels.includes(chat));
+        if (missing.length) return fail(pinnedLockMessage(missing), 409);
         patch.requiredChannels = channels;
       }
       const settings = await saveSettings(patch);

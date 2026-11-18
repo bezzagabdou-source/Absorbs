@@ -150,6 +150,32 @@ export function forceGateOn(): boolean {
   return String(process.env.GATE_OFF || "") !== "1";
 }
 
+/* ───────────────── 🔒 أقفال القنوات المثبّتة (منع بات) ───────────────── */
+
+/** القنوات المثبّتة فالكود — المرجع الوحيد، ما تتزحش قع */
+export function pinnedChannels(): string[] {
+  return normalizeChannels(PINNED_CHANNELS);
+}
+
+/** رسالة رفض موحّدة (بالعربية والدارجة) */
+export function pinnedLockMessage(missing: string[]): string {
+  return `🔒 ${missing.join("، ")} قناة اشتراك إجباري مثبّتة فالكود — ما تتزحش قع: لا من اللوحة، لا من المساعد، لا من الإعدادات، ولا حتى من المالك.`;
+}
+
+/** كيترمي خطأ إلا كان الطلب كينحّي قناة مثبّتة (قبل أي حفظ) */
+export function assertPinnedKept(list: unknown): void {
+  const wanted = normalizeChannels(list);
+  const missing = pinnedChannels().filter((chat) => !wanted.includes(chat));
+  if (missing.length) throw new Error(pinnedLockMessage(missing));
+}
+
+/** بوابة الاشتراك الإجباري ما تتطفاش ما دام كاينة قناة مثبّتة */
+export function assertGateKept(enabled: unknown): void {
+  if (enabled === false) {
+    throw new Error("🔒 بوابة الاشتراك الإجباري مقفولة شغّالة: ما تتطفاش ما دامت القنوات المثبّتة موجودة فالكود.");
+  }
+}
+
 /** يوزر المالك بصيغة @handle */
 export function ownerHandle(settings: Settings): string {
   return `@${(settings.ownerUsername || OWNER_USERNAME).replace(/^@/, "")}`;

@@ -15,7 +15,7 @@ import {
   type SectionId,
 } from "./rewards";
 import { aiGenerate, aiStatus } from "./ai";
-import { getSettings, normalizeChannels, saveSettings } from "./settings";
+import { getSettings, normalizeChannels, pinnedChannels, pinnedLockMessage, saveSettings } from "./settings";
 import { listRecentUsers, usersCount } from "./users";
 import { sendMessage } from "./telegram";
 
@@ -303,7 +303,7 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
   // 🔒 بوابة الاشتراك
   if (/(بواب|اشتراك|قناة|قنوات|gate)/i.test(p) && /(طفي|اطفي|أطفي|وقّف|اوقف|عطّل|off|حبس)/i.test(p)) {
     actions.push({ op: "set_gate", enabled: false });
-    say.push("طفّيت بوابة الاشتراك.");
+    say.push("🔒 بوابة الاشتراك مقفولة شغّالة — ما تتطفاش (قنوات مثبّتة فالكود).");
   } else if (/(بواب|اشتراك|gate)/i.test(p) && /(شعل|فعّل|فعل|شغّل|on|رجع)/i.test(p)) {
     actions.push({ op: "set_gate", enabled: true });
     say.push("شعّلت بوابة الاشتراك.");
@@ -314,7 +314,7 @@ export async function localPlan(prompt: string, dry = false): Promise<AiRunResul
   if (chans.length) {
     if (wantsRemove) {
       actions.push({ op: "save_settings", settings: { requiredChannelsRemove: chans } });
-      say.push(`حيّدت ${chans.join("، ")}.`);
+      say.push(`🔒 القنوات المثبّتة ما تتزحش — الطلب غادي يترفض إلا كان فيها ${chans.join("، ")}.`);
     } else if (/(زيد|اضف|أضف|حط|add)/i.test(p)) {
       actions.push({ op: "save_settings", settings: { requiredChannelsAdd: chans } });
       say.push(`زدت ${chans.join("، ")}.`);
@@ -694,15 +694,22 @@ async function runOne(op: string, a: Record<string, unknown>, via: "panel" | "ai
         channels = channels.filter((c) => !gone.has(c));
       }
       if (s.requiredChannels !== undefined || add !== undefined || remove !== undefined) {
+        // 🔒 منع باتّ: المساعد ما يقدرش ينحّي قناة مثبّتة فالكود
+        const missing = pinnedChannels().filter((chat) => !channels.includes(chat));
+        if (missing.length) throw new Error(pinnedLockMessage(missing));
         patch.requiredChannels = channels;
       }
-      if (s.requireJoin !== undefined) patch.requireJoin = Boolean(s.requireJoin);
+      if (s.requireJoin !== undefined) {
+        if (!s.requireJoin) throw new Error("🔒 بوابة الاشتراك الإجباري مقفولة شغّالة: ما تتطفاش ما دامت القنوات المثبّتة موجودة فالكود.");
+        patch.requireJoin = true;
+      }
       const next = await saveSettings(patch);
       return `إعدادات محدّثة (قنوات: ${(next.requiredChannels || []).join("، ") || "بلا"}، بوابة: ${next.requireJoin ? "شغّالة" : "مطفية"})`;
     }
     case "set_gate": {
       const enabled = Boolean(a.enabled);
-      const next = await saveSettings({ requireJoin: enabled });
+      if (!enabled) throw new Error("🔒 بوابة الاشتراك الإجباري مقفولة شغّالة: ما تتطفاش ما دامت القنوات المثبّتة موجودة فالكود.");
+      const next = await saveSettings({ requireJoin: true });
       return `الاشتراك الإجباري: ${next.requireJoin ? "شغّال" : "مطفي"}`;
     }
     default:
