@@ -552,7 +552,7 @@ const GAME_SEED: SeedCategory[] = [
 /** يضيف الألعاب الجديدة ويصحّح صور الأقسام الموجودة — مرة واحدة، وبدون حذف أي شي
  * v7: نصوص PES بسيطة — «شحن بالحساب» + «تواصل مع المالك» في كل منتج */
 export async function ensureGameCatalog(): Promise<void> {
-  const done = Number((await getSetting<number>("catalog_games_v8")) ?? 0);
+  const done = Number((await getSetting<number>("catalog_games_v9")) ?? 0);
   if (done) return;
   const existing = await pool().query("SELECT id, slug FROM categories");
   const bySlug = new Map<string, number>();
@@ -640,13 +640,11 @@ export async function ensureGameCatalog(): Promise<void> {
     `UPDATE products SET active = false
      WHERE lower(name) LIKE '%flexy%' OR lower(name) LIKE '%فليكسي%'`,
   );
-  // ── v7: PES/Konami — اكتب فقط «شحن بالحساب»، وكل منتج فيها «تواصل مع المالك» ──
+  // ── v7/v9: PES — «شحن بالحساب» + الأسعار تظهر عادي (مثل فري فاير وتيلغرام وتيك توك) ──
   const pesAccountSimple = JSON.stringify(PES_FIELDS);
   await pool().query(
     `UPDATE products
      SET fields = $1::jsonb,
-         price = NULL,
-         price_label = 'تواصل مع المالك',
          description = '',
          badge = 'شحن بالحساب'
      WHERE category_id = (SELECT id FROM categories WHERE slug = 'efootball')`,
@@ -654,15 +652,30 @@ export async function ensureGameCatalog(): Promise<void> {
   );
   await pool().query(
     `UPDATE categories
-     SET description = 'شحن كوينز وباقات PES بالحساب — تواصل مع المالك، والمالك يدخل لحسابك لإتمام الشحن.'
+     SET description = 'شحن كوينز وباقات PES بالحساب — المالك يدخل لحسابك لإتمام الشحن.'
      WHERE slug = 'efootball'`,
   );
+  // رجعة الأسعار الأصلية لمنتجات PES اللي كان تفرغت في v7
+  const efootballSeed = SEED.find((c) => c.slug === "efootball");
+  if (efootballSeed) {
+    for (const prod of efootballSeed.products) {
+      if (typeof prod.price !== "number") continue;
+      await pool().query(
+        `UPDATE products
+         SET price = $2, price_label = NULL
+         WHERE category_id = (SELECT id FROM categories WHERE slug = 'efootball')
+           AND name = $1
+           AND price IS NULL`,
+        [prod.name, prod.price],
+      );
+    }
+  }
   await pool().query(
     `INSERT INTO settings (key, value) VALUES ('daily_gift_points', '1'::jsonb) ON CONFLICT (key) DO NOTHING`,
   );
   // إزالة الحد الأدنى لشراء الدولار
   await setSetting("usd_min", 0);
-  await setSetting("catalog_games_v8", 1);
+  await setSetting("catalog_games_v9", 1);
   await log("catalog_games", { games: GAME_SEED.length }, "success", "system");
 }
 
@@ -825,7 +838,7 @@ const SEED: SeedCategory[] = [
     emoji: "⚽️",
     section: "games",
     image: "/catalog/pes.jpg",
-    description: "شحن كوينز وباقات PES بالحساب — السعر يحدده المالك.",
+    description: "شحن كوينز وباقات PES بالحساب — المالك يدخل لحسابك لإتمام الشحن.",
     products: [
       { name: "شحن بوغرة", price: 350, fields: PES_FIELDS, sort: 1 },
       { name: "شحن سواريز", price: 350, fields: PES_FIELDS, sort: 2 },

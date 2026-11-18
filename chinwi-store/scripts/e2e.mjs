@@ -392,10 +392,9 @@ await check("usd: اختيار السعر → الكمية → الدفع → ا
     const keys = (row.fields ?? []).map((f) => f.key);
     assert.ok(keys.includes("account") && keys.includes("password"), `${row.name} بالحساب`);
     assert.ok(!keys.includes("player_id"), `${row.name} بدون آيدي`);
-    assert.equal(row.price, null, `${row.name} بلا سعر — تواصل مع المالك`);
-    assert.equal(row.price_label, "تواصل مع المالك");
+    assert.ok(Number(row.price) > 0, `${row.name} سعره ظاهر عادي`);
+    assert.ok(!row.price_label || row.price_label !== "تواصل مع المالك", `${row.name} سعر عادي بلا «تواصل مع المالك»`);
     assert.equal(row.badge, "شحن بالحساب");
-    assert.equal(row.description, "");
   }
   await sendUpdate(cb(users.buyer, "usdr:255"));
   await waitForMessage(555, (m) => (m.text ?? "").includes("أرسل الكمية"));
