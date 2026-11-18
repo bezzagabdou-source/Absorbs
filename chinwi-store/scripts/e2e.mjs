@@ -369,11 +369,16 @@ await check("usd: اختيار السعر → الكمية → الدفع → ا
   assert.ok(hasButton(intro, "250"));
   assert.ok(hasButton(intro, "255"));
   assert.ok(hasButton(intro, "310 دج (فليكسي)"));
-  const pes = await db.query("select p.name, p.fields, p.description from products p join categories c on c.id = p.category_id where c.slug = 'efootball' limit 3");
+  const pes = await db.query("select p.name, p.fields, p.price, p.price_label, p.badge, p.description from products p join categories c on c.id = p.category_id where c.slug = 'efootball'");
+  assert.ok(pes.rowCount > 0);
   for (const row of pes.rows) {
     const keys = (row.fields ?? []).map((f) => f.key);
     assert.ok(keys.includes("account") && keys.includes("password"), `${row.name} بالحساب`);
     assert.ok(!keys.includes("player_id"), `${row.name} بدون آيدي`);
+    assert.equal(row.price, null, `${row.name} بلا سعر — تواصل مع المالك`);
+    assert.equal(row.price_label, "تواصل مع المالك");
+    assert.equal(row.badge, "شحن بالحساب");
+    assert.equal(row.description, "");
   }
   await sendUpdate(cb(users.buyer, "usdr:255"));
   await waitForMessage(555, (m) => (m.text ?? "").includes("أرسل الكمية"));
@@ -876,6 +881,7 @@ await check("contest: شاشة المسابقات في البوت وزر الج�
   assert.ok(hasButton(c, "الجوائز"));
   assert.ok(hasButton(c, "نقاطي"));
   assert.ok(hasButton(c, "المتصدرون"));
+  assert.ok(hasButton(c, "الهدية اليومية"));
   await sendUpdate(cb(users.buyer, "prizes"));
   const prizes = await waitForMessage(555, (m) => (m.text ?? "").includes("الجوائز واستبدال النقاط"));
   assert.ok(hasButton(prizes, "10 فليكسي"));
@@ -926,6 +932,20 @@ await check("contest: رفض الاستبدال يعيد النقاط", async ()
   assert.equal(reject.status, 200);
   const restored = (await db.query("select points from users where tg_id = 555")).rows[0];
   assert.equal(Number(restored.points), 100, "رجعت النقاط بعد الرفض");
+});
+
+await check("contest: الهدية اليومية تُمنح مرة واحدة في اليوم", async () => {
+  await db.query("DELETE FROM daily_gifts WHERE user_id = 555 AND claim_date = CURRENT_DATE");
+  await db.query("UPDATE users SET points = 100 WHERE tg_id = 555");
+  await resetSent();
+  await sendUpdate(cb(users.buyer, "dailygift"));
+  const got = await waitForMessage(555, (m) => (m.text ?? "").includes("هديتك اليومية وصلت"));
+  assert.ok(got);
+  const after = (await db.query("select points from users where tg_id = 555")).rows[0];
+  assert.equal(Number(after.points), 101);
+  await sendUpdate(cb(users.buyer, "dailygift"));
+  const again = await waitForMessage(555, (m) => (m.text ?? "").includes("ارجع غداً"));
+  assert.ok(again, "الهدية مأخوذة يرفض إعطاءها مرتين");
 });
 
 await check("contest: صفحة المسابقة في اللوحة تعمل", async () => {

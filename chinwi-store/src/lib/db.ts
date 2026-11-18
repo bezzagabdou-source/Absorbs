@@ -314,6 +314,15 @@ CREATE TABLE IF NOT EXISTS redemptions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS daily_gifts (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  points INTEGER NOT NULL DEFAULT 1,
+  claim_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, claim_date)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_gifts_user ON daily_gifts(user_id, claim_date);
 CREATE INDEX IF NOT EXISTS idx_referrals_inviter ON referrals(inviter_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_redemptions_status ON redemptions(status, created_at DESC);
 `;
@@ -363,6 +372,7 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   // ── المسابقات والإحالات ──
   referral_enabled: true,
   points_per_referral: 1,
+  daily_gift_points: 1,
   contest_title: "🎉 مسابقات CHINWI STORE",
   contest_text:
     "ادعُ أصحابك للمتجر واجمع النقاط 🎯\nكل شخص يدخل من رابطك = نقطة واحدة ✅\nثم استبدل نقاطك بجوائز حقيقية من قسم الجوائز 🎁",
@@ -540,9 +550,9 @@ const GAME_SEED: SeedCategory[] = [
 ];
 
 /** يضيف الألعاب الجديدة ويصحّح صور الأقسام الموجودة — مرة واحدة، وبدون حذف أي شي
- * v6: طرق الدفع — فقط Binance/RedotPay/Bybit، وإخفاء Flexy/BaridiMob، ومنتجات Konami بالحساب */
+ * v7: نصوص PES بسيطة — «شحن بالحساب» + «تواصل مع المالك» في كل منتج */
 export async function ensureGameCatalog(): Promise<void> {
-  const done = Number((await getSetting<number>("catalog_games_v6")) ?? 0);
+  const done = Number((await getSetting<number>("catalog_games_v7")) ?? 0);
   if (done) return;
   const existing = await pool().query("SELECT id, slug FROM categories");
   const bySlug = new Map<string, number>();
@@ -625,9 +635,29 @@ export async function ensureGameCatalog(): Promise<void> {
     `UPDATE products SET active = false
      WHERE lower(name) LIKE '%flexy%' OR lower(name) LIKE '%فليكسي%'`,
   );
+  // ── v7: PES/Konami — اكتب فقط «شحن بالحساب»، وكل منتج فيها «تواصل مع المالك» ──
+  const pesAccountSimple = JSON.stringify(PES_FIELDS);
+  await pool().query(
+    `UPDATE products
+     SET fields = $1::jsonb,
+         price = NULL,
+         price_label = 'تواصل مع المالك',
+         description = '',
+         badge = 'شحن بالحساب'
+     WHERE category_id = (SELECT id FROM categories WHERE slug = 'efootball')`,
+    [pesAccountSimple],
+  );
+  await pool().query(
+    `UPDATE categories
+     SET description = 'شحن كوينز وباقات PES بالحساب — تواصل مع المالك، والمالك يدخل لحسابك لإتمام الشحن.'
+     WHERE slug = 'efootball'`,
+  );
+  await pool().query(
+    `INSERT INTO settings (key, value) VALUES ('daily_gift_points', '1'::jsonb) ON CONFLICT (key) DO NOTHING`,
+  );
   // إزالة الحد الأدنى لشراء الدولار
   await setSetting("usd_min", 0);
-  await setSetting("catalog_games_v6", 1);
+  await setSetting("catalog_games_v7", 1);
   await log("catalog_games", { games: GAME_SEED.length }, "success", "system");
 }
 
@@ -688,12 +718,24 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
     [key, JSON.stringify(value ?? null)],
   );
+  invalidateSettingsCache();
+}
+
+let settingsCache: { at: number; value: Record<string, unknown> } | null = null;
+const SETTINGS_TTL_MS = 2000;
+
+export function invalidateSettingsCache(): void {
+  settingsCache = null;
 }
 
 export async function allSettings(): Promise<Record<string, unknown>> {
+  if (settingsCache && Date.now() - settingsCache.at < SETTINGS_TTL_MS) {
+    return JSON.parse(JSON.stringify(settingsCache.value)) as Record<string, unknown>;
+  }
   const rows = await q<{ key: string; value: unknown }>("SELECT key, value FROM settings");
   const out: Record<string, unknown> = { ...DEFAULT_SETTINGS };
   for (const r of rows) out[r.key] = r.value;
+  settingsCache = { at: Date.now(), value: JSON.parse(JSON.stringify(out)) };
   return out;
 }
 
@@ -742,8 +784,8 @@ const FF_FIELDS = [
   { key: "player_id", label: "🆔 آيدي اللاعب (ID) في فري فاير", placeholder: "مثال: 1234567890", required: true },
 ];
 const PES_FIELDS = [
-  { key: "account", label: "👤 شحن بالحساب — اسم الحساب أو الإيميل (Konami ID)", placeholder: "exemple@mail.com أو 123-456-789", required: true },
-  { key: "password", label: "🔑 كلمة سر الحساب (Password)", placeholder: "••••••••", required: true },
+  { key: "account", label: "👤 شحن بالحساب", placeholder: "اسم الحساب أو الإيميل", required: true },
+  { key: "password", label: "🔑 كلمة سر الحساب", placeholder: "••••••••", required: true },
 ];
 const TG_FIELDS = [
   { key: "username", label: "👤 اسم المستخدم (@username) الذي تريد ترقية بريميوم عليه", placeholder: "@example", required: true },
@@ -778,7 +820,7 @@ const SEED: SeedCategory[] = [
     emoji: "⚽️",
     section: "games",
     image: "/catalog/pes.jpg",
-    description: "شحن كوينز وباقات eFootball PES بالحساب (Konami ID) — تفعيل سريع ومضمون، والسعر يحدده المالك عند الطلب.",
+    description: "شحن كوينز وباقات PES بالحساب — السعر يحدده المالك.",
     products: [
       { name: "شحن بوغرة", price: 350, fields: PES_FIELDS, sort: 1 },
       { name: "شحن سواريز", price: 350, fields: PES_FIELDS, sort: 2 },

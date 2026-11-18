@@ -1,6 +1,8 @@
 import { allSettings, log, one, q, setSetting } from "./db";
 import {
+  claimDailyGift,
   creditReferral,
+  dailyGiftStatus,
   listPrizes,
   redeemPrize,
   referralLink,
@@ -344,8 +346,10 @@ async function sendContest(chatId: number, s: SettingsMap, user: UserRow | null)
   const botName = settingString(s, "bot_username", "") || "chinwistorebot";
   const link = userId ? referralLink(botName, userId) : "";
   const stats = userId ? await referralStats(userId) : { points: 0, referrals: 0, today: 0, spent: 0, rows: [] };
+  const gift = userId ? await dailyGiftStatus(userId) : { claimed: true, points: 1 };
 
   const rows: InlineButton[][] = [
+    [b(gift.claimed ? `🎁 الهدية اليومية ✓ أُخذت` : `🎁 الهدية اليومية (+${gift.points} نقطة)`, "dailygift", gift.claimed ? undefined : "primary")],
     [b(`🎁 — الجوائز —`, "nop")],
     [b(`🎁 الجوائز واستبدال النقاط`, "prizes", "primary")],
     [b(`🏆 — النقاط —`, "nop")],
@@ -361,6 +365,7 @@ async function sendContest(chatId: number, s: SettingsMap, user: UserRow | null)
     "━━━━━━━━━━━━━━━",
     enabled
       ? [
+          `🎁 هديتك اليومية: ${gift.claimed ? "أُخذت ✓ — ارجع غداً" : `<b>متاحة</b> (+${gift.points} نقطة)`}`,
           `⭐️ نقاطك: <b>${stats.points}</b>  •  👥 إحالاتك: <b>${stats.referrals}</b>`,
           `🔗 رابطك الخاص:`,
           `<code>${escapeHtml(link)}</code>`,
@@ -570,7 +575,7 @@ async function sendProduct(chatId: number, productId: number, s: SettingsMap): P
   // 🔐 الألعاب التي لا تدعم الشحن بالآي دي (مثل Konami) → شحن بالحساب + تواصل مع المالك
   const needsAccount = (p.fields ?? []).some((f) => f.key === "password" || f.key === "account");
   const accountNote = needsAccount
-    ? "🔐 <b>شحن بالحساب</b> — هذه اللعبة لا تدعم الشحن بالآي دي.\n📩 السعر والتفاصيل يحددها <b>المالك</b> بعد مراسلتك."
+    ? "🔐 <b>شحن بالحساب</b> — تواصل مع المالك."
     : "";
   const caption = [
     `🎁 <b>${escapeHtml(p.name)}</b>`,
@@ -686,7 +691,7 @@ async function startPurchase(chatId: number, productId: number, userId: number, 
       chatId,
       [
         `🛒 <b>${escapeHtml(p.name)}</b> — ${money(p.price, s.currency as string)}`,
-        byAccount ? "🔐 <b>شحن بالحساب</b> — بياناتك تُرسل للمالك فقط وتُحذف بعد الشحن." : "",
+        byAccount ? "🔐 <b>شحن بالحساب</b> — تواصل مع المالك." : "",
         "",
         `الخطوة <b>1/${fields.length}</b>`,
         f.label,
@@ -1669,6 +1674,36 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
   switch (head) {
     case "nop": {
       await answerCallback(cq.id, "💡 اضغط على زر الاسم لفتح العرض");
+      return;
+    }
+    case "dailygift": {
+      if (!settingBool(s, "referral_enabled", true)) {
+        await answerCallback(cq.id, "نظام النقاط متوقف مؤقتاً", true);
+        return;
+      }
+      if (!(await guardSubscription(chatId, from.id, s, user))) return;
+      const res = await claimDailyGift(from.id);
+      if (!res.ok) {
+        await answerCallback(cq.id, res.reason ?? "هديتك مأخوذة اليوم", true);
+        await sendMessage(
+          chatId,
+          "🎁 <b>أخذت هديتك اليوم</b>\n\nارجع غداً لأخذ هديتك الجديدة 💫",
+          kb([[b(`🎉 المسابقات`, "contest"), b(`🏠 الرئيسية`, "home")]]),
+        );
+        return;
+      }
+      await answerCallback(cq.id, `🎁 +${res.points} نقطة هدية يومية!`);
+      await sendMessage(
+        chatId,
+        [
+          "🎁 <b>هديتك اليومية وصلت!</b>",
+          "",
+          `⭐️ +${res.points} نقطة`,
+          "",
+          "شارك رابطك واجمع المزيد من النقاط 🎯",
+        ].join("\n"),
+        kb([[b(`🎉 المسابقات`, "contest")], [b(`📤 مشاركة رابط الإحالة`, "share"), b(`🏠 الرئيسية`, "home")]]),
+      );
       return;
     }
     case "contest": {

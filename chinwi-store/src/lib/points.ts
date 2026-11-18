@@ -1,4 +1,4 @@
-import { log, one, q } from "./db";
+import { getSetting, log, one, q } from "./db";
 
 /**
  * points.ts — المسابقات ونقاط الإحالة
@@ -229,4 +229,32 @@ export async function inviterOf(userId: number | string): Promise<ReferralRow | 
      WHERE r.invitee_id = $1`,
     [userId],
   );
+}
+
+/* ───────────────────────── الهدية اليومية ───────────────────────── */
+
+export async function dailyGiftStatus(userId: number | string): Promise<{ claimed: boolean; points: number }> {
+  const claimed = await one<{ c: string }>(
+    "SELECT count(*)::text AS c FROM daily_gifts WHERE user_id = $1 AND claim_date = CURRENT_DATE",
+    [userId],
+  );
+  const raw = await getSetting<number>("daily_gift_points");
+  return { claimed: Number(claimed?.c ?? 0) > 0, points: Math.max(1, Number(raw ?? 1)) };
+}
+
+/** 🎁 هدية يومية — مرة واحدة في اليوم لكل زبون */
+export async function claimDailyGift(
+  userId: number | string,
+): Promise<{ ok: boolean; reason?: string; points?: number }> {
+  const raw = await getSetting<number>("daily_gift_points");
+  const points = Math.max(1, Number(raw ?? 1));
+  const inserted = await one<{ id: number }>(
+    `INSERT INTO daily_gifts (user_id, points) VALUES ($1,$2)
+     ON CONFLICT (user_id, claim_date) DO NOTHING RETURNING id`,
+    [userId, points],
+  );
+  if (!inserted) return { ok: false, reason: "أخذت هديتك اليوم — ارجع غداً 🎁" };
+  await q("UPDATE users SET points = points + $2 WHERE tg_id = $1", [userId, points]);
+  await log("daily_gift", { user: userId, points }, "info", String(userId));
+  return { ok: true, points };
 }
