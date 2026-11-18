@@ -323,17 +323,53 @@ async function sendGamesMenu(chatId: number, s: SettingsMap): Promise<void> {
   )) {
     counts.set(Number(row.category_id), Number(row.c));
   }
-  const rows: InlineButton[][] = cats.map((c) => [
-    b(`${c.emoji} ${c.name}${counts.get(c.id) ? ` (${counts.get(c.id)})` : ""}`, `cat:${c.id}`),
-  ]);
+  // تقسيم الأقسام حسب نوع الشحن: بالآي دي / بالحساب / أخرى (بطاقات)
+  const fieldRows = await q<{ category_id: string; fields: unknown }>(
+    "SELECT category_id, fields FROM products WHERE active = true",
+  );
+  const keysByCat = new Map<number, Set<string>>();
+  for (const row of fieldRows) {
+    const cid = Number(row.category_id);
+    if (!keysByCat.has(cid)) keysByCat.set(cid, new Set());
+    const fields = Array.isArray(row.fields) ? (row.fields as { key?: string }[]) : [];
+    for (const f of fields) if (f?.key) keysByCat.get(cid)!.add(String(f.key));
+  }
+  const kindOf = (id: number): "id" | "account" | "other" => {
+    const keys = keysByCat.get(id) ?? new Set<string>();
+    if (keys.has("account") || keys.has("password")) return "account";
+    if (keys.has("player_id")) return "id";
+    return "other";
+  };
+  const idCats = cats.filter((c) => kindOf(c.id) === "id");
+  const accCats = cats.filter((c) => kindOf(c.id) === "account");
+  const otherCats = cats.filter((c) => kindOf(c.id) === "other");
+  const label = (c: (typeof cats)[number]) =>
+    `${c.emoji} ${c.name}${counts.get(c.id) ? ` (${counts.get(c.id)})` : ""}`;
+
+  const rows: InlineButton[][] = [];
+  if (idCats.length) {
+    rows.push([b(`🟢 — شحن بالآي دي (بدون حساب) —`, "nop", "success")]);
+    for (const c of idCats) rows.push([b(label(c), `cat:${c.id}`, "success")]);
+  }
+  if (accCats.length) {
+    rows.push([b(`🔵 — شحن بالحساب (المالك يدخل لحسابك) —`, "nop", "primary")]);
+    for (const c of accCats) rows.push([b(label(c), `cat:${c.id}`, "primary")]);
+  }
+  if (otherCats.length) {
+    rows.push([b(`🔴 — بطاقات وأقسام خاصة —`, "nop", "danger")]);
+    for (const c of otherCats) rows.push([b(label(c), `cat:${c.id}`, "danger")]);
+  }
   rows.push([b(`🏠 الرئيسية`, "home")]);
   await sendMessage(
     chatId,
     [
       "🎮 <b>شحن الألعاب الرقمية</b>",
       "",
+      "🟢 <b>شحن بالآي دي</b> — تكتب الآي دي وتتوصل في دقائق",
+      "🔵 <b>شحن بالحساب</b> — تواصل مع المالك والشحن يتم على حسابك",
+      "🔴 <b>بطاقات وأقسام خاصة</b> — كروت متاجر وطلبات خاصة",
+      "",
       "اختر اللعبة التي تريد شحنها 👇",
-      ...cats.map((c) => `• ${c.emoji} <b>${escapeHtml(c.name)}</b>${c.description ? ` — ${escapeHtml(c.description)}` : ""}`),
     ].join("\n"),
     kb(rows),
   );

@@ -208,6 +208,21 @@ await check("menu: زر الألعاب يفتح قائمة فري فاير و ب
   const games = await waitForMessage(555, (m) => (m.text ?? "").includes("شحن الألعاب الرقمية"));
   assert.ok(hasButton(games, "فري فاير"));
   assert.ok(hasButton(games, "eFootball"));
+  // التقسيم إلى ثلاثة أقسام ملوّنة: أخضر (آي دي) / أزرق (بالحساب) / أحمر (بطاقات)
+  assert.ok(hasButton(games, "شحن بالآي دي"));
+  assert.ok(hasButton(games, "شحن بالحساب"));
+  assert.ok(hasButton(games, "بطاقات وأقسام خاصة"));
+  const all = (games.reply_markup?.inline_keyboard ?? []).flat();
+  const idHeader = all.find((btn) => (btn.text ?? "").includes("شحن بالآي دي"));
+  const accHeader = all.find((btn) => (btn.text ?? "").includes("شحن بالحساب"));
+  const cardHeader = all.find((btn) => (btn.text ?? "").includes("بطاقات"));
+  assert.equal(idHeader?.style, "success");
+  assert.equal(accHeader?.style, "primary");
+  assert.equal(cardHeader?.style, "danger");
+  const pesBtn = all.find((btn) => (btn.text ?? "").includes("eFootball"));
+  const ffBtn = all.find((btn) => (btn.text ?? "").includes("فري فاير"));
+  assert.equal(pesBtn?.style, "primary");
+  assert.equal(ffBtn?.style, "success");
 });
 
 await check("gate: الحساب المعفى @A_B_B_X_N يدخل بلا اشتراك", async () => {
