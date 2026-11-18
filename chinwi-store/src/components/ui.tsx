@@ -324,20 +324,26 @@ export function Modal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    if (open) document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    if (!open) return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-3 backdrop-blur-sm sm:p-6">
-      <div className={`panel fade-in my-6 w-full ${wide ? "max-w-4xl" : "max-w-xl"} p-5`}>
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true">
+      <div className={`panel fade-in my-4 w-full ${wide ? "max-w-4xl" : "max-w-xl"} max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:my-6 sm:p-5`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-extrabold text-emerald-950">{title}</h3>
           <button onClick={onClose} className="rounded-lg px-2 py-1 text-emerald-900/65 hover:bg-white/85 hover:text-emerald-950">
             ✕
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto pl-1">{children}</div>
+        <div className="max-h-[68vh] overflow-y-auto overscroll-contain pl-1">{children}</div>
         {footer && <div className="mt-4 flex flex-wrap justify-end gap-2">{footer}</div>}
       </div>
     </div>

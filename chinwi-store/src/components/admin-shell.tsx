@@ -86,6 +86,20 @@ export function AdminShell({ children }: { children: React.ReactNode }): React.R
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  useEffect(() => {
     apiGet<SessionInfo & { ok: boolean }>("session")
       .then(setSession)
       .catch(() => {});
@@ -136,9 +150,18 @@ export function AdminShell({ children }: { children: React.ReactNode }): React.R
       <div className="aurora-blob" style={{ width: 380, height: 380, bottom: -120, left: -80, background: "rgba(56,189,248,.4)", animationDelay: "3s" }} />
       <div className="aurora-blob" style={{ width: 300, height: 300, top: "45%", left: "55%", background: "rgba(244,114,182,.28)", animationDelay: "6s" }} />
 
+      {/* خلفية معتمة تغلق القائمة على الهاتف */}
+      {open && (
+        <button
+          aria-label="إغلاق القائمة"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 cursor-default bg-black/55 backdrop-blur-[2px] lg:hidden"
+        />
+      )}
+
       {/* الشريط الجانبي الزجاجي */}
       <aside
-        className={`fixed inset-y-0 right-0 z-50 w-[19rem] border-l border-white/70 bg-white/80 backdrop-blur-2xl transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`fixed inset-y-0 right-0 z-50 flex w-[19rem] max-w-[88vw] flex-col border-l border-white/70 bg-white/80 backdrop-blur-2xl transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           open ? "translate-x-0 shadow-2xl" : "translate-x-full lg:translate-x-0"
         }`}
       >
@@ -212,7 +235,7 @@ export function AdminShell({ children }: { children: React.ReactNode }): React.R
           </nav>
 
           {/* تذييل الشريط */}
-          <div className="border-t border-white/70 p-3">
+          <div className="border-t border-white/70 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <a
               href={botLink}
               target="_blank"
@@ -230,7 +253,7 @@ export function AdminShell({ children }: { children: React.ReactNode }): React.R
       </aside>
 
       {/* المحتوى */}
-      <div className="relative z-10 min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1">
         <header className="sticky top-0 z-30 border-b border-white/60 bg-white/70 px-3 py-2.5 backdrop-blur-xl sm:px-5">
           <div className="flex items-center gap-2">
             <button className="icon-btn lg:hidden" onClick={() => setOpen((v) => !v)} aria-label="القائمة">
