@@ -325,6 +325,19 @@ CREATE TABLE IF NOT EXISTS daily_gifts (
 CREATE INDEX IF NOT EXISTS idx_daily_gifts_user ON daily_gifts(user_id, claim_date);
 CREATE INDEX IF NOT EXISTS idx_referrals_inviter ON referrals(inviter_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_redemptions_status ON redemptions(status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id BIGSERIAL PRIMARY KEY,
+  tg_id BIGINT NOT NULL,
+  dir TEXT NOT NULL CHECK (dir IN ('in','out')),
+  name TEXT NOT NULL DEFAULT '',
+  username TEXT,
+  text TEXT NOT NULL DEFAULT '',
+  media TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_contact_messages_user ON contact_messages(tg_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contact_messages_created ON contact_messages(created_at DESC);
 `;
 
 /* ───────────────────────── الافتراضيات ───────────────────────── */
@@ -1150,8 +1163,11 @@ export async function backupJson(): Promise<{
   const tables: Record<string, unknown[]> = {};
   const counts: Record<string, number> = {};
   for (const t of BACKUP_TABLES) {
+    // جدول media فيه BYTEA الخام — تصديره كـ JSON يضخّم الملف بلا فايدة
+    // (الصورة تُسترجع من تيليجرام/الرابط)، نصدر الميتادا فقط
     const limit = t === "logs" ? " ORDER BY created_at DESC LIMIT 2000" : "";
-    const rows = await q<Record<string, unknown>>(`SELECT * FROM ${t}${limit}`);
+    const cols = t === "media" ? "id, mime, filename, size, created_at" : "*";
+    const rows = await q<Record<string, unknown>>(`SELECT ${cols} FROM ${t}${limit}`);
     tables[t] = rows;
     counts[t] = rows.length;
   }
@@ -1176,7 +1192,8 @@ export async function backupSql(): Promise<string> {
   ];
   for (const t of BACKUP_TABLES) {
     const limit = t === "logs" ? " ORDER BY created_at DESC LIMIT 2000" : "";
-    const rows = await q<Record<string, unknown>>(`SELECT * FROM ${t}${limit}`);
+    const selectCols = t === "media" ? "id, mime, filename, size, created_at" : "*";
+    const rows = await q<Record<string, unknown>>(`SELECT ${selectCols} FROM ${t}${limit}`);
     if (!rows.length) continue;
     const cols = Object.keys(rows[0]);
     parts.push(`-- ${t}: ${rows.length} صف`);

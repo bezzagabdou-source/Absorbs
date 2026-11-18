@@ -118,6 +118,16 @@ const server = http.createServer(async (req, res) => {
       state.sent.push({ method, chat_id: Number(payload.chat_id), text: payload.text || "", reply_markup: payload.reply_markup || null });
       return json(res, { ok: true, result: message });
     }
+    case "sendDocument": {
+      const message = {
+        message_id: ++state.nextMessageId,
+        chat: { id: Number(payload.chat_id) || 0, type: "private" },
+        date: Math.floor(Date.now() / 1000),
+        document: { file_id: "mock-document", file_name: payload.filename || "chinwi-backup.json" },
+      };
+      state.sent.push({ method, chat_id: Number(payload.chat_id) || 0, text: payload.caption || "", document: true, size: payload.size || 0 });
+      return json(res, { ok: true, result: message });
+    }
     case "sendPhoto": {
       const message = {
         message_id: ++state.nextMessageId,

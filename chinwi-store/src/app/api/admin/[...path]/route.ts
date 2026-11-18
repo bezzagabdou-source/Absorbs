@@ -642,6 +642,21 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
       return NextResponse.json({ ok: true, rows, total: Number(total?.count ?? 0), page, limit });
     }
 
+    case "contact": {
+      const rows = await q(
+        `WITH latest AS (
+           SELECT DISTINCT ON (tg_id) tg_id, name, username, text, dir, media, created_at
+           FROM contact_messages
+           ORDER BY tg_id, created_at DESC
+         )
+         SELECT l.*, (SELECT count(*) FROM contact_messages m WHERE m.tg_id = l.tg_id)::int AS count
+         FROM latest l
+         ORDER BY l.created_at DESC
+         LIMIT 100`,
+      );
+      return NextResponse.json({ ok: true, threads: rows });
+    }
+
     case "broadcasts":
       return NextResponse.json({
         ok: true,
@@ -890,6 +905,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
       break;
   }
 
+  /* ── بوت تواصل: محادثة كاملة لشخص ── */
+  if (seg[0] === "contact" && seg[1]) {
+    const tg = num(seg[1]);
+    if (!tg) return bad("معرّف غير صالح", 400);
+    const messages = await q(
+      "SELECT id, dir, name, username, text, media, created_at FROM contact_messages WHERE tg_id = $1 ORDER BY created_at ASC LIMIT 300",
+      [tg],
+    );
+    return NextResponse.json({ ok: true, messages });
+  }
+
   // مسارات بمعرّف
   if (seg[0] === "orders" && seg[1]) {
     const order = await getOrder(num(seg[1]));
@@ -1101,6 +1127,38 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
     if (body.sort !== undefined) patch.sort = num(body.sort);
     const prize = await updatePrize(id, patch as never);
     return NextResponse.json({ ok: Boolean(prize), prize });
+  }
+
+  /* ── بوت تواصل: المالك يرسل لأي شخص (يصله عبر @chinwicontactbot) ── */
+  if (seg[0] === "contact" && seg[1] === "send") {
+    const tg = num(body.tg_id);
+    if (!tg || tg <= 0) return bad("معرّف الزبون غير صالح");
+    const text = str(body.text).trim();
+    if (!text) return bad("اكتب رسالتك أولاً");
+    const url = process.env.CONTACT_SEND_URL ?? "";
+    const secret = process.env.CONTACT_BRIDGE_SECRET ?? "";
+    if (!url || !secret) return bad("بوت تواصل غير مربوط (CONTACT_SEND_URL / CONTACT_BRIDGE_SECRET)", 500);
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-bridge-secret": secret },
+        body: JSON.stringify({ tg_id: tg, text }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = (await r.json().catch(() => ({}))) as { ok?: boolean; description?: string; error?: string };
+      if (!data?.ok) {
+        const reason = String(data?.description ?? data?.error ?? "تعذّر الإرسال");
+        // أشهر سبب: الشخص لم يبدأ البوت بعد (تيليجرام يمنع المراسلة المبادِئة)
+        return bad(/initiate|forbidden|blocked|never/i.test(reason)
+          ? "هذا الشخص لم يبدأ بوت تواصل بعد — لا يمكن مراسلته حتى يراسل البوت أولاً"
+          : reason.slice(0, 150), 502);
+      }
+      await log("contact_send", { tg_id: tg }, "info", "admin");
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      console.error("[contact-send] failed", err);
+      return bad("تعذّر الاتصال ببوت تواصل", 502);
+    }
   }
 
   /* ── المسابقات: تسليم جائزة بعد الموافقة → الحالة delivered + إعلان للجميع ── */

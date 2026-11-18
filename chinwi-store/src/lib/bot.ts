@@ -1909,7 +1909,7 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
               `🎁 ${escapeHtml(redemption.prize_title)} — ${redemption.points} نقطة`,
               `👤 ${escapeHtml(name)} — ${handle}`,
               "",
-              "بعد ما تسلّم الجائزة فعلياً للزبون، اضغط «📦 تم التسليم» باش نبشرو الجميع 🎉",
+              "بعد ما تسلّم الجائزة فعلياً للزبون، اضغط «📦 تم التسليم» في لوحة التحكم ← المسابقات 🎉",
             ].join("\n")
           : [
               "🎁 <b>طلب استبدال جائزة</b> — <b>🔴 مرفوض</b>",
@@ -1922,43 +1922,8 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
           msgId,
           text,
           approve
-            ? kb([[b(`📦 تم التسليم`, `rdlv:${id}`, "success"), link(`💬 مراسلة الزبون`, `tg://user?id=${redemption.user_id}`)]])
+            ? kb([[link(`💬 مراسلة الزبون`, `tg://user?id=${redemption.user_id}`)]])
             : undefined,
-        ).catch(() => null);
-      }
-      return;
-    }
-    case "rdlv": {
-      if (!isAdminUser(user)) {
-        await answerCallback(cq.id, "للمالك فقط", true);
-        return;
-      }
-      const id = Number(a1);
-      if (!Number.isFinite(id) || id <= 0) {
-        await answerCallback(cq.id, "طلب غير صالح", true);
-        return;
-      }
-      const result = await announcePrizeDelivery(id);
-      if (!result.ok) {
-        await answerCallback(cq.id, result.reason ?? "تعذّر التسليم", true);
-        return;
-      }
-      await answerCallback(cq.id, "📦 مبروك — تم التسليم وتبشير الجميع 🎉", true);
-      const msgId = cq.message?.message_id;
-      if (msgId) {
-        const r = result.redemption;
-        const handle = r.username ? `@${escapeHtml(r.username)}` : `<code>${r.user_id}</code>`;
-        await editMessage(
-          chatId,
-          msgId,
-          [
-            "🎁 <b>طلب استبدال جائزة</b> — <b>📦 تم التسليم</b> ✅",
-            "",
-            `🎁 ${escapeHtml(r.prize_title)}`,
-            `👤 ${escapeHtml(r.first_name || "زبون")} — ${handle}`,
-            "",
-            `📣 وصلت رسالة الخبر لكل الزبائن (${result.sent} وصلت)`,
-          ].join("\n"),
         ).catch(() => null);
       }
       return;

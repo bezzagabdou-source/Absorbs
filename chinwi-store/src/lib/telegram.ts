@@ -351,6 +351,33 @@ export async function sendProductCard(
   return sendPhoto(chatId, { fileId: opts.fileId, url: opts.imageUrl }, opts.caption, opts.keyboard);
 }
 
+/** إرسال ملف (يحجز buffer في memory — الملفات فوق 45MB ترجع null وتقلب كـ error للمستدعي) */
+export async function sendDocument(
+  chatId: number | string,
+  file: Buffer,
+  filename: string,
+  caption?: string,
+): Promise<TgMessage | null> {
+  if (!file || file.length === 0 || file.length > 45 * 1024 * 1024) return null;
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  if (caption) {
+    form.append("caption", richify(caption));
+    form.append("parse_mode", "HTML");
+  }
+  form.append(
+    "document",
+    new Blob([new Uint8Array(file)], { type: "application/octet-stream" }),
+    filename,
+  );
+  try {
+    return await tgForm<TgMessage>("sendDocument", form);
+  } catch {
+    /* فشل الإرسال كملف — نعيد null للمستدعي */
+    return null;
+  }
+}
+
 /* ───────────────────────── معلومات البوت ───────────────────────── */
 
 export type BotIdentity = { id: number; username: string; first_name: string };

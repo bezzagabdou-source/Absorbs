@@ -35,6 +35,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/users", label: "المستخدمون", icon: "👥" },
       { href: "/admin/contests", label: "المسابقات والإحالات", icon: "🎉" },
+      { href: "/admin/contact", label: "بوت تواصل — المالك", icon: "💬" },
       { href: "/admin/reviews", label: "التقييمات", icon: "⭐️" },
       { href: "/admin/faq", label: "الأسئلة الشائعة", icon: "❓" },
     ],
