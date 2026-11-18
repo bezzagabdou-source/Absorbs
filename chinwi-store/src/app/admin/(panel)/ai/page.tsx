@@ -38,17 +38,35 @@ const ACTION_LABEL: Record<string, string> = {
   update_product: "✏️ تعديل منتج",
   delete_product: "🗑 حذف منتج",
   create_category: "🗂 إنشاء قسم",
+  update_category: "🗂 تعديل قسم",
+  delete_category: "🗑 حذف قسم",
   update_setting: "⚙️ تعديل إعداد",
   ban_user: "🔨 حظر مستخدم",
   unban_user: "🔓 فك حظر",
   set_order_status: "🧾 تغيير حالة طلب",
-  broadcast: "📢 إذاعة",
+  delete_order: "🗑 حذف طلب",
+  broadcast: "📢 إذاعة للجميع",
+  send_message: "📩 رسالة خاصة",
   update_wallet: "💳 تعديل محفظة",
+  create_wallet: "💳 إنشاء محفظة",
+  delete_wallet: "🗑 حذف محفظة",
+  create_channel: "📡 إضافة قناة اشتراك",
+  update_channel: "✏️ تعديل قناة",
+  delete_channel: "🗑 حذف قناة",
   create_coupon: "🎟 إنشاء كود خصم",
+  delete_coupon: "🗑 حذف كود",
   add_faq: "❓ إضافة سؤال شائع",
   add_task: "🗒 إضافة مهمة",
   lock_bot: "🔒 قفل/فتح البوت",
+  maintenance: "🛠 وضع الصيانة",
   bulk_price: "💸 تعديل أسعار قسم",
+  add_points: "⭐ إضافة/خصم نقاط",
+  create_prize: "🎁 إضافة جائزة",
+  update_prize: "✏️ تعديل جائزة",
+  delete_prize: "🗑 حذف جائزة",
+  decide_redemption: "🎁 قرار طلب جائزة",
+  reset_stats: "📉 تصفير الإحصائيات",
+  toggle_product: "⏸ تفعيل/تعطيل منتج",
 };
 
 export default function AiPage(): React.ReactElement {
@@ -178,9 +196,9 @@ export default function AiPage(): React.ReactElement {
         <div className="grid gap-4 lg:grid-cols-[1fr_18rem]">
           <Card className="flex min-h-[32rem] flex-col !p-0">
             <div className="flex items-center justify-between border-b border-emerald-900/10 px-4 py-3">
-              <p className="text-sm font-black text-emerald-950">شينوي AI</p>
+              <p className="text-sm font-black text-emerald-950">شينوي AI v2 — المالك الثاني 🧠</p>
               <span className="flex items-center gap-1.5 text-[0.68rem] text-emerald-600">
-                <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-emerald-400" /> يعمل الآن
+                <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-emerald-400" /> ينفّذ كل شيء داخل البوت
               </span>
             </div>
 
@@ -188,10 +206,12 @@ export default function AiPage(): React.ReactElement {
               {messages.length === 0 && (
                 <div className="py-10 text-center">
                   <p className="text-4xl">🧠</p>
-                  <p className="mt-2 text-sm font-bold text-emerald-950">مرحباً بك، أنا شينوي AI</p>
+                  <p className="mt-2 text-sm font-bold text-emerald-950">مرحباً بك، أنا شينوي AI v2 — مالك ثانٍ داخل بوتك</p>
                   <p className="mx-auto mt-1 max-w-md text-xs leading-6 text-emerald-900/65">
-                    اطلب مني أي شيء: «أضف منتج … بسعر …»، «رفّع أسعار فري فاير 5%»، «كم مبيعاتي اليوم؟»,
-                    «احظر المستخدم 123»، «اكتب إذاعة عن العرض الجديد»…
+                    أنا أملك نفس صلاحياتك تقريباً: أضيف وأعدّل وأحذف المنتجات والأقسام والمحافظ والقنوات والجوائز،
+                    أوافق على الطلبات والجوائز أو أرفضها، أحظر وأفك الحظر، أمنح وأخصم النقاط، أنفّذ الإذاعات،
+                    أنشئ أكواد الخصم، أُصفّر الإحصائيات — <b>أي أمر يصدر عنك يتنفذ فوراً بدون زر «تنفيذ»</b>.
+                    جرّب: «أضف منتج 1080 جوهرة بسعر 3050 في فري فاير» · «وافق على الطلب 12» · «أضف جائزة 50 دج ب 100 نقطة» · «صفر الإحصائيات» · «أعط فلان 25 نقطة» · «ارفع أسعار تيك توك 5%»
                   </p>
                 </div>
               )}

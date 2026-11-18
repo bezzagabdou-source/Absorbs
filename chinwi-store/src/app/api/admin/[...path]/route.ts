@@ -200,6 +200,21 @@ const ACTION_LABELS: Record<string, string> = {
   bulk_price: "تعديل أسعار جماعي",
   update_wallet: "تعديل محفظة",
   send_message: "رسالة لمستخدم",
+  add_points: "إضافة/خصم نقاط",
+  decide_redemption: "قرار طلب جائزة",
+  create_prize: "إضافة جائزة",
+  update_prize: "تعديل جائزة",
+  delete_prize: "حذف جائزة",
+  delete_wallet: "حذف محفظة",
+  create_wallet: "إنشاء محفظة",
+  create_channel: "إضافة قناة",
+  update_channel: "تعديل قناة",
+  delete_channel: "حذف قناة",
+  delete_order: "حذف طلب",
+  reset_stats: "تصفير الإحصائيات",
+  toggle_product: "تفعيل/تعطيل منتج",
+  delete_coupon: "حذف كود خصم",
+  update_category: "تعديل قسم",
 };
 
 async function findUserId(action: Record<string, unknown>): Promise<number> {
@@ -370,6 +385,101 @@ async function executeAction(action: Record<string, unknown>): Promise<{ type: s
           instructions: action.instructions !== undefined ? str(action.instructions) : undefined,
         });
         return { type, ok: Boolean(updated), result: updated ? `تم تحديث المحفظة #${id}` : "لم تُعثر المحفظة" };
+      }
+      case "add_points": {
+        const tgId = await findUserId(action);
+        if (!tgId) return { type, ok: false, result: "لم أجد المستخدم" };
+        const delta = Math.trunc(num(action.points));
+        if (!delta) return { type, ok: false, result: "عدد النقاط غير صحيح" };
+        await q("UPDATE users SET points = GREATEST(0, points + $2) WHERE tg_id = $1", [tgId, delta]);
+        const after = await one<{ points: string }>("SELECT points FROM users WHERE tg_id = $1", [tgId]);
+        return { type, ok: true, result: `${delta >= 0 ? "أُضيفت" : "أُخصمت"} ${Math.abs(delta)} نقطة لـ ${tgId} — الرصيد الآن ${after?.points ?? "?"}` };
+      }
+      case "decide_redemption": {
+        const id = num(action.id);
+        const approve = bool(action.approve ?? (str(action.status) === "approved")) ?? false;
+        const row = await decideRedemption(id, approve ? "approved" : "rejected", str(action.note) || undefined);
+        if (!row) return { type, ok: false, result: `لم أجد الطلب #${id}` };
+        return { type, ok: true, result: `الطلب #${id} → ${approve ? "مقبول ✅ (سُلّمت الجائزة)" : "مرفوض ❌ (رجعت النقاط)"}` };
+      }
+      case "create_prize": {
+        const title = str(action.title).trim();
+        const points = num(action.points);
+        if (!title || !(points > 0)) return { type, ok: false, result: "الجائزة تحتاج اسم وعدد نقاط" };
+        const created = await createPrize({ title, points, icon: str(action.icon, "🎁"), note: str(action.note) });
+        return { type, ok: true, result: `أُنشئت الجائزة «${created.title}» (#${created.id}) ب ${points} نقطة` };
+      }
+      case "update_prize": {
+        const id = num(action.id);
+        const patch: Record<string, unknown> = {};
+        for (const k of ["title", "icon", "note"] as const) if (action[k] !== undefined) patch[k] = str(action[k]);
+        if (action.points !== undefined) patch.points = num(action.points);
+        if (action.active !== undefined) patch.active = Boolean(action.active);
+        const updated = await updatePrize(id, patch as never);
+        return { type, ok: Boolean(updated), result: updated ? `تم تحديث الجائزة #${id}` : `لم تُعثر على الجائزة #${id}` };
+      }
+      case "delete_prize": {
+        const id = num(action.id);
+        await deletePrize(id);
+        return { type, ok: true, result: `تم حذف الجائزة #${id}` };
+      }
+      case "delete_wallet": {
+        const id = num(action.id);
+        await deleteWallet(id);
+        return { type, ok: true, result: `تم حذف المحفظة #${id}` };
+      }
+      case "create_channel": {
+        const chat = str(action.chat).trim();
+        const title = str(action.title).trim() || chat;
+        if (!chat) return { type, ok: false, result: "معرّف القناة مطلوب (مثال @chinwichi)" };
+        const created = await createChannel({ chat, title, url: str(action.url, `https://t.me/${chat.replace(/^@/, "")}`) });
+        return { type, ok: true, result: `أُنشئت القناة «${created.title}» (${created.chat})` };
+      }
+      case "update_channel": {
+        const id = num(action.id);
+        const patch: Record<string, unknown> = {};
+        for (const k of ["title", "chat", "url"] as const) if (action[k] !== undefined) patch[k] = str(action[k]);
+        if (action.active !== undefined) patch.active = Boolean(action.active);
+        const updated = await updateChannel(id, patch as never);
+        return { type, ok: Boolean(updated), result: updated ? `تم تحديث القناة #${id}` : `لم تُعثر القناة #${id}` };
+      }
+      case "delete_channel": {
+        const id = num(action.id);
+        await deleteChannel(id);
+        return { type, ok: true, result: `تم حذف القناة #${id}` };
+      }
+      case "delete_order": {
+        const id = num(action.id);
+        await deleteOrder(id);
+        return { type, ok: true, result: `تم حذف الطلب #${id}` };
+      }
+      case "reset_stats": {
+        await setSetting("stats_reset_at", new Date().toISOString());
+        await q("UPDATE products SET sold = 0");
+        await log("stats_reset", {}, "warn", "ai");
+        return { type, ok: true, result: "تم تصفير الإحصائيات والمبيعات — تبدأ الأرقام من الصفر (الطلبات محفوظة)" };
+      }
+      case "toggle_product": {
+        const id = num(action.id);
+        const active = bool(action.active) ?? true;
+        const updated = await updateProduct(id, { active } as never);
+        return { type, ok: Boolean(updated), result: `المنتج #${id} → ${active ? "مفعّل ✅" : "معطّل ⏸"}` };
+      }
+      case "delete_coupon": {
+        const code = str(action.code).trim().toUpperCase();
+        if (!code) return { type, ok: false, result: "الكود مطلوب" };
+        await q("DELETE FROM coupons WHERE code = $1", [code]);
+        return { type, ok: true, result: `تم حذف الكود ${code}` };
+      }
+      case "update_category": {
+        const raw = str(action.category ?? action.id);
+        const id = /^\d+$/.test(raw) ? num(raw) : await resolveCategoryId(raw);
+        if (!id) return { type, ok: false, result: `قسم غير موجود: ${raw}` };
+        const patch: Record<string, unknown> = {};
+        for (const k of ["name", "emoji", "description"] as const) if (action[k] !== undefined) patch[k] = str(action[k]);
+        if (action.active !== undefined) patch.active = Boolean(action.active);
+        const updated = await updateCategory(id, patch as never);
+        return { type, ok: Boolean(updated), result: updated ? `تم تحديث القسم «${updated.name}»` : `لم يُعثر القسم #${id}` };
       }
       default:
         return { type, ok: false, result: "نوع عملية غير معروف" };
