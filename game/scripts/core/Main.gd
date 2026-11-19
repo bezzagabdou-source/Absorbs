@@ -7,7 +7,7 @@ enum State { BOOT, SPLASH, MENU, PLAY }
 var state: int = State.BOOT
 var bus: EventBus
 var loc: Localization3
-var input: RefCountedV2
+var input: InputManagerV2
 var settings: SettingsStore
 var quality: QualityManager
 var perf: PerformanceDashboard
@@ -121,7 +121,7 @@ func _init_world() -> void:
 	traffic = TrafficAI.new()
 	traffic.name = "Traffic"
 	add_child(traffic)
-	traffic.setup(graph, quality.index)
+	traffic.setup(graph, bus, quality.index)
 	traffic.populate(self, player.global_position)
 	police = PoliceAI.new()
 	police.name = "Police"
