@@ -39,6 +39,7 @@ jobs:
           "$GODOT_DIR/godot" --headless --path game --script res://tests/smoke_test.gd 2>&1 | tee /tmp/smoke.log
           code=${PIPESTATUS[0]}
           grep -iE 'SCRIPT ERROR|Parse Error|ERROR:|FAIL|Invalid|not found' /tmp/smoke.log 2>/dev/null | head -30 | while read -r line; do echo "::error::$line"; done
+          if grep -q 'SCRIPT ERROR' /tmp/smoke.log 2>/dev/null; then echo "::error::Runtime script errors detected in smoke test"; exit 1; fi
           exit $code
 
   build:

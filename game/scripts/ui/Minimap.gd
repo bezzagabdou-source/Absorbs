@@ -29,14 +29,14 @@ func _draw() -> void:
 		draw_line(Vector2(c.x - radius, y), Vector2(c.x + radius, y), Color(0.45, 0.48, 0.52, 0.35), 1.0)
 	if missions != null and missions.active:
 		var d := (missions.marker - player.global_position) * 0.35
-		var p := c + Vector2(d.x, d.z).clamped(radius - 8)
+		var p := c + Vector2(d.x, d.z).limit_length(radius - 8)
 		draw_circle(p, 5, Color(0.2, 1.0, 0.6))
 	if police != null:
 		for u in police._units:
 			if not is_instance_valid(u):
 				continue
 			var d := ((u as Node3D).global_position - player.global_position) * 0.35
-			var p := c + Vector2(d.x, d.z).clamped(radius - 6)
+			var p := c + Vector2(d.x, d.z).limit_length(radius - 6)
 			draw_circle(p, 3, Color(1.0, 0.3, 0.25))
 	draw_circle(c, 4, Color(1, 1, 1))
 	if player != null:

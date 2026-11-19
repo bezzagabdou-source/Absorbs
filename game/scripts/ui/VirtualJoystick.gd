@@ -34,7 +34,7 @@ func _gui_input(event: InputEvent) -> void:
 			_index = t.index
 			_centre = t.position
 			_knob.position = _centre
-			update()
+			queue_redraw()
 		elif not t.pressed and t.index == _index:
 			_end()
 	elif event is InputEventScreenDrag and _active:
@@ -46,11 +46,11 @@ func _gui_input(event: InputEvent) -> void:
 			offset = offset.normalized() * _radius
 		_knob.position = _centre + offset
 		input.set_move(offset / _radius)
-		update()
+		queue_redraw()
 
 func _end() -> void:
 	_active = false
 	_index = -1
 	input.set_move(Vector2.ZERO)
 	_knob.position = _centre
-	update()
+	queue_redraw()
