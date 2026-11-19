@@ -11,7 +11,7 @@ const PRESETS := [
 static func apply(level: int, fps_cap: int) -> void:
 	level = clamp(level, 0, 2)
 	var p: Dictionary = PRESETS[level]
-	var vp := Engine.get_main_loop().root
+	var vp: Window = Engine.get_main_loop().root
 	vp.scaling_3d_scale = float(p["scale"])
 	Engine.max_fps = fps_cap
 	for n in vp.find_children("*", "DirectionalLight3D", true, false):

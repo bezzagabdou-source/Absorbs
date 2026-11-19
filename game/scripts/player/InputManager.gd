@@ -10,7 +10,7 @@ var sensitivity: float = 1.0
 var invert_y: bool = false
 
 func set_move(v: Vector2) -> void:
-	move_vector = v.clamped(1.0)
+	move_vector = v.limit_length(1.0)
 
 func add_look(v: Vector2) -> void:
 	look_delta += v * sensitivity
@@ -41,7 +41,7 @@ func get_move() -> Vector2:
 	var m := Vector2(axis("move_left", "move_right"), axis("move_back", "move_forward"))
 	if move_vector.length_squared() > 0.01:
 		m = move_vector
-	return m.clamped(1.0)
+	return m.limit_length(1.0)
 
 func consume_look() -> Vector2:
 	var v := look_delta
