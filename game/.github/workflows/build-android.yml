@@ -101,6 +101,7 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=NovaMiraDemo2026" >> "$GITHUB_ENV"
       - name: Import + export release APK
         run: |
+          mkdir -p build
           "$GODOT_DIR/godot" --headless --path game --import
           "$GODOT_DIR/godot" --headless --path game --export-release "Android" ../build/NovaMira-v0.1.0.apk 2>&1 | tee /tmp/export.log
           test -s build/NovaMira-v0.1.0.apk
