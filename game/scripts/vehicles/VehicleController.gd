@@ -198,8 +198,8 @@ func _physics_process(delta: float) -> void:
 	for w in _wheels:
 		w.wheel_friction_slip = 1.6 * float(spec["grip"]) * grip
 	if is_player_vehicle and input != null:
-		var throttle := input.axis("move_back", "move_forward")
-		var steer := input.axis("move_left", "move_right")
+		var throttle: float = float(input.axis("move_back", "move_forward"))
+		var steer: float = float(input.axis("move_left", "move_right"))
 		if input.pressed("handbrake"):
 			brake = 12.0
 			steer *= 1.6
