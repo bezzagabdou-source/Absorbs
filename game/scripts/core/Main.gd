@@ -151,7 +151,7 @@ func _init_world() -> void:
 	await get_tree().create_timer(0.8).timeout
 	state = State.MENU
 	ui.show_menu()
-	weather.set_state(2)
+	weather.set_state(0)
 	print("[NovaMira] world ready: %d road nodes, %d chunks, %d traffic cars" % [graph.size(), city.chunk_count(), traffic.cars.size()])
 
 func _spawn_peds() -> void:
@@ -222,16 +222,16 @@ func _process(delta: float) -> void:
 	if "--capture-frames" in OS.get_cmdline_args():
 		_capture_frame += 1
 		match _capture_frame:
-			90:
+			200:
 				if state == State.MENU:
 					_on_start(true)
-			150:
+			320:
 				day.hour = 22.0
 				day.apply()
 				weather.set_state(2)
-			210:
+			380:
 				ui.toggle_phone()
-			270:
+			440:
 				ui.toggle_phone()
 				debug_overlay.toggle()
 	_frames += 1
@@ -244,8 +244,8 @@ func _process(delta: float) -> void:
 	if state == State.MENU:
 		_t += delta
 		var a := _t * 0.09
-		menu_camera.global_position = Vector3(cos(a) * 220, 55 + sin(a * 0.7) * 12, sin(a) * 220)
-		menu_camera.look_at(Vector3(150, 60, -150))
+		menu_camera.global_position = Vector3(cos(a) * 90, 28 + sin(a * 0.7) * 6, sin(a) * 90)
+		menu_camera.look_at(Vector3(0, 22, 0))
 		return
 	if state != State.PLAY:
 		return

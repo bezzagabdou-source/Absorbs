@@ -191,13 +191,13 @@ jobs:
           xvfb-run -a -s "-screen 0 960x540x24" \
             "$GODOT_DIR/godot" --path game --rendering-method gl_compatibility \
             --rendering-driver opengl3 --resolution 960x540 \
-            --write-movie /tmp/nova_frames.png --fixed-fps 30 --quit-after 300 2>&1 | tee /tmp/screens.log
+            --write-movie /tmp/nova_frames.png --fixed-fps 30 --quit-after 500 2>&1 | tee /tmp/screens.log
           mkdir -p screenshots
-          cp /tmp/nova_frames00000060.png screenshots/01-main-menu.png
-          cp /tmp/nova_frames00000130.png screenshots/02-gameplay-day.png
-          cp /tmp/nova_frames00000190.png screenshots/03-gameplay-night-rain.png
-          cp /tmp/nova_frames00000240.png screenshots/04-phone-ui.png
-          cp /tmp/nova_frames00000290.png screenshots/05-debug-overlay.png
+          cp /tmp/nova_frames00000150.png screenshots/01-main-menu.png
+          cp /tmp/nova_frames00000260.png screenshots/02-gameplay-day.png
+          cp /tmp/nova_frames00000340.png screenshots/03-gameplay-night-rain.png
+          cp /tmp/nova_frames00000400.png screenshots/04-phone-ui.png
+          cp /tmp/nova_frames00000460.png screenshots/05-debug-overlay.png
           ls -lh screenshots
       - name: Screenshot log
         if: always()
