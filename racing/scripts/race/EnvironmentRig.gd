@@ -168,8 +168,9 @@ func _build_sun(p: Dictionary) -> void:
 	sun.directional_shadow_blend_splits = true
 	sun.light_angular_distance = 1.2
 	var dir: Vector3 = p["sun_dir"]
-	sun.look_at_from_position(dir * 100.0, Vector3.ZERO, Vector3.UP)
 	add_child(sun)
+	sun.position = dir.normalized() * 100.0
+	sun.look_at(Vector3.ZERO, Vector3.UP)
 
 
 func _build_world_env(p: Dictionary, accent: Color) -> void:

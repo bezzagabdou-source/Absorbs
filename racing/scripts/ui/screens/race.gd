@@ -58,7 +58,7 @@ func _ready() -> void:
 
 func _build_world() -> void:
 	viewport = SubViewport.new()
-	viewport.size = Vector2i(1920, 1080)
+	viewport.size = Vector2i(1280, 720)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport.msaa_3d = Viewport.MSAA_2X
 	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
@@ -177,7 +177,7 @@ func _start_race() -> void:
 	player.input_enabled = false
 	for ai in ai_cars:
 		ai["node"].input_enabled = false
-	await get_tree().create_timer(0.45).timeout
+	await get_tree().create_timer(0.9).timeout
 	await hud.start_countdown()
 	state = "racing"
 	race_time = 0.0

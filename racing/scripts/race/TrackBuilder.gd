@@ -122,10 +122,10 @@ func _build_road() -> void:
 		if fwd.length() > 0.01:
 			var cs = CollisionShape3D.new()
 			var box = BoxShape3D.new()
-			box.size = Vector3(data.widths[i0] * 1.7, 1.2, fwd.length() + 1.6)
+			box.size = Vector3(maxf(3.0, data.widths[i0] * 0.92), 1.2, fwd.length() + 2.2)
 			cs.shape = box
-			cs.position = mid + Vector3.DOWN * 0.6
-			cs.transform.basis = Basis.looking_at(fwd.normalized(), Vector3.UP)
+			cs.position = Vector3(mid.x, p0.y + 0.05, mid.z)
+			cs.rotation.y = atan2(fwd.x, fwd.z)
 			body.add_child(cs)
 	st.generate_tangents()
 	var mi = MeshInstance3D.new()
@@ -212,8 +212,8 @@ func _build_barriers() -> void:
 				var box = BoxShape3D.new()
 				box.size = Vector3(0.6, 1.6, fwd.length() + 1.0)
 				cs.shape = box
-				cs.position = (p0 + p1) * 0.5 + Vector3.UP * 0.6
-				cs.transform.basis = Basis.looking_at(fwd.normalized(), Vector3.UP)
+				cs.position = Vector3((p0.x + p1.x) * 0.5, p0.y + 0.55, (p0.z + p1.z) * 0.5)
+				cs.rotation.y = atan2(fwd.x, fwd.z)
 				body.add_child(cs)
 			i += step
 	var mi = MeshInstance3D.new()
@@ -303,12 +303,12 @@ func _build_city() -> void:
 	var strip = BoxMesh.new()
 	strip.size = Vector3(1, 0.22, 1)
 	em.mesh = strip
+	em.use_colors = true
 	em.instance_count = 1600
 	var eused = 0
 	var ecol = StandardMaterial3D.new()
 	ecol.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	ecol.vertex_color_use_as_albedo = true
-	em.use_colors = true
 	for i in range(1600):
 		var ang = _rng.randf() * TAU
 		var dist = radius + _rng.randf_range(38.0, 390.0)
@@ -538,7 +538,7 @@ func _build_start_gantry() -> void:
 	beam.mesh = bbox
 	beam.material_override = metal
 	beam.position = p + Vector3.UP * 7.0
-	beam.transform.basis = Basis.looking_at(data.tangents[0], Vector3.UP)
+	beam.rotation.y = atan2(data.tangents[0].x, data.tangents[0].z)
 	gantry.add_child(beam)
 	var sign = MeshInstance3D.new()
 	var sbox = BoxMesh.new()
@@ -550,7 +550,7 @@ func _build_start_gantry() -> void:
 	smat.set_shader_parameter("energy", 2.0)
 	sign.material_override = smat
 	sign.position = p + Vector3.UP * 7.0
-	sign.transform.basis = Basis.looking_at(data.tangents[0], Vector3.UP)
+	sign.rotation.y = atan2(data.tangents[0].x, data.tangents[0].z)
 	gantry.add_child(sign)
 	add_child(gantry)
 
