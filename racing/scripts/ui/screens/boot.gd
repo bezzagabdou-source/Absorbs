@@ -9,7 +9,7 @@ var _bar: ProgressBar
 func build() -> void:
 	AudioDirector.play_music("menu_theme", 0.8, -14.0)
 	var v = VBoxContainer.new()
-	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.add_theme_constant_override("separation", 6)
 	content.add_child(v)

@@ -46,7 +46,7 @@ var _touch_steer_smooth = 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	track = params.get("track", GameData.TRACKS[0])
 	mode = str(params.get("mode", "circuit"))
@@ -68,7 +68,7 @@ func _build_world() -> void:
 		viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
 	viewport.scaling_3d_scale = clampf(float(SettingsStore.get_value("render_scale", 1.0)), 0.6, 1.0)
 	viewport_container = SubViewportContainer.new()
-	viewport_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	viewport_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	viewport_container.stretch = true
 	viewport_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	viewport_container.add_child(viewport)
@@ -381,11 +381,11 @@ func _build_pause_menu() -> void:
 	var overlay = ColorRect.new()
 	overlay.name = "PauseOverlay"
 	overlay.color = Color(0.01, 0.02, 0.04, 0.72)
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(overlay)
 	var panel = UIStyle.make_glass_panel(34, Color(0.05, 0.08, 0.14, 0.92), 48, 0.35)
-	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.offset_left = -280
 	panel.offset_right = 280

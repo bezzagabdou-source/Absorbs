@@ -24,7 +24,7 @@ func build() -> void:
 
 func _build_filters() -> void:
 	var row = HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	row.offset_left = 96
 	row.offset_right = -740
 	row.offset_top = 168
@@ -61,7 +61,7 @@ func _filter_row() -> HBoxContainer:
 
 func _build_grid() -> void:
 	var scroll = ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
 	scroll.offset_left = 96
 	scroll.offset_top = 268
 	scroll.offset_bottom = -44
@@ -78,7 +78,7 @@ func _build_grid() -> void:
 
 func _build_compare() -> void:
 	var panel = UIStyle.make_glass_panel(30, Color(0.04, 0.06, 0.11, 0.86), 28, 0.2)
-	panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
 	panel.offset_left = -696
 	panel.offset_right = -44
 	panel.offset_top = 168

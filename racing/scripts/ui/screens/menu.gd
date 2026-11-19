@@ -20,7 +20,7 @@ func _add_hero() -> void:
 	var art = UIStyle.make_art_background("menu_hero")
 	content.add_child(art)
 	var title_block = VBoxContainer.new()
-	title_block.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	title_block.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	title_block.offset_left = 84
 	title_block.offset_top = 96
 	title_block.offset_right = 1000
@@ -43,7 +43,7 @@ func _add_hero() -> void:
 
 func _add_left_column() -> void:
 	var col = VBoxContainer.new()
-	col.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	col.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	col.offset_left = 84
 	col.offset_top = 470
 	col.offset_right = 620
@@ -75,7 +75,7 @@ func _add_left_column() -> void:
 
 func _add_quick_actions() -> void:
 	var bar = HBoxContainer.new()
-	bar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	bar.offset_left = -560
 	bar.offset_right = -84
 	bar.offset_top = 96
@@ -99,7 +99,7 @@ func _add_quick_actions() -> void:
 
 func _add_car_showcase() -> void:
 	_car_view = SubViewportContainer.new()
-	_car_view.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_car_view.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	_car_view.offset_left = -1180
 	_car_view.offset_right = 60
 	_car_view.offset_top = -560
@@ -178,7 +178,7 @@ func _add_car_showcase() -> void:
 	root.add_child(disc)
 	# nameplate
 	var plate = UIStyle.make_glass_panel(24, Color(0.03, 0.05, 0.1, 0.72), 22, 0.25)
-	plate.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	plate.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	plate.offset_left = -700
 	plate.offset_right = -100
 	plate.offset_top = -168
@@ -198,7 +198,7 @@ func _add_car_showcase() -> void:
 
 func _add_footer_stats() -> void:
 	var strip = HBoxContainer.new()
-	strip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	strip.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	strip.offset_left = 84
 	strip.offset_bottom = -40
 	strip.offset_top = -120

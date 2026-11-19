@@ -38,7 +38,7 @@ func build() -> void:
 
 func _build_viewport() -> void:
 	var container = SubViewportContainer.new()
-	container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	container.offset_right = -760
 	container.offset_top = 150
 	container.offset_bottom = -40
@@ -161,7 +161,7 @@ func _process(_delta: float) -> void:
 
 func _build_list() -> void:
 	var panel = UIStyle.make_glass_panel(28, Color(0.04, 0.06, 0.11, 0.82), 20)
-	panel.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
 	panel.offset_left = 44
 	panel.offset_right = 424
 	panel.offset_top = 160
@@ -221,7 +221,7 @@ func _car_row(car: Dictionary, idx: int) -> Control:
 	b.pressed.connect(func(): _select_car(str(car["id"]), idx))
 	b.add_theme_constant_override("h_separation", 12)
 	var h = HBoxContainer.new()
-	h.set_anchors_preset(Control.PRESET_FULL_RECT)
+	h.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	h.offset_left = 14
 	h.offset_right = -14
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -251,7 +251,7 @@ func _car_row(car: Dictionary, idx: int) -> Control:
 
 func _build_side_panel() -> void:
 	var panel = UIStyle.make_glass_panel(28, Color(0.04, 0.06, 0.11, 0.86), 24, 0.2)
-	panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
 	panel.offset_left = -716
 	panel.offset_right = -44
 	panel.offset_top = 160
@@ -395,7 +395,7 @@ func _build_paints(car: Dictionary) -> void:
 		grid.add_child(sw)
 		var lbl = UIStyle.make_label("" if owned else fmt_credits(int(p["price"])), "numeric", 12,
 			UIStyle.GOLD if not owned else UIStyle.TEXT_DIM)
-		lbl.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 		lbl.offset_top = -20
 		lbl.offset_bottom = -2
 		lbl.offset_left = -40

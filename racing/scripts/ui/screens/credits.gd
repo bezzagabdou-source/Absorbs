@@ -15,7 +15,7 @@ const ENTRIES := [
 func build() -> void:
 	top_bar(Localization.t("menu.credits"), true, false)
 	var panel = UIStyle.make_glass_panel(28, Color(0.04, 0.06, 0.11, 0.86), 32, 0.2)
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.offset_left = 96
 	panel.offset_right = -96
 	panel.offset_top = 168

@@ -18,7 +18,7 @@ func _build_summary() -> void:
 			if not Game.claimed(str(a["id"])):
 				claimable += 1
 	var row = HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	row.offset_left = 44
 	row.offset_right = -44
 	row.offset_top = 156
@@ -50,7 +50,7 @@ func _build_summary() -> void:
 
 func _build_grid() -> void:
 	var scroll = ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.offset_left = 44
 	scroll.offset_right = -44
 	scroll.offset_top = 290

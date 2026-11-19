@@ -11,12 +11,12 @@ var _in_anim = true
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build_backdrop()
 	content = Control.new()
 	content.name = "Content"
-	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(content)
 	build()
@@ -31,7 +31,7 @@ func build() -> void:
 func _build_backdrop() -> void:
 	var base = ColorRect.new()
 	base.color = UIStyle.INK
-	base.set_anchors_preset(Control.PRESET_FULL_RECT)
+	base.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	base.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(base)
 	_bg_layer = UIStyle.make_aurora(UIStyle.CYAN, UIStyle.MAGENTA, 0.30)
@@ -64,7 +64,7 @@ func fmt_credits(v: int) -> String:
 
 func top_bar(title: String, show_back: bool = true, show_currency: bool = true) -> HBoxContainer:
 	var bar = HBoxContainer.new()
-	bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	bar.offset_left = 44
 	bar.offset_right = -44
 	bar.offset_top = 36

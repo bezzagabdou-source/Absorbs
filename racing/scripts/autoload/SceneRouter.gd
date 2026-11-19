@@ -34,7 +34,7 @@ void fragment() {
 func setup(host: Control) -> void:
 	root = host
 	_wipe = ColorRect.new()
-	_wipe.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_wipe.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_wipe.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_wipe_mat = ShaderMaterial.new()
 	var sh = Shader.new()

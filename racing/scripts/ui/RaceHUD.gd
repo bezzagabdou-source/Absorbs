@@ -38,7 +38,7 @@ const SPEEDO_MARGIN := 46.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mobile = OS.has_feature("mobile") or DisplayServer.is_touchscreen_available()
 	_build_top()
@@ -53,7 +53,7 @@ func _ready() -> void:
 
 func _build_top() -> void:
 	var top = HBoxContainer.new()
-	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	top.offset_left = 40
 	top.offset_right = -40
 	top.offset_top = 34
@@ -97,7 +97,7 @@ func _build_top() -> void:
 
 func _build_speedo() -> void:
 	var wrap = Control.new()
-	wrap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	wrap.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	wrap.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
 	wrap.offset_top = -SPEEDO_SIZE - SPEEDO_MARGIN + 10
 	wrap.offset_right = -SPEEDO_MARGIN
@@ -105,12 +105,12 @@ func _build_speedo() -> void:
 	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(wrap)
 	_rpm_arc = Control.new()
-	_rpm_arc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_rpm_arc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_rpm_arc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rpm_arc.draw.connect(_draw_speedo)
 	wrap.add_child(_rpm_arc)
 	var v = VBoxContainer.new()
-	v.set_anchors_preset(Control.PRESET_CENTER)
+	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(v)
@@ -126,7 +126,7 @@ func _build_speedo() -> void:
 	v.add_child(_gear_label)
 	# nitro bar under speedo
 	var nwrap = Panel.new()
-	nwrap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	nwrap.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	nwrap.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
 	nwrap.offset_top = -36
 	nwrap.offset_right = -SPEEDO_MARGIN
@@ -135,7 +135,7 @@ func _build_speedo() -> void:
 	nwrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(nwrap)
 	_nitro_fill = ColorRect.new()
-	_nitro_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	_nitro_fill.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
 	_nitro_fill.offset_right = 0
 	_nitro_fill.offset_left = 0
 	_nitro_fill.offset_top = 0
@@ -144,7 +144,7 @@ func _build_speedo() -> void:
 	_nitro_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nwrap.add_child(_nitro_fill)
 	var nlabel = UIStyle.make_kicker("NITRO", UIStyle.CYAN, 15)
-	nlabel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	nlabel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	nlabel.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
 	nlabel.offset_top = -58
 	nlabel.offset_right = -SPEEDO_MARGIN
@@ -153,7 +153,7 @@ func _build_speedo() -> void:
 	add_child(nlabel)
 	# damage bar on the left side under the minimap
 	var dwrap = Panel.new()
-	dwrap.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	dwrap.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
 	dwrap.offset_left = 46
 	dwrap.offset_top = -10
 	dwrap.offset_right = 246
@@ -163,12 +163,12 @@ func _build_speedo() -> void:
 	add_child(dwrap)
 	_damage_fill = ColorRect.new()
 	_damage_fill.color = UIStyle.LIME
-	_damage_fill.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	_damage_fill.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
 	_damage_fill.offset_right = 0
 	_damage_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dwrap.add_child(_damage_fill)
 	var dl = UIStyle.make_kicker("HULL", UIStyle.TEXT_DIM, 14)
-	dl.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	dl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
 	dl.offset_left = 46
 	dl.offset_top = -34
 	dl.offset_right = 246
@@ -176,7 +176,7 @@ func _build_speedo() -> void:
 	add_child(dl)
 	# minimap
 	_minimap = Control.new()
-	_minimap.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_minimap.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	_minimap.offset_left = 40
 	_minimap.offset_top = 150
 	_minimap.offset_right = 300
@@ -185,7 +185,7 @@ func _build_speedo() -> void:
 	_minimap.draw.connect(_draw_minimap)
 	add_child(_minimap)
 	_drift_label = UIStyle.make_title("", 40, UIStyle.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	_drift_label.set_anchors_preset(Control.PRESET_CENTER)
+	_drift_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_drift_label.offset_left = -300
 	_drift_label.offset_right = 300
 	_drift_label.offset_top = -210
@@ -196,7 +196,7 @@ func _build_speedo() -> void:
 
 func _build_touch() -> void:
 	var left = UIStyle.make_icon_button("back", 132, Color.WHITE)
-	left.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	left.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	left.offset_left = 40
 	left.offset_top = -176
 	left.offset_right = 172
@@ -206,7 +206,7 @@ func _build_touch() -> void:
 	left.visible = _mobile
 	add_child(left)
 	var right = UIStyle.make_icon_button("play", 132, Color.WHITE)
-	right.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	right.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	right.offset_left = 188
 	right.offset_top = -176
 	right.offset_right = 320
@@ -216,7 +216,7 @@ func _build_touch() -> void:
 	right.visible = _mobile
 	add_child(right)
 	_brake_btn = UIStyle.make_button(Localization.t("hud.brake"), UIStyle.RED, false, 24, 104)
-	_brake_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_brake_btn.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	_brake_btn.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN - 150
 	_brake_btn.offset_top = -140
 	_brake_btn.offset_right = -SPEEDO_SIZE - SPEEDO_MARGIN - 20
@@ -224,7 +224,7 @@ func _build_touch() -> void:
 	_brake_btn.visible = _mobile
 	add_child(_brake_btn)
 	_nitro_btn = UIStyle.make_button(Localization.t("hud.nitro"), UIStyle.CYAN, true, 24, 104)
-	_nitro_btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_nitro_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_nitro_btn.offset_left = -90
 	_nitro_btn.offset_top = -150
 	_nitro_btn.offset_right = 90
@@ -235,7 +235,7 @@ func _build_touch() -> void:
 
 func _build_warnings() -> void:
 	_warn = UIStyle.make_title("", 54, UIStyle.RED, HORIZONTAL_ALIGNMENT_CENTER)
-	_warn.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_warn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_warn.offset_left = -400
 	_warn.offset_right = 400
 	_warn.offset_top = 170
@@ -246,7 +246,7 @@ func _build_warnings() -> void:
 
 func _build_countdown() -> void:
 	_countdown = UIStyle.make_title("3", 220, accent, HORIZONTAL_ALIGNMENT_CENTER)
-	_countdown.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_countdown.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_countdown.offset_top = -40
 	_countdown.modulate.a = 0.0
 	add_child(_countdown)

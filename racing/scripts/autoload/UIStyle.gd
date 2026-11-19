@@ -484,7 +484,7 @@ func make_icon_button(icon_name: String, size: float = 84.0, accent: Color = CYA
 	icon_rect.texture = icon(icon_name)
 	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon_rect.set_anchors_preset(Control.PRESET_CENTER)
+	icon_rect.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	icon_rect.size = Vector2(size * 0.46, size * 0.46)
 	icon_rect.position = Vector2(-size * 0.23, -size * 0.23)
 	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -593,23 +593,23 @@ func _on_toggle(_on: bool) -> void:
 
 func make_art_background(art_name: String) -> Control:
 	var holder = Control.new()
-	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var rect = TextureRect.new()
 	rect.texture = art(art_name)
-	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(rect)
 	var scrim = ColorRect.new()
-	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scrim.color = Color(0.015, 0.02, 0.04, 0.66)
 	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(scrim)
 	var grad = TextureRect.new()
 	grad.texture = gradient_tex(Color(0.01, 0.015, 0.03, 0.0), Color(0.01, 0.012, 0.025, 0.95), 8)
-	grad.set_anchors_preset(Control.PRESET_FULL_RECT)
+	grad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	grad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	grad.stretch_mode = TextureRect.STRETCH_SCALE
 	grad.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -619,7 +619,7 @@ func make_art_background(art_name: String) -> Control:
 
 func _shader_rect(code: String, params: Dictionary = {}) -> ColorRect:
 	var c = ColorRect.new()
-	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat = ShaderMaterial.new()
 	var sh = Shader.new()

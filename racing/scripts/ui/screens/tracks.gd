@@ -20,7 +20,7 @@ func build() -> void:
 
 func _build_mode_row() -> void:
 	_mode_row = HBoxContainer.new()
-	_mode_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_mode_row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_mode_row.offset_left = 96
 	_mode_row.offset_right = -96
 	_mode_row.offset_top = 168
@@ -51,7 +51,7 @@ func _set_mode(mode: String) -> void:
 
 func _build_coverflow() -> void:
 	var strip = HBoxContainer.new()
-	strip.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	strip.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	strip.offset_left = 96
 	strip.offset_right = -96
 	strip.offset_top = 286
@@ -63,7 +63,7 @@ func _build_coverflow() -> void:
 		strip.add_child(card)
 		_cards.append(card)
 	var left = UIStyle.make_icon_button("back", 68, UIStyle.CYAN)
-	left.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	left.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT)
 	left.offset_left = 14
 	left.offset_right = 82
 	left.offset_top = 430
@@ -71,7 +71,7 @@ func _build_coverflow() -> void:
 	left.pressed.connect(func(): _step(-1))
 	content.add_child(left)
 	var right = UIStyle.make_icon_button("play", 68, UIStyle.CYAN)
-	right.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	right.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
 	right.offset_left = -82
 	right.offset_right = -14
 	right.offset_top = 430
@@ -85,23 +85,23 @@ func _make_card(i: int) -> Control:
 	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	holder.custom_minimum_size = Vector2(0, 404)
 	var panel = PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.clip_contents = true
 	holder.add_child(panel)
 	var art = TextureRect.new()
 	art.name = "Art"
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	art.set_anchors_preset(Control.PRESET_FULL_RECT)
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(art)
 	var grad = TextureRect.new()
 	grad.texture = UIStyle.gradient_tex(Color(0.02, 0.03, 0.06, 0.0), Color(0.01, 0.015, 0.03, 0.98), 10)
 	grad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	grad.stretch_mode = TextureRect.STRETCH_SCALE
-	grad.set_anchors_preset(Control.PRESET_FULL_RECT)
+	grad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(grad)
 	var info = VBoxContainer.new()
-	info.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	info.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	info.offset_left = 26
 	info.offset_right = -26
 	info.offset_top = -142
@@ -119,7 +119,7 @@ func _make_card(i: int) -> Control:
 	info.add_child(meta)
 	var lock = UIStyle.make_chip(Localization.t("common.locked"), UIStyle.RED, 16)
 	lock.name = "Lock"
-	lock.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	lock.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	lock.offset_left = -180
 	lock.offset_right = -18
 	lock.offset_top = 18
@@ -127,7 +127,7 @@ func _make_card(i: int) -> Control:
 	panel.add_child(lock)
 	var btn = Button.new()
 	btn.flat = true
-	btn.set_anchors_preset(Control.PRESET_FULL_RECT)
+	btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.pressed.connect(func(): _select(i))
 	panel.add_child(btn)
@@ -193,7 +193,7 @@ func _unlocked(track: Dictionary) -> bool:
 
 func _build_detail() -> void:
 	var panel = UIStyle.make_glass_panel(30, Color(0.04, 0.06, 0.11, 0.86), 30, 0.2)
-	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	panel.offset_left = 96
 	panel.offset_right = -96
 	panel.offset_top = -300

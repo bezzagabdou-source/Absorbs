@@ -19,7 +19,7 @@ func _build_hero() -> void:
 	content.add_child(art)
 	content.move_child(art, 0)
 	var v = VBoxContainer.new()
-	v.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	v.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	v.offset_left = 96
 	v.offset_right = -96
 	v.offset_top = 160
@@ -39,7 +39,7 @@ func _build_hero() -> void:
 
 func _build_streak() -> void:
 	var row = HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	row.offset_left = 96
 	row.offset_right = -96
 	row.offset_top = 420
@@ -96,7 +96,7 @@ func _build_claim() -> void:
 	var st = Game.daily_state()
 	var can = bool(st.get("can_claim", false))
 	var btn = UIStyle.make_button(Localization.t("daily.claim"), UIStyle.GOLD, true, 34, 100)
-	btn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	btn.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	btn.offset_left = 480
 	btn.offset_right = -480
 	btn.offset_top = -200

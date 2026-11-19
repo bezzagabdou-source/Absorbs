@@ -16,7 +16,7 @@ func build() -> void:
 
 func _build_level_card() -> void:
 	var card = UIStyle.make_glass_panel(30, Color(0.04, 0.06, 0.11, 0.86), 32, 0.25)
-	card.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	card.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	card.offset_left = 44
 	card.offset_right = -44
 	card.offset_top = 168
@@ -29,11 +29,11 @@ func _build_level_card() -> void:
 	ring_holder.custom_minimum_size = Vector2(240, 240)
 	h.add_child(ring_holder)
 	_ring = Control.new()
-	_ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ring.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ring.draw.connect(_draw_ring)
 	ring_holder.add_child(_ring)
 	var lv = UIStyle.make_title(str(Game.level()), 96, UIStyle.CYAN, HORIZONTAL_ALIGNMENT_CENTER)
-	lv.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lv.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	ring_holder.add_child(lv)
 	var info = Game.level_progress()
@@ -77,7 +77,7 @@ func _unlocked_achievements() -> int:
 func _build_stat_grid() -> void:
 	var grid = GridContainer.new()
 	grid.columns = 4
-	grid.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	grid.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	grid.offset_left = 44
 	grid.offset_right = -44
 	grid.offset_top = 480
@@ -120,7 +120,7 @@ func _build_stat_grid() -> void:
 
 func _build_collections() -> void:
 	var row = HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	row.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	row.offset_left = 44
 	row.offset_right = -44
 	row.offset_top = -260

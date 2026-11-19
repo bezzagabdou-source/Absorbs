@@ -16,7 +16,7 @@ func build() -> void:
 	var art = UIStyle.make_art_background("menu_hero")
 	content.add_child(art)
 	var wrap = VBoxContainer.new()
-	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	wrap.offset_left = 120
 	wrap.offset_right = -120
 	wrap.offset_top = 60
@@ -168,7 +168,7 @@ func _award() -> void:
 	if new_best and float(_result.get("best_lap", 0.0)) > 0.0:
 		AudioDirector.play_sfx("achievement", -4.0)
 		var badge = UIStyle.make_chip(Localization.t("results.new_best"), UIStyle.GOLD, 18)
-		badge.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		badge.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 		badge.offset_left = -220
 		badge.offset_right = 220
 		badge.offset_top = 200

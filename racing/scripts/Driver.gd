@@ -33,36 +33,55 @@ func _apply_window() -> void:
 	Engine.max_fps = 0 if target <= 0 else maxi(60, target)
 
 
+var _diag_lines: Array[String] = []
+
+
+func _dlog(t: String) -> void:
+	_diag_lines.append(t)
+	print(t)
+
+
 func _diag() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var win := get_window()
-	print("[DIAG] window_size=", win.size, " viewport_visible=", win.get_visible_rect(),
-		" content_scale=", win.content_scale_size, " mode=", win.content_scale_mode,
-		" aspect=", win.content_scale_aspect)
-	print("[DIAG] main_size=", size, " main_rect=", get_global_rect())
+	_dlog("[DIAG] window=%s visible=%s content_scale=%s mode=%s aspect=%s" % [win.size,
+		win.get_visible_rect(), win.content_scale_size, win.content_scale_mode, win.content_scale_aspect])
+	_dlog("[DIAG] main_size=%s rect=%s" % [size, get_global_rect()])
 	var scr: Control = SceneRouter.current
 	if scr == null:
-		print("[DIAG] no current screen")
+		_dlog("[DIAG] no current screen")
+		_write_diag()
 		return
-	print("[DIAG] screen=", SceneRouter.current_id, " size=", scr.size, " rect=", scr.get_global_rect())
+	_dlog("[DIAG] screen=%s size=%s rect=%s" % [SceneRouter.current_id, scr.size, scr.get_global_rect()])
 	for c in scr.get_children():
 		var cr: Control = c as Control
 		if cr:
-			print("[DIAG] child=", cr.name, " class=", cr.get_class(), " rect=", cr.get_global_rect(),
-				" anchors=", [cr.anchor_left, cr.anchor_top, cr.anchor_right, cr.anchor_bottom],
-				" offsets=", [cr.offset_left, cr.offset_top, cr.offset_right, cr.offset_bottom])
-	var content := scr.get_node_or_null("Content")
+			_dlog("[DIAG] child=%s %s rect=%s anchors=%.2f,%.2f,%.2f,%.2f offsets=%.1f,%.1f,%.1f,%.1f" % [
+				cr.name, cr.get_class(), cr.get_global_rect(), cr.anchor_left, cr.anchor_top,
+				cr.anchor_right, cr.anchor_bottom, cr.offset_left, cr.offset_top, cr.offset_right,
+				cr.offset_bottom])
+	var content: Control = scr.get_node_or_null("Content")
 	if content:
-		print("[DIAG] content rect=", content.get_global_rect())
+		_dlog("[DIAG] content rect=%s" % content.get_global_rect())
 		for c in content.get_children():
-			var cr: Control = c as Control
-			if cr:
+			var cr2: Control = c as Control
+			if cr2:
 				var extra := ""
-				if cr is TextureRect:
-					extra = " tex=" + str((cr as TextureRect).texture != null)
-				print("[DIAG] content_child=", cr.name, " ", cr.get_class(), " rect=", cr.get_global_rect(), extra)
+				if cr2 is TextureRect:
+					extra = " tex=%s" % ((cr2 as TextureRect).texture != null)
+				_dlog("[DIAG] content_child=%s %s rect=%s anchors=%.2f,%.2f,%.2f,%.2f%s" % [
+					cr2.name, cr2.get_class(), cr2.get_global_rect(), cr2.anchor_left,
+					cr2.anchor_top, cr2.anchor_right, cr2.anchor_bottom, extra])
+	_write_diag()
+
+
+func _write_diag() -> void:
+	var f := FileAccess.open("user://diag.log", FileAccess.WRITE)
+	if f:
+		f.store_string("\n".join(_diag_lines))
+		f.close()
 
 
 func _forced_screen() -> String:
@@ -84,7 +103,7 @@ func _process(delta: float) -> void:
 			if lbl == null:
 				lbl = UIStyle.make_label("", "numeric", 20, UIStyle.LIME)
 				lbl.name = "FpsLabel"
-				lbl.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+				lbl.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 				lbl.offset_left = -170
 				lbl.offset_top = 16
 				lbl.offset_right = -24
