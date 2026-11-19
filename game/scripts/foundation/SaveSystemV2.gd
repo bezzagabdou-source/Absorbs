@@ -78,7 +78,7 @@ static func delete(slot: int) -> void:
 static func list_slots() -> Array:
 	var result: Array = []
 	for slot in range(0, SLOT_COUNT + 1):
-		var data := load(slot)
+		var data := load_slot(slot)
 		result.append({
 			"slot": slot, "exists": not data.is_empty(),
 			"saved_at": float(data.get("saved_at", 0.0)),
