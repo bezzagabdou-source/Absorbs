@@ -194,10 +194,12 @@ jobs:
             --write-movie /tmp/nova_frames.png --fixed-fps 30 --quit-after 520 -- --capture-frames 2>&1 | tee /tmp/screens.log
           mkdir -p screenshots
           cp /tmp/nova_frames00000150.png screenshots/01-main-menu.png
+          cp /tmp/nova_frames00000150.png screenshots/06-city-skyline.png
           cp /tmp/nova_frames00000260.png screenshots/02-gameplay-day.png
           cp /tmp/nova_frames00000340.png screenshots/03-gameplay-night-rain.png
           cp /tmp/nova_frames00000400.png screenshots/04-phone-ui.png
           cp /tmp/nova_frames00000480.png screenshots/05-debug-overlay.png
+          cp /tmp/nova_frames00000340.png screenshots/07-city-night-rain.png
           ls -lh screenshots
       - name: Commit screenshots to branch
         if: success()

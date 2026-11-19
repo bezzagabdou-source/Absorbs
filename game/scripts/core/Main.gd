@@ -37,6 +37,7 @@ var _fps_time: float = 0.0
 var _near_vehicle: VehicleController = null
 var _perf_timer: float = 0.0
 var _capture_frame: int = 0
+var _capture_hold_menu: bool = false
 
 func _ready() -> void:
 	var manager := Node.new()
@@ -225,9 +226,18 @@ func _process(delta: float) -> void:
 	if "--capture-frames" in cli_args:
 		_capture_frame += 1
 		match _capture_frame:
+			140:
+				_capture_hold_menu = true
+				menu_camera.global_position = Vector3(320, 150, -320)
+				menu_camera.look_at(Vector3(150, 70, -150))
 			200:
 				if state == State.MENU:
 					_on_start(true)
+			230:
+				player.global_position = Vector3(120, 1.2, -40)
+				rig.yaw = 1.9
+				rig.pitch = -0.12
+				city.update_chunks(true)
 			320:
 				day.hour = 20.0
 				day.apply()
@@ -245,6 +255,8 @@ func _process(delta: float) -> void:
 		_frames = 0
 		_fps_time = 0.0
 	if state == State.MENU:
+		if _capture_hold_menu:
+			return
 		_t += delta
 		var a := _t * 0.09
 		menu_camera.global_position = Vector3(cos(a) * 90, 28 + sin(a * 0.7) * 6, sin(a) * 90)
