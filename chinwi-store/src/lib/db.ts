@@ -370,7 +370,7 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   welcome_text:
     "أهلاً بك في <b>CHINWI STORE</b> 👑\nأسرع متجر شحن وتفعيل رقمي في الجزائر 🇩🇿\nاختر ما تريد من القائمة واترك الباقي علينا.",
   // 310 = سعر Flexy (أضيف بطلب المالك)
-  usd_rates: [250, 255, 310],
+  usd_rates: [243, 310],
   usd_min: 5,
   receipt_note: "بعد الدفع أرسل صورة الإيصال هنا وسيتم التحقق خلال دقائق ⏱",
   theme: "emerald",
@@ -618,8 +618,9 @@ export async function ensureGameCatalog(): Promise<void> {
   const ratesNow = (await getSetting<number[]>("usd_rates")) ?? [];
   const ratesList = Array.isArray(ratesNow) ? ratesNow.map(Number).filter((n) => Number.isFinite(n) && n > 0) : [];
   if (!ratesList.includes(310)) {
-    const merged = [...new Set([...ratesList, 250, 255, 310])].sort((a, b) => a - b);
-    await setSetting("usd_rates", merged);
+    // 💵 لا نعيد إضافة الأسعار القديمة — السعر المعتمد الآن هو سوق سوداء (243) + 310 للفليكسي
+    const merged = [...new Set([...ratesList, 310])].sort((a, b) => a - b);
+    await setSetting("usd_rates", merged.length ? merged : [243, 310]);
   }
   // 💳 v6: Flexy مخفي من واجهة الزبون (يبقى فقط كسعر «310 دج (فليكسي)» في بيع الدولار)
   await pool().query(
@@ -1017,6 +1018,14 @@ async function migrateOnce(query: Query): Promise<void> {
     );
     await query(
       "UPDATE prizes SET title = '20 فليكسي (جيزي فقط)', note = 'رصيد 20 فليكسي يُسلَّم عبر محفظة Flexy — جيزي فقط' WHERE title = '20 فليكسي'",
+    );
+  });
+
+  // 💵 سعر الدولار = سعر السوق السوداء (ساحة بورسعيد، 16/11/2026 ≈ 243 دج) — مع الإبقاء على 310 دج للفليكسي
+  await bump("migr_usd_black_market_v1", async () => {
+    await query(
+      "INSERT INTO settings (key, value, updated_at) VALUES ('usd_rates', $1::jsonb, now()) ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()",
+      [JSON.stringify([243, 310])],
     );
   });
 

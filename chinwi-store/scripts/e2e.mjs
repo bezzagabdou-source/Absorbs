@@ -383,8 +383,7 @@ await check("usd: اختيار السعر → الكمية → الدفع → ا
   await resetSent();
   await sendUpdate(cb(users.buyer, "usd"));
   const intro = await waitForMessage(555, (m) => (m.text ?? "").includes("بيع الدولار"));
-  assert.ok(hasButton(intro, "250"));
-  assert.ok(hasButton(intro, "255"));
+  assert.ok(hasButton(intro, "243"));
   assert.ok(hasButton(intro, "310 دج (فليكسي)"));
   const pes = await db.query("select p.name, p.fields, p.price, p.price_label, p.badge, p.description from products p join categories c on c.id = p.category_id where c.slug = 'efootball'");
   assert.ok(pes.rowCount > 0);
@@ -396,15 +395,15 @@ await check("usd: اختيار السعر → الكمية → الدفع → ا
     assert.ok(!row.price_label || row.price_label !== "تواصل مع المالك", `${row.name} سعر عادي بلا «تواصل مع المالك»`);
     assert.equal(row.badge, "شحن بالحساب");
   }
-  await sendUpdate(cb(users.buyer, "usdr:255"));
+  await sendUpdate(cb(users.buyer, "usdr:243"));
   await waitForMessage(555, (m) => (m.text ?? "").includes("أرسل الكمية"));
   await sendUpdate(msg(users.buyer, "10"));
   const pay = await waitForMessage(555, (m) => (m.text ?? "").includes("إتمام الدفع"));
-  assert.ok((pay.text ?? "").includes("2,550"), "المبلغ المتوقع 2550");
+  assert.ok((pay.text ?? "").includes("2,430"), "المبلغ المتوقع 2430 (السوق السوداء)");
   const order = (await db.query("select * from orders where kind = 'usd' order by id desc limit 1")).rows[0];
-  assert.equal(Number(order.amount), 2550);
+  assert.equal(Number(order.amount), 2430);
   assert.equal(Number(order.usd_amount), 10);
-  assert.equal(Number(order.rate), 255);
+  assert.equal(Number(order.rate), 243);
   await sendUpdate(cb(users.buyer, `paid:${order.id}`));
   await waitForMessage(555, (m) => (m.text ?? "").includes("أرسل الإيصال"));
   await sendUpdate(photoMsg(users.buyer));

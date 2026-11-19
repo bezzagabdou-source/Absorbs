@@ -787,6 +787,17 @@ async function createOrderAndShowPayment(
     status: "pending_payment",
   });
   if (couponNote) await sendMessage(chatId, `✅ طُبّق الخصم على طلبك ${order.code}${couponNote}`);
+  await notifyOwner(
+    [
+      "🆕 <b>طلب جديد بانتظار الدفع</b>",
+      "",
+      `📦 ${escapeHtml(p.name)}`,
+      `💰 ${money(amount, cur)}`,
+      `👤 ${user ? mentions(user as unknown as TgUser) : "زبون"} — <code>${userId}</code>`,
+      `🧾 <code>${order.code}</code>`,
+    ].join("\n"),
+    kb([[link(`💬 مراسلة الزبون`, `tg://user?id=${userId}`)]]),
+  ).catch(() => null);
   await showPaymentOptions(chatId, order, s);
 }
 
@@ -1323,9 +1334,6 @@ async function route(update: TgUpdate): Promise<void> {
               ].join("\n"),
               kb([[b(`📊 نقاطي`, "mypoints")], [b(`🏠 الرئيسية`, "home")]]),
             ).catch(() => null);
-            await notifyOwner(
-              `🎁 إحالة جديدة: ${mentions(from)} (<code>${from.id}</code>) دخل من <code>${inviterId}</code> — +${per} نقطة.`,
-            ).catch(() => null);
           }
         }
       }
@@ -1600,6 +1608,16 @@ async function handleState(user: UserRow, msg: TgMessage, s: SettingsMap, chatId
       status: "pending_payment",
       details: { "الكمية بالدولار": `${amount}$`, "سعر الصرف": usdRateLabel(rate) },
     });
+    await notifyOwner(
+      [
+        "🆕 <b>طلب جديد — بيع دولار</b>",
+        "",
+        `💵 ${amount}$ × ${usdRateLabel(rate)} = ${money(total, settingString(s, "currency", "دج"))}`,
+        `👤 ${mentions(user as unknown as TgUser)} — <code>${user.tg_id}</code>`,
+        `🧾 <code>${order.code}</code>`,
+      ].join("\n"),
+      kb([[link(`💬 مراسلة الزبون`, `tg://user?id=${user.tg_id}`)]]),
+    ).catch(() => null);
     await showPaymentOptions(chatId, order, s);
     return true;
   }
