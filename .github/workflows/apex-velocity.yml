@@ -214,6 +214,15 @@ jobs:
             if [ -n "$last" ]; then cp "$last" "racing/docs/screenshots/${screen}.png"; fi
           done
           ls -lh racing/docs/screenshots
+      - name: Layout diagnostics
+        run: |
+          for screen in menu race; do
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+              "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+              --rendering-driver opengl3 --resolution 1920x1080 --quit-after 60 \
+              -- --screen=$screen --diag 2>&1 | grep '^\[DIAG\]' | while read -r l; do echo "::notice::$l"; done
+          done
+
       - name: Commit screenshots to the branch
         run: |
           git config user.name "Arena Agent"

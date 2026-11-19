@@ -33,6 +33,38 @@ func _apply_window() -> void:
 	Engine.max_fps = 0 if target <= 0 else maxi(60, target)
 
 
+func _diag() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var win := get_window()
+	print("[DIAG] window_size=", win.size, " viewport_visible=", win.get_visible_rect(),
+		" content_scale=", win.content_scale_size, " mode=", win.content_scale_mode,
+		" aspect=", win.content_scale_aspect)
+	print("[DIAG] main_size=", size, " main_rect=", get_global_rect())
+	var scr: Control = SceneRouter.current
+	if scr == null:
+		print("[DIAG] no current screen")
+		return
+	print("[DIAG] screen=", SceneRouter.current_id, " size=", scr.size, " rect=", scr.get_global_rect())
+	for c in scr.get_children():
+		var cr: Control = c as Control
+		if cr:
+			print("[DIAG] child=", cr.name, " class=", cr.get_class(), " rect=", cr.get_global_rect(),
+				" anchors=", [cr.anchor_left, cr.anchor_top, cr.anchor_right, cr.anchor_bottom],
+				" offsets=", [cr.offset_left, cr.offset_top, cr.offset_right, cr.offset_bottom])
+	var content := scr.get_node_or_null("Content")
+	if content:
+		print("[DIAG] content rect=", content.get_global_rect())
+		for c in content.get_children():
+			var cr: Control = c as Control
+			if cr:
+				var extra := ""
+				if cr is TextureRect:
+					extra = " tex=" + str((cr as TextureRect).texture != null)
+				print("[DIAG] content_child=", cr.name, " ", cr.get_class(), " rect=", cr.get_global_rect(), extra)
+
+
 func _forced_screen() -> String:
 	for arg in OS.get_cmdline_user_args() + OS.get_cmdline_args():
 		if arg.begins_with("--screen="):
