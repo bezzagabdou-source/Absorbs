@@ -182,6 +182,8 @@ jobs:
           unzip -q -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
           mv "$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.x86_64" "$GODOT_DIR/godot"
           chmod +x "$GODOT_DIR/godot"
+      - name: Import project for class cache
+        run: "$GODOT_DIR/godot" --headless --path game --import
       - name: Render real gameplay frames
         timeout-minutes: 3
         run: |
