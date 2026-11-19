@@ -57,7 +57,7 @@ jobs:
 
       - name: Compile-check every script (per-file annotations)
         run: |
-          for f in $(find racing/scripts racing/tests -name '*.gd' | sort); do
+          for f in $(find racing/scripts -name '*.gd' | sort); do
             rel="/${f#racing/}"
             set +e
             "$GODOT_DIR/godot" --headless --path racing --check-only --script "res://${f#racing/}" >/tmp/chk.log 2>&1
@@ -76,24 +76,15 @@ jobs:
           grep -iE 'SCRIPT ERROR|Parse Error' /tmp/import.log | head -30 | while read -r l; do echo "::error::$l"; done || true
           if grep -qiE 'SCRIPT ERROR|Parse Error' /tmp/import.log; then exit 1; fi
 
-      - name: Foundation tests (headless)
+      - name: Test suite — scripts, data, physics, tracks, models, screens, races
         run: |
           set +e
-          "$GODOT_DIR/godot" --headless --path racing --script res://tests/foundation_test.gd 2>&1 | tee /tmp/foundation.log
+          "$GODOT_DIR/godot" --headless --path racing res://tests/TestRunner.tscn 2>&1 | tee /tmp/tests.log
           code=${PIPESTATUS[0]}
-          grep -E '^\[TEST\] FAIL' /tmp/foundation.log | head -40 | while read -r l; do echo "::error::$l"; done || true
-          grep -B2 -A10 'SCRIPT ERROR' /tmp/foundation.log | head -60 | while read -r l; do echo "::error::$l"; done || true
-          if grep -q 'SCRIPT ERROR' /tmp/foundation.log; then exit 1; fi
-          exit $code
-
-      - name: Runtime tests — every screen + every track (headless)
-        run: |
-          set +e
-          "$GODOT_DIR/godot" --headless --path racing --script res://tests/runtime_test.gd 2>&1 | tee /tmp/runtime.log
-          code=${PIPESTATUS[0]}
-          grep -E '^\[RUNTIME\] FAIL' /tmp/runtime.log | head -40 | while read -r l; do echo "::error::$l"; done || true
-          grep -B2 -A12 'SCRIPT ERROR' /tmp/runtime.log | head -80 | while read -r l; do echo "::error::$l"; done || true
-          if grep -q 'SCRIPT ERROR' /tmp/runtime.log; then exit 1; fi
+          grep -E '^\[TEST\] FAIL' /tmp/tests.log | head -40 | while read -r l; do echo "::error::$l"; done || true
+          grep -B2 -A12 'SCRIPT ERROR' /tmp/tests.log | head -80 | while read -r l; do echo "::error::$l"; done || true
+          grep -E '^\[SUITE\] RESULT' /tmp/tests.log | tail -1
+          if grep -q 'SCRIPT ERROR' /tmp/tests.log; then exit 1; fi
           exit $code
 
       - name: Upload test logs
@@ -103,8 +94,7 @@ jobs:
           name: test-logs
           path: |
             /tmp/import.log
-            /tmp/foundation.log
-            /tmp/runtime.log
+            /tmp/tests.log
           if-no-files-found: warn
 
   build:
