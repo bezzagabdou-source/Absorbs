@@ -268,7 +268,6 @@ func _build_hud() -> void:
 	hud.add_child(mini)
 	root.add_child(hud)
 
-func _build_touch_controls() -> void
 func _build_touch_controls() -> void:
 	_joystick = VirtualJoystick.new()
 	(_joystick as VirtualJoystick).setup(input)

@@ -59,7 +59,7 @@ func set_state(s: int) -> void:
 				env.fog_density = 0.012
 			_:
 				env.fog_density = 0.0016
-	var bus := Engine.get_main_loop().root.get_node_or_null("GameManager/EventBus")
+	var bus: Node = Engine.get_main_loop().root.get_node_or_null("GameManager/EventBus")
 	if bus != null and bus.has_signal("weather_changed"):
 		bus.emit_signal("weather_changed", state)
 
