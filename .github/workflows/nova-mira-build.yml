@@ -183,6 +183,7 @@ jobs:
           mv "$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.x86_64" "$GODOT_DIR/godot"
           chmod +x "$GODOT_DIR/godot"
       - name: Render real gameplay frames
+        timeout-minutes: 2
         run: |
           xvfb-run -a -s "-screen 0 1280x720x24" \
             "$GODOT_DIR/godot" --path game --rendering-method gl_compatibility \
