@@ -124,13 +124,13 @@ jobs:
         run: |
           mkdir -p build
           "$GODOT_DIR/godot" --headless --path game --import
-          "$GODOT_DIR/godot" --headless --path game --export-release "Android" ../build/NovaMira-v0.1.0.apk 2>&1 | tee /tmp/export.log
-          test -s build/NovaMira-v0.1.0.apk
-          ls -lh build/NovaMira-v0.1.0.apk
+          "$GODOT_DIR/godot" --headless --path game --export-release "Android" ../build/NovaMira-v0.2.0.apk 2>&1 | tee /tmp/export.log
+          test -s build/NovaMira-v0.2.0.apk
+          ls -lh build/NovaMira-v0.2.0.apk
       - name: APK size gate (200 MB)
         run: |
-          python3 game/tools/check_apk_size.py build/NovaMira-v0.1.0.apk
-          echo "::error::APK_SIZE_BYTES=$(stat -c%s build/NovaMira-v0.1.0.apk)"
+          python3 game/tools/check_apk_size.py build/NovaMira-v0.2.0.apk
+          echo "::error::APK_SIZE_BYTES=$(stat -c%s build/NovaMira-v0.2.0.apk)"
       - name: Diagnose failed export
         if: failure()
         run: |
@@ -143,14 +143,14 @@ jobs:
       - name: Verify APK signature and manifest
         run: |
           AAPT=$(find "$ANDROID_SDK_ROOT/build-tools" -name aapt2 -type f | sort | tail -1)
-          "$AAPT" dump badging build/NovaMira-v0.1.0.apk | head -20
+          "$AAPT" dump badging build/NovaMira-v0.2.0.apk | head -20
           APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort | tail -1)
-          "$APKSIGNER" verify --print-certs build/NovaMira-v0.1.0.apk
+          "$APKSIGNER" verify --print-certs build/NovaMira-v0.2.0.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: NovaMira-APK
-          path: build/NovaMira-v0.1.0.apk
+          path: build/NovaMira-v0.2.0.apk
           if-no-files-found: error
       - name: Publish GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -162,7 +162,7 @@ jobs:
             First native Android build of Nova Mira (Godot 4.4.1, ARM64).
             See `docs/TEST_REPORT.md` for real build/test results and
             `KNOWN_LIMITATIONS.md` for what is not implemented yet.
-          files: build/NovaMira-v0.1.0.apk
+          files: build/NovaMira-v0.2.0.apk
           fail_on_unmatched_files: true
 
   screenshots:
