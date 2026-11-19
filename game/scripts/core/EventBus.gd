@@ -18,3 +18,8 @@ signal player_died
 signal player_arrested
 signal radio_changed(station: String)
 signal fps_updated(fps: float)
+signal quality_changed(tier: Dictionary)
+signal settings_changed
+signal slot_changed(slot: int)
+signal benchmark_finished(result: Dictionary)
+signal effect_toggled(name: String, enabled: bool)

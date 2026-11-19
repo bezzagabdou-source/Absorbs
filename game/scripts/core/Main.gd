@@ -6,8 +6,13 @@ enum State { BOOT, SPLASH, MENU, PLAY }
 
 var state: int = State.BOOT
 var bus: EventBus
-var loc: Localization
-var input: InputManager
+var loc: Localization3
+var input: InputManagerV2
+var settings: SettingsStore
+var quality: QualityManager
+var perf: PerformanceDashboard
+var debug_overlay: DebugOverlay
+var current_slot: int = 1
 var ui: UIManager
 var graph: RoadGraph
 var city: ProceduralCity
@@ -24,13 +29,13 @@ var sun: DirectionalLight3D
 var world_env: WorldEnvironment
 var menu_camera: Camera3D
 var peds: Array[PedestrianAI] = []
-var quality: int = 1
 var fps_cap: int = 30
 var _t: float = 0.0
 var _save_timer: float = 0.0
 var _frames: int = 0
 var _fps_time: float = 0.0
 var _near_vehicle: VehicleController = null
+var _perf_timer: float = 0.0
 
 func _ready() -> void:
 	var manager := Node.new()
@@ -39,10 +44,17 @@ func _ready() -> void:
 	bus = EventBus.new()
 	bus.name = "EventBus"
 	manager.add_child(bus)
-	loc = Localization.new()
-	loc.set_locale("ar")
-	input = InputManager.new()
+	settings = SettingsStore.new()
+	quality = QualityManager.new()
+	quality.select(int(settings.get_value("quality_index", 1)))
+	quality.changed.connect(func(): bus.quality_changed.emit(quality.summary()))
+	loc = Localization3.new(String(settings.get_value("locale", "ar")))
+	input = InputManagerV2.new()
 	add_child(input)
+	perf = PerformanceDashboard.new()
+	debug_overlay = DebugOverlay.new()
+	add_child(debug_overlay)
+	debug_overlay.setup(self)
 	ui = UIManager.new()
 	ui.name = "UIManager"
 	add_child(ui)
@@ -62,17 +74,23 @@ func _connect_ui() -> void:
 func _init_world() -> void:
 	ui.set_loading(0.08, "Initialising renderer…")
 	await get_tree().process_frame
+	if not bool(settings.get_value("benchmarked", false)):
+		var bench := Benchmark.new()
+		add_child(bench)
+		bench.finished.connect(_on_benchmark)
+		bench.run(1.2)
 	sun = DirectionalLight3D.new()
 	sun.name = "Sun"
 	add_child(sun)
 	sun.rotation_degrees = Vector3(-50, 30, 0)
+	quality.apply([sun])
 	world_env = WorldEnvironment.new()
 	add_child(world_env)
 	day = DayNight.new()
 	day.hour = 18.0
 	day.setup(sun, world_env)
 	weather = Weather.new()
-	weather.setup(day, quality)
+	weather.setup(day, quality.index)
 	add_child(weather.particles)
 	ui.set_loading(0.26, "Building Nova Mira road graph…")
 	await get_tree().process_frame
@@ -97,13 +115,13 @@ func _init_world() -> void:
 	city = ProceduralCity.new()
 	city.name = "City"
 	add_child(city)
-	city.setup(graph, quality, player)
+	city.setup(graph, quality.index, player)
 	ui.set_loading(0.68, "Spawning traffic and citizens…")
 	await get_tree().process_frame
 	traffic = TrafficAI.new()
 	traffic.name = "Traffic"
 	add_child(traffic)
-	traffic.setup(graph, bus, quality)
+	traffic.setup(graph, quality.index)
 	traffic.populate(self, player.global_position)
 	police = PoliceAI.new()
 	police.name = "Police"
@@ -138,7 +156,7 @@ func _init_world() -> void:
 func _spawn_peds() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1234
-	for i in range(Quality.preset(quality)["peds"]):
+	for i in range(int(quality.tier().get("peds", 12))):
 		var ped := PedestrianAI.new()
 		add_child(ped)
 		var node := graph.node_pos(graph.nearest(Vector3(rng.randf_range(-300, 300), 0, rng.randf_range(-300, 300))))
@@ -157,7 +175,7 @@ func _on_start(new_game: bool) -> void:
 		day.hour = 18.0
 		weather.set_state(0)
 	else:
-		var data := SaveSystem.load_data()
+		var data := SaveSystemV2.load(current_slot)
 		_load_data(data)
 	state = State.PLAY
 	ui.show_game()
@@ -166,15 +184,26 @@ func _on_start(new_game: bool) -> void:
 	player.set_in_vehicle(false, null)
 	show_toast("Welcome to Nova Mira — " + loc.tr_text("OBJECTIVE") + ": " + loc.tr_text("FREE_ROAM"))
 
+func _on_benchmark(result: Dictionary) -> void:
+	settings.set_value("benchmarked", true)
+	settings.set_value("auto_tier", int(result.get("suggested_tier", 1)))
+	settings.flush()
+	quality.select(int(result.get("suggested_tier", 1)))
+	bus.benchmark_finished.emit(result)
+	show_toast("Auto quality: %s (%.1f ms)" % [String(quality.tier().get("id", "medium")), float(result.get("median_ms", 0.0))])
+
 func _on_locale(code: String) -> void:
 	loc.set_locale(code)
+	settings.set_value("locale", code)
+	settings.flush()
 	ui.refresh_locale()
 	if bus != null:
 		bus.locale_changed.emit(code)
 
 func _on_quality(level: int) -> void:
-	quality = clampi(level, 0, 2)
-	Quality.apply(quality, fps_cap)
+	quality.select(clampi(level, 0, quality.tiers.size() - 1))
+	settings.set_value("quality_index", quality.index)
+	settings.flush()
 
 func _on_mission_request(index: int) -> void:
 	if state != State.PLAY:
@@ -208,6 +237,8 @@ func _process(delta: float) -> void:
 	weather.tick(delta, player.global_position)
 	city.update_chunks()
 	ui.update(delta)
+	if input.just_pressed("debug_toggle") or input.consume_tap("debug_toggle"):
+		debug_overlay.toggle()
 	if input.consume_tap("pause"):
 		ui.toggle_pause()
 	if input.consume_tap("phone_toggle"):
@@ -216,6 +247,12 @@ func _process(delta: float) -> void:
 		ui.show_toast("Map: " + loc.tr_text(GameData.DISTRICTS[GameData.district_id(player.global_position)]["name"]))
 	if input.consume_tap("enter_vehicle"):
 		_toggle_vehicle()
+	_perf_timer += delta
+	if _perf_timer > 0.5:
+		_perf_timer = 0.0
+		perf.record(delta * 1000.0,
+			float(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1048576.0,
+			int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)))
 	_save_timer += delta
 	if _save_timer > 90.0:
 		_save_timer = 0.0
@@ -262,9 +299,10 @@ func save_game() -> void:
 	data["weather"] = weather.state
 	data["properties"] = economy.properties
 	data["locale"] = loc.locale
-	data["quality"] = quality
-	if SaveSystem.save(data):
-		show_toast("Game saved")
+	data["quality"] = String(quality.tier().get("id", "medium"))
+	if SaveSystemV2.save(current_slot, data):
+		bus.slot_changed.emit(current_slot)
+		show_toast("Game saved (slot %d)" % current_slot)
 
 func _load_data(data: Dictionary) -> void:
 	player.money = int(data.get("money", 500))
@@ -281,3 +319,13 @@ func _load_data(data: Dictionary) -> void:
 	police.set_stars(int(data.get("stars", 0)))
 	loc.set_locale(String(data.get("locale", "ar")))
 	ui.refresh_locale()
+
+func get_debug_data() -> Dictionary:
+	return {
+		"state": state, "slot": current_slot, "quality": quality.tier().get("id", "?"),
+		"scale": quality.resolution_scale, "fps_cap": quality.fps_cap,
+		"chunks": city.chunk_count() if city != null else 0,
+		"traffic": traffic.cars.size() if traffic != null else 0,
+		"peds": peds.size(), "wanted": police.stars if police != null else 0,
+		"perf": perf.summary(),
+	}

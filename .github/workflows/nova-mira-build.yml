@@ -33,6 +33,16 @@ jobs:
       - name: Import project
         run: |
           "$GODOT_DIR/godot" --headless --path game --import
+      - name: Foundation unit tests
+        run: |
+          set +e
+          "$GODOT_DIR/godot" --headless --path game --script res://tests/foundation_test.gd 2>&1 | tee /tmp/foundation.log
+          code=${PIPESTATUS[0]}
+          grep -iE 'FAIL|SCRIPT ERROR|Parse Error' /tmp/foundation.log 2>/dev/null | head -25 | while read -r line; do echo "::error::$line"; done
+          if grep -q 'SCRIPT ERROR' /tmp/foundation.log 2>/dev/null; then exit 1; fi
+          exit $code
+      - name: Asset licence audit
+        run: python3 tools/check_assets_licenses.py game
       - name: Smoke test
         run: |
           set +e
@@ -107,6 +117,8 @@ jobs:
           "$GODOT_DIR/godot" --headless --path game --export-release "Android" ../build/NovaMira-v0.1.0.apk 2>&1 | tee /tmp/export.log
           test -s build/NovaMira-v0.1.0.apk
           ls -lh build/NovaMira-v0.1.0.apk
+      - name: APK size gate (200 MB)
+        run: python3 tools/check_apk_size.py build/NovaMira-v0.1.0.apk
       - name: Diagnose failed export
         if: failure()
         run: |

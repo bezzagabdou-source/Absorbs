@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "locales": {
+    "en": {
+      "NOVA_MIRA": "NOVA MIRA", "TAGLINE": "The city never sleeps.", "NEW_GAME": "New Game",
+      "CONTINUE": "Continue", "MISSIONS": "Missions", "STORE": "Store", "SETTINGS": "Settings",
+      "ACHIEVEMENTS": "Achievements", "QUIT": "Quit", "PLAY": "Play", "BACK": "Back", "CLOSE": "Close",
+      "HEALTH": "Health", "ARMOUR": "Armour", "MONEY": "Money", "WANTED": "Wanted", "WEAPON": "Weapon",
+      "AMMO": "Ammo", "SPEED": "Speed", "FUEL": "Fuel", "DAY": "Day", "TIME": "Time", "WEATHER": "Weather",
+      "RADIO": "Radio", "BUY": "Buy", "MISSION_COMPLETE": "Mission complete", "REWARD": "Reward",
+      "PAUSE": "Pause", "RESUME": "Resume", "SAVE": "Save", "LOAD": "Load", "LANGUAGE": "Language",
+      "QUALITY": "Quality", "LOW": "Low", "MEDIUM": "Medium", "HIGH": "High", "ULTRA": "Ultra",
+      "AUTO": "Auto", "SOUND": "Sound", "SENSITIVITY": "Camera sensitivity", "FPS": "FPS",
+      "BATTERY_SAVER": "Battery saver", "AIM_ASSIST": "Aim assist", "PHONE": "Phone", "MAP": "Map",
+      "MESSAGES": "Messages", "JOBS": "Jobs", "OBJECTIVE": "Objective", "FREE_ROAM": "Free roam",
+      "LOADING": "Loading", "TIP": "Tip: hold the handbrake to drift.", "DRIVE": "Drive", "SHOOT": "Fire",
+      "JUMP": "Jump", "INTERACT": "Interact", "VEHICLE": "Vehicle", "RELOAD": "Reload", "AIM": "Aim",
+      "CLEAR": "Clear", "CLOUDY": "Cloudy", "RAIN": "Rain", "STORM": "Storm", "FOG": "Fog",
+      "ARRESTED": "Busted", "ARRESTED_MSG": "You lost 15% of your money.", "SLOT": "Save slot",
+      "BENCHMARK": "Benchmark", "DEBUG": "Debug", "SIZE": "Size", "PERFORMANCE": "Performance"
+    },
+    "ar": {
+      "NOVA_MIRA": "نوفا ميرا", "TAGLINE": "المدينة لا تنام أبداً", "NEW_GAME": "لعبة جديدة",
+      "CONTINUE": "متابعة", "MISSIONS": "المهمات", "STORE": "المتجر", "SETTINGS": "الإعدادات",
+      "ACHIEVEMENTS": "الإنجازات", "QUIT": "خروج", "PLAY": "اللعب", "BACK": "رجوع", "CLOSE": "إغلاق",
+      "HEALTH": "الصحة", "ARMOUR": "الدرع", "MONEY": "المال", "WANTED": "مطلوب", "WEAPON": "السلاح",
+      "AMMO": "الذخيرة", "SPEED": "السرعة", "FUEL": "الوقود", "DAY": "اليوم", "TIME": "الوقت", "WEATHER": "الطقس",
+      "RADIO": "الراديو", "BUY": "اشترِ", "MISSION_COMPLETE": "اكتملت المهمة", "REWARD": "المكافأة",
+      "PAUSE": "إيقاف مؤقت", "RESUME": "استئناف", "SAVE": "حفظ", "LOAD": "تحميل", "LANGUAGE": "اللغة",
+      "QUALITY": "الجودة", "LOW": "منخفض", "MEDIUM": "متوسط", "HIGH": "عالي", "ULTRA": "فائق",
+      "AUTO": "تلقائي", "SOUND": "الصوت", "SENSITIVITY": "حساسية الكاميرا", "FPS": "الإطارات",
+      "BATTERY_SAVER": "توفير البطارية", "AIM_ASSIST": "المساعدة في التصويب", "PHONE": "الهاتف", "MAP": "الخريطة",
+      "MESSAGES": "الرسائل", "JOBS": "الأعمال", "OBJECTIVE": "الهدف", "FREE_ROAM": "تجول حر",
+      "LOADING": "جارٍ التحميل", "TIP": "نصيحة: استخدم الفرامل اليدوية للانجراف.", "DRIVE": "قد", "SHOOT": "أطلق",
+      "JUMP": "اقفز", "INTERACT": "تفاعل", "VEHICLE": "مركبة", "RELOAD": "إعادة تحميل", "AIM": "تصويب",
+      "CLEAR": "صافٍ", "CLOUDY": "غائم", "RAIN": "مطر", "STORM": "عاصفة رعدية", "FOG": "ضباب",
+      "ARRESTED": "تم اعتقالك", "ARRESTED_MSG": "فقدت 15% من مالك.", "SLOT": "منطقة حفظ",
+      "BENCHMARK": "قياس الأداء", "DEBUG": "تصحيح", "SIZE": "الحجم", "PERFORMANCE": "الأداء"
+    },
+    "fr": {
+      "NOVA_MIRA": "NOVA MIRA", "TAGLINE": "La ville ne dort jamais.", "NEW_GAME": "Nouvelle partie",
+      "CONTINUE": "Continuer", "MISSIONS": "Missions", "STORE": "Boutique", "SETTINGS": "Paramètres",
+      "ACHIEVEMENTS": "Succès", "QUIT": "Quitter", "PLAY": "Jouer", "BACK": "Retour", "CLOSE": "Fermer",
+      "HEALTH": "Santé", "ARMOUR": "Gilet", "MONEY": "Argent", "WANTED": "Recherché", "WEAPON": "Arme",
+      "AMMO": "Munitions", "SPEED": "Vitesse", "FUEL": "Carburant", "DAY": "Jour", "TIME": "Heure", "WEATHER": "Météo",
+      "RADIO": "Radio", "BUY": "Acheter", "MISSION_COMPLETE": "Mission terminée", "REWARD": "Récompense",
+      "PAUSE": "Pause", "RESUME": "Reprendre", "SAVE": "Sauvegarder", "LOAD": "Charger", "LANGUAGE": "Langue",
+      "QUALITY": "Qualité", "LOW": "Basse", "MEDIUM": "Moyenne", "HIGH": "Haute", "ULTRA": "Ultra",
+      "AUTO": "Auto", "SOUND": "Son", "SENSITIVITY": "Sensibilité", "FPS": "IPS",
+      "BATTERY_SAVER": "Économie d'énergie", "AIM_ASSIST": "Aide à la visée", "PHONE": "Téléphone", "MAP": "Carte",
+      "MESSAGES": "Messages", "JOBS": "Emplois", "OBJECTIVE": "Objectif", "FREE_ROAM": "Liberté",
+      "LOADING": "Chargement", "TIP": "Astuce : utilisez le frein à main pour dériver.", "DRIVE": "Conduire", "SHOOT": "Tirer",
+      "JUMP": "Sauter", "INTERACT": "Interagir", "VEHICLE": "Véhicule", "RELOAD": "Recharger", "AIM": "Viser",
+      "CLEAR": "Dégagé", "CLOUDY": "Nuageux", "RAIN": "Pluie", "STORM": "Orage", "FOG": "Brouillard",
+      "ARRESTED": "Arrêté", "ARRESTED_MSG": "Vous avez perdu 15% de votre argent.", "SLOT": "Sauvegarde",
+      "BENCHMARK": "Benchmark", "DEBUG": "Débogage", "SIZE": "Taille", "PERFORMANCE": "Performance"
+    }
+  }
+}

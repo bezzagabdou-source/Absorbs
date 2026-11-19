@@ -9,7 +9,8 @@ no commercial music.
 | All 3D geometry (city kit, vehicles, characters, props) | `tools/asset_pipeline/generate_geometry.py` + runtime procedural meshes in `scripts/world/` | CC0-1.0 (author's own work, dedicated to public domain) | Primitive-mesh composition; no imported models |
 | All textures / materials | runtime procedural colours + `tools/asset_pipeline/generate_textures.py` | CC0-1.0 | Generated with Python stdlib (zlib/struct); no copied images |
 | All audio (engine loops, guns, UI, 3 radio stations) | `tools/asset_pipeline/generate_audio.py` | CC0-1.0 | Synthesised PCM WAV; no samples from other works |
-| UI font (if bundled) | Noto Sans Arabic / Noto Sans — Google | SIL Open Font License 1.1 | Attribution: Google Inc. and contributors; OFL text ships with the file |
+| `assets/fonts/NotoSansArabic-Regular.ttf`, `assets/fonts/NotoSansArabic-Bold.ttf` | Noto Sans Arabic — Google Inc. and contributors | SIL Open Font License 1.1 | Downloaded from `googlefonts/noto-fonts` via GitHub API; full text in `assets/fonts/OFL.txt` |
+| `assets/fonts/OFL.txt` | Google Inc. and contributors | SIL Open Font License 1.1 | Licence text for the two fonts above |
 | Godot engine + export templates | Godot Engine contributors | MIT | https://github.com/godotengine/godot |
 
 The game name **Nova Mira**, the city, characters, companies, radio stations and story

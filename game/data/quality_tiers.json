@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "resolution_scale_range": [0.5, 1.5],
+  "tiers": [
+    {"id":"low","name_key":"LOW","resolution_scale":0.7,"fps_cap":30,"shadows":false,"shadow_cascades":1,"view_distance":150,"traffic":8,"peds":8,"rain":180,"memory_mb":800,"effects":{"ssao":false,"ssr":false,"volumetric":false,"motion_blur":false,"bloom":false,"wet_roads":false,"wind":false}},
+    {"id":"medium","name_key":"MEDIUM","resolution_scale":1.0,"fps_cap":60,"shadows":true,"shadow_cascades":2,"view_distance":260,"traffic":14,"peds":14,"rain":380,"memory_mb":1100,"effects":{"ssao":false,"ssr":false,"volumetric":false,"motion_blur":false,"bloom":true,"wet_roads":true,"wind":true}},
+    {"id":"high","name_key":"HIGH","resolution_scale":1.0,"fps_cap":90,"shadows":true,"shadow_cascades":3,"view_distance":420,"traffic":20,"peds":22,"rain":700,"memory_mb":1400,"effects":{"ssao":true,"ssr":true,"volumetric":false,"motion_blur":false,"bloom":true,"wet_roads":true,"wind":true}},
+    {"id":"ultra","name_key":"ULTRA","resolution_scale":1.5,"fps_cap":120,"shadows":true,"shadow_cascades":4,"view_distance":650,"traffic":28,"peds":30,"rain":1100,"memory_mb":1500,"effects":{"ssao":true,"ssr":true,"volumetric":true,"motion_blur":true,"bloom":true,"wet_roads":true,"wind":true}}
+  ]
+}

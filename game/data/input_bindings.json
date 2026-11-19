@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "deadzone": 0.2,
+  "actions": {
+    "move_forward": {"keys":[87],"buttons":[]}, "move_back": {"keys":[83],"buttons":[]},
+    "move_left": {"keys":[65],"buttons":[]}, "move_right": {"keys":[68],"buttons":[]},
+    "sprint": {"keys":[4194325],"buttons":[5]}, "jump": {"keys":[32],"buttons":[0]},
+    "attack": {"keys":[1],"buttons":[7]}, "aim": {"keys":[4194326],"buttons":[6]},
+    "interact": {"keys":[69],"buttons":[2]}, "enter_vehicle": {"keys":[70],"buttons":[3]},
+    "handbrake": {"keys":[4194327],"buttons":[4]}, "horn": {"keys":[72],"buttons":[8]},
+    "weapon_next": {"keys":[81],"buttons":[9]}, "reload": {"keys":[82],"buttons":[2]},
+    "map_toggle": {"keys":[77],"buttons":[10]}, "phone_toggle": {"keys":[80],"buttons":[11]},
+    "pause": {"keys":[16777217],"buttons":[12]}, "debug_toggle": {"keys":[4194342],"buttons":[]}
+  }
+}

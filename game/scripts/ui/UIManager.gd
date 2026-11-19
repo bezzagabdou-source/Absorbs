@@ -10,10 +10,10 @@ signal shop_requested(item_id: String)
 signal save_requested
 signal quit_requested
 
-var loc: Localization
+var loc: RefCounted
 var bus: EventBus
 var player: PlayerController
-var input: InputManager
+var input: RefCounted
 var police: PoliceAI
 var missions: MissionRunner
 var day: DayNight
@@ -49,7 +49,7 @@ var _fps_label: Label
 var _show_fps: bool = false
 var _joystick: Control
 
-func setup(p_loc: Localization, p_bus: EventBus, p_input: InputManager) -> void:
+func setup(p_loc: RefCounted, p_bus: EventBus, p_input: RefCounted) -> void:
 	loc = p_loc
 	bus = p_bus
 	input = p_input
