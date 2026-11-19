@@ -3,7 +3,7 @@ extends Node3D
 ## Third-person spring-arm camera with touch look, aim FOV and shoulder swap.
 
 var target: Node3D
-var input: RefCounted
+var input: Node
 var spring: SpringArm3D
 var camera: Camera3D
 var yaw: float = 0.0
@@ -12,7 +12,7 @@ var aiming: bool = false
 var shoulder: int = 1
 var _shake: float = 0.0
 
-func setup(p_target: Node3D, p_input: RefCounted) -> void:
+func setup(p_target: Node3D, p_input: Node) -> void:
 	target = p_target
 	input = p_input
 	spring = SpringArm3D.new()

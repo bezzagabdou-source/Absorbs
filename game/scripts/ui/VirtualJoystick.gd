@@ -2,14 +2,14 @@ class_name VirtualJoystick
 extends Control
 ## Touch analogue stick; reports a normalised Vector2 to InputManager.
 
-var input: RefCounted
+var input: Node
 var _knob: Control
 var _active := false
 var _index := -1
 var _centre := Vector2.ZERO
 var _radius := 58.0
 
-func setup(p_input: RefCounted) -> void:
+func setup(p_input: Node) -> void:
 	input = p_input
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	custom_minimum_size = Vector2(150, 150)

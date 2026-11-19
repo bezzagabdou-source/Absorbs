@@ -3,7 +3,7 @@ extends VehicleBody3D
 ## Wheel-collider vehicle with damage, fuel, horn, radio and damage particles.
 
 var spec: Dictionary
-var input: RefCounted
+var input: Node
 var bus: EventBus
 var weather: Weather
 var is_player_vehicle: bool = false
@@ -23,7 +23,7 @@ var _wheels: Array[VehicleWheel3D] = []
 var _horn: AudioStreamPlayer3D
 var _last_speed: float = 0.0
 
-func setup(p_spec: Dictionary, p_input: RefCounted, p_bus: EventBus, p_weather: Weather) -> void:
+func setup(p_spec: Dictionary, p_input: Node, p_bus: EventBus, p_weather: Weather) -> void:
 	spec = p_spec
 	input = p_input
 	bus = p_bus

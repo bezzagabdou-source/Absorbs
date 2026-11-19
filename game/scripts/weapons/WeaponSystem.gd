@@ -4,7 +4,7 @@ extends Node
 
 var player: PlayerController
 var camera_rig: CameraRig
-var input: RefCounted
+var input: Node
 var bus: EventBus
 var current: int = 2
 var ammo: Dictionary = {"pistol": 36, "smg": 90, "rifle": 60, "shotgun": 24, "sniper": 10, "grenade": 8}
@@ -18,7 +18,7 @@ var _decals: Array[MeshInstance3D] = []
 var _projectiles: Array = []
 var _rng := RandomNumberGenerator.new()
 
-func setup(p_player: PlayerController, p_rig: CameraRig, p_input: RefCounted, p_bus: EventBus) -> void:
+func setup(p_player: PlayerController, p_rig: CameraRig, p_input: Node, p_bus: EventBus) -> void:
 	player = p_player
 	camera_rig = p_rig
 	input = p_input
