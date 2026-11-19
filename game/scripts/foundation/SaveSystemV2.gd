@@ -51,7 +51,7 @@ static func save(slot: int, data: Dictionary) -> bool:
 	f.close()
 	return true
 
-static func load(slot: int) -> Dictionary:
+static func load_slot(slot: int) -> Dictionary:
 	var path := path_for(slot)
 	if not FileAccess.file_exists(path):
 		return {}

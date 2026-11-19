@@ -62,7 +62,7 @@ func _initialize() -> void:
 	_check(SaveSystemV2.save(1, data), "save slot 1 written")
 	data["money"] = 777
 	_check(SaveSystemV2.save(2, data), "save slot 2 written")
-	_check(int(SaveSystemV2.load(1)["money"]) == 100, "slot isolation")
+	_check(int(SaveSystemV2.load_slot(1)["money"]) == 100, "slot isolation")
 	_check(SaveSystemV2.has(2) and not SaveSystemV2.has(3), "slot presence flags")
 	var legacy := {"version": 1, "data": {"money": 250, "weapon": 2, "ammo": {"pistol": 12}, "locale": "ar"}}
 	var migrated := SaveSystemV2.migrate(legacy)
@@ -73,7 +73,7 @@ func _initialize() -> void:
 	var bad := FileAccess.open(SaveSystemV2.slot_path(3), FileAccess.WRITE)
 	bad.store_string("not-encrypted-garbage")
 	bad.close()
-	_check(SaveSystemV2.load(3).is_empty(), "corrupt slot returns empty safely")
+	_check(SaveSystemV2.load_slot(3).is_empty(), "corrupt slot returns empty safely")
 
 	print("[FOUNDATION] SECTION input")
 	# Input bindings: table loaded, rebind emits and persists through API.
@@ -92,7 +92,8 @@ func _initialize() -> void:
 	var settings := SettingsStore.new()
 	settings.set_value("unit_test", 42)
 	_check(settings.flush(), "settings flush")
-	_check(int(SettingsStore.new().get_value("unit_test", -1)) == 42, "settings reload")
+	var reloaded := SettingsStore.new()
+	_check(int(reloaded.get_value("unit_test", -1)) == 42, "settings reload")
 	var dash := PerformanceDashboard.new()
 	dash.record(8.0, 100.0, 120)
 	dash.record(12.0, 110.0, 140)
