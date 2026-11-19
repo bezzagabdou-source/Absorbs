@@ -38,7 +38,7 @@ function sectionText(key: string): string {
 
 function sectionButtons(key: string) {
   const items: any[] = (data as any).sections[key] || [];
-  const btns = items
+  const btns: any[] = items
     .filter((it) => it.username)
     .map((it) => [{ text: `💬 ${it.name} — ${it.username}`, url: link(it.username) }]);
   btns.push([{ text: "🔙 رجوع", callback_data: "menu" }]);
