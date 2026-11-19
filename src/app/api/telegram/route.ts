@@ -47,7 +47,7 @@ function sectionButtons(key: string) {
   for (let i = 0; i < items.length; i += 2) {
     const row = items.slice(i, i + 2)
       .filter((it) => it.username)
-      .map((it) => ({ text: `💬 ${it.name}`, url: link(it.username) }));
+      .map((it) => ({ text: `💬 ${it.name === "وسيط XR" ? it.username : it.name}`, url: link(it.username), style: "success" }));
     if (row.length) btns.push(row);
   }
   btns.push([{ text: "⬅️ القائمة الرئيسية", callback_data: "menu", style: "primary" }]);
