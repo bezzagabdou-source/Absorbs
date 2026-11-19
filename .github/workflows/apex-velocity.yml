@@ -182,6 +182,7 @@ jobs:
   screenshots:
     name: Render screenshots (software GL)
     needs: verify
+    continue-on-error: true
     if: github.event_name == 'push' && github.ref_type == 'branch'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -205,7 +206,7 @@ jobs:
         run: |
           mkdir -p racing/docs/screenshots
           for screen in menu tracks garage shop achievements daily settings credits profile race; do
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
+            timeout 120 xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 \
               --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 45 \
@@ -217,7 +218,7 @@ jobs:
       - name: Layout diagnostics
         run: |
           for screen in menu race; do
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
+            timeout 120 xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 --quit-after 60 \
               -- --screen=$screen --diag > /tmp/diag_$screen.log 2>&1 || true
