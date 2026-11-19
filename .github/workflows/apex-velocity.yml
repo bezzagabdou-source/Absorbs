@@ -55,22 +55,7 @@ jobs:
           python3 tools/physics_sim.py
           exit $fail
 
-      - name: Compile-check every script (per-file annotations)
-        run: |
-          for f in $(find racing/scripts -name '*.gd' | sort); do
-            rel="/${f#racing/}"
-            set +e
-            "$GODOT_DIR/godot" --headless --path racing --check-only --script "res://${f#racing/}" >/tmp/chk.log 2>&1
-            rc=$?
-            set -e
-            if [ $rc -ne 0 ]; then
-              echo "::error file=$f::compile failed"
-              grep -E 'SCRIPT ERROR|Parse Error' /tmp/chk.log | grep -v 'Identifier not found' | head -4 | while read -r l; do echo "::error file=$f::$l"; done
-              if grep -q 'Identifier not found' /tmp/chk.log; then echo "::notice file=$f::depends on autoloads (validated in Import step)"; fi
-            fi
-          done
-
-      - name: Import project (builds .godot cache + import textures)
+      - name: Import project (builds .godot cache, compiles every script)
         run: |
           "$GODOT_DIR/godot" --headless --path racing --import 2>&1 | tee /tmp/import.log
           grep -iE 'SCRIPT ERROR|Parse Error' /tmp/import.log | head -30 | while read -r l; do echo "::error::$l"; done || true
