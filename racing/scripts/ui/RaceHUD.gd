@@ -224,7 +224,7 @@ func _build_touch() -> void:
 	_brake_btn.visible = _mobile
 	add_child(_brake_btn)
 	_nitro_btn = UIStyle.make_button(Localization.t("hud.nitro"), UIStyle.CYAN, true, 24, 104)
-	_nitro_btn.set_anchors_preset(Control.PRESET_BOTTOM_CENTER)
+	_nitro_btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_nitro_btn.offset_left = -90
 	_nitro_btn.offset_top = -150
 	_nitro_btn.offset_right = 90

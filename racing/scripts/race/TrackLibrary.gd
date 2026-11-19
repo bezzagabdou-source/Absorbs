@@ -71,7 +71,7 @@ class TrackData:
 		}
 
 
-const CACHE := {}
+static var CACHE: Dictionary = {}
 
 
 static func build_path(gen: Dictionary) -> TrackData:

@@ -16,9 +16,9 @@ var _car_index = 0
 var _view_id = ""
 var _list_box: VBoxContainer
 var _stats_box: VBoxContainer
-var _paint_box: HBoxContainer
-var _rim_box: HBoxContainer
-var _upgrade_box: HBoxContainer
+var _paint_box: VBoxContainer
+var _rim_box: VBoxContainer
+var _upgrade_box: VBoxContainer
 var _tab = "tune"
 var _tab_row: HBoxContainer
 var _name_label: Label
@@ -284,10 +284,10 @@ func _build_side_panel() -> void:
 	_stats_box = VBoxContainer.new()
 	_stats_box.add_theme_constant_override("separation", 8)
 	inner.add_child(_stats_box)
-	_paint_box = HBoxContainer.new()
+	_paint_box = VBoxContainer.new()
 	_paint_box.add_theme_constant_override("separation", 8)
 	inner.add_child(_paint_box)
-	_rim_box = HBoxContainer.new()
+	_rim_box = VBoxContainer.new()
 	_rim_box.add_theme_constant_override("separation", 8)
 	inner.add_child(_rim_box)
 	_upgrade_box = VBoxContainer.new()
@@ -372,7 +372,7 @@ func _refresh_panel() -> void:
 
 
 func _build_paints(car: Dictionary) -> void:
-	_paint_box.add_theme_constant_override("separation", 10)
+	_paint_box.add_theme_constant_override("separation", 12)
 	var grid = GridContainer.new()
 	grid.columns = 6
 	grid.add_theme_constant_override("h_separation", 10)
