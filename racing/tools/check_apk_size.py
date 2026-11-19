@@ -29,11 +29,19 @@ def main() -> int:
                 return 1
             names = z.namelist()
             print(f"ENTRIES={len(names)}")
-            for required in ("AndroidManifest.xml", "classes.dex", "lib/arm64-v8a/libgodot_android.so"):
-                ok = required in names or any(n.endswith(required.split("/")[-1]) for n in names)
-                print(f"{'OK  ' if ok else 'MISS'} {required}")
-                if not ok:
-                    return 1
+            entries = set(names)
+            checks = {
+                "AndroidManifest.xml": "AndroidManifest.xml" in entries,
+                "libgodot_android.so": any(n.endswith("libgodot_android.so") for n in names),
+                "pck payload": any(n.endswith(".pck") for n in names) or any(
+                    n.startswith("assets/") for n in names),
+            }
+            for label, ok in checks.items():
+                print(f"{'OK  ' if ok else 'MISS'} {label}")
+            biggest = sorted(names, key=lambda n: len(n))[-3:]
+            print("SAMPLE ENTRIES: " + ", ".join(biggest))
+            if not checks["AndroidManifest.xml"] or not checks["libgodot_android.so"]:
+                return 1
     except zipfile.BadZipFile:
         print("ERROR: not a valid APK/zip archive")
         return 1

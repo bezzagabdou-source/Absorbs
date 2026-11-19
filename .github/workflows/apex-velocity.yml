@@ -155,8 +155,9 @@ jobs:
           APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort | tail -1)
           "$APKSIGNER" verify --print-certs "$APK_PATH"
           SIZE=$(stat -c%s "$APK_PATH")
-          echo "APK_SIZE_BYTES=$SIZE"
-          python3 tools/check_apk_size.py "$APK_PATH"
+          echo "::notice::APK_SIZE_BYTES=$SIZE"
+          du -h "$APK_PATH"
+          python3 racing/tools/check_apk_size.py "$APK_PATH"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -202,7 +203,7 @@ jobs:
       - name: Render each screen
         timeout-minutes: 8
         run: |
-          mkdir -p racing/screenshots
+          mkdir -p racing/docs/screenshots
           for screen in menu tracks garage shop achievements daily settings credits profile; do
             xvfb-run -a -s "-screen 0 1280x720x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
@@ -210,11 +211,22 @@ jobs:
               --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 40 \
               -- --screen=$screen >/tmp/shot_${screen}.log 2>&1 || true
             last=$(ls /tmp/shot_${screen}*.png 2>/dev/null | tail -1)
-            if [ -n "$last" ]; then cp "$last" "racing/screenshots/${screen}.png"; fi
+            if [ -n "$last" ]; then cp "$last" "racing/docs/screenshots/${screen}.png"; fi
           done
-          ls -lh racing/screenshots
+          ls -lh racing/docs/screenshots
+      - name: Commit screenshots to the branch
+        run: |
+          git config user.name "Arena Agent"
+          git config user.email "agent@arena.ai"
+          git add racing/docs/screenshots
+          if git diff --cached --quiet; then
+            echo "no screenshot changes"
+          else
+            git commit -m "chore(racing): refresh UI screenshots [skip ci]"
+            git push origin "HEAD:$GITHUB_REF_NAME" || true
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: racing/screenshots/*.png
+          path: racing/docs/screenshots/*.png
           if-no-files-found: warn
