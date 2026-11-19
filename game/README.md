@@ -52,13 +52,13 @@ SDK, imports the project, runs headless smoke tests, exports and signs the APK,
 verifies the manifest/signature, and publishes a Release on `v*` tags.
 
 ```bash
-python3 tools/asset_pipeline/generate_audio.py
-python3 tools/asset_pipeline/generate_textures.py
+python3 game/tools/asset_pipeline/generate_audio.py
+python3 game/tools/asset_pipeline/generate_textures.py
 git push origin HEAD:your-branch     # triggers .github/workflows/build-android.yml
 ```
 
 To build locally: install Godot 4.4.1 plus export templates and Android SDK/JDK,
-then `godot --headless --path . --export-release Android build/NovaMira-v0.1.0.apk`.
+then `godot --headless --path game --import` followed by `godot --headless --path game --export-release Android build/NovaMira-v0.1.0.apk`.
 
 ## Phase 1 foundation (this branch)
 

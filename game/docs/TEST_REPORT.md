@@ -4,7 +4,7 @@ Updated by CI and by manual inspection. No result is claimed before it is produc
 
 ## Environment
 - Local: no Godot/SDK/JDK; validation is delegated to GitHub Actions `ubuntu-latest`.
-- CI: Godot 4.4.1-stable headless, OpenJDK 17, Android SDK via `android-actions/setup-android`.
+- CI: Godot 4.4.1-stable headless, OpenJDK 17, preinstalled Android SDK at `/usr/local/lib/android/sdk`.
 
 ## Phase 1 verification (latest complete green run: `44560909127`)
 
