@@ -59,6 +59,16 @@ export default function MediatorsPanel() {
         <input style={input} placeholder="ملاحظة" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
         <button style={btn} onClick={async () => { await act({ action: "add", section: cur, ...form }); setForm({ name: "", username: "", guarantee: "", note: "" }); }}>➕ إضافة</button>
       </div>
+      <div style={glass}>
+        <h3>👥 الزوار الذين دخلوا البوت ({visitors.length})</h3>
+        {visitors.length === 0 && <p>لا يوجد زوار بعد — أول من يضغط /start سيظهر هنا فوراً</p>}
+        {visitors.map((u: any, i: number) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: 8, borderBottom: "1px solid rgba(255,255,255,.12)" }}>
+            <span>👤 {u.name || "مستخدم"} {u.username ? <a style={{ color: "#4fc3f7" }} href={`https://t.me/${u.username}`} target="_blank">@{u.username}</a> : ""}</span>
+            <span style={{ opacity: .7 }}>{u.date ? new Date(u.date).toLocaleString("ar") : ""}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

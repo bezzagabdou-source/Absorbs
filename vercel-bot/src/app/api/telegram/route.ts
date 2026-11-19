@@ -82,7 +82,21 @@ export async function GET(req: Request) {
   if (url.searchParams.get("setup") === "1") {
     const host = url.host;
     const res = await call("setWebhook", { url: `https://${host}/api/telegram`, drop_pending_updates: true });
-    return NextResponse.json({ webhook: `https://${host}/api/telegram`, result: res });
+    let binUri = BIN_URL;
+    if (!binUri) {
+      try {
+        const br = await fetch("https://api.jsonstorage.net/v1/jsonbin", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ users: [] }),
+        });
+        const bj = await br.json().catch(() => ({}));
+        binUri = bj.uri || "";
+      } catch {}
+    }
+    return NextResponse.json({ webhook: `https://${host}/api/telegram`, result: res, binUri });
+  }
+  if (url.searchParams.get("users") === "1") {
+    return NextResponse.json({ users: await getUsers() });
   }
   return NextResponse.json({ ok: true, bot: "mediators-bot" });
 }
