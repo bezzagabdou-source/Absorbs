@@ -203,8 +203,8 @@ jobs:
         if: always()
         run: |
           mkdir -p screenshots
-          cat /tmp/screens.log 2>/dev/null > screenshots/capture.log || true
-          ls -la /tmp/nova_frames* 2>/dev/null >> screenshots/capture.log || true
+          cat /tmp/screens.log 2>/dev/null > screenshots/capture.txt || true
+          ls -la /tmp/nova_frames* 2>/dev/null >> screenshots/capture.txt || true
           head -60 /tmp/screens.log 2>/dev/null | while read -r line; do echo "::error::$line"; done || true
           echo "::error::SCREENSHOT_STEP_LOG_HEAD_END"
           tail -40 /tmp/screens.log 2>/dev/null | while read -r line; do echo "::error::TAIL $line"; done || true
