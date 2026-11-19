@@ -193,7 +193,7 @@ jobs:
             --rendering-driver opengl3 --resolution 960x540 \
             --write-movie /tmp/nova_frames.png --fixed-fps 30 --quit-after 520 -- --capture-frames 2>&1 | tee /tmp/screens.log
           mkdir -p screenshots
-          cp /tmp/nova_frames00000150.png screenshots/01-main-menu.png
+          cp /tmp/nova_frames00000120.png screenshots/01-main-menu.png
           cp /tmp/nova_frames00000150.png screenshots/06-city-skyline.png
           cp /tmp/nova_frames00000260.png screenshots/02-gameplay-day.png
           cp /tmp/nova_frames00000340.png screenshots/03-gameplay-night-rain.png

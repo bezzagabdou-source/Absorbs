@@ -28,6 +28,7 @@ var economy: Economy
 var sun: DirectionalLight3D
 var world_env: WorldEnvironment
 var menu_camera: Camera3D
+var capture_camera: Camera3D
 var peds: Array[PedestrianAI] = []
 var fps_cap: int = 30
 var _t: float = 0.0
@@ -148,6 +149,9 @@ func _init_world() -> void:
 	menu_camera.name = "MenuCamera"
 	add_child(menu_camera)
 	menu_camera.current = true
+	capture_camera = Camera3D.new()
+	capture_camera.name = "CaptureCamera"
+	add_child(capture_camera)
 	ui.set_loading(1.0, "Ready")
 	await get_tree().create_timer(0.8).timeout
 	state = State.MENU
@@ -227,21 +231,33 @@ func _process(delta: float) -> void:
 		_capture_frame += 1
 		match _capture_frame:
 			140:
+				ui.visible = false
+				capture_camera.current = true
+				capture_camera.global_position = Vector3(380, 180, -380)
+				capture_camera.look_at(Vector3(120, 50, -120))
+			150:
 				_capture_hold_menu = true
-				menu_camera.global_position = Vector3(320, 150, -320)
-				menu_camera.look_at(Vector3(150, 70, -150))
+			180:
+				capture_camera.current = false
+				menu_camera.current = true
+				ui.visible = true
+				_capture_hold_menu = false
 			200:
 				if state == State.MENU:
 					_on_start(true)
-			230:
-				player.global_position = Vector3(120, 1.2, -40)
-				rig.yaw = 1.9
-				rig.pitch = -0.12
-				city.update_chunks(true)
 			320:
 				day.hour = 20.0
 				day.apply()
 				weather.set_state(1)
+			330:
+				ui.visible = false
+				capture_camera.current = true
+				capture_camera.global_position = Vector3(250, 110, -250)
+				capture_camera.look_at(Vector3(150, 60, -150))
+			350:
+				capture_camera.current = false
+				rig.camera.current = true
+				ui.visible = true
 			380:
 				ui.toggle_phone()
 			440:
