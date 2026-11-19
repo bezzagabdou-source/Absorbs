@@ -7,18 +7,18 @@ const TrackLib = preload("res://scripts/race/TrackLibrary.gd")
 
 var controller
 var data
-var skill = 0.8
-var target_index = 0
-var lane = 0.0
-var steer_smooth = 0.0
-var throttle = 0.0
-var brake = 0.0
-var nitro = false
-var _nitro_cd = 3.0
-var _lateral_bias = 0.0
-var _bias_timer = 0.0
-var _stuck_t = 0.0
-var _reverse_t = 0.0
+var skill: float = 0.8
+var target_index: int = 0
+var lane: float = 0.0
+var steer_smooth: float = 0.0
+var throttle: float = 0.0
+var brake: float = 0.0
+var nitro: bool = false
+var _nitro_cd: float = 3.0
+var _lateral_bias: float = 0.0
+var _bias_timer: float = 0.0
+var _stuck_t: float = 0.0
+var _reverse_t: float = 0.0
 
 
 func setup(ctrl, track_data, skill_value: float, lane_offset: float) -> void:

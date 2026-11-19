@@ -3,19 +3,19 @@ extends Node3D
 ## optional first-person/hood view. All motion is frame-rate independent.
 
 var target: Node3D
-var enabled = true
-var mode = 0                  # 0 chase, 1 hood
-var _fov_base = 68.0
-var _boom = 6.4
-var _height = 2.35
-var _look_ahead = 8.0
-var _shake = 0.0
-var _shake_seed = 0.0
-var _last_speed = 0.0
+var enabled: bool = true
+var mode: int = 0                  # 0 chase, 1 hood
+var _fov_base: float = 68.0
+var _boom: float = 6.4
+var _height: float = 2.35
+var _look_ahead: float = 8.0
+var _shake: float = 0.0
+var _shake_seed: float = 0.0
+var _last_speed: float = 0.0
 var _cam: Camera3D
-var _roll = 0.0
-var _pos_smooth = Vector3.ZERO
-var _nitro_boost = 0.0
+var _roll: float = 0.0
+var _pos_smooth: Vector3 = Vector3.ZERO
+var _nitro_boost: float = 0.0
 
 
 func _ready() -> void:

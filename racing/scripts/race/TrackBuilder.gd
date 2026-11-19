@@ -20,15 +20,15 @@ const ROAD_RINGS := 420
 
 var data: TrackLib.TrackData = null
 var track: Dictionary = {}
-var env = "city"
-var time_of_day = "night"
-var weather = "dry"
-var accent = Color("22e9ff")
-var second_accent = Color("ff2e93")
-var start_transform = Transform3D.IDENTITY
+var env: String = "city"
+var time_of_day: String = "night"
+var weather: String = "dry"
+var accent: Color = Color("22e9ff")
+var second_accent: Color = Color("ff2e93")
+var start_transform: Transform3D = Transform3D.IDENTITY
 var checkpoints: Array = []
 var scenery_root: Node3D
-var _rng = RandomNumberGenerator.new()
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _neon_mat: ShaderMaterial
 var _road_mat: StandardMaterial3D
 

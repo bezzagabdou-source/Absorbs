@@ -34,7 +34,7 @@ var lap = 1
 var checkpoint_idx = 0
 var laps: Array = []
 var lap_mark = 0.0
-var position = 1
+var car_position = 1
 var player_progress = 0.0
 var best_lap_seen = 0.0
 var _last_speed = 0.0
@@ -286,14 +286,14 @@ func _finish_race() -> void:
 	var total = race_time
 	var reward: int = int(track.get("reward", 3000))
 	var pos_bonus = [1.0, 0.72, 0.55, 0.4, 0.3, 0.22]
-	var mult: float = pos_bonus[clampi(position - 1, 0, 5)] if mode == "circuit" else 1.0
+	var mult: float = pos_bonus[clampi(car_position - 1, 0, 5)] if mode == "circuit" else 1.0
 	var clean = player.wall_hits == 0
 	var result: Dictionary = {
 		"track": str(track["id"]),
 		"track_name": str(track["name"]),
 		"mode": mode,
-		"position": position if mode == "circuit" else 1,
-		"total": position,
+		"position": car_position if mode == "circuit" else 1,
+		"total": car_position,
 		"time": total,
 		"best_lap": best_lap_seen,
 		"laps": laps.duplicate(),
@@ -320,7 +320,7 @@ func _update_standings() -> void:
 		var mine = player_progress + float(lap - 1) * builder.data.total_length
 		if ai_prog > mine:
 			ahead += 1
-	position = ahead + 1
+	car_position = ahead + 1
 
 
 func _update_audio() -> void:
@@ -339,7 +339,7 @@ func _update_hud(delta: float) -> void:
 		"nitro_active": player.nitro_active,
 		"damage": player.damage,
 		"drift": player.drift_amount,
-		"position_text": "%d/%d" % [position, ai_cars.size() + 1] if mode == "circuit" else "TT",
+		"position_text": "%d/%d" % [car_position, ai_cars.size() + 1] if mode == "circuit" else "TT",
 		"lap_text": "%d/%d" % [lap, laps_target] if mode == "circuit" else "1/1",
 		"time_text": format_time(t),
 		"best_text": format_time(best_lap_seen) if best_lap_seen > 0.0 else "--:--.--",

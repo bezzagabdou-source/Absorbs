@@ -138,10 +138,10 @@ func set_wind(intensity: float) -> void:
 		wind_player.stop()
 
 
-func stop_race_audio() -> void:
-	if engine_player:
-		engine_player.stop()
-	if screech_player:
-		screech_player.stop()
-	if wind_player:
-		wind_player.stop()
+func stop_race_audio(fade: float = 0.25) -> void:
+	for pl in [engine_player, screech_player, wind_player]:
+		if pl == null:
+			continue
+		var tw := create_tween()
+		tw.tween_property(pl, "volume_db", -60.0, maxf(0.01, fade))
+		tw.tween_callback(pl.stop)
