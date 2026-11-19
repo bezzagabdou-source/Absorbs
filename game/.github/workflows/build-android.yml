@@ -54,11 +54,13 @@ jobs:
           find /usr/local/lib/android/sdk/build-tools -maxdepth 2 -type f -name apksigner 2>/dev/null | head -5 || true
           java -version
           mkdir -p "$HOME/.config/godot"
+          JAVA_SDK="$(dirname "$(dirname "$(readlink -f "$(which java)")")")"
+          echo "Java SDK: $JAVA_SDK"
           cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
           [editor_settings]
           
           export/android/android_sdk_path = "/usr/local/lib/android/sdk"
-          export/android/java_path = ""
+          export/android/java_sdk_path = "$JAVA_SDK"
           EOF
       - name: Install Godot headless + export templates
         run: |
@@ -91,6 +93,13 @@ jobs:
           "$GODOT_DIR/godot" --headless --path game --export-release "Android" ../build/NovaMira-v0.1.0.apk 2>&1 | tee /tmp/export.log
           test -s build/NovaMira-v0.1.0.apk
           ls -lh build/NovaMira-v0.1.0.apk
+      - name: Diagnose failed export
+        if: failure()
+        run: |
+          echo "::group::Godot export log"
+          tail -120 /tmp/export.log 2>/dev/null || true
+          echo "::endgroup::"
+          echo "::error::Godot Android export failed: $(tail -8 /tmp/export.log 2>/dev/null | tr '\n' ' ')"
       - name: Verify APK signature and manifest
         run: |
           AAPT=$(find "$ANDROID_SDK_ROOT/build-tools" -name aapt2 -type f | sort | tail -1)
