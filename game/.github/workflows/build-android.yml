@@ -31,9 +31,11 @@ jobs:
           chmod +x "$GODOT_DIR/godot"
           "$GODOT_DIR/godot" --version
       - name: Import project
-        run: "$GODOT_DIR/godot" --headless --path game --import
+        run: |
+          "$GODOT_DIR/godot" --headless --path game --import
       - name: Smoke test
-        run: "$GODOT_DIR/godot" --headless --path game --script res://tests/smoke_test.gd
+        run: |
+          "$GODOT_DIR/godot" --headless --path game --script res://tests/smoke_test.gd
 
   build:
     name: Export signed APK
