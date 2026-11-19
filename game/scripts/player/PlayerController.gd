@@ -79,12 +79,12 @@ func _physics_process(delta: float) -> void:
 	if in_vehicle or input == null:
 		return
 	_hurt_cooldown = maxf(0.0, _hurt_cooldown - delta)
-	var mv := input.get_move()
+	var mv: Vector2 = input.get_move()
 	var cam_yaw: float = camera_rig.yaw if camera_rig != null else 0.0
 	var forward := Vector3(sin(cam_yaw), 0, cos(cam_yaw)).normalized()
 	var right := Vector3(cos(cam_yaw), 0, -sin(cam_yaw)).normalized()
 	var want := (forward * mv.y + right * mv.x)
-	var sprint := input.pressed("sprint") and mv.length() > 0.6 and stamina > 5.0
+	var sprint: bool = bool(input.pressed("sprint")) and mv.length() > 0.6 and stamina > 5.0
 	var speed := _speed * (1.0 + 0.08 * float(_skills["speed"]))
 	if sprint:
 		speed *= 1.65

@@ -29,7 +29,7 @@ func setup(p_target: Node3D, p_input: Node) -> void:
 func _process(delta: float) -> void:
 	if target == null or camera == null:
 		return
-	var look := input.consume_look()
+	var look: Vector2 = input.consume_look()
 	yaw -= look.x * 0.004
 	pitch = clampf(pitch - look.y * 0.003, -1.15, 0.75)
 	global_position = target.global_position + Vector3(0, 1.55, 0)
