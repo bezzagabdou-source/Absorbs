@@ -55,11 +55,11 @@ jobs:
           java -version
           mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
-[editor_settings]
-
-export/android/android_sdk_path = "/usr/local/lib/android/sdk"
-export/android/java_path = ""
-EOF
+          [editor_settings]
+          
+          export/android/android_sdk_path = "/usr/local/lib/android/sdk"
+          export/android/java_path = ""
+          EOF
       - name: Install Godot headless + export templates
         run: |
           mkdir -p "$GODOT_DIR"
