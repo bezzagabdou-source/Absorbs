@@ -106,6 +106,10 @@ export const WELCOME_TEXT = [
   `💰 نقاطك: {points}`,
 ].join("\n");
 
+/** 📌 رسالة التفاعل اللي كتطلع لكل واحد كيضغط /start (ثابتة فالكود — ما تتزحش) */
+export const START_ACTION_TEXT = "تفاعل مختلف وأكمل";
+export const START_ACTION_URL = "https://t.me/mxabdou/41";
+
 export const OWNER_USERNAME = "F_Y_Y_T";
 
 /** كل 100 ضيف = نقطة واحدة، و3 نقاط = جائزة عشوائية من المالك */
