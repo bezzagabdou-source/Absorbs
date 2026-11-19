@@ -6,9 +6,22 @@ Updated by CI and by manual inspection. No result is claimed before it is produc
 - Local: no Godot/SDK/JDK; validation is delegated to GitHub Actions `ubuntu-latest`.
 - CI: Godot 4.4.1-stable headless, OpenJDK 17, Android SDK via `android-actions/setup-android`.
 
-## Automated checks
+## Phase 1 verification (latest complete green run: `44560909127`)
+
 | Check | Status | Evidence |
 | --- | --- | --- |
+| Foundation unit tests (settings, input, saves, benchmark, quality, localization) | PASS | Actions run `44560909127`, `tests/foundation_test.gd` |
+| Asset licence audit (17 files) | PASS | `python3 game/tools/check_assets_licenses.py game` |
+| APK size gate (26,088,571 B <= 200 MB) | PASS | `game/tools/check_apk_size.py`, annotated in CI |
+| Headless gameplay smoke test | PASS | Actions run `44560909127` |
+| Signed signed APK export + manifest/signature verification | PASS | Actions run `44560909127`, job `Export signed APK` |
+| Real in-game screenshot capture (5 PNGs, 960x540) | PASS | Actions run `44560909127`, committed `screenshots/` |
+| On-device install / 15-minute soak / FPS | NOT TESTED — no device/emulator in sandbox | see `KNOWN_LIMITATIONS.md` |
+
+The Phase 1 APK is rebuilt from the same project as v0.1.0 with the same package
+`com.novamira.game` and no OBB. The v0.1.0 tag/release APK remains the published
+download; Phase 1 is verified on this branch and is not yet a new Release.
+
 | Project import / script parse | PASS | Actions run `44539099136`, job `verify` (23 s) |
 | Headless gameplay smoke test (24 script parses, save roundtrip, road graph, city chunks, 9 missions, all managers boot) | PASS | Actions run `44539099136`, `tests/smoke_test.gd` |
 | APK export + signature verification (`aapt dump badging`, `apksigner verify --print-certs`) | PASS | Actions run `44539099136`, job `build` (52 s) |

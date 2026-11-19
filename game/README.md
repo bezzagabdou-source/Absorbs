@@ -60,6 +60,23 @@ git push origin HEAD:your-branch     # triggers .github/workflows/build-android.
 To build locally: install Godot 4.4.1 plus export templates and Android SDK/JDK,
 then `godot --headless --path . --export-release Android build/NovaMira-v0.1.0.apk`.
 
+## Phase 1 foundation (this branch)
+
+Phase 1 adds typed input bindings, versioned save slots, complete offline AR/EN/FR
+localization tables, a first-run performance benchmark with four quality tiers,
+a 50%–150% resolution-scale slider, a debug/telemetry overlay, and CI gates for
+licence audit, APK size (hard fail above 200 MB), smoke tests, foundation unit
+tests and real in-game screenshots. The original v0.1 gameplay and native Android
+build are unchanged.
+
+CI captures the screenshots directly from the running game with Godot's Movie
+Writer mode under Xvfb/llvmpipe; the PNGs in `screenshots/` are committed by the
+workflow. On iPhone they can be viewed through the GitHub web page or saved to
+Photos; an APK cannot be installed on iOS and no WebView game is used.
+
+Measured Phase 1 export: 26,088,571 bytes (24.88 MiB), no OBB. Budget table:
+`docs/SIZE_AND_PERFORMANCE.md`. Verified CI run: `44560909127`.
+
 ## Repository layout
 
 `scripts/` systems · `scenes/` entry scene · `assets/` generated original audio,

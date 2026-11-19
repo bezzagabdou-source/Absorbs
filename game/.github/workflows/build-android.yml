@@ -199,19 +199,8 @@ jobs:
           cp /tmp/nova_frames00000400.png screenshots/04-phone-ui.png
           cp /tmp/nova_frames00000480.png screenshots/05-debug-overlay.png
           ls -lh screenshots
-      - name: Screenshot log
-        if: always()
-        run: |
-          mkdir -p screenshots
-          cat /tmp/screens.log 2>/dev/null > screenshots/capture.txt || true
-          ls -la /tmp/nova_frames* 2>/dev/null >> screenshots/capture.txt || true
-          head -60 /tmp/screens.log 2>/dev/null | while read -r line; do echo "::error::$line"; done || true
-          echo "::error::SCREENSHOT_STEP_LOG_HEAD_END"
-          tail -40 /tmp/screens.log 2>/dev/null | while read -r line; do echo "::error::TAIL $line"; done || true
-          ls -la /tmp/nova_frames* 2>/dev/null | head -10 | while read -r line; do echo "::error::FRAMES $line"; done || true
-          echo "::error::SCREENSHOT_STEP_LOG_END"
       - name: Commit screenshots to branch
-        if: always()
+        if: success()
         run: |
           git config user.name "Arena Agent"
           git config user.email "agent@arena.ai"

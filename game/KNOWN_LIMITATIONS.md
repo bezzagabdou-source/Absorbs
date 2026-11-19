@@ -1,4 +1,4 @@
-# Known limitations (honest, v0.1.0)
+# Known limitations (honest, v0.1.0 + Phase 1)
 
 This is a real native Android game prototype, **not** a GTA-scale production. The
 following requested features are absent or reduced; nothing was removed silently.
@@ -23,3 +23,11 @@ following requested features are absent or reduced; nothing was removed silently
 The token available to this session cannot create private repositories. The source was
 committed to the session branch of `bezzagabdou-source/Absorbs` and the release was
 created there; moving it to a private repo requires repo-creation permission.
+
+## Phase 1 additions / remaining gaps
+
+13. **No real-device benchmark.** The quality resolver uses headless CPU/GPU frame timings; actual 720p/30, 1080p/60, 1440p/90–120 targets are configuration targets, not measured phone results. A 15-minute soak test is required before claiming them.
+14. **Rendered screenshots use llvmpipe**, so CI PNGs show the real game scene and UI but not phone-GPU quality. They are for iPhone viewing, not a performance proof.
+15. **AR/EN/FR tables are offline and complete for implemented strings**; there is no online translation service or RTL layout mirroring beyond the UI code's existing RTL handling.
+16. **No C++/GDExtension hot paths were necessary** for Phase 1; if profiling later shows a bottleneck, a justified native module would be added with source and licence documentation.
+17. **"8K" and true ray-traced/volumetric effects are not mobile targets.** Ultra supersamples up to 150% of the device's native resolution and uses stylised approximations.
