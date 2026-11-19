@@ -175,7 +175,7 @@ func _on_start(new_game: bool) -> void:
 		day.hour = 18.0
 		weather.set_state(0)
 	else:
-		var data := SaveSystemV2.load(current_slot)
+		var data := SaveSystemV2.load_slot(current_slot)
 		_load_data(data)
 	state = State.PLAY
 	ui.show_game()

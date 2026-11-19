@@ -46,6 +46,7 @@ jobs:
         if: always()
         run: |
           grep -E 'SECTION|FAIL|SCRIPT ERROR|Parse Error|ERROR:' /tmp/foundation.log 2>/dev/null | head -40 | while read -r line; do echo "::error::$line"; done || true
+          grep -A3 -B1 -E 'Parse Error|SCRIPT ERROR' /tmp/foundation.log 2>/dev/null | head -50 | while read -r line; do echo "::error::$line"; done || true
       - name: Asset licence audit
         run: python3 tools/check_assets_licenses.py game
       - name: Smoke test
