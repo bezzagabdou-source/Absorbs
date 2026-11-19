@@ -80,8 +80,11 @@ jobs:
           DEST="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}"
           mkdir -p "$DEST"
           unzip -q -o "$GODOT_DIR/templates.tpz" -d "$GODOT_DIR/tpl"
-          cp -r "$GODOT_DIR/tpl/templates/." "$DEST/"
-          ls "$DEST" | head
+          if [ -d "$GODOT_DIR/tpl/templates" ]; then SRC="$GODOT_DIR/tpl/templates"; else SRC="$GODOT_DIR/tpl"; fi
+          cp -r "$SRC"/. "$DEST"/
+          echo "::notice::Installed templates: $(find "$DEST" -maxdepth 1 -type f -printf '%f ' | head -c 600)"
+          test -f "$DEST/android_release.apk" || { echo "::error::android_release.apk missing from export templates"; exit 1; }
+          test -f "$DEST/android_debug.apk" || { echo "::error::android_debug.apk missing from export templates"; exit 1; }
       - name: Generate fresh release keystore (not committed)
         run: |
           mkdir -p game/build
