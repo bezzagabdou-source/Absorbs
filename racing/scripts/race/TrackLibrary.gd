@@ -71,7 +71,7 @@ class TrackData:
 		}
 
 
-static var CACHE: Dictionary = {}
+static var cache_store: Dictionary = {}
 
 
 static func build_path(gen: Dictionary) -> TrackData:
@@ -133,14 +133,14 @@ static func build_path(gen: Dictionary) -> TrackData:
 
 static func for_track(track: Dictionary) -> TrackData:
 	var id = str(track.get("id", "track"))
-	if CACHE.has(id):
-		return CACHE[id]
+	if cache_store.has(id):
+		return cache_store[id]
 	var td = build_path(track.get("gen", {}))
 	td.id = id
 	td.name = str(track.get("name", id))
-	CACHE[id] = td
+	cache_store[id] = td
 	return td
 
 
 static func clear_cache() -> void:
-	CACHE.clear()
+	cache_store.clear()

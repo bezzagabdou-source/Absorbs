@@ -115,7 +115,7 @@ func _test_tracks() -> void:
 		_check(s.has("pos") and s.has("tan") and s.has("right"), "track %s samples" % str(track["id"]))
 		var prj: Dictionary = data.project(data.points[10])
 		_check(int(prj["index"]) >= 0, "track %s projects" % str(track["id"]))
-	_check(TrackLib.CACHE.size() == GameData.TRACKS.size(), "track cache populated")
+	_check(TrackLib.cache_store.size() == GameData.TRACKS.size(), "track cache populated")
 
 
 func _test_cars_models() -> void:
