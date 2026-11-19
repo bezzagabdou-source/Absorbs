@@ -229,9 +229,9 @@ func _process(delta: float) -> void:
 				if state == State.MENU:
 					_on_start(true)
 			320:
-				day.hour = 22.0
+				day.hour = 20.0
 				day.apply()
-				weather.set_state(2)
+				weather.set_state(1)
 			380:
 				ui.toggle_phone()
 			440:
