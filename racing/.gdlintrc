@@ -1,0 +1,6 @@
+max-line-length: 140
+max-file-lines: 4000
+max-public-methods: 120
+disable:
+  - function-name
+  - class-definitions-order

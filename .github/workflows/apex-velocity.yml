@@ -1,0 +1,230 @@
+name: APEX VELOCITY — build, test, export APK
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+    paths:
+      - "racing/**"
+      - ".github/workflows/apex-velocity.yml"
+  pull_request:
+    paths:
+      - "racing/**"
+      - ".github/workflows/apex-velocity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.4.1-stable"
+  GODOT_DIR: /tmp/godot
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+  APK_PATH: build/APEX-VELOCITY.apk
+
+jobs:
+  verify:
+    name: Lint + import + headless tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot 4.4.1 headless
+        run: |
+          python3 -m pip install --quiet --break-system-packages gdtoolkit==4.* pillow numpy || true
+          mkdir -p "$GODOT_DIR"
+          curl -fL --retry 3 -o "$GODOT_DIR/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          mv "$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.x86_64" "$GODOT_DIR/godot"
+          chmod +x "$GODOT_DIR/godot"
+          "$GODOT_DIR/godot" --version
+
+      - name: GDScript lint (gdparse + gdlint)
+        run: |
+          cd racing
+          fail=0
+          for f in $(find scripts tests -name '*.gd' | sort); do
+            if ! gdparse "$f" >/dev/null 2>/tmp/p.err; then
+              echo "::error file=racing/$f::$(head -4 /tmp/p.err | tr '\n' ' ')"
+              fail=1
+            fi
+          done
+          gdlint scripts tests || fail=1
+          python3 tools/physics_sim.py
+          exit $fail
+
+      - name: Import project (builds .godot cache + import textures)
+        run: |
+          "$GODOT_DIR/godot" --headless --path racing --import 2>&1 | tee /tmp/import.log
+          grep -iE 'SCRIPT ERROR|Parse Error' /tmp/import.log | head -30 | while read -r l; do echo "::error::$l"; done || true
+          if grep -qiE 'SCRIPT ERROR|Parse Error' /tmp/import.log; then exit 1; fi
+
+      - name: Foundation tests (headless)
+        run: |
+          set +e
+          "$GODOT_DIR/godot" --headless --path racing --script res://tests/foundation_test.gd 2>&1 | tee /tmp/foundation.log
+          code=${PIPESTATUS[0]}
+          grep -E '^\[TEST\] FAIL' /tmp/foundation.log | head -40 | while read -r l; do echo "::error::$l"; done || true
+          grep -B2 -A10 'SCRIPT ERROR' /tmp/foundation.log | head -60 | while read -r l; do echo "::error::$l"; done || true
+          if grep -q 'SCRIPT ERROR' /tmp/foundation.log; then exit 1; fi
+          exit $code
+
+      - name: Runtime tests — every screen + every track (headless)
+        run: |
+          set +e
+          "$GODOT_DIR/godot" --headless --path racing --script res://tests/runtime_test.gd 2>&1 | tee /tmp/runtime.log
+          code=${PIPESTATUS[0]}
+          grep -E '^\[RUNTIME\] FAIL' /tmp/runtime.log | head -40 | while read -r l; do echo "::error::$l"; done || true
+          grep -B2 -A12 'SCRIPT ERROR' /tmp/runtime.log | head -80 | while read -r l; do echo "::error::$l"; done || true
+          if grep -q 'SCRIPT ERROR' /tmp/runtime.log; then exit 1; fi
+          exit $code
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            /tmp/import.log
+            /tmp/foundation.log
+            /tmp/runtime.log
+          if-no-files-found: warn
+
+  build:
+    name: Export signed APK
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure editor settings for Android export
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          JAVA_SDK="$(dirname "$(dirname "$(readlink -f "$(which java)")")")"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [editor_settings]
+
+          export/android/android_sdk_path = "/usr/local/lib/android/sdk"
+          export/android/java_sdk_path = "$JAVA_SDK"
+          EOF
+
+      - name: Install Godot + export templates
+        run: |
+          mkdir -p "$GODOT_DIR"
+          curl -fL --retry 3 -o "$GODOT_DIR/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          curl -fL --retry 3 -o "$GODOT_DIR/templates.tpz" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          mv "$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.x86_64" "$GODOT_DIR/godot"
+          chmod +x "$GODOT_DIR/godot"
+          DEST="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          mkdir -p "$DEST"
+          unzip -q -o "$GODOT_DIR/templates.tpz" -d "$GODOT_DIR/tpl"
+          SRC="$GODOT_DIR/tpl/templates"
+          [ -d "$SRC" ] || SRC="$GODOT_DIR/tpl"
+          cp -r "$SRC"/. "$DEST"/
+          test -f "$DEST/android_release.apk"
+
+      - name: Generate release keystore
+        run: |
+          mkdir -p racing/build
+          keytool -genkeypair -v -keystore racing/build/apex-release.jks \
+            -alias apex -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass ApexVelocity2026 -keypass ApexVelocity2026 \
+            -dname "CN=Apex Velocity, OU=Games, O=Apex Studio, L=Madrid, C=ES" >/dev/null
+          {
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$PWD/racing/build/apex-release.jks"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=apex"
+            echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=ApexVelocity2026"
+          } >> "$GITHUB_ENV"
+
+      - name: Import + export release APK
+        run: |
+          "$GODOT_DIR/godot" --headless --path racing --import
+          mkdir -p build
+          "$GODOT_DIR/godot" --headless --path racing --export-release "Android" "$PWD/$APK_PATH" 2>&1 | tee /tmp/export.log
+          if [ ! -s "$APK_PATH" ]; then
+            grep -iE 'error|fail|missing|not found|cannot|invalid' /tmp/export.log | head -30 | while read -r l; do echo "::error::$l"; done
+            exit 1
+          fi
+          ls -lh "$APK_PATH"
+
+      - name: Validate APK (manifest, signature, size gate)
+        run: |
+          AAPT=$(find "$ANDROID_SDK_ROOT/build-tools" -name aapt2 -type f | sort | tail -1)
+          "$AAPT" dump badging "$APK_PATH" | head -20
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK_PATH"
+          SIZE=$(stat -c%s "$APK_PATH")
+          echo "APK_SIZE_BYTES=$SIZE"
+          python3 tools/check_apk_size.py "$APK_PATH"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: APEX-VELOCITY-APK
+          path: build/APEX-VELOCITY.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "APEX VELOCITY ${{ github.ref_name }}"
+          body: |
+            APEX VELOCITY — Android build (Godot 4.4.1, arm64-v8a, signed).
+            Install with `adb install APEX-VELOCITY.apk` or sideload on device.
+            See racing/docs/TESTLOG.md for the verified test log.
+          files: build/APEX-VELOCITY.apk
+          fail_on_unmatched_files: true
+
+  screenshots:
+    name: Render screenshots (software GL)
+    needs: verify
+    if: github.event_name == 'push' && github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot + Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          mkdir -p "$GODOT_DIR"
+          curl -fL --retry 3 -o "$GODOT_DIR/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          mv "$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.x86_64" "$GODOT_DIR/godot"
+          chmod +x "$GODOT_DIR/godot"
+      - name: Import
+        run: |
+          "$GODOT_DIR/godot" --headless --path racing --import
+      - name: Render each screen
+        timeout-minutes: 8
+        run: |
+          mkdir -p racing/screenshots
+          for screen in menu tracks garage shop achievements daily settings credits profile; do
+            xvfb-run -a -s "-screen 0 1280x720x24" \
+              "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+              --rendering-driver opengl3 --resolution 1280x720 \
+              --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 40 \
+              -- --screen=$screen >/tmp/shot_${screen}.log 2>&1 || true
+            last=$(ls /tmp/shot_${screen}*.png 2>/dev/null | tail -1)
+            if [ -n "$last" ]; then cp "$last" "racing/screenshots/${screen}.png"; fi
+          done
+          ls -lh racing/screenshots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: racing/screenshots/*.png
+          if-no-files-found: warn

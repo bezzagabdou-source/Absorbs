@@ -25,3 +25,9 @@ PRO-CODES-V*.txt
 .v11-build/
 .v13-build/
 .v14-build/
+
+# Godot (racing/)
+racing/.godot/
+racing/build/
+racing/**/*.import
+racing/screenshots/*.png

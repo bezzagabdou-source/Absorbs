@@ -1,0 +1,251 @@
+extends Node3D
+## Sky shader, sun/moon, fog, post-processing (glow, ACES, adjustments) and
+## rain particles. Presets cover city night/day, desert, canyon, mountain and
+## coast looks.
+
+const SKY_SHADER := """
+shader_type sky;
+uniform vec3 top_color : source_color = vec3(0.02, 0.03, 0.09);
+uniform vec3 horizon_color : source_color = vec3(0.35, 0.18, 0.35);
+uniform vec3 ground_color : source_color = vec3(0.03, 0.03, 0.05);
+uniform vec3 glow_color : source_color = vec3(1.0, 0.4, 0.5);
+uniform float stars = 0.0;
+uniform float cloudiness = 0.35;
+uniform vec3 sun_dir = vec3(0.4, 0.2, -0.6);
+
+float hash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float noise(vec3 p) {
+    vec3 i = floor(p); vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x),
+                   mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+                   mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+float fbm(vec3 p) {
+    float v = 0.0; float a = 0.55;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.05; a *= 0.5; }
+    return v;
+}
+
+void sky() {
+    vec3 dir = EYEDIR;
+    float h = clamp(dir.y, -1.0, 1.0);
+    vec3 col = mix(horizon_color, top_color, smoothstep(0.0, 0.55, h));
+    col = mix(col, ground_color, smoothstep(0.0, -0.25, h));
+    float sd = max(dot(dir, normalize(sun_dir)), 0.0);
+    col += glow_color * pow(sd, 220.0) * 6.0;
+    col += glow_color * pow(sd, 12.0) * 0.35;
+    if (stars > 0.0 && h > 0.0) {
+        vec3 sdir = dir * 260.0;
+        float s = hash(floor(sdir));
+        float tw = step(0.9975, s) * (0.6 + 0.4 * sin(TIME * 3.0 + s * 40.0));
+        col += vec3(tw) * stars * smoothstep(0.0, 0.2, h);
+    }
+    if (cloudiness > 0.0) {
+        vec3 cp = dir * 3.2 / max(0.15, h + 0.15);
+        float c = fbm(cp + vec3(TIME * 0.006, 0.0, TIME * 0.004));
+        float mask = smoothstep(0.55, 0.85, c) * cloudiness * smoothstep(0.0, 0.25, h);
+        vec3 cloud_col = mix(horizon_color * 1.4, glow_color * 0.8, pow(sd, 4.0));
+        col = mix(col, cloud_col, mask);
+    }
+    COLOR = col;
+}
+"""
+
+const PRESETS := {
+	"city_night": {
+		"top": Color(0.02, 0.03, 0.10), "horizon": Color(0.30, 0.12, 0.36),
+		"ground": Color(0.02, 0.02, 0.03), "glow": Color(1.0, 0.35, 0.55),
+		"stars": 1.0, "clouds": 0.45, "sun_dir": Vector3(0.35, 0.28, -0.9),
+		"sun_color": Color(0.75, 0.85, 1.0), "sun_energy": 0.32,
+		"ambient": Color(0.10, 0.13, 0.26), "fog": Color(0.07, 0.06, 0.13),
+		"fog_density": 0.0016, "glow_intensity": 1.1,
+	},
+	"city_day": {
+		"top": Color(0.16, 0.36, 0.68), "horizon": Color(0.62, 0.76, 0.92),
+		"ground": Color(0.10, 0.11, 0.13), "glow": Color(1.0, 0.96, 0.86),
+		"stars": 0.0, "clouds": 0.35, "sun_dir": Vector3(-0.4, 0.55, -0.7),
+		"sun_color": Color(1.0, 0.96, 0.9), "sun_energy": 1.5,
+		"ambient": Color(0.5, 0.58, 0.7), "fog": Color(0.62, 0.72, 0.84),
+		"fog_density": 0.0011, "glow_intensity": 0.5,
+	},
+	"desert_day": {
+		"top": Color(0.18, 0.42, 0.78), "horizon": Color(0.96, 0.72, 0.48),
+		"ground": Color(0.42, 0.30, 0.20), "glow": Color(1.0, 0.86, 0.55),
+		"stars": 0.0, "clouds": 0.18, "sun_dir": Vector3(0.55, 0.42, -0.72),
+		"sun_color": Color(1.0, 0.90, 0.72), "sun_energy": 1.7,
+		"ambient": Color(0.62, 0.54, 0.44), "fog": Color(0.86, 0.70, 0.52),
+		"fog_density": 0.0018, "glow_intensity": 0.65,
+	},
+	"canyon_sunset": {
+		"top": Color(0.14, 0.08, 0.24), "horizon": Color(0.90, 0.36, 0.30),
+		"ground": Color(0.22, 0.10, 0.10), "glow": Color(1.0, 0.55, 0.30),
+		"stars": 0.15, "clouds": 0.5, "sun_dir": Vector3(0.8, 0.12, -0.55),
+		"sun_color": Color(1.0, 0.68, 0.42), "sun_energy": 1.2,
+		"ambient": Color(0.36, 0.22, 0.26), "fog": Color(0.52, 0.22, 0.22),
+		"fog_density": 0.0022, "glow_intensity": 0.9,
+	},
+	"mountain_day": {
+		"top": Color(0.20, 0.34, 0.60), "horizon": Color(0.72, 0.80, 0.88),
+		"ground": Color(0.18, 0.22, 0.20), "glow": Color(1.0, 0.98, 0.92),
+		"stars": 0.0, "clouds": 0.5, "sun_dir": Vector3(-0.3, 0.5, -0.8),
+		"sun_color": Color(1.0, 0.97, 0.92), "sun_energy": 1.4,
+		"ambient": Color(0.48, 0.56, 0.66), "fog": Color(0.70, 0.78, 0.86),
+		"fog_density": 0.0014, "glow_intensity": 0.45,
+	},
+	"mountain_night": {
+		"top": Color(0.02, 0.04, 0.12), "horizon": Color(0.16, 0.24, 0.40),
+		"ground": Color(0.04, 0.06, 0.09), "glow": Color(0.60, 0.78, 1.0),
+		"stars": 1.0, "clouds": 0.3, "sun_dir": Vector3(0.3, 0.6, -0.75),
+		"sun_color": Color(0.55, 0.68, 0.95), "sun_energy": 0.42,
+		"ambient": Color(0.12, 0.16, 0.28), "fog": Color(0.10, 0.14, 0.22),
+		"fog_density": 0.0026, "glow_intensity": 0.9,
+	},
+	"coast_sunset": {
+		"top": Color(0.10, 0.18, 0.40), "horizon": Color(1.0, 0.56, 0.34),
+		"ground": Color(0.10, 0.14, 0.20), "glow": Color(1.0, 0.72, 0.40),
+		"stars": 0.0, "clouds": 0.55, "sun_dir": Vector3(-0.7, 0.14, -0.7),
+		"sun_color": Color(1.0, 0.74, 0.50), "sun_energy": 1.1,
+		"ambient": Color(0.40, 0.36, 0.44), "fog": Color(0.60, 0.40, 0.36),
+		"fog_density": 0.0014, "glow_intensity": 0.85,
+	},
+}
+
+var world_env: WorldEnvironment
+var sun: DirectionalLight3D
+var rain: GPUParticles3D
+var sky_mat: ShaderMaterial
+var _wet := false
+
+
+func setup(env: String, time_of_day: String, weather: String, accent: Color) -> void:
+	_wet = weather == "rain"
+	var p: Dictionary = PRESETS.get(_preset_key(env, time_of_day), PRESETS["city_night"])
+	_build_sky(p, weather)
+	_build_sun(p)
+	_build_world_env(p, accent)
+	if _wet:
+		_build_rain()
+
+
+func _preset_key(env: String, tod: String) -> String:
+	var key := "city_night"
+	if env == "city":
+		key = "city_night" if tod == "night" else "city_day"
+	elif env == "desert":
+		key = "canyon_sunset" if tod == "sunset" else "desert_day"
+	elif env == "mountain":
+		key = "mountain_night" if tod == "night" else "mountain_day"
+	elif env == "coast":
+		key = "coast_sunset" if tod == "sunset" else "city_day"
+	return key
+
+
+func _build_sky(p: Dictionary, weather: String) -> void:
+	sky_mat = ShaderMaterial.new()
+	var sh := Shader.new()
+	sh.code = SKY_SHADER
+	sky_mat.shader = sh
+	sky_mat.set_shader_parameter("top_color", p["top"])
+	sky_mat.set_shader_parameter("horizon_color", p["horizon"])
+	sky_mat.set_shader_parameter("ground_color", p["ground"])
+	sky_mat.set_shader_parameter("glow_color", p["glow"])
+	sky_mat.set_shader_parameter("stars", float(p["stars"]) * (0.35 if weather == "rain" else 1.0))
+	sky_mat.set_shader_parameter("cloudiness", minf(1.0, float(p["clouds"]) + (0.45 if weather == "rain" else 0.0)))
+	sky_mat.set_shader_parameter("sun_dir", p["sun_dir"])
+
+
+func _build_sun(p: Dictionary) -> void:
+	sun = DirectionalLight3D.new()
+	sun.light_color = p["sun_color"]
+	sun.light_energy = float(p["sun_energy"]) * (0.55 if _wet else 1.0)
+	sun.shadow_enabled = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 160.0
+	sun.directional_shadow_split_1 = 0.1
+	sun.directional_shadow_split_2 = 0.35
+	sun.directional_shadow_blend_splits = true
+	sun.light_angular_distance = 1.2
+	var dir: Vector3 = p["sun_dir"]
+	sun.look_at_from_position(dir * 100.0, Vector3.ZERO, Vector3.UP)
+	add_child(sun)
+
+
+func _build_world_env(p: Dictionary, accent: Color) -> void:
+	world_env = WorldEnvironment.new()
+	var e := Environment.new()
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
+	e.background_mode = Environment.BG_SKY
+	e.sky = sky
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = p["ambient"]
+	e.ambient_light_energy = 1.0
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	e.tonemap_exposure = 1.05
+	e.tonemap_white = 6.0
+	e.glow_enabled = true
+	e.glow_intensity = float(p["glow_intensity"])
+	e.glow_strength = 1.0
+	e.glow_bloom = 0.12
+	e.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+	e.glow_hdr_threshold = 0.85
+	e.glow_hdr_scale = 2.0
+	e.set_glow_level(1, 0.0)
+	e.set_glow_level(2, 0.6)
+	e.set_glow_level(3, 0.9)
+	e.set_glow_level(4, 0.6)
+	e.set_glow_level(5, 0.3)
+	e.adjustment_enabled = true
+	e.adjustment_brightness = 1.02
+	e.adjustment_contrast = 1.12
+	e.adjustment_saturation = 1.18
+	e.fog_enabled = true
+	e.fog_light_color = (p["fog"] as Color).lerp(accent, 0.18)
+	e.fog_light_energy = 0.9
+	e.fog_density = float(p["fog_density"]) * (1.9 if _wet else 1.0)
+	e.fog_aerial_perspective = 0.35
+	e.fog_sky_affect = 0.25
+	e.ssr_enabled = false
+	e.ssao_enabled = false
+	world_env.environment = e
+	add_child(world_env)
+
+
+func _build_rain() -> void:
+	rain = GPUParticles3D.new()
+	rain.amount = 2400
+	rain.lifetime = 1.4
+	rain.preprocess = 1.0
+	rain.visibility_aabb = AABB(Vector3(-80, -30, -80), Vector3(160, 60, 160))
+	rain.position = Vector3(0, 26, 0)
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(60, 2, 60)
+	pm.direction = Vector3(0.12, -1, 0.05)
+	pm.spread = 2.0
+	pm.initial_velocity_min = 42.0
+	pm.initial_velocity_max = 58.0
+	pm.gravity = Vector3(0, -9.8, 0)
+	pm.scale_min = 0.6
+	pm.scale_max = 1.2
+	rain.process_material = pm
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2(0.035, 0.9)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.65, 0.8, 1.0, 0.35)
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mesh.material = mat
+	rain.draw_pass_1 = mesh
+	rain.layers = 3
+	add_child(rain)
+
+
+func set_rain_follow(pos: Vector3) -> void:
+	if rain:
+		rain.position = Vector3(pos.x, pos.y + 26.0, pos.z)
