@@ -53,7 +53,9 @@ func _initialize() -> void:
 	_check(main.get("ui") != null, "UI booted")
 	_check(main.get("police") != null, "police system booted")
 	_check(main.get("missions") != null and int(main.get("missions").mission_count()) == 9, "9 missions registered")
-	main.free()
+	main.queue_free()
+	for i in range(6):
+		await process_frame
 	if failures > 0:
 		printerr("[SMOKE] %d failures" % failures)
 		quit(1)
