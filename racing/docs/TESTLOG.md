@@ -117,6 +117,22 @@ packed layout, and added screenshot commit-back so the images are reviewable.
 
 ---
 
+## Round 10 — layout repair (visual QA loop)
+
+Screenshots committed by CI showed usable rendering but the canvas was a 1:1
+crop of a 1920x1080 layout in a smaller window, and the hero art was absent.
+
+1. **`window/size/window_width_override=1280` + `canvas_items` stretch** made
+   the 1080p layout crop instead of scale. Removed the overrides.
+2. `common.level` was missing from the string tables (UI showed the raw key).
+   Added for en/fr/ar.
+3. **Real layout bug:** ~76 controls used `set_anchors_preset()` without
+   offsets, so panels collapsed to their minimum size and ignored the
+   anchors. Replaced every call with `set_anchors_and_offsets_preset()`.
+4. Screenshot capture raised to 1920x1080, race screen included, and each run
+   is wrapped in a hard 120 s timeout because the software GL driver
+   occasionally hangs under Xvfb.
+
 ## Not verified (honest limitations)
 
 * **On-device performance** (60 fps / 120 Hz) — no Android device or emulator
