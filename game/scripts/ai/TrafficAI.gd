@@ -49,7 +49,7 @@ func _physics_process(delta: float) -> void:
 		var target_id: Vector2i = _next[key]
 		var target := graph.node_pos(target_id)
 		var local := car.to_local(target)
-		car.autopilot_steer = clampf(atanf(local.x / maxf(4.0, absf(local.z))) * 0.8, -0.7, 0.7)
+		car.autopilot_steer = clampf(atan(local.x / maxf(4.0, absf(local.z))) * 0.8, -0.7, 0.7)
 		var axis := 1 if absf(target.x - car.global_position.x) > absf(target.z - car.global_position.z) else 0
 		var at_stop := car.global_position.distance_to(target) < 22.0
 		car.autopilot_throttle = 0.0 if (at_stop and not graph.green_axis(axis)) else 1.0

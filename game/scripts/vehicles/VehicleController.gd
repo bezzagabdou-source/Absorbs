@@ -29,8 +29,8 @@ func setup(p_spec: Dictionary, p_input: InputManager, p_bus: EventBus, p_weather
 	bus = p_bus
 	weather = p_weather
 	mass = float(spec["mass"])
-	linear_damping = 0.22
-	angular_damping = 1.4
+	linear_damp = 0.22
+	angular_damp = 1.4
 	_build_body()
 	_build_wheels()
 	_build_effects()

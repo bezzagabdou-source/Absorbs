@@ -95,7 +95,7 @@ func _physics_process(delta: float) -> void:
 		elif u is VehicleController:
 			var car := u as VehicleController
 			var local := car.to_local(player.global_position)
-			car.autopilot_steer = clampf(atanf(local.x / maxf(4.0, absf(local.z))), -0.9, 0.9)
+			car.autopilot_steer = clampf(atan(local.x / maxf(4.0, absf(local.z))), -0.9, 0.9)
 			car.autopilot_throttle = 0.0 if dist < 6.0 else 1.0
 	if nearest > 55.0 and _cooldown <= 0.0:
 		_hidden_time += delta

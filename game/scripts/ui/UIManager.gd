@@ -246,7 +246,7 @@ func _build_hud() -> void:
 	_weapon_label.position = Vector2(-250, -80)
 	hud.add_child(_weapon_label)
 	_toast_label = _label("", 20, Color(0.3, 1.0, 0.8))
-	_toast_label.set_anchors_preset(Control.PRESET_TOP_CENTER)
+	_toast_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_toast_label.position = Vector2(-200, 110)
 	hud.add_child(_toast_label)
 	_fps_label = _label("", 14, Color(0.7, 0.8, 0.9))
@@ -276,7 +276,7 @@ func _build_touch_controls() -> void:
 	_joystick.position = Vector2(40, -190)
 	_joystick.custom_minimum_size = Vector2(150, 150)
 	hud.add_child(_joystick)
-	_touch_button("JUMP", "jump", Vector2(-330, -110), true)
+	_touch_button("JUMP", "jump", Vector2(-330, -110), false)
 	_touch_button("SHOOT", "attack", Vector2(-150, -190), false)
 	_touch_button("AIM", "aim", Vector2(-230, -280), false)
 	_touch_button("VEHICLE", "enter_vehicle", Vector2(-240, -100), true)
@@ -298,7 +298,7 @@ func _touch_button(text: String, action: String, pos: Vector2, tap: bool) -> voi
 	s.set_corner_radius_all(24)
 	b.add_theme_stylebox_override("normal", s)
 	if tap:
-		b.pressed.connect(func(): input.press(action); await get_tree().create_timer(0.12).timeout; input.release(action))
+		b.pressed.connect(func(): input.press(action); input.release(action))
 	else:
 		b.button_down.connect(func(): input.press(action))
 		b.button_up.connect(func(): input.release(action))
