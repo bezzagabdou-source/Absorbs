@@ -204,11 +204,11 @@ jobs:
         timeout-minutes: 8
         run: |
           mkdir -p racing/docs/screenshots
-          for screen in menu tracks garage shop achievements daily settings credits profile; do
-            xvfb-run -a -s "-screen 0 1280x720x24" \
+          for screen in menu tracks garage shop achievements daily settings credits profile race; do
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
-              --rendering-driver opengl3 --resolution 1280x720 \
-              --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 40 \
+              --rendering-driver opengl3 --resolution 1920x1080 \
+              --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 45 \
               -- --screen=$screen >/tmp/shot_${screen}.log 2>&1 || true
             last=$(ls /tmp/shot_${screen}*.png 2>/dev/null | tail -1)
             if [ -n "$last" ]; then cp "$last" "racing/docs/screenshots/${screen}.png"; fi

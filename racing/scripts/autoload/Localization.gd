@@ -12,6 +12,7 @@ const LANGS := [
 
 const STRINGS := {
 	"en": {
+		"common.level": "LEVEL",
 		"menu.race": "RACE",
 		"menu.tagline": "OWN THE NIGHT. OUTRUN THE CITY.",
 		"menu.current_car": "CURRENT CAR",
@@ -201,6 +202,7 @@ const STRINGS := {
 		"pause.settings": "SETTINGS",
 	},
 	"fr": {
+		"common.level": "NIVEAU",
 		"app.title": "APEX VELOCITY",
 		"app.tagline": "DOMINEZ LA NUIT",
 		"boot.loading": "INITIALISATION",
@@ -357,6 +359,7 @@ const STRINGS := {
 		"pause.settings": "RÉGLAGES",
 	},
 	"ar": {
+		"common.level": "المستوى",
 		"app.title": "أبيكس فيلوسيتي",
 		"app.tagline": "امتلك الليل",
 		"boot.loading": "جار التحميل",
