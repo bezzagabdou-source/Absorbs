@@ -34,7 +34,7 @@ jobs:
         run: |
           "$GODOT_DIR/godot" --headless --path game --import
       - name: Foundation unit tests
-        timeout-minutes: 2
+        timeout-minutes: 1
         run: |
           set +e
           "$GODOT_DIR/godot" --headless --path game --script res://tests/foundation_test.gd 2>&1 | tee /tmp/foundation.log
@@ -42,6 +42,10 @@ jobs:
           grep -iE 'FAIL|SCRIPT ERROR|Parse Error|SECTION' /tmp/foundation.log 2>/dev/null | head -25 | while read -r line; do echo "::error::$line"; done
           if grep -q 'SCRIPT ERROR' /tmp/foundation.log 2>/dev/null; then exit 1; fi
           exit $code
+      - name: Foundation test log
+        if: always()
+        run: |
+          grep -E 'SECTION|FAIL|SCRIPT ERROR|Parse Error|ERROR:' /tmp/foundation.log 2>/dev/null | head -40 | while read -r line; do echo "::error::$line"; done || true
       - name: Asset licence audit
         run: python3 tools/check_assets_licenses.py game
       - name: Smoke test
