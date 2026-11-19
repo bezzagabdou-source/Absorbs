@@ -40,9 +40,9 @@ func _process(delta: float) -> void:
 	camera_rig.aiming = input.pressed("aim")
 	if input.pressed("attack") and _cooldown <= 0.0 and _reloading <= 0.0:
 		fire()
-	if input.just_pressed("weapon_next"):
+	if input.consume_tap("weapon_next"):
 		next_weapon()
-	if input.just_pressed("reload"):
+	if input.consume_tap("reload"):
 		reload()
 
 func can_fire() -> bool:

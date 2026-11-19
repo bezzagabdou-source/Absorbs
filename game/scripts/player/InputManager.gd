@@ -5,6 +5,7 @@ extends Node
 var move_vector: Vector2 = Vector2.ZERO
 var look_delta: Vector2 = Vector2.ZERO
 var virtual: Dictionary = {}
+var taps: Dictionary = {}
 var sensitivity: float = 1.0
 var invert_y: bool = false
 
@@ -16,6 +17,13 @@ func add_look(v: Vector2) -> void:
 
 func press(action: String) -> void:
 	virtual[action] = true
+	taps[action] = true
+
+func consume_tap(action: String) -> bool:
+	if bool(taps.get(action, false)):
+		taps[action] = false
+		return true
+	return false
 
 func release(action: String) -> void:
 	virtual[action] = false

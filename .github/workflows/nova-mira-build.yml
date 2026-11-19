@@ -100,6 +100,7 @@ jobs:
           cat /tmp/export.log 2>/dev/null || true
           echo "::endgroup::"
           grep -iE 'error|fail|missing|not found|cannot|invalid|script' /tmp/export.log 2>/dev/null | head -25 | while read -r line; do echo "::error::$line"; done
+          grep -A18 -i 'configuration errors' /tmp/export.log 2>/dev/null | head -20 | while read -r line; do echo "::error::CFG $line"; done
           echo "::error::Godot Android export failed - see annotations above"
       - name: Verify APK signature and manifest
         run: |

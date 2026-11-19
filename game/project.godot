@@ -35,6 +35,7 @@ weapon_next={"deadzone":0.2,"events":[{"type":2,"keycode":81}]}
 map_toggle={"deadzone":0.2,"events":[{"type":2,"keycode":77}]}
 phone_toggle={"deadzone":0.2,"events":[{"type":2,"keycode":80}]}
 pause={"deadzone":0.2,"events":[{"type":2,"keycode":16777217}]}
+reload={"deadzone":0.2,"events":[{"type":2,"keycode":82}]}
 
 [memory]
 limits/global_variable_count=8192
