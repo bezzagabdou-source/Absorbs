@@ -9,7 +9,7 @@ var _car_model: Node3D
 var _cam: Camera3D
 var _yaw = 0.55
 var _pitch = 0.0
-var _dist = 7.4
+var _dist = 7.0
 var _dragging = false
 var _class_filter = "all"
 var _car_index = 0
@@ -39,7 +39,10 @@ func build() -> void:
 func _build_viewport() -> void:
 	var container = SubViewportContainer.new()
 	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	container.offset_right = -760
+	container.anchor_left = 0.0
+	container.anchor_right = 1.0
+	container.offset_left = 430
+	container.offset_right = -722
 	container.offset_top = 150
 	container.offset_bottom = -40
 	container.stretch = true
@@ -85,8 +88,8 @@ func _build_viewport() -> void:
 	root.add_child(_car_pivot)
 	var disc = MeshInstance3D.new()
 	var dm = CylinderMesh.new()
-	dm.top_radius = 4.4
-	dm.bottom_radius = 4.4
+	dm.top_radius = 3.2
+	dm.bottom_radius = 3.2
 	dm.height = 0.02
 	disc.mesh = dm
 	var dmat = StandardMaterial3D.new()
@@ -97,12 +100,12 @@ func _build_viewport() -> void:
 	dmat.emission_energy_multiplier = 0.4
 	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	disc.material_override = dmat
-	disc.position = Vector3(0, -0.44, 0)
+	disc.position = Vector3(0, -0.02, 0)
 	root.add_child(disc)
 	var ring = MeshInstance3D.new()
 	var rmesh = TorusMesh.new()
-	rmesh.inner_radius = 4.5
-	rmesh.outer_radius = 4.62
+	rmesh.inner_radius = 3.3
+	rmesh.outer_radius = 3.42
 	ring.mesh = rmesh
 	var rmat = StandardMaterial3D.new()
 	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -111,7 +114,7 @@ func _build_viewport() -> void:
 	rmat.emission = UIStyle.CYAN
 	rmat.emission_energy_multiplier = 2.6
 	ring.material_override = rmat
-	ring.position = Vector3(0, -0.44, 0)
+	ring.position = Vector3(0, -0.02, 0)
 	root.add_child(ring)
 	_cam = Camera3D.new()
 	_cam.fov = 36.0
@@ -147,8 +150,8 @@ func _on_view_input(event: InputEvent) -> void:
 func _update_cam() -> void:
 	if _cam == null:
 		return
-	var target: Vector3 = Vector3(0, 0.62, 0)
-	var offset = Vector3(sin(_yaw) * cos(_pitch), 0.55 + sin(_pitch), cos(_yaw) * cos(_pitch)) * _dist
+	var target: Vector3 = Vector3(0, 0.30, 0)
+	var offset = Vector3(sin(_yaw) * cos(_pitch), 0.32 + sin(_pitch), cos(_yaw) * cos(_pitch)) * _dist
 	_cam.position = target + offset
 	_cam.look_at(target, Vector3.UP)
 
@@ -338,7 +341,7 @@ func _spawn_model(car: Dictionary) -> void:
 	var model = CarModelScript.new()
 	var paint_id = str(rec.get("paint", car.get("paint", "cyan")))
 	model.build(car, paint_id, str(rec.get("rim", "stock")))
-	model.position = Vector3(0, -0.42, 0)
+	model.position = Vector3(0, 0, 0)
 	_car_pivot.add_child(model)
 	_car_model = model
 
