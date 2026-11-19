@@ -21,6 +21,7 @@ func _initialize() -> void:
 	]:
 		_check(load(path) != null, "parse " + path.get_file())
 
+	print("[FOUNDATION] SECTION localization")
 	# Localization: three locales, keys resolve, RTL only for Arabic.
 	var loc := Localization3.new("en")
 	_check(loc.available_locales().size() == 3, "three locales available")
@@ -32,6 +33,7 @@ func _initialize() -> void:
 	loc.set_locale("fr")
 	_check(loc.t("NEW_GAME") == "Nouvelle partie", "French key lookup")
 
+	print("[FOUNDATION] SECTION quality")
 	# Quality tiers: four presets, 50-150% scale range, deterministic tier resolver.
 	var q := QualityManager.new()
 	_check(q.tiers.size() == 4, "four quality tiers")
@@ -43,6 +45,7 @@ func _initialize() -> void:
 	_check(int(q.fps_cap) == 30 and not bool(q.effects.get("bloom", true)), "low tier disables bloom")
 	_check(QualityManager.resolve_tier(6.0) == 3 and QualityManager.resolve_tier(30.0) == 0, "benchmark tier thresholds")
 
+	print("[FOUNDATION] SECTION benchmark")
 	# Benchmark analysis with deterministic samples.
 	var samples: Array = [8.0, 9.0, 10.0, 11.0, 12.0]
 	var result := Benchmark.analyze(samples)
@@ -50,6 +53,7 @@ func _initialize() -> void:
 	_check(int(result["suggested_tier"]) == 2, "benchmark suggests medium for 10 ms median")
 	_check(Benchmark.analyze([])["samples"] == 0, "empty benchmark is safe")
 
+	print("[FOUNDATION] SECTION saves")
 	# Save slots: isolation, migration, corruption tolerance.
 	for slot in range(1, 4):
 		SaveSystemV2.delete(slot)
@@ -71,6 +75,7 @@ func _initialize() -> void:
 	bad.close()
 	_check(SaveSystemV2.load(3).is_empty(), "corrupt slot returns empty safely")
 
+	print("[FOUNDATION] SECTION input")
 	# Input bindings: table loaded, rebind emits and persists through API.
 	var input := InputManagerV2.new()
 	_check(input.bindings.size() >= 17, "input binding table loaded")
@@ -82,6 +87,7 @@ func _initialize() -> void:
 	input.rebind("pause", 82, -1)
 	_check((input.bindings["pause"]["keys"] as Array)[0] == 82, "rebinding updates table")
 
+	print("[FOUNDATION] SECTION settings")
 	# Settings + telemetry persistence.
 	var settings := SettingsStore.new()
 	settings.set_value("unit_test", 42)
