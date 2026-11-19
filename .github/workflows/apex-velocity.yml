@@ -65,7 +65,8 @@ jobs:
             set -e
             if [ $rc -ne 0 ]; then
               echo "::error file=$f::compile failed"
-              grep -E 'SCRIPT ERROR|Parse Error|ERROR' /tmp/chk.log | head -6 | while read -r l; do echo "::error file=$f::$l"; done
+              grep -E 'SCRIPT ERROR|Parse Error' /tmp/chk.log | grep -v 'Identifier not found' | head -4 | while read -r l; do echo "::error file=$f::$l"; done
+              if grep -q 'Identifier not found' /tmp/chk.log; then echo "::notice file=$f::depends on autoloads (validated in Import step)"; fi
             fi
           done
 
