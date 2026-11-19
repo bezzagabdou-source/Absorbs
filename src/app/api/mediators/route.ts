@@ -8,7 +8,7 @@ async function load() {
   return JSON.parse(await readFile(FILE, "utf-8"));
 }
 async function save(d: any) {
-  await writeFile(FILE, JSON.stringify(d, null, 2), "utf-8");
+  try { await writeFile(FILE, JSON.stringify(d, null, 2), "utf-8"); } catch { /* Vercel FS read-only */ }
 }
 
 export async function GET() {
