@@ -50,16 +50,16 @@ function sectionButtons(key: string) {
       .map((it) => ({ text: `💬 ${it.name}`, url: link(it.username) }));
     if (row.length) btns.push(row);
   }
-  btns.push([{ text: "⬅️ القائمة الرئيسية", callback_data: "menu" }]);
+  btns.push([{ text: "⬅️ القائمة الرئيسية", callback_data: "menu", style: "primary" }]);
   return { inline_keyboard: btns };
 }
 
 const mainMenu = {
   inline_keyboard: [
-    [{ text: "🛡️ وسطاء XR الرسميون", callback_data: "sec:xr" }, { text: "⚔️ وسطاء BM", callback_data: "sec:bm" }],
-    [{ text: "🎩 وسطاء FT", callback_data: "sec:ft" }, { text: "👑 وسطاء ومالكين", callback_data: "sec:owners" }],
-    [{ text: "🎁 مجانيين مؤقتاً", callback_data: "sec:free" }, { text: "🚨 منتحلين الوسطاء", callback_data: "sec:scammers" }],
-    [{ text: "📊 إحصائيات البوت", callback_data: "stats" }],
+    [{ text: "🛡️ وسطاء XR الرسميون", callback_data: "sec:xr", style: "primary" }, { text: "⚔️ وسطاء BM", callback_data: "sec:bm", style: "primary" }],
+    [{ text: "🎩 وسطاء FT", callback_data: "sec:ft", style: "primary" }, { text: "👑 وسطاء ومالكين", callback_data: "sec:owners", style: "primary" }],
+    [{ text: "🎁 مجانيين مؤقتاً", callback_data: "sec:free", style: "success" }, { text: "🚨 منتحلين الوسطاء", callback_data: "sec:scammers", style: "danger" }],
+    [{ text: "📊 إحصائيات البوت", callback_data: "stats", style: "primary" }],
   ],
 };
 
@@ -115,7 +115,7 @@ export async function POST(req: Request) {
           chat_id, message_id,
           text: `📊 <b>إحصائيات البوت</b> 📊\n\n👥 عدد المستخدمين: <b>${(data as any).users.length}</b>\n🛡️ إجمالي الوسطاء: <b>${total}</b>\n🚨 المنتحلين: <b>${(data as any).sections.scammers.length}</b>`,
           parse_mode: "HTML",
-          reply_markup: { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "menu" }]] },
+          reply_markup: { inline_keyboard: [[{ text: "⬅️ رجوع", callback_data: "menu", style: "primary" }]] },
         })]);
       } else if (cb.startsWith("sec:")) {
         const key = cb.split(":")[1];
