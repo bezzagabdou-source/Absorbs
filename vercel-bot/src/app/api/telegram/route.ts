@@ -22,7 +22,8 @@ function sectionText(key: string): string {
   const items: any[] = (data as any).sections[key] || [];
   const lines = items.map((it) => {
     const u = spaced(it.username);
-    let line = `${it.note || "🔹"} <b>${esc(it.name)}</b>\n👤 <a href="${link(it.username)}">${esc(u)}</a>`;
+    const namePart = it.name && it.name !== "وسيط XR" ? `<b>${esc(it.name)}</b>\n` : "";
+    let line = `${it.note || "🔹"} ${namePart}👤 <a href="${link(it.username)}">${esc(u)}</a>`;
     if (it.guarantee) line += `\n💰 ضمانه: <b>${esc(it.guarantee)}</b>`;
     return line;
   });
