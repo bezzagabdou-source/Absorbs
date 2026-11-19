@@ -15,7 +15,7 @@ following requested features are absent or reduced; nothing was removed silently
 8. **AI image-to-3D asset generation** — no local Blender, no image-to-3D model or API access; all geometry is original procedural primitives (documented in `ASSETS_LICENSES.md`).
 9. **Cloud saves, Bluetooth controller remapping UI, drag-and-drop button layout** — Android local JSON save and fixed touch layout with configurable sensitivity only. Gamepad buttons are mapped where the engine reports them.
 10. **Real-time ray-traced reflections / volumetric clouds** — stylised sky shader, fog, rain and emissive night lighting instead.
-11. **Play Asset Delivery / 500 MB content** — the genuine game is far smaller than 500 MB because it contains no copied commercial assets; padding it would violate the brief. APK size and content breakdown are reported in `TEST_REPORT.md`.
+11. **Play Asset Delivery / 500 MB content** — the real APK is 26,058,026 bytes (~24.8 MiB). It is genuinely smaller than 500 MB because every asset is procedurally generated (12 synthesized WAVs ~0.7 MB, two OFL fonts ~0.5 MB, two generated PNGs, everything else runtime geometry). Padding with random data was explicitly rejected. Reaching 500 MB honestly would require several hours of CC0/CC-BY 3D art and music, high-resolution PBR texture sets, and many more authored interiors/missions.
 12. **Automated on-device playtesting** — validation runs headlessly in CI (import, script parse, smoke tests, APK build, signature verification). No Android emulator/device is available in the sandbox; FPS figures from a real phone are therefore not claimed.
 
 ## Licence / repository note
