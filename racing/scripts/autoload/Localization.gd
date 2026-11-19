@@ -43,7 +43,7 @@ const STRINGS := {
 		"garage.equipped_paint": "PAINT",
 		"garage.rims_owned": "RIMS",
 		"profile.total_xp": "TOTAL XP",
-		"profile.next_level": "NEXT LEVEL",
+		"profile.next_level": "NEXT LEVEL %d",
 		"daily.claim": "CLAIM",
 		"app.title": "APEX VELOCITY",
 		"app.tagline": "OWN THE NIGHT",
@@ -545,7 +545,11 @@ func tr_key(key: String) -> String:
 
 
 func trf(key: String, args: Array) -> String:
-	var s = tr_key(key)
+	var s: String = tr_key(key)
+	if not s.contains("%"):
+		return s
+	if args.size() == 1:
+		return s % args[0]
 	return s % args
 
 

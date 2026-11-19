@@ -308,6 +308,7 @@ func _build_city() -> void:
 	var ecol = StandardMaterial3D.new()
 	ecol.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	ecol.vertex_color_use_as_albedo = true
+	em.use_colors = true
 	for i in range(1600):
 		var ang = _rng.randf() * TAU
 		var dist = radius + _rng.randf_range(38.0, 390.0)

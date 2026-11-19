@@ -63,7 +63,9 @@ func _build_world() -> void:
 	viewport.msaa_3d = Viewport.MSAA_2X
 	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 	viewport.use_taa = false
-	viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+	var renderer := str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "mobile"))
+	if renderer != "gl_compatibility":
+		viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
 	viewport.scaling_3d_scale = clampf(float(SettingsStore.get_value("render_scale", 1.0)), 0.6, 1.0)
 	viewport_container = SubViewportContainer.new()
 	viewport_container.set_anchors_preset(Control.PRESET_FULL_RECT)
