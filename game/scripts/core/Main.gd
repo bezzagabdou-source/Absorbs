@@ -36,6 +36,7 @@ var _frames: int = 0
 var _fps_time: float = 0.0
 var _near_vehicle: VehicleController = null
 var _perf_timer: float = 0.0
+var _capture_frame: int = 0
 
 func _ready() -> void:
 	var manager := Node.new()
@@ -218,6 +219,21 @@ func show_toast(text: String) -> void:
 		bus.toast.emit(text)
 
 func _process(delta: float) -> void:
+	if "--capture-frames" in OS.get_cmdline_args():
+		_capture_frame += 1
+		match _capture_frame:
+			90:
+				if state == State.MENU:
+					_on_start(true)
+			150:
+				day.hour = 22.0
+				day.apply()
+				weather.set_state(2)
+			210:
+				ui.toggle_phone()
+			270:
+				ui.toggle_phone()
+				debug_overlay.toggle()
 	_frames += 1
 	_fps_time += delta
 	if _fps_time >= 1.0:
