@@ -9,7 +9,7 @@ var _car_model: Node3D
 var _cam: Camera3D
 var _yaw = 0.55
 var _pitch = 0.0
-var _dist = 7.0
+var _dist = 11.5
 var _dragging = false
 var _class_filter = "all"
 var _car_index = 0
@@ -117,7 +117,8 @@ func _build_viewport() -> void:
 	ring.position = Vector3(0, -0.02, 0)
 	root.add_child(ring)
 	_cam = Camera3D.new()
-	_cam.fov = 36.0
+	_cam.fov = 40.0
+	_cam.keep_aspect = Camera3D.KEEP_WIDTH
 	root.add_child(_cam)
 	_cam.current = true
 	_update_cam()
@@ -150,7 +151,7 @@ func _on_view_input(event: InputEvent) -> void:
 func _update_cam() -> void:
 	if _cam == null:
 		return
-	var target: Vector3 = Vector3(0, 0.30, 0)
+	var target: Vector3 = Vector3(0, 0.55, 0)
 	var offset = Vector3(sin(_yaw) * cos(_pitch), 0.32 + sin(_pitch), cos(_yaw) * cos(_pitch)) * _dist
 	_cam.position = target + offset
 	_cam.look_at(target, Vector3.UP)

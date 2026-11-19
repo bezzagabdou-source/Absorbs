@@ -105,19 +105,21 @@ func _credits_chip() -> Control:
 
 
 func _level_chip() -> Control:
-	var p = UIStyle.make_glass_panel(20, Color(0.05, 0.08, 0.14, 0.8), 16)
+	var p = UIStyle.make_glass_panel(18, Color(0.05, 0.08, 0.14, 0.8), 16)
+	p.custom_minimum_size = Vector2(150, 0)
 	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
 	p.add_child(h)
 	var ic = TextureRect.new()
 	ic.texture = UIStyle.icon("star")
 	ic.custom_minimum_size = Vector2(28, 28)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(ic)
-	var v = VBoxContainer.new()
-	v.add_theme_constant_override("separation", -10)
-	h.add_child(v)
-	v.add_child(UIStyle.make_kicker(Localization.t("common.level"), UIStyle.TEXT_DIM, 12))
-	v.add_child(UIStyle.make_label(str(Game.level()), "numeric", 26, UIStyle.CYAN))
+	var lbl = UIStyle.make_label("%s %d" % [Localization.t("common.level"), Game.level()],
+		"numeric", 24, UIStyle.CYAN)
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(lbl)
 	return p
