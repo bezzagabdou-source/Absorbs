@@ -8,10 +8,10 @@ const SAVE_VERSION := 3
 const CLASSES := ["street", "sport", "super", "hyper"]
 
 const CLASS_INFO := {
-	"street": {"name": "STREET", "color": Color("22e9ff"), "tier": 1},
-	"sport": {"name": "SPORT", "color": Color("65ffaa"), "tier": 2},
-	"super": {"name": "SUPER", "color": Color("ffb020"), "tier": 3},
-	"hyper": {"name": "HYPER", "color": Color("ff2e93"), "tier": 4},
+	"street": {"name": "STREET", "label": "Street", "color": Color("22e9ff"), "tier": 1},
+	"sport": {"name": "SPORT", "label": "Sport", "color": Color("65ffaa"), "tier": 2},
+	"super": {"name": "SUPER", "label": "Super", "color": Color("ffb020"), "tier": 3},
+	"hyper": {"name": "HYPER", "label": "Hyper", "color": Color("ff2e93"), "tier": 4},
 }
 
 ## Body archetypes drive the procedural 3D mesh (see vehicle/CarModel.gd).
