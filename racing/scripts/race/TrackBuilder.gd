@@ -18,7 +18,7 @@ void fragment() {
 
 const ROAD_RINGS := 420
 
-var data
+var data: TrackLib.TrackData = null
 var track: Dictionary = {}
 var env := "city"
 var time_of_day := "night"
@@ -99,7 +99,7 @@ func _build_road() -> void:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for r in range(ring_count):
 		var i0 := mini(data.segments - 1, r * step)
-		var i1 := mini(data.segments, (r + 1) * step)
+		var i1 = mini(data.segments, (r + 1) * step)
 		if i1 <= i0:
 			continue
 		var p0: Vector3 = data.points[i0]
@@ -109,15 +109,15 @@ func _build_road() -> void:
 		var w0: float = data.widths[i0] * 0.5
 		var w1: float = data.widths[i1] * 0.5
 		var a := p0 - rt0 * w0
-		var b := p0 + rt0 * w0
+		var b = p0 + rt0 * w0
 		var c := p1 - rt1 * w1
-		var d := p1 + rt1 * w1
+		var d = p1 + rt1 * w1
 		for vtx in [a, c, b, b, c, d]:
 			st.set_normal(Vector3.UP)
 			st.set_uv(Vector2(vtx.dot(rt0) * 0.25, vtx.dot(data.tangents[i0]) * 0.25))
 			st.set_vertex(vtx + Vector3.UP * 0.02)
 		# collider per ring
-		var mid := (p0 + p1) * 0.5
+		var mid = (p0 + p1) * 0.5
 		var fwd := p1 - p0
 		if fwd.length() > 0.01:
 			var cs := CollisionShape3D.new()
@@ -142,14 +142,14 @@ func _build_road() -> void:
 	for side in [-1.0, 1.0]:
 		for r in range(ring_count):
 			var i0 := mini(data.segments - 1, r * step)
-			var i1 := mini(data.segments, (r + 1) * step)
+			var i1 = mini(data.segments, (r + 1) * step)
 			if i1 <= i0:
 				continue
 			var e0: Vector3 = data.points[i0] + data.rights[i0] * data.widths[i0] * 0.5 * side
 			var e1: Vector3 = data.points[i1] + data.rights[i1] * data.widths[i1] * 0.5 * side
 			var x0: Vector3 = e0 + data.rights[i0] * 0.9 * side
 			var x1: Vector3 = e1 + data.rights[i1] * 0.9 * side
-			var kc := Color(0.85, 0.87, 0.92) if int(r / 4.0) % 2 == 0 else Color(0.66, 0.08, 0.10)
+			var kc = Color(0.85, 0.87, 0.92) if int(r / 4.0) % 2 == 0 else Color(0.66, 0.08, 0.10)
 			for vtx in [e0, e1, x0, x0, e1, x1]:
 				kst.set_color(kc)
 				kst.set_normal(Vector3.UP)
@@ -190,18 +190,18 @@ func _build_barriers() -> void:
 	for side in [-1.0, 1.0]:
 		var i := 0
 		while i < data.segments:
-			var j := mini(data.segments, i + step)
+			var j = mini(data.segments, i + step)
 			var p0: Vector3 = data.points[i] + data.rights[i] * (data.widths[i] * 0.5 + 1.6) * side
 			var p1: Vector3 = data.points[j] + data.rights[j] * (data.widths[j] * 0.5 + 1.6) * side
 			var a := p0
-			var b := p0 + Vector3.UP * 0.85
+			var b = p0 + Vector3.UP * 0.85
 			var c := p1
-			var d := p1 + Vector3.UP * 0.85
+			var d = p1 + Vector3.UP * 0.85
 			for vtx in [a, c, b, b, c, d]:
 				bst.set_normal(-data.rights[i] * side)
 				bst.set_vertex(vtx)
-			var na := p0 + Vector3.UP * 0.9
-			var nb := p1 + Vector3.UP * 0.9
+			var na = p0 + Vector3.UP * 0.9
+			var nb = p1 + Vector3.UP * 0.9
 			var off: Vector3 = data.rights[i] * 0.12
 			for vtx in [na - off, nb - off, na + off, na + off, nb - off, nb + off]:
 				nst.set_normal(Vector3.UP)
@@ -281,7 +281,7 @@ func _build_city() -> void:
 	var radius: float = data.total_length / TAU
 	for i in range(620):
 		var ang := _rng.randf() * TAU
-		var dist := radius + _rng.randf_range(40.0, 430.0)
+		var dist = radius + _rng.randf_range(40.0, 430.0)
 		var pos := Vector3(cos(ang) * dist, 0, sin(ang) * dist)
 		if _nearest_road_distance(pos) < 30.0:
 			continue
@@ -310,7 +310,7 @@ func _build_city() -> void:
 	ecol.vertex_color_use_as_albedo = true
 	for i in range(1600):
 		var ang := _rng.randf() * TAU
-		var dist := radius + _rng.randf_range(38.0, 390.0)
+		var dist = radius + _rng.randf_range(38.0, 390.0)
 		var pos := Vector3(cos(ang) * dist, _rng.randf_range(5.0, 70.0), sin(ang) * dist)
 		if _nearest_road_distance(pos) < 28.0:
 			continue
@@ -336,7 +336,7 @@ func _build_city() -> void:
 	lmm.instance_count = lcount
 	for i in range(lcount):
 		var idx := int(float(i) / float(lcount) * float(data.segments))
-		var side := -1.0 if i % 2 == 0 else 1.0
+		var side = -1.0 if i % 2 == 0 else 1.0
 		var p: Vector3 = data.points[idx] + data.rights[idx] * (data.widths[idx] * 0.5 + 2.6) * side
 		lmm.set_instance_transform(i, Transform3D(Basis(), p + Vector3.UP * 3.5))
 		if i % 4 == 0:
@@ -372,7 +372,7 @@ func _build_desert() -> void:
 	var radius: float = data.total_length / TAU
 	for i in range(360):
 		var ang := _rng.randf() * TAU
-		var dist := radius + _rng.randf_range(32.0, 520.0)
+		var dist = radius + _rng.randf_range(32.0, 520.0)
 		var pos := Vector3(cos(ang) * dist, 0, sin(ang) * dist)
 		if _nearest_road_distance(pos) < 26.0:
 			continue
@@ -402,7 +402,7 @@ func _build_desert() -> void:
 	smm.instance_count = 500
 	for i in range(500):
 		var idx := _rng.randi_range(0, data.segments - 1)
-		var side := -1.0 if _rng.randf() < 0.5 else 1.0
+		var side = -1.0 if _rng.randf() < 0.5 else 1.0
 		var p: Vector3 = data.points[idx] + data.rights[idx] * (data.widths[idx] * 0.5 + _rng.randf_range(3.0, 24.0)) * side
 		var sc := _rng.randf_range(0.5, 1.5)
 		smm.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(sc, sc * 0.6, sc)), p))
@@ -428,7 +428,7 @@ func _build_mountain() -> void:
 	mm.instance_count = 700
 	for i in range(700):
 		var idx := _rng.randi_range(0, data.segments - 1)
-		var side := -1.0 if _rng.randf() < 0.5 else 1.0
+		var side = -1.0 if _rng.randf() < 0.5 else 1.0
 		var p: Vector3 = data.points[idx] + data.rights[idx] * (data.widths[idx] * 0.5 + _rng.randf_range(4.0, 90.0)) * side
 		var h := _rng.randf_range(9.0, 26.0)
 		var w := h * _rng.randf_range(0.18, 0.30)
@@ -455,7 +455,7 @@ func _build_mountain() -> void:
 	var radius: float = data.total_length / TAU
 	for i in range(40):
 		var ang := _rng.randf() * TAU
-		var dist := radius + _rng.randf_range(300.0, 900.0)
+		var dist = radius + _rng.randf_range(300.0, 900.0)
 		var h := _rng.randf_range(220.0, 560.0)
 		var w := h * _rng.randf_range(0.5, 0.9)
 		peaks.set_instance_transform(i, Transform3D(Basis().scaled(Vector3(w, h, w)),

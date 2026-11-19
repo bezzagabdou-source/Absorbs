@@ -86,7 +86,7 @@ func _build_stat_grid() -> void:
 	grid.add_theme_constant_override("v_separation", 18)
 	content.add_child(grid)
 	var st: Dictionary = Game.data.get("stats", {})
-	var items := [
+	var items = [
 		[Localization.t("profile.races"), str(int(st.get("races", 0))), "flag"],
 		[Localization.t("profile.wins"), str(int(st.get("wins", 0))), "trophy"],
 		[Localization.t("profile.podiums"), str(int(st.get("podiums", 0))), "star"],

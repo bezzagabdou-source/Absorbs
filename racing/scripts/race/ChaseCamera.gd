@@ -54,15 +54,15 @@ func physics_tick(delta: float) -> void:
 	var forward := -basis.z
 	var right := basis.x
 	if mode == 1:
-		var hood := target.global_position + forward * 1.2 + Vector3.UP * 1.05
+		var hood = target.global_position + forward * 1.2 + Vector3.UP * 1.05
 		_cam.global_position = hood
 		_cam.look_at(target.global_position + forward * 30.0 + Vector3.UP * 0.7, Vector3.UP)
 		_cam.fov = _fov_base + clampf(speed / 22.0, 0.0, 12.0) + _nitro_boost * 6.0
 		_apply_shake(delta, 0.35)
 		return
 	var speed_norm := clampf(speed / 340.0, 0.0, 1.0)
-	var desired_boom := _boom + speed_norm * 1.6 + _nitro_boost * 1.9
-	var desired_height := _height + speed_norm * 0.28
+	var desired_boom = _boom + speed_norm * 1.6 + _nitro_boost * 1.9
+	var desired_height = _height + speed_norm * 0.28
 	var desired: Vector3 = target.global_position - forward * desired_boom + Vector3.UP * desired_height
 	_pos_smooth = _pos_smooth.lerp(desired, clampf(delta * (7.0 - speed_norm * 2.6), 0.0, 1.0))
 	var look: Vector3 = target.global_position + forward * (_look_ahead + speed_norm * 12.0) + Vector3.UP * 1.1
@@ -82,8 +82,8 @@ func _apply_shake(delta: float, scale: float) -> void:
 		return
 	if _shake <= 0.001:
 		return
-	var t := float(Time.get_ticks_msec()) * 0.001 + _shake_seed
-	var offset := Vector3(sin(t * 47.0), sin(t * 61.0 + 1.7), 0.0) * _shake * 0.06 * scale
+	var t = float(Time.get_ticks_msec()) * 0.001 + _shake_seed
+	var offset = Vector3(sin(t * 47.0), sin(t * 61.0 + 1.7), 0.0) * _shake * 0.06 * scale
 	_cam.global_position += offset
 	_shake = maxf(0.0, _shake - delta * 2.4)
 

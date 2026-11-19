@@ -249,7 +249,7 @@ func accent_box(accent: Color, fill: float, radius: int = 18, glow: float = 0.0)
 
 
 func gradient_tex(top: Color, bottom: Color, radius: int = R, size: int = 96) -> ImageTexture:
-	var key := "g:%s:%s:%d:%d" % [top.to_html(), bottom.to_html(), radius, size]
+	var key = "g:%s:%s:%d:%d" % [top.to_html(), bottom.to_html(), radius, size]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
@@ -270,7 +270,7 @@ func gradient_tex(top: Color, bottom: Color, radius: int = R, size: int = 96) ->
 			elif y >= size - radius:
 				dy = float(y) - float(size - radius - 1)
 			if dx > 0.0 and dy > 0.0:
-				var d := sqrt(dx * dx + dy * dy)
+				var d = sqrt(dx * dx + dy * dy)
 				a = clampf(r - d + 0.5, 0.0, 1.0)
 			img.set_pixel(x, y, Color(c.r, c.g, c.b, c.a * a))
 	var tex := ImageTexture.create_from_image(img)
@@ -281,7 +281,7 @@ func gradient_tex(top: Color, bottom: Color, radius: int = R, size: int = 96) ->
 func gradient_box(top: Color, bottom: Color, radius: int = R) -> StyleBoxTexture:
 	var sb := StyleBoxTexture.new()
 	sb.texture = gradient_tex(top, bottom, radius)
-	var m := radius + 2
+	var m = radius + 2
 	sb.texture_margin_left = m
 	sb.texture_margin_right = m
 	sb.texture_margin_top = m
@@ -294,7 +294,7 @@ func gradient_box(top: Color, bottom: Color, radius: int = R) -> StyleBoxTexture
 
 
 func glow_tex(color: Color, size: int = 128) -> ImageTexture:
-	var key := "glow:%s:%d" % [color.to_html(), size]
+	var key = "glow:%s:%d" % [color.to_html(), size]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
@@ -310,7 +310,7 @@ func glow_tex(color: Color, size: int = 128) -> ImageTexture:
 
 
 func circle_icon(size: int, color: Color) -> ImageTexture:
-	var key := "circle:%d:%s" % [size, color.to_html()]
+	var key = "circle:%d:%s" % [size, color.to_html()]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
@@ -318,7 +318,7 @@ func circle_icon(size: int, color: Color) -> ImageTexture:
 	for y in range(size):
 		for x in range(size):
 			var d := Vector2(x - c, y - c).length()
-			var a := clampf(c - d + 0.5, 0.0, 1.0)
+			var a = clampf(c - d + 0.5, 0.0, 1.0)
 			img.set_pixel(x, y, Color(color.r, color.g, color.b, a * color.a))
 	var tex := ImageTexture.create_from_image(img)
 	_tex_cache[key] = tex
@@ -326,7 +326,7 @@ func circle_icon(size: int, color: Color) -> ImageTexture:
 
 
 func rounded_tex(fill: Color, radius: int = R, border: Color = Color.TRANSPARENT, border_px: int = 2, size: int = 96) -> ImageTexture:
-	var key := "round:%s:%d:%s:%d:%d" % [fill.to_html(), radius, border.to_html(), border_px, size]
+	var key = "round:%s:%d:%s:%d:%d" % [fill.to_html(), radius, border.to_html(), border_px, size]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
@@ -343,8 +343,8 @@ func rounded_tex(fill: Color, radius: int = R, border: Color = Color.TRANSPARENT
 				dy = r - float(y)
 			elif y >= size - radius:
 				dy = float(y) - float(size - radius - 1)
-			var d := sqrt(dx * dx + dy * dy) if (dx > 0.0 and dy > 0.0) else 0.0
-			var a := clampf(r - d + 0.5, 0.0, 1.0) if d > 0.0 else 1.0
+			var d = sqrt(dx * dx + dy * dy) if (dx > 0.0 and dy > 0.0) else 0.0
+			var a = clampf(r - d + 0.5, 0.0, 1.0) if d > 0.0 else 1.0
 			var col := fill
 			if border_px > 0 and border.a > 0.0 and d > maxf(0.0, r - float(border_px)):
 				col = border
@@ -357,7 +357,7 @@ func rounded_tex(fill: Color, radius: int = R, border: Color = Color.TRANSPARENT
 func icon(name: String) -> Texture2D:
 	if _icon_cache.has(name):
 		return _icon_cache[name]
-	var path := "res://assets/icon/%s.png" % name
+	var path = "res://assets/icon/%s.png" % name
 	var tex: Texture2D = null
 	if ResourceLoader.exists(path):
 		tex = load(path)
@@ -370,7 +370,7 @@ func icon(name: String) -> Texture2D:
 func art(name: String) -> Texture2D:
 	if _art_cache.has(name):
 		return _art_cache[name]
-	var path := "res://assets/art/%s.webp" % name
+	var path = "res://assets/art/%s.webp" % name
 	var tex: Texture2D = null
 	if ResourceLoader.exists(path):
 		tex = load(path)

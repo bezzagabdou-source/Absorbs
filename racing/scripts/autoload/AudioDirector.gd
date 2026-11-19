@@ -25,11 +25,11 @@ const POOL_SIZE := 10
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for n in SFX_NAMES:
-		var path := SFX_DIR + n + ".ogg"
+		var path = SFX_DIR + n + ".ogg"
 		if ResourceLoader.exists(path):
 			_sfx[n] = load(path)
 	for track in ["menu_theme", "race_theme", "garage_theme", "results_theme"]:
-		var p := MUSIC_DIR + track + ".ogg"
+		var p = MUSIC_DIR + track + ".ogg"
 		if ResourceLoader.exists(p):
 			var st: AudioStreamOggVorbis = load(p)
 			st.loop = true

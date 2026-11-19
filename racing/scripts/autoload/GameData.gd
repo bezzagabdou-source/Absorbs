@@ -400,7 +400,7 @@ func level_for_xp(xp: int) -> int:
 func level_progress(xp: int) -> Dictionary:
 	var lvl := level_for_xp(xp)
 	var cur := xp_for_level(lvl)
-	var nxt := xp_for_level(lvl + 1)
+	var nxt = xp_for_level(lvl + 1)
 	var span: int = maxi(1, nxt - cur)
 	return {"level": lvl, "cur": xp, "start": cur, "next": nxt,
 		"frac": clampf(float(xp - cur) / float(span), 0.0, 1.0)}

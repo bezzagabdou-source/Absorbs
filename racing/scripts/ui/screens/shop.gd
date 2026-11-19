@@ -106,7 +106,7 @@ func _refresh() -> void:
 func _card(car: Dictionary) -> Control:
 	var cls_color: Color = GameData.CLASS_INFO[str(car["class"])]["color"]
 	var owned := Game.owns(str(car["id"]))
-	var unlocked := Game.level() >= int(car.get("unlock", 0))
+	var unlocked = Game.level() >= int(car.get("unlock", 0))
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(336, 246)
 	panel.add_theme_stylebox_override("panel", UIStyle.glass_box(22, Color(0.05, 0.08, 0.14, 0.78),
@@ -133,7 +133,7 @@ func _card(car: Dictionary) -> Control:
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 8)
 	v.add_child(foot)
-	var price := UIStyle.make_label(Localization.t("common.owned") if owned else fmt_credits(int(car["price"])),
+	var price = UIStyle.make_label(Localization.t("common.owned") if owned else fmt_credits(int(car["price"])),
 		"numeric", 22, UIStyle.LIME if owned else UIStyle.GOLD)
 	price.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foot.add_child(price)
@@ -179,18 +179,18 @@ func _refresh_compare() -> void:
 		"body", 22, UIStyle.TEXT_DIM))
 	var st: Dictionary = car["stats"]
 	var cur_st: Dictionary = current["stats"] if not current.is_empty() else st
-	var labels := [["speed", Localization.t("common.speed"), UIStyle.CYAN], ["accel", Localization.t("common.accel"), UIStyle.MAGENTA],
+	var labels = [["speed", Localization.t("common.speed"), UIStyle.CYAN], ["accel", Localization.t("common.accel"), UIStyle.MAGENTA],
 		["handling", Localization.t("common.handling"), UIStyle.LIME], ["brake", Localization.t("common.brake"), UIStyle.AMBER],
 		["nitro", Localization.t("common.nitro"), UIStyle.VIOLET]]
 	for item in labels:
 		var row := VBoxContainer.new()
 		var head := HBoxContainer.new()
-		var lbl := UIStyle.make_label(item[1], "kicker", 15, UIStyle.TEXT_DIM)
+		var lbl = UIStyle.make_label(item[1], "kicker", 15, UIStyle.TEXT_DIM)
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		head.add_child(lbl)
-		var delta := float(st[item[0]]) - float(cur_st[item[0]])
-		var dsign := "+" if delta >= 0.0 else ""
-		var dcolor := UIStyle.LIME if delta > 0.0 else (UIStyle.RED if delta < 0.0 else UIStyle.TEXT_DIM)
+		var delta = float(st[item[0]]) - float(cur_st[item[0]])
+		var dsign = "+" if delta >= 0.0 else ""
+		var dcolor = UIStyle.LIME if delta > 0.0 else (UIStyle.RED if delta < 0.0 else UIStyle.TEXT_DIM)
 		head.add_child(UIStyle.make_label("%s%d" % [dsign, int(delta)], "numeric", 16, dcolor))
 		row.add_child(head)
 		row.add_child(UIStyle.make_progress_bar(float(st[item[0]]), item[2], 10))

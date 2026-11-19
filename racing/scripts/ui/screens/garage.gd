@@ -148,7 +148,7 @@ func _update_cam() -> void:
 	if _cam == null:
 		return
 	var target := Vector3(0, 0.45, 0)
-	var offset := Vector3(sin(_yaw) * cos(_pitch), 0.55 + sin(_pitch), cos(_yaw) * cos(_pitch)) * _dist
+	var offset = Vector3(sin(_yaw) * cos(_pitch), 0.55 + sin(_pitch), cos(_yaw) * cos(_pitch)) * _dist
 	_cam.position = target + offset
 	_cam.look_at(target, Vector3.UP)
 
@@ -239,10 +239,10 @@ func _car_row(car: Dictionary, idx: int) -> Control:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(col)
 	col.add_child(UIStyle.make_label(str(car["name"]), "bold", 24, Color.WHITE))
-	var sub := UIStyle.make_label(str(GameData.CLASS_INFO[str(car["class"])]["label"]).to_upper(), "kicker", 13,
+	var sub = UIStyle.make_label(str(GameData.CLASS_INFO[str(car["class"])]["label"]).to_upper(), "kicker", 13,
 		GameData.CLASS_INFO[str(car["class"])]["color"])
 	col.add_child(sub)
-	var badge := UIStyle.make_label(Localization.t("common.owned") if owned else fmt_credits(int(car["price"])),
+	var badge = UIStyle.make_label(Localization.t("common.owned") if owned else fmt_credits(int(car["price"])),
 		"numeric", 18, UIStyle.LIME if owned else UIStyle.GOLD)
 	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	h.add_child(badge)
@@ -268,7 +268,7 @@ func _build_side_panel() -> void:
 	_tab_row.add_theme_constant_override("separation", 8)
 	v.add_child(_tab_row)
 	for tab in ["tune", "paint", "rims"]:
-		var b := UIStyle.make_button(Localization.t("garage." + tab), UIStyle.VIOLET, tab == _tab, 18, 52)
+		var b = UIStyle.make_button(Localization.t("garage." + tab), UIStyle.VIOLET, tab == _tab, 18, 52)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var t := tab
 		b.pressed.connect(func(): _set_tab(t))
@@ -302,7 +302,7 @@ func _set_tab(tab: String) -> void:
 	_tab = tab
 	for i in range(_tab_row.get_child_count()):
 		var b: Button = _tab_row.get_child(i)
-		var t := ["tune", "paint", "rims"][i]
+		var t = ["tune", "paint", "rims"][i]
 		b.add_theme_stylebox_override("normal", UIStyle.glass_box(16, Color(0.08, 0.11, 0.19, 0.7), 0.15))
 		if t == tab:
 			b.add_theme_stylebox_override("normal", UIStyle.accent_box(UIStyle.VIOLET, 0.32, 16, 0.3))
@@ -336,7 +336,7 @@ func _spawn_model(car: Dictionary) -> void:
 		_car_model.queue_free()
 	var rec: Dictionary = Game.car_record(str(car["id"]))
 	var model = CarModelScript.new()
-	var paint_id := str(rec.get("paint", car.get("paint", "cyan")))
+	var paint_id = str(rec.get("paint", car.get("paint", "cyan")))
 	model.build(car, paint_id, str(rec.get("rim", "stock")))
 	model.position = Vector3(0, -0.92, 0)
 	_car_pivot.add_child(model)
@@ -351,10 +351,10 @@ func _refresh_panel() -> void:
 	var owned := Game.owns(str(car["id"]))
 	var stats: Dictionary = Game.tuned_stats(str(car["id"]))
 	_stats_box.add_child(UIStyle.make_kicker(Localization.t("common.stats"), UIStyle.CYAN, 14))
-	var labels := [["speed", Localization.t("garage.speed")], ["accel", Localization.t("garage.accel")],
+	var labels = [["speed", Localization.t("garage.speed")], ["accel", Localization.t("garage.accel")],
 		["handling", Localization.t("garage.handling")], ["brake", Localization.t("garage.brake")],
 		["nitro", Localization.t("garage.nitro")]]
-	var colors := [UIStyle.CYAN, UIStyle.MAGENTA, UIStyle.LIME, UIStyle.AMBER, UIStyle.VIOLET]
+	var colors = [UIStyle.CYAN, UIStyle.MAGENTA, UIStyle.LIME, UIStyle.AMBER, UIStyle.VIOLET]
 	var i := 0
 	for pair in labels:
 		_stats_box.add_child(UIStyle.make_stat_bar(pair[1], float(stats[pair[0]]), colors[i], 10, 610))
@@ -379,7 +379,7 @@ func _build_paints(car: Dictionary) -> void:
 	grid.add_theme_constant_override("v_separation", 10)
 	_paint_box.add_child(grid)
 	var rec: Dictionary = Game.car_record(str(car["id"]))
-	var current := str(rec.get("paint", car.get("paint", "cyan")))
+	var current = str(rec.get("paint", car.get("paint", "cyan")))
 	for p in GameData.PAINTS:
 		var owned := Game.owns_paint(str(p["id"]))
 		var sw := Button.new()
@@ -393,7 +393,7 @@ func _build_paints(car: Dictionary) -> void:
 		var pid := str(p["id"])
 		sw.pressed.connect(func(): _pick_paint(pid))
 		grid.add_child(sw)
-		var lbl := UIStyle.make_label("" if owned else fmt_credits(int(p["price"])), "numeric", 12,
+		var lbl = UIStyle.make_label("" if owned else fmt_credits(int(p["price"])), "numeric", 12,
 			UIStyle.GOLD if not owned else UIStyle.TEXT_DIM)
 		lbl.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 		lbl.offset_top = -20
@@ -425,7 +425,7 @@ func _build_rims() -> void:
 	_rim_box.add_child(grid)
 	var car := _selected_car()
 	var rec: Dictionary = Game.car_record(str(car["id"]))
-	var current := str(rec.get("rim", "stock"))
+	var current = str(rec.get("rim", "stock"))
 	for r in GameData.RIMS:
 		var owned := Game.owns_rim(str(r["id"]))
 		var b := UIStyle.make_button(str(r["name"]), UIStyle.CYAN, str(r["id"]) == current, 18, 64)
@@ -479,7 +479,7 @@ func _build_upgrades(car: Dictionary) -> void:
 		col.add_child(UIStyle.make_label(str(info["name"]), "bold", 24, Color.WHITE))
 		col.add_child(UIStyle.make_progress_bar(float(level) / float(info["max"]) * 100.0, UIStyle.CYAN, 8))
 		col.add_child(UIStyle.make_label("LV %d / %d" % [level, int(info["max"])], "kicker", 13, UIStyle.TEXT_DIM))
-		var buy := UIStyle.make_button(Localization.t("common.max") if maxed else fmt_credits(cost),
+		var buy = UIStyle.make_button(Localization.t("common.max") if maxed else fmt_credits(cost),
 			UIStyle.LIME, false, 20, 60)
 		buy.custom_minimum_size = Vector2(210, 60)
 		buy.disabled = maxed

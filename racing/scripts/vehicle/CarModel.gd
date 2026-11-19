@@ -25,10 +25,10 @@ var _brake_light := false
 
 func build(info: Dictionary, paint_id: String = "", rim: String = "") -> void:
 	car_info = info
-	var key := str(info.get("body", "super"))
+	var key = str(info.get("body", "super"))
 	var shape: Dictionary = GameData.SHAPES.get(key, GameData.SHAPES["super"])
 	_shapes = shape
-	var paint_info := GameData.paint_by_id(paint_id if paint_id != "" else str(info.get("paint", "cyan")))
+	var paint_info = GameData.paint_by_id(paint_id if paint_id != "" else str(info.get("paint", "cyan")))
 	_set_paint(paint_info)
 	rim_id = rim if rim != "" else "stock"
 	var rim_info := GameData.rim_by_id(rim_id)
@@ -47,7 +47,7 @@ func build(info: Dictionary, paint_id: String = "", rim: String = "") -> void:
 
 
 func _set_paint(paint_info: Dictionary) -> void:
-	var c := str(paint_info.get("color", "22e9ff"))
+	var c = str(paint_info.get("color", "22e9ff"))
 	paint_finish = int(paint_info.get("finish", 0))
 	if paint_finish == 1:
 		paint = Color(c).darkened(0.15)
@@ -107,7 +107,7 @@ func _build_body(shape: Dictionary) -> void:
 	var tail: float = shape["tail"]
 	var bevel: float = shape["bevel"]
 	var stance: float = shape["stance"]
-	var stations := [
+	var stations = [
 		0.0, 0.06, 0.16, 0.30, 0.46, 0.62, 0.76, 0.88, 0.96, 1.0,
 	]
 	var st := SurfaceTool.new()
@@ -149,7 +149,7 @@ func _build_body(shape: Dictionary) -> void:
 		var b2: Array = rings[r + 1]
 		var n: int = a.size()
 		for k in range(n):
-			var k2 := (k + 1) % n
+			var k2 = (k + 1) % n
 			var v0: Vector3 = a[k]
 			var v1: Vector3 = a[k2]
 			var v2: Vector3 = b2[k]
@@ -171,12 +171,12 @@ func _build_body(shape: Dictionary) -> void:
 			center += p
 		center /= float(pts.size())
 		for k in range(pts.size()):
-			var k2 := (k + 1) % pts.size()
+			var k2 = (k + 1) % pts.size()
 			var p0: Vector3 = pts[k]
 			var p1: Vector3 = pts[k2]
 			var flip := endcap == 0
-			var tri := [center, p1, p0] if flip else [center, p0, p1]
-			var nrm := Vector3(0, 0, -1) if flip else Vector3(0, 0, 1)
+			var tri = [center, p1, p0] if flip else [center, p0, p1]
+			var nrm = Vector3(0, 0, -1) if flip else Vector3(0, 0, 1)
 			for v in tri:
 				st.set_normal(nrm)
 				st.set_uv(Vector2(v.x, v.y))
@@ -299,7 +299,7 @@ func _build_wheels(shape: Dictionary) -> void:
 	brake_mat.set_meta("brake", true)
 	for front in [true, false]:
 		for side in [-1.0, 1.0]:
-			var z := -axle_z if front else axle_z
+			var z = -axle_z if front else axle_z
 			var holder := Node3D.new()
 			holder.name = "Wheel_%s_%s" % ["F" if front else "R", "L" if side < 0 else "R"]
 			holder.position = Vector3(track * side, radius, z)
@@ -436,8 +436,8 @@ func set_nitro(on: bool, amount: float = 1.0) -> void:
 	for n in _nitro_nodes:
 		n.visible = on
 		if on:
-			var flicker := 0.85 + 0.3 * sin(float(Time.get_ticks_msec()) * 0.045)
-			var len_scale := (0.7 + 0.9 * amount) * flicker
+			var flicker = 0.85 + 0.3 * sin(float(Time.get_ticks_msec()) * 0.045)
+			var len_scale = (0.7 + 0.9 * amount) * flicker
 			n.scale = Vector3(0.85 + 0.25 * flicker, 1.0, len_scale)
 
 

@@ -124,7 +124,7 @@ func _slider(h: HBoxContainer, value: float, cb: Callable) -> void:
 	s.step = 0.05
 	s.value = value
 	s.custom_minimum_size = Vector2(440, 34)
-	var lbl := UIStyle.make_label("%d%%" % int(round(value * 100.0)), "numeric", 20, UIStyle.CYAN)
+	var lbl = UIStyle.make_label("%d%%" % int(round(value * 100.0)), "numeric", 20, UIStyle.CYAN)
 	v.add_child(s)
 	v.add_child(lbl)
 	s.value_changed.connect(func(val: float):
@@ -198,9 +198,9 @@ func _controls() -> void:
 func _language() -> void:
 	_header(Localization.t("settings.language"))
 	for lang in [["en", "ENGLISH"], ["fr", "FRANÇAIS"], ["ar", "العربية"]]:
-		var current := str(SettingsStore.get_value("language", "en")) == lang[0]
-		var b := UIStyle.make_button(lang[1], UIStyle.CYAN, current, 26, 82)
-		var code := str(lang[0])
+		var current = str(SettingsStore.get_value("language", "en")) == lang[0]
+		var b = UIStyle.make_button(lang[1], UIStyle.CYAN, current, 26, 82)
+		var code = str(lang[0])
 		b.pressed.connect(func():
 			SettingsStore.set_value("language", code)
 			SettingsStore.apply("language", code)
@@ -220,7 +220,7 @@ func _data() -> void:
 	grid.add_theme_constant_override("h_separation", 60)
 	grid.add_theme_constant_override("v_separation", 6)
 	p.add_child(grid)
-	var rows := [
+	var rows = [
 		["RACES", str(int(st.get("races", 0)))],
 		["WINS", str(int(st.get("wins", 0)))],
 		["PODIUMS", str(int(st.get("podiums", 0)))],

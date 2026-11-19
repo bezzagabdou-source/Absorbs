@@ -23,13 +23,13 @@ class TrackData:
 		var lo := 0
 		var hi := segments
 		while lo < hi:
-			var mid := int((lo + hi) / 2.0)
+			var mid = int((lo + hi) / 2.0)
 			if cumulative[mid] < dd:
 				lo = mid + 1
 			else:
 				hi = mid
 		var i := clampi(lo, 1, segments)
-		var span := maxf(0.0001, cumulative[i] - cumulative[i - 1])
+		var span = maxf(0.0001, cumulative[i] - cumulative[i - 1])
 		var t := (dd - cumulative[i - 1]) / span
 		return {
 			"pos": points[i - 1].lerp(points[i], t),
@@ -49,19 +49,19 @@ class TrackData:
 			start = maxi(0, hint_index - 30)
 			end = mini(segments, hint_index + 30)
 		for i in range(start, end):
-			var a := points[i]
-			var b := points[(i + 1) % points.size()]
+			var a = points[i]
+			var b = points[(i + 1) % points.size()]
 			var ab := b - a
 			var t := clampf((p - a).dot(ab) / maxf(0.0001, ab.length_squared()), 0.0, 1.0)
-			var q := a + ab * t
+			var q = a + ab * t
 			var d := p.distance_squared_to(q)
 			if d < best:
 				best = d
 				best_i = i
 				best_t = t
 		var i2 := best_i
-		var q2 := points[i2].lerp(points[(i2 + 1) % points.size()], best_t)
-		var along := cumulative[i2] + (cumulative[i2 + 1] - cumulative[i2]) * best_t
+		var q2 = points[i2].lerp(points[(i2 + 1) % points.size()], best_t)
+		var along = cumulative[i2] + (cumulative[i2 + 1] - cumulative[i2]) * best_t
 		return {
 			"index": i2,
 			"along": along,
@@ -105,8 +105,8 @@ static func build_path(gen: Dictionary) -> TrackData:
 		td.points[i] = Vector3(cos(a) * r, y, sin(a) * r)
 		td.widths[i] = width * (1.0 + 0.10 * cos(a * 3.0 + hill_phase))
 	for i in range(n + 1):
-		var prev := td.points[(i - 1 + n) % n]
-		var next := td.points[(i + 1) % n]
+		var prev = td.points[(i - 1 + n) % n]
+		var next = td.points[(i + 1) % n]
 		var tan := (next - prev).normalized()
 		var right := tan.cross(Vector3.UP).normalized()
 		td.tangents[i] = tan
@@ -132,10 +132,10 @@ static func build_path(gen: Dictionary) -> TrackData:
 
 
 static func for_track(track: Dictionary) -> TrackData:
-	var id := str(track.get("id", "track"))
+	var id = str(track.get("id", "track"))
 	if CACHE.has(id):
 		return CACHE[id]
-	var td := build_path(track.get("gen", {}))
+	var td = build_path(track.get("gen", {}))
 	td.id = id
 	td.name = str(track.get("name", id))
 	CACHE[id] = td

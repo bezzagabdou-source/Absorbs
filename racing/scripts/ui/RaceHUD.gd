@@ -277,7 +277,7 @@ func tick(delta: float, stats: Dictionary) -> void:
 	_pos_label.text = str(stats.get("position_text", "-"))
 	_lap_label.text = str(stats.get("lap_text", "-"))
 	_time_label.text = str(stats.get("time_text", "00:00.00"))
-	var best := str(stats.get("best_text", "--:--.--"))
+	var best = str(stats.get("best_text", "--:--.--"))
 	_best_label.text = "BEST " + best
 	var nitro: float = float(stats.get("nitro", 0.0))
 	_nitro_fill.offset_right = (SPEEDO_SIZE) * clampf(nitro, 0.0, 1.0)
@@ -324,15 +324,15 @@ func _draw_speedo() -> void:
 	var span := deg_to_rad(264.0)
 	_rpm_arc.draw_arc(c, r, start, start + span, 64, Color(1, 1, 1, 0.07), 16.0, true)
 	var rpm: float = clampf(float(player.call("rpm_ratio")), 0.0, 1.0)
-	var fill_end := start + span * rpm
+	var fill_end = start + span * rpm
 	var col := accent.lerp(UIStyle.MAGENTA, rpm)
 	_rpm_arc.draw_arc(c, r, start, fill_end, 64, Color(col.r, col.g, col.b, 0.95), 16.0, true)
 	_rpm_arc.draw_arc(c, r, start, start + span, 64, Color(1, 1, 1, 0.05), 3.0, true)
 	for i in range(ARC_SEGMENTS + 1):
-		var a := start + span * (float(i) / float(ARC_SEGMENTS))
+		var a = start + span * (float(i) / float(ARC_SEGMENTS))
 		var d := Vector2(cos(a), sin(a))
-		var inner := c + d * (r - 26.0)
-		var outer := c + d * (r - 18.0) if i % 4 == 0 else c + d * (r - 22.0)
+		var inner = c + d * (r - 26.0)
+		var outer = c + d * (r - 18.0) if i % 4 == 0 else c + d * (r - 22.0)
 		_rpm_arc.draw_line(inner, outer, Color(1, 1, 1, 0.22), 2.0)
 
 
@@ -357,8 +357,8 @@ func _draw_minimap() -> void:
 	var sc := minf((_minimap.size.x - pad * 2.0) / maxf(1.0, max_x - min_x),
 		(_minimap.size.y - pad * 2.0) / maxf(1.0, max_z - min_z))
 	for i in range(0, pts.size() - 1, 4):
-		var a := _map_point(pts[i], min_x, min_z, sc, pad)
-		var b := _map_point(pts[i + 1], min_x, min_z, sc, pad)
+		var a = _map_point(pts[i], min_x, min_z, sc, pad)
+		var b = _map_point(pts[i + 1], min_x, min_z, sc, pad)
 		_minimap.draw_line(a, b, Color(0.55, 0.72, 0.95, 0.75), 3.0)
 	if player and is_instance_valid(player):
 		var p := _map_point(player.global_position, min_x, min_z, sc, pad)

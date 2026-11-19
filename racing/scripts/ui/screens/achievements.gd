@@ -80,7 +80,7 @@ func _card(a: Dictionary) -> Control:
 	var badge := PanelContainer.new()
 	badge.custom_minimum_size = Vector2(96, 96)
 	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var accent := UIStyle.GOLD if unlocked else Color(0.25, 0.28, 0.36)
+	var accent = UIStyle.GOLD if unlocked else Color(0.25, 0.28, 0.36)
 	badge.add_theme_stylebox_override("panel", UIStyle.accent_box(accent, 0.22, 48,
 		0.4 if unlocked and not claimed else 0.0))
 	var ic := TextureRect.new()

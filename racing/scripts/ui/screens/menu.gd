@@ -59,7 +59,7 @@ func _add_left_column() -> void:
 	row.add_theme_constant_override("separation", 16)
 	col.add_child(row)
 	for spec in [["shop", Localization.t("menu.shop")], ["achievements", Localization.t("menu.achievements")]]:
-		var b := UIStyle.make_button(spec[1], UIStyle.VIOLET, false, 24, 76)
+		var b = UIStyle.make_button(spec[1], UIStyle.VIOLET, false, 24, 76)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(func(): go(spec[0]))
 		row.add_child(b)
@@ -67,7 +67,7 @@ func _add_left_column() -> void:
 	row2.add_theme_constant_override("separation", 16)
 	col.add_child(row2)
 	for spec in [["settings", Localization.t("menu.settings")], ["credits", Localization.t("menu.credits")]]:
-		var b := UIStyle.make_button(spec[1], UIStyle.TEXT_DIM, false, 22, 68)
+		var b = UIStyle.make_button(spec[1], UIStyle.TEXT_DIM, false, 22, 68)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(func(): go(spec[0]))
 		row2.add_child(b)
@@ -205,7 +205,7 @@ func _add_footer_stats() -> void:
 	strip.add_theme_constant_override("separation", 34)
 	content.add_child(strip)
 	var st: Dictionary = Game.data.get("stats", {})
-	var items := [
+	var items = [
 		[Localization.t("stats.races"), str(int(st.get("races", 0)))],
 		[Localization.t("stats.wins"), str(int(st.get("wins", 0)))],
 		[Localization.t("stats.distance"), "%.1f KM" % float(st.get("distance_km", 0.0))],
@@ -214,7 +214,7 @@ func _add_footer_stats() -> void:
 	for item in items:
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", -6)
-		var val := UIStyle.make_label(item[1], "display", 34, Color.WHITE)
+		var val = UIStyle.make_label(item[1], "display", 34, Color.WHITE)
 		v.add_child(val)
 		v.add_child(UIStyle.make_kicker(item[0], UIStyle.TEXT_DIM, 14))
 		strip.add_child(v)

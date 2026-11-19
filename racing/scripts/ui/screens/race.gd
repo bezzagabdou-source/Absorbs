@@ -101,7 +101,7 @@ func _spawn_player() -> void:
 	player.apply_physics(physics, true)
 	var model = CarModelScript.new()
 	var rec: Dictionary = Game.car_record(str(car["id"]))
-	var paint_id := str(rec.get("paint", car.get("paint", "cyan")))
+	var paint_id = str(rec.get("paint", car.get("paint", "cyan")))
 	model.build(car, paint_id, str(rec.get("rim", "stock")))
 	player.attach_model(model)
 	var st: Transform3D = builder.start_transform
@@ -129,7 +129,7 @@ func _spawn_ai() -> void:
 		ctrl.collision_mask = 1
 		world.add_child(ctrl)
 		var base_stats: Dictionary = car["stats"]
-		var skill := 0.72 + 0.05 * i
+		var skill = 0.72 + 0.05 * i
 		var stats: Dictionary = base_stats.duplicate()
 		for k in stats.keys():
 			stats[k] = clampf(float(stats[k]) + (skill - 0.72) * 18.0, 5.0, 100.0)
@@ -139,8 +139,8 @@ func _spawn_ai() -> void:
 		model.build(car, "", "stock")
 		ctrl.attach_model(model)
 		var st: Transform3D = builder.start_transform
-		var lane := -4.2 if i % 2 == 0 else 4.2
-		var back := 6.0 + float(int(i / 2) + 1) * 7.0
+		var lane = -4.2 if i % 2 == 0 else 4.2
+		var back = 6.0 + float(int(i / 2) + 1) * 7.0
 		ctrl.global_transform = Transform3D(st.basis, st.origin + st.basis.x * lane + st.basis.z * back)
 		used.append(car)
 		var driver = AIDriverScript.new()
@@ -151,12 +151,12 @@ func _spawn_ai() -> void:
 
 func _ai_class() -> String:
 	var car: Dictionary = Game.selected_car()
-	var pc := str(car.get("class", "street"))
+	var pc = str(car.get("class", "street"))
 	return pc
 
 
 func _difficulty_bonus() -> float:
-	var diff := int(track.get("difficulty", 1))
+	var diff = int(track.get("difficulty", 1))
 	return clampf((diff - 1) * 0.03, 0.0, 0.12)
 
 
@@ -219,7 +219,7 @@ func _read_driver_input(delta: float) -> void:
 	if mode_sel == "wheel":
 		steer = player.steer
 	elif mode_sel == "tilt":
-		var tilt := Input.get_gravity().x if Input.get_gravity().length() > 0.1 else 0.0
+		var tilt = Input.get_gravity().x if Input.get_gravity().length() > 0.1 else 0.0
 		var t := clampf(tilt / 9.8, -1.0, 1.0)
 		if bool(SettingsStore.get_value("invert_tilt", false)):
 			t = -t
@@ -285,10 +285,10 @@ func _finish_race() -> void:
 	AudioDirector.stop_race_audio(1.2)
 	var total := race_time
 	var reward: int = int(track.get("reward", 3000))
-	var pos_bonus := [1.0, 0.72, 0.55, 0.4, 0.3, 0.22]
+	var pos_bonus = [1.0, 0.72, 0.55, 0.4, 0.3, 0.22]
 	var mult: float = pos_bonus[clampi(position - 1, 0, 5)] if mode == "circuit" else 1.0
 	var clean := player.wall_hits == 0
-	var result := {
+	var result: Dictionary = {
 		"track": str(track["id"]),
 		"track_name": str(track["name"]),
 		"mode": mode,
@@ -316,8 +316,8 @@ func _update_standings() -> void:
 	var ahead := 0
 	for ai in ai_cars:
 		var prj: Dictionary = builder.data.project(ai["node"].global_position)
-		var ai_prog := float(prj["along"]) + float(ai["node"].laps_completed) * builder.data.total_length
-		var mine := player_progress + float(lap - 1) * builder.data.total_length
+		var ai_prog = float(prj["along"]) + float(ai["node"].laps_completed) * builder.data.total_length
+		var mine = player_progress + float(lap - 1) * builder.data.total_length
 		if ai_prog > mine:
 			ahead += 1
 	position = ahead + 1
@@ -332,7 +332,7 @@ func _update_audio() -> void:
 
 func _update_hud(delta: float) -> void:
 	var t := race_time
-	var stats := {
+	var stats: Dictionary = {
 		"speed": player.speed_kmh(),
 		"gear": player.gear,
 		"nitro": player.nitro_amount,
@@ -352,7 +352,7 @@ func format_time(t: float) -> String:
 	if t <= 0.0:
 		return "00:00.00"
 	var m := int(t / 60.0)
-	var s := int(t) % 60
+	var s = int(t) % 60
 	var cs := int((t - floorf(t)) * 100.0)
 	return "%02d:%02d.%02d" % [m, s, cs]
 

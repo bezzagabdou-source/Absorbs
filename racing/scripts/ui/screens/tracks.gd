@@ -29,7 +29,7 @@ func _build_mode_row() -> void:
 	content.add_child(_mode_row)
 	var idx := 0
 	for mode in ["circuit", "trial", "drag"]:
-		var label := Localization.t("mode.circuit" if mode == "circuit" else ("mode.trial" if mode == "trial" else "mode.drag"))
+		var label = Localization.t("mode.circuit" if mode == "circuit" else ("mode.trial" if mode == "trial" else "mode.drag"))
 		var b := UIStyle.make_button(label, UIStyle.CYAN, mode == _mode, 24, 66)
 		b.custom_minimum_size = Vector2(240, 66)
 		var m := mode
@@ -42,7 +42,7 @@ func _set_mode(mode: String) -> void:
 	_mode = mode
 	for i in range(_mode_row.get_child_count()):
 		var b: Button = _mode_row.get_child(i)
-		var m := ["circuit", "trial", "drag"][i]
+		var m = ["circuit", "trial", "drag"][i]
 		b.add_theme_stylebox_override("normal", UIStyle.glass_box(20, Color(0.09, 0.13, 0.22, 0.66), 0.22))
 		if m == _mode:
 			b.add_theme_stylebox_override("normal", UIStyle.accent_box(UIStyle.CYAN, 0.3, 20, 0.4))
@@ -155,14 +155,14 @@ func _page() -> int:
 
 func _refresh() -> void:
 	var tracks: Array = GameData.TRACKS
-	var base := (_sel - _sel % 4)
+	var base = (_sel - _sel % 4)
 	for i in range(4):
-		var idx := (base + i) % tracks.size()
+		var idx = (base + i) % tracks.size()
 		var track: Dictionary = tracks[idx]
 		var card: Control = _cards[i]
 		var panel: PanelContainer = card.get_child(0)
 		var art: TextureRect = panel.get_node("Art")
-		var art_name := str(track.get("art", "city_night"))
+		var art_name = str(track.get("art", "city_night"))
 		art.texture = UIStyle.art(art_name)
 		if art.texture == null:
 			art.texture = UIStyle.art("menu_hero")
@@ -226,7 +226,7 @@ func _refresh_detail() -> void:
 	row.add_child(UIStyle.make_chip("%d LAPS" % int(track.get("laps", 3)), UIStyle.VIOLET, 16))
 	row.add_child(UIStyle.make_chip(Localization.t("track.reward") + " " + fmt_credits(int(track.get("reward", 0))),
 		UIStyle.GOLD, 16))
-	var stars := int(track.get("difficulty", 1))
+	var stars = int(track.get("difficulty", 1))
 	row.add_child(UIStyle.make_chip("DIFF " + "●".repeat(stars), UIStyle.MAGENTA, 16))
 	_start_btn.disabled = not _unlocked(track)
 

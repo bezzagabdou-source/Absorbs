@@ -27,7 +27,7 @@ func _build_hero() -> void:
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	content.add_child(v)
 	v.add_child(UIStyle.make_kicker(Localization.t("daily.bonus"), UIStyle.GOLD, 20))
-	var title := UIStyle.make_title(Localization.t("menu.daily") + " REWARDS", 88, UIStyle.GOLD,
+	var title = UIStyle.make_title(Localization.t("menu.daily") + " REWARDS", 88, UIStyle.GOLD,
 		HORIZONTAL_ALIGNMENT_CENTER)
 	v.add_child(title)
 	var st := Game.daily_state()
@@ -48,14 +48,14 @@ func _build_streak() -> void:
 	content.add_child(row)
 	_streak_row = row
 	var st := Game.daily_state()
-	var day_index := int(st.get("day_index", 0))
-	var can_claim := bool(st.get("can_claim", false))
-	var claimed_today := bool(st.get("claimed_today", false))
+	var day_index = int(st.get("day_index", 0))
+	var can_claim = bool(st.get("can_claim", false))
+	var claimed_today = bool(st.get("claimed_today", false))
 	for i in range(GameData.DAILY_REWARDS.size()):
 		var r: Dictionary = GameData.DAILY_REWARDS[i]
 		var is_today := i == day_index and can_claim
 		var is_past := i < day_index or (i == day_index and claimed_today)
-		var accent := UIStyle.GOLD if is_today else (UIStyle.LIME if is_past else UIStyle.TEXT_DIM)
+		var accent = UIStyle.GOLD if is_today else (UIStyle.LIME if is_past else UIStyle.TEXT_DIM)
 		var p := UIStyle.make_glass_panel(24, Color(0.05, 0.08, 0.14, 0.8), 20,
 			0.7 if is_today else 0.0)
 		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -64,7 +64,7 @@ func _build_streak() -> void:
 		v.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.add_theme_constant_override("separation", 4)
 		p.add_child(v)
-		var dl := UIStyle.make_kicker("DAY %d" % (i + 1), accent, 16)
+		var dl = UIStyle.make_kicker("DAY %d" % (i + 1), accent, 16)
 		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(dl)
 		var badge := PanelContainer.new()
@@ -78,7 +78,7 @@ func _build_streak() -> void:
 		ic.modulate = Color.WHITE if (is_today or is_past) else Color(0.35, 0.4, 0.5)
 		badge.add_child(ic)
 		v.add_child(badge)
-		var amt := UIStyle.make_label(str(r["label"]), "display", 30, Color.WHITE if (is_today or is_past) else UIStyle.TEXT_DIM)
+		var amt = UIStyle.make_label(str(r["label"]), "display", 30, Color.WHITE if (is_today or is_past) else UIStyle.TEXT_DIM)
 		amt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(amt)
 		if is_past:
@@ -94,7 +94,7 @@ func _build_streak() -> void:
 
 func _build_claim() -> void:
 	var st := Game.daily_state()
-	var can := bool(st.get("can_claim", false))
+	var can = bool(st.get("can_claim", false))
 	var btn := UIStyle.make_button(Localization.t("daily.claim"), UIStyle.GOLD, true, 34, 100)
 	btn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	btn.offset_left = 480

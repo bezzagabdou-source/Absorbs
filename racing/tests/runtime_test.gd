@@ -31,7 +31,7 @@ func _initialize() -> void:
 	await _tick(120)
 	_check(SceneRouter.current_id == "menu", "boot transitions to menu")
 
-	var screens := ["tracks", "garage", "shop", "achievements", "daily", "settings",
+	var screens = ["tracks", "garage", "shop", "achievements", "daily", "settings",
 		"credits", "profile"]
 	for id in screens:
 		SceneRouter.goto_instant(id)

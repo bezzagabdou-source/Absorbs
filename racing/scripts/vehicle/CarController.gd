@@ -140,15 +140,15 @@ func _apply_nitro(hold: bool) -> void:
 
 func _update_gearbox(delta: float) -> void:
 	var kmh := absf(speed) * 3.6
-	var ratio := GEAR_RATIOS[clampi(gear - 1, 0, GEAR_RATIOS.size() - 1)]
-	var max_for_gear := top_speed * 3.6 / GEAR_RATIOS.size() * gear + 18.0
+	var ratio: float = float(GEAR_RATIOS[clampi(gear - 1, 0, GEAR_RATIOS.size() - 1)])
+	var max_for_gear = top_speed * 3.6 / GEAR_RATIOS.size() * gear + 18.0
 	if kmh > max_for_gear and gear < GEAR_RATIOS.size():
 		gear += 1
 		gear_changed.emit(gear)
 	elif gear > 1 and kmh < max_for_gear - 26.0:
 		gear -= 1
 		gear_changed.emit(gear)
-	var target_rpm := clampf(kmh / maxf(1.0, top_speed * 3.6) * 7800.0 * (1.0 + (ratio - 1.0) * 0.12), 900.0, 8200.0)
+	var target_rpm = clampf(kmh / maxf(1.0, top_speed * 3.6) * 7800.0 * (1.0 + (ratio - 1.0) * 0.12), 900.0, 8200.0)
 	if throttle < 0.05 and speed < 2.0:
 		target_rpm = 900.0
 	rpm = lerpf(rpm, target_rpm, clampf(delta * 6.0, 0.0, 1.0))
@@ -193,9 +193,9 @@ func _longitudinal(delta: float) -> void:
 func _lateral(delta: float) -> void:
 	var speed_norm := clampf(absf(speed) / maxf(1.0, top_speed), 0.0, 1.0)
 	var steer_authority := steer_rate * (1.0 - speed_norm * 0.52)
-	var turn := steer * steer_authority * (0.35 + speed_norm * 0.9)
+	var turn = steer * steer_authority * (0.35 + speed_norm * 0.9)
 	# Lateral grip: high grip resists sliding, handbrake/damage reduces it
-	var grip_factor := grip * (1.0 - damage * 0.35) - (0.42 if handbrake else 0.0)
+	var grip_factor = grip * (1.0 - damage * 0.35) - (0.42 if handbrake else 0.0)
 	grip_factor = clampf(grip_factor, 0.12, 1.0)
 	var target_yaw := turn * clampf(absf(speed) / 14.0, 0.0, 1.0)
 	if speed < 0.0:
@@ -209,8 +209,8 @@ func _lateral(delta: float) -> void:
 		drift_time += delta
 	# slight roll/pitch visual on the body node
 	if _body != null:
-		var roll_target := -steer * clampf(speed_norm * 1.4 + drift_amount * 0.5, 0.0, 1.0) * 0.06
-		var pitch_target := clampf((throttle - brake_input) * 0.03 + (0.02 if nitro_active else 0.0), -0.05, 0.05)
+		var roll_target = -steer * clampf(speed_norm * 1.4 + drift_amount * 0.5, 0.0, 1.0) * 0.06
+		var pitch_target = clampf((throttle - brake_input) * 0.03 + (0.02 if nitro_active else 0.0), -0.05, 0.05)
 		_body.rotation.z = lerpf(_body.rotation.z, roll_target, delta * 6.0)
 		_body.rotation.x = lerpf(_body.rotation.x, -pitch_target, delta * 5.0)
 

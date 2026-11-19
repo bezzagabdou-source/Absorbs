@@ -46,7 +46,7 @@ func set_value(key: String, value: Variant) -> void:
 
 
 func cycle_quality() -> String:
-	var order := ["low", "medium", "high", "ultra"]
+	var order = ["low", "medium", "high", "ultra"]
 	var i: int = order.find(str(values.get("quality", "high")))
 	var next: String = order[(i + 1) % order.size()]
 	set_value("quality", next)
@@ -92,7 +92,7 @@ func _set_bus_db(bus: String, linear: float) -> void:
 
 
 func _apply_quality(quality: String) -> void:
-	var tier := {
+	var tier: Dictionary = {
 		"low": {"scale": 0.62, "shadow": 0, "glow": false, "ssao": false, "aa": 0, "fog": true},
 		"medium": {"scale": 0.78, "shadow": 1024, "glow": true, "ssao": false, "aa": 0, "fog": true},
 		"high": {"scale": 0.92, "shadow": 2048, "glow": true, "ssao": false, "aa": 1, "fog": true},

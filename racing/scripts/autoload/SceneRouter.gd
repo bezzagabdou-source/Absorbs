@@ -56,7 +56,7 @@ func goto(scene_id: String, params: Dictionary = {}, push_history: bool = true) 
 		await _transition_out()
 		current.queue_free()
 		current = null
-	var script_path := "res://scripts/ui/screens/%s.gd" % scene_id
+	var script_path = "res://scripts/ui/screens/%s.gd" % scene_id
 	if not ResourceLoader.exists(script_path):
 		push_error("screen missing: " + script_path)
 		_busy = false
@@ -115,7 +115,7 @@ func goto_instant(scene_id: String, params: Dictionary = {}) -> Control:
 	if current != null:
 		current.queue_free()
 		current = null
-	var script_path := "res://scripts/ui/screens/%s.gd" % scene_id
+	var script_path = "res://scripts/ui/screens/%s.gd" % scene_id
 	var scr = load(script_path).new()
 	scr.router = self
 	scr.params = params

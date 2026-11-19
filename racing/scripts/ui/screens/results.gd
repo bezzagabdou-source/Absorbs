@@ -8,10 +8,10 @@ var _claimed := false
 
 func build() -> void:
 	_result = params.duplicate(true)
-	var mode := str(_result.get("mode", "circuit"))
-	var pos := int(_result.get("position", 1))
+	var mode = str(_result.get("mode", "circuit"))
+	var pos = int(_result.get("position", 1))
 	var win := mode == "circuit" and pos == 1
-	var accent := UIStyle.GOLD if win else UIStyle.CYAN
+	var accent = UIStyle.GOLD if win else UIStyle.CYAN
 	AudioDirector.play_music("results_theme", 0.5, -9.0)
 	var art := UIStyle.make_art_background("menu_hero")
 	content.add_child(art)
@@ -24,7 +24,7 @@ func build() -> void:
 	wrap.add_theme_constant_override("separation", 16)
 	content.add_child(wrap)
 	wrap.add_child(UIStyle.make_kicker(str(_result.get("track_name", "")), accent, 20))
-	var head := Localization.t("results.win") if win else Localization.t("results.title")
+	var head = Localization.t("results.win") if win else Localization.t("results.title")
 	wrap.add_child(UIStyle.make_title(head, 96, accent, HORIZONTAL_ALIGNMENT_CENTER))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 22)
@@ -47,11 +47,11 @@ func build() -> void:
 		var bar := UIStyle.make_glass_panel(16, Color(0.05, 0.08, 0.14, 0.62), 18)
 		var h := HBoxContainer.new()
 		bar.add_child(h)
-		var lap_lbl := UIStyle.make_label("LAP %d" % (i + 1), "kicker", 18, UIStyle.TEXT_DIM)
+		var lap_lbl = UIStyle.make_label("LAP %d" % (i + 1), "kicker", 18, UIStyle.TEXT_DIM)
 		lap_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(lap_lbl)
-		var t := float(laps[i])
-		var is_best := t <= float(_result.get("best_lap", 9999.0)) + 0.001
+		var t = float(laps[i])
+		var is_best = t <= float(_result.get("best_lap", 9999.0)) + 0.001
 		h.add_child(UIStyle.make_label(_fmt(t), "numeric", 26,
 			UIStyle.GOLD if is_best else Color.WHITE))
 		left.add_child(bar)
@@ -64,7 +64,7 @@ func build() -> void:
 	rv.add_child(UIStyle.make_kicker(Localization.t("results.reward"), UIStyle.TEXT_DIM, 16))
 	rv.add_child(_reward_row("coin", "+%s" % fmt_credits(int(_result.get("credits", 0))), UIStyle.GOLD, 44))
 	rv.add_child(_reward_row("star", "+%d XP" % int(_result.get("xp", 0)), UIStyle.CYAN, 40))
-	var notes := []
+	var notes = []
 	if bool(_result.get("clean_lap", false)):
 		notes.append("CLEAN RUN  +25%")
 	if int(_result.get("wall_hits", 0)) > 0:
@@ -90,7 +90,7 @@ func build() -> void:
 
 
 func _track() -> Dictionary:
-	var id := str(_result.get("track", ""))
+	var id = str(_result.get("track", ""))
 	for t in GameData.TRACKS:
 		if str(t["id"]) == id:
 			return t
@@ -98,7 +98,7 @@ func _track() -> Dictionary:
 
 
 func _pos_text() -> String:
-	var pos := int(_result.get("position", 1))
+	var pos = int(_result.get("position", 1))
 	var suffix := "TH"
 	if pos == 1:
 		suffix = "ST"
@@ -137,7 +137,7 @@ func _fmt(t: float) -> String:
 	if t <= 0.0:
 		return "--:--.--"
 	var m := int(t / 60.0)
-	var s := int(t) % 60
+	var s = int(t) % 60
 	var cs := int((t - floorf(t)) * 100.0)
 	return "%02d:%02d.%02d" % [m, s, cs]
 
@@ -164,7 +164,7 @@ func _award() -> void:
 	var up: Dictionary = Game.add_xp(int(_result.get("xp", 0)))
 	if bool(up.get("leveled", false)):
 		AudioDirector.play_sfx("level_up", -2.0)
-	var new_best := prev_best <= 0.0 or float(_result.get("best_lap", 0.0)) < prev_best
+	var new_best = prev_best <= 0.0 or float(_result.get("best_lap", 0.0)) < prev_best
 	if new_best and float(_result.get("best_lap", 0.0)) > 0.0:
 		AudioDirector.play_sfx("achievement", -4.0)
 		var badge := UIStyle.make_chip(Localization.t("results.new_best"), UIStyle.GOLD, 18)

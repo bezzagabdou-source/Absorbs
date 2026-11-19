@@ -21,7 +21,7 @@ func _ready() -> void:
 
 
 func _build_audio_buses() -> void:
-	var wanted := ["Music", "SFX", "Engine", "Ambience"]
+	var wanted = ["Music", "SFX", "Engine", "Ambience"]
 	for bus_name in wanted:
 		if AudioServer.get_bus_index(bus_name) < 0:
 			AudioServer.add_bus()
@@ -111,7 +111,7 @@ func _merge_into_default(parsed: Dictionary) -> void:
 
 
 func _quarantine_corrupt() -> void:
-	var broken := "%s.corrupt-%d" % [PATH, int(Time.get_unix_time_from_system())]
+	var broken = "%s.corrupt-%d" % [PATH, int(Time.get_unix_time_from_system())]
 	DirAccess.rename_absolute(PATH, broken)
 	push_warning("Corrupted profile quarantined to " + broken)
 
@@ -156,7 +156,7 @@ func add_xp(amount: int) -> Dictionary:
 	data["xp"] = int(data.get("xp", 0)) + maxi(0, amount)
 	var after := level()
 	xp_changed.emit(int(data["xp"]), after)
-	var result := {"levels_gained": maxi(0, after - before), "level": after}
+	var result: Dictionary = {"levels_gained": maxi(0, after - before), "level": after}
 	check_level_achievements()
 	save_profile()
 	return result
@@ -232,7 +232,7 @@ func buy_car(car_id: String) -> bool:
 
 
 func _check_all_classes() -> void:
-	var classes := {}
+	var classes: Dictionary = {}
 	for cid in data["owned"].keys():
 		var info := GameData.car_by_id(str(cid))
 		if not info.is_empty():
@@ -360,7 +360,7 @@ func record_race(result: Dictionary) -> void:
 	st["nitro_time"] = float(st.get("nitro_time", 0.0)) + float(result.get("nitro_time", 0.0))
 	st["total_time"] = float(st.get("total_time", 0.0)) + float(result.get("time", 0.0))
 	var tracks: Array = st.get("tracks_raced", [])
-	var tid := str(result.get("track", ""))
+	var tid = str(result.get("track", ""))
 	if tid != "" and not tracks.has(tid):
 		tracks.append(tid)
 	st["tracks_raced"] = tracks
@@ -389,8 +389,8 @@ func record_race(result: Dictionary) -> void:
 	if tracks.size() >= GameData.TRACKS.size():
 		unlock_achievement_by_condition("all_tracks")
 	var best: Dictionary = data["best_laps"]
-	var bt := float(result.get("best_lap", 0.0))
-	var prev := float(best.get(tid, 0.0))
+	var bt = float(result.get("best_lap", 0.0))
+	var prev = float(best.get(tid, 0.0))
 	if bt > 0.0 and (prev <= 0.0 or bt < prev):
 		best[tid] = bt
 	stats_changed.emit()
@@ -460,9 +460,9 @@ func _local_day_index() -> int:
 func daily_state() -> Dictionary:
 	var d: Dictionary = data["daily"]
 	var today := _local_day_index()
-	var last := int(d.get("last_day", -1))
+	var last = int(d.get("last_day", -1))
 	var claimed_today := last == today
-	var streak := int(d.get("streak", 0))
+	var streak = int(d.get("streak", 0))
 	if last < today - 1:
 		streak = 0
 	return {"can_claim": not claimed_today, "day_index": mini(streak, 6), "streak": streak,
@@ -475,7 +475,7 @@ func claim_daily() -> Dictionary:
 		return {}
 	var d: Dictionary = data["daily"]
 	var today: int = st["today"]
-	var streak := int(d.get("streak", 0))
+	var streak = int(d.get("streak", 0))
 	if int(d.get("last_day", -1)) == today - 1:
 		streak += 1
 	else:

@@ -36,7 +36,7 @@ func tick(delta: float, player_progress: float, my_progress: float) -> void:
 	var prj: Dictionary = data.project(pos, target_index)
 	target_index = int(prj["index"])
 	var along: float = float(prj["along"])
-	var look := 14.0 + controller.linear_speed() * 0.55
+	var look = 14.0 + controller.linear_speed() * 0.55
 	var target: Dictionary = data.sample_distance(along + look)
 	var aim: Vector3 = target["pos"] + target["right"] * _lane_offset_now()
 	var local := controller.to_local(aim)

@@ -39,7 +39,7 @@ func _initialize() -> void:
 
 func _test_scripts_parse() -> void:
 	print("[TEST] SECTION scripts")
-	var dirs := ["res://scripts/", "res://scripts/autoload/", "res://scripts/vehicle/",
+	var dirs = ["res://scripts/", "res://scripts/autoload/", "res://scripts/vehicle/",
 		"res://scripts/race/", "res://scripts/ui/", "res://scripts/ui/screens/"]
 	var count := 0
 	for d in dirs:
@@ -49,7 +49,7 @@ func _test_scripts_parse() -> void:
 		for f in dir.get_files():
 			if not f.ends_with(".gd"):
 				continue
-			var path := d + f
+			var path = d + f
 			var res: Resource = load(path)
 			_check(res != null, "parse " + path)
 			count += 1
@@ -59,7 +59,7 @@ func _test_scripts_parse() -> void:
 func _test_game_data() -> void:
 	print("[TEST] SECTION data")
 	_check(GameData.CARS.size() == 32, "32 cars")
-	var classes := {}
+	var classes: Dictionary = {}
 	for car in GameData.CARS:
 		classes[str(car["class"])] = int(classes.get(str(car["class"]), 0)) + 1
 		_check(GameData.SHAPES.has(str(car["body"])), "body shape exists for " + str(car["id"]))
@@ -121,7 +121,7 @@ func _test_tracks() -> void:
 func _test_cars_models() -> void:
 	print("[TEST] SECTION car models")
 	var CarModel = load("res://scripts/vehicle/CarModel.gd")
-	var body_kinds := ["hatch", "sedan", "coupe", "muscle", "sport", "super", "hyper"]
+	var body_kinds = ["hatch", "sedan", "coupe", "muscle", "sport", "super", "hyper"]
 	for kind in body_kinds:
 		var info: Dictionary = {"id": "test_" + kind, "name": "TEST", "class": "sport", "body": kind,
 			"color": "22e9ff", "paint": "cyan"}
@@ -140,7 +140,7 @@ func _test_cars_models() -> void:
 		model.set_damage(0.3)
 		model.queue_free()
 	# every car's declared body must build
-	var built := {}
+	var built: Dictionary = {}
 	for car in GameData.CARS:
 		built[str(car["body"])] = true
 	_check(built.size() == 7, "all 7 body kinds used")
@@ -148,9 +148,9 @@ func _test_cars_models() -> void:
 
 func _test_screens() -> void:
 	print("[TEST] SECTION screens")
-	var screens := ["menu", "tracks", "garage", "shop", "achievements", "daily",
+	var screens = ["menu", "tracks", "garage", "shop", "achievements", "daily",
 		"settings", "credits", "profile", "results"]
 	for id in screens:
-		var path := "res://scripts/ui/screens/%s.gd" % id
+		var path = "res://scripts/ui/screens/%s.gd" % id
 		var scr: Resource = load(path)
 		_check(scr != null, "screen script " + id)
