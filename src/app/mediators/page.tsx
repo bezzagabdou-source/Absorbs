@@ -8,11 +8,19 @@ const SECTIONS: Record<string, string> = {
 
 export default function MediatorsPanel() {
   const [data, setData] = useState<any>(null);
+  const [visitors, setVisitors] = useState<any[]>([]);
+  const [visitorsConfigured, setVisitorsConfigured] = useState(true);
   const [cur, setCur] = useState("xr");
   const [form, setForm] = useState({ name: "", username: "", guarantee: "", note: "" });
 
-  const refresh = () => fetch("/api/mediators").then((r) => r.json()).then(setData);
-  useEffect(() => { refresh(); }, []);
+  const refresh = () => {
+    fetch("/api/mediators").then((r) => r.json()).then(setData);
+    fetch("/api/telegram?users=1", { cache: "no-store" }).then((r) => r.json()).then((j) => {
+      setVisitors(j.users || []);
+      setVisitorsConfigured(Boolean(j.configured));
+    }).catch(() => setVisitorsConfigured(false));
+  };
+  useEffect(() => { refresh(); const timer = setInterval(refresh, 10000); return () => clearInterval(timer); }, []);
 
   const act = async (body: any) => {
     await fetch("/api/mediators", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -30,7 +38,7 @@ export default function MediatorsPanel() {
       <h1 style={{ textAlign: "center" }}>🛡️ لوحة تحكم بوت الوسطاء</h1>
       <div style={glass}>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-          {[["👥 المستخدمين", data.users.length], ["🛡️ الوسطاء", total], ["🚨 منتحلين", data.sections.scammers.length]].map(([l, v]) => (
+          {[["👥 المستخدمين", visitors.length], ["🛡️ الوسطاء", total], ["🚨 منتحلين", data.sections.scammers.length]].map(([l, v]) => (
             <div key={l as string} style={{ flex: 1, minWidth: 140, textAlign: "center", background: "rgba(255,255,255,.1)", borderRadius: 14, padding: 16 }}>
               <b style={{ fontSize: 28, display: "block" }}>{v}</b>{l}
             </div>
@@ -60,8 +68,9 @@ export default function MediatorsPanel() {
         <button style={btn} onClick={async () => { await act({ action: "add", section: cur, ...form }); setForm({ name: "", username: "", guarantee: "", note: "" }); }}>➕ إضافة</button>
       </div>
       <div style={glass}>
-        <h3>👥 الزوار الذين دخلوا البوت ({visitors.length})</h3>
-        {visitors.length === 0 && <p>لا يوجد زوار بعد — أول من يضغط /start سيظهر هنا فوراً</p>}
+        <h3>👥 زوار البوت ({visitors.length})</h3>
+        {!visitorsConfigured && <p style={{ color: "#ffd180" }}>يلزم ربط Upstash Redis في Vercel لعرض الزوار بشكل دائم (المتغيران UPSTASH_REDIS_REST_URL و UPSTASH_REDIS_REST_TOKEN).</p>}
+        {visitorsConfigured && visitors.length === 0 && <p>لا يوجد زوار بعد — كل مستخدم يضغط /start سيظهر هنا خلال ثوانٍ</p>}
         {visitors.map((u: any, i: number) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: 8, borderBottom: "1px solid rgba(255,255,255,.12)" }}>
             <span>👤 {u.name || "مستخدم"} {u.username ? <a style={{ color: "#4fc3f7" }} href={`https://t.me/${u.username}`} target="_blank">@{u.username}</a> : ""}</span>

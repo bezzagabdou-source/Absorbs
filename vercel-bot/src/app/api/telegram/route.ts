@@ -3,7 +3,42 @@ import data from "../../../../mediators-bot/data.json";
 
 const TOKEN = process.env.BOT_TOKEN || "9169731361:AAGdtx1soQWt2GIdcq23_vSyS1XfLcIH0NQ";
 const API = `https://api.telegram.org/bot${TOKEN}`;
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 
+async function redis(command: string[]) {
+  if (!REDIS_URL || !REDIS_TOKEN) return null;
+  const response = await fetch(REDIS_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(command),
+    signal: AbortSignal.timeout(3000),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Redis request failed: ${response.status}`);
+  const result = await response.json();
+  return result.result;
+}
+
+async function trackUser(user: any) {
+  if (!user?.id || !REDIS_URL || !REDIS_TOKEN) return;
+  const record = JSON.stringify({
+    id: String(user.id), username: user.username || "", name: [user.first_name, user.last_name].filter(Boolean).join(" "),
+    date: new Date().toISOString(),
+  });
+  await Promise.all([
+    redis(["SADD", "mediators:users", String(user.id)]),
+    redis(["SET", `mediators:user:${user.id}`, record]),
+  ]);
+}
+
+async function getUsers() {
+  if (!REDIS_URL || !REDIS_TOKEN) return [];
+  const ids = await redis(["SMEMBERS", "mediators:users"]);
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+  const records = await Promise.all(ids.map((id: string) => redis(["GET", `mediators:user:${id}`]).catch(() => null)));
+  return records.map((record: any) => { try { return JSON.parse(record); } catch { return null; } }).filter(Boolean);
+}
 async function call(method: string, body: any) {
   const r = await fetch(`${API}/${method}`, {
     method: "POST",
@@ -82,21 +117,16 @@ export async function GET(req: Request) {
   if (url.searchParams.get("setup") === "1") {
     const host = url.host;
     const res = await call("setWebhook", { url: `https://${host}/api/telegram`, drop_pending_updates: true });
-    let binUri = BIN_URL;
-    if (!binUri) {
-      try {
-        const br = await fetch("https://api.jsonstorage.net/v1/jsonbin", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ users: [] }),
-        });
-        const bj = await br.json().catch(() => ({}));
-        binUri = bj.uri || "";
-      } catch {}
-    }
-    return NextResponse.json({ webhook: `https://${host}/api/telegram`, result: res, binUri });
+    return NextResponse.json({ webhook: `https://${host}/api/telegram`, result: res });
   }
   if (url.searchParams.get("users") === "1") {
-    return NextResponse.json({ users: await getUsers() });
+    try {
+      const users = await getUsers();
+      return NextResponse.json({ users, configured: Boolean(REDIS_URL && REDIS_TOKEN) });
+    } catch (error) {
+      console.error("visitor store read failed", error);
+      return NextResponse.json({ users: [], configured: true, error: "store_unavailable" }, { status: 503 });
+    }
   }
   return NextResponse.json({ ok: true, bot: "mediators-bot" });
 }
@@ -105,13 +135,16 @@ export async function POST(req: Request) {
   const update = await req.json().catch(() => ({}));
   try {
     if (update.message?.text?.startsWith("/start")) {
-      await call("sendMessage", {
-        chat_id: update.message.chat.id,
-        text: WELCOME,
-        parse_mode: "HTML",
-        reply_markup: mainMenu,
-        disable_web_page_preview: true,
-      });
+      await Promise.allSettled([
+        trackUser(update.message.from),
+        call("sendMessage", {
+          chat_id: update.message.chat.id,
+          text: WELCOME,
+          parse_mode: "HTML",
+          reply_markup: mainMenu,
+          disable_web_page_preview: true,
+        }),
+      ]);
     } else if (update.callback_query) {
       const q = update.callback_query;
       const cb: string = q.data || "";
