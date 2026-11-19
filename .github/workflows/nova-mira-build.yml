@@ -185,7 +185,7 @@ jobs:
       - name: Render real gameplay frames
         run: |
           xvfb-run -a -s "-screen 0 1280x720x24" \
-            "$GODOT_DIR/godot" --path game --rendering-method gl_compatible \
+            "$GODOT_DIR/godot" --path game --rendering-method gl_compatibility \
             --rendering-driver opengl3 --script res://tools/capture_screens.gd 2>&1 | tee /tmp/screens.log
           test -s screenshots/01-main-menu.png
           ls -lh screenshots

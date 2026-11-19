@@ -1,6 +1,6 @@
 extends SceneTree
 ## CI screenshot capture. Run with Godot + Xvfb + OpenGL:
-##   xvfb-run -a godot --path game --rendering-method gl_compatible \
+##   xvfb-run -a godot --path game --rendering-method gl_compatibility \
 ##     --rendering-driver opengl3 --script res://tools/capture_screens.gd
 ## Saves real rendered frames into $GITHUB_WORKSPACE/screenshots/.
 
