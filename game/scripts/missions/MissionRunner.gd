@@ -55,7 +55,7 @@ func _marker_setup() -> void:
 	mat.emission_energy_multiplier = 2.0
 	marker_node.material_override = mat
 	marker_node.visible = false
-	get_tree().root.add_child(marker_node)
+	add_child.call_deferred(marker_node)
 
 func mission_count() -> int:
 	return STORY.size() + SIDE.size()

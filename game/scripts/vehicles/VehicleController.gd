@@ -114,13 +114,13 @@ func _build_wheels() -> void:
 	for i in range(4):
 		var wheel := VehicleWheel3D.new()
 		wheel.wheel_radius = 0.42 if spec["type"] == 0 else 0.36
-		wheel.suspension_rest_length = 0.3
+		wheel.wheel_rest_length = 0.3
 		wheel.suspension_stiffness = 32.0
 		wheel.damping_compression = 4.0
 		wheel.damping_relaxation = 5.0
-		wheel.traction = 1.6 * float(spec["grip"])
+		wheel.wheel_friction_slip = 1.6 * float(spec["grip"])
 		wheel.use_as_steering = i < 2
-		wheel.use_as_drive_wheel = spec["type"] == 0 or i < 2
+		wheel.use_as_traction = spec["type"] == 0 or i < 2
 		wheel.position = Vector3((-half_w if i % 2 == 0 else half_w), 0.45, (-half_l if i < 2 else half_l))
 		add_child(wheel)
 		_wheels.append(wheel)
@@ -196,7 +196,7 @@ func _physics_process(delta: float) -> void:
 	speed_kmh = linear_velocity.length() * 3.6
 	var grip := 1.0 if weather == null else weather.grip_modifier()
 	for w in _wheels:
-		w.traction = 1.6 * float(spec["grip"]) * grip
+		w.wheel_friction_slip = 1.6 * float(spec["grip"]) * grip
 	if is_player_vehicle and input != null:
 		var throttle := input.axis("move_back", "move_forward")
 		var steer := input.axis("move_left", "move_right")

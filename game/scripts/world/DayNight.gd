@@ -47,7 +47,6 @@ func apply() -> void:
 	_env.background_color = sky
 	_env.ambient_light_color = sky
 	_env.ambient_light_energy = lerpf(0.18, 0.75, day)
-	_env.fog_color = sky
 	var bus: Node = Engine.get_main_loop().root.get_node_or_null("GameManager/EventBus")
 	if bus != null and bus.has_signal("time_changed"):
 		bus.emit_signal("time_changed", hour)
