@@ -191,7 +191,7 @@ jobs:
           xvfb-run -a -s "-screen 0 960x540x24" \
             "$GODOT_DIR/godot" --path game --rendering-method gl_compatibility \
             --rendering-driver opengl3 --resolution 960x540 \
-            --write-movie /tmp/nova_frames.png --fixed-fps 30 --quit-after 500 2>&1 | tee /tmp/screens.log
+            --write-movie /tmp/nova_frames.png --fixed-fps 30 --quit-after 500 -- --capture-frames 2>&1 | tee /tmp/screens.log
           mkdir -p screenshots
           cp /tmp/nova_frames00000150.png screenshots/01-main-menu.png
           cp /tmp/nova_frames00000260.png screenshots/02-gameplay-day.png
