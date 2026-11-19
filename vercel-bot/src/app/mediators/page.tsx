@@ -116,8 +116,8 @@ export default function MediatorsPanel() {
       <div><div style={{ color: "#178a52", fontWeight: 850, letterSpacing: 1 }}>MEDIATORS · ADMIN CENTER</div><h1 style={{ margin: "4px 0", fontSize: "clamp(27px,4vw,42px)" }}>🛡️ مركز التحكم الشامل</h1><span style={{ color: "#718c7d" }}>إدارة الأقسام والزوار وإعدادات البوت من مكان واحد</span></div>
       <button style={softBtn} onClick={async () => { await fetch("/api/admin-auth", { method: "DELETE" }); setAuthenticated(false); }}>خروج آمن ↗</button>
     </header>
-    <div style={{ maxWidth: 1440, margin: "auto", display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-      <nav style={{ ...panel, flex: "0 0 230px", padding: 14, display: "grid", gap: 7, position: "sticky", top: 14 }}>
+    <div className="admin-layout" style={{ maxWidth: 1440, margin: "auto", display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <nav className="admin-nav" aria-label="أقسام لوحة التحكم" style={{ ...panel, flex: "0 0 230px", padding: 14, display: "grid", gap: 7, position: "sticky", top: 14 }}>
         {navItems.map((n) => <button key={n.id} onClick={() => { setTab(n.id); setSearch(""); setEditing(null); setForm(emptyForm); }} style={{ ...(tab === n.id ? greenBtn : softBtn), width: "100%", textAlign: "right", borderRadius: 16, boxShadow: tab === n.id ? greenBtn.boxShadow : "none" }}>{n.name}</button>)}
       </nav>
       <section style={{ flex: "1 1 700px", minWidth: 0, display: "grid", gap: 18 }}>
@@ -150,5 +150,13 @@ export default function MediatorsPanel() {
         {tab === "broadcast" && <div style={panel}><h2 style={{ marginTop: 0 }}>📣 إرسال رسالة جماعية</h2><p style={{ color: "#718c7d" }}>تُرسل الرسالة إلى حسابات تيليغرام التي بدأت البوت ({visitorData.botUsers.length}). استخدمها للإعلانات المهمة فقط.</p><textarea style={{ ...field, minHeight: 180 }} value={broadcast} onChange={(e) => setBroadcast(e.target.value)} placeholder="اكتب الرسالة هنا…" /><button disabled={busy || !broadcast.trim()} style={{ ...greenBtn, marginTop: 14, opacity: busy || !broadcast.trim() ? .6 : 1 }} onClick={doBroadcast}>{busy ? "جارٍ الإرسال…" : "إرسال للجميع"}</button></div>}
       </section>
     </div>
+    <style jsx>{`
+      @media (max-width: 760px) {
+        .admin-layout { display: block !important; }
+        .admin-nav { position: static !important; display: flex !important; flex-wrap: nowrap !important; width: 100%; max-width: 100%; box-sizing: border-box; overflow-x: auto; margin-bottom: 16px; gap: 8px !important; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+        .admin-nav :global(button) { width: auto !important; flex: 0 0 auto; white-space: nowrap; text-align: center !important; }
+        .admin-layout > section { width: 100%; }
+      }
+    `}</style>
   </main>;
 }

@@ -5,6 +5,28 @@ import { authorized } from "@/lib/admin-auth";
 
 const TOKEN = process.env.BOT_TOKEN || "9169731361:AAGdtx1soQWt2GIdcq23_vSyS1XfLcIH0NQ";
 const API = `https://api.telegram.org/bot${TOKEN}`;
+const REQUIRED_CHANNEL = "@mxabdou";
+const REQUIRED_CHANNEL_URL = "https://t.me/mxabdou";
+
+async function isSubscribed(userId: number | string) {
+  try {
+    const result = await call("getChatMember", { chat_id: REQUIRED_CHANNEL, user_id: userId });
+    const status = result?.result?.status;
+    return result?.ok === true && (status === "member" || status === "administrator" || status === "creator" || (status === "restricted" && result.result.is_member === true));
+  } catch (error) {
+    console.error("channel membership check failed", error);
+    return false;
+  }
+}
+
+const subscriptionPrompt = `🔒 <b>الاشتراك في القناة مطلوب لاستخدام البوت</b>\n\nاشترك في قناة @mxabdou، ثم اضغط «تحققت من الاشتراك».`;
+const subscriptionMenu = {
+  inline_keyboard: [
+    [{ text: "📢 اشترك في القناة", url: REQUIRED_CHANNEL_URL, style: "success" }],
+    [{ text: "✅ تحققت من الاشتراك", callback_data: "check_subscription", style: "primary" }],
+  ],
+};
+
 async function loadBotData() {
   const sql = db();
   await sql`CREATE TABLE IF NOT EXISTS mediator_state (id text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`;
@@ -46,6 +68,7 @@ async function call(method: string, body: any) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(7000),
   });
   return r.json().catch(() => ({}));
 }
@@ -138,21 +161,45 @@ export async function POST(req: Request) {
   const welcome = welcomeText(liveData);
   try {
     if (update.message?.text?.startsWith("/start")) {
+      const member = await isSubscribed(update.message.from.id);
       await Promise.allSettled([
         trackUser(update.message.from),
         call("sendMessage", {
           chat_id: update.message.chat.id,
-          text: welcome,
+          text: member ? welcome : subscriptionPrompt,
           parse_mode: "HTML",
-          reply_markup: mainMenu,
+          reply_markup: member ? mainMenu : subscriptionMenu,
           disable_web_page_preview: true,
         }),
       ]);
     } else if (update.callback_query) {
       const q = update.callback_query;
       const cb: string = q.data || "";
-      // رد فوري + تنفيذ بالتوازي = سرعة أعلى
       const [chat_id, message_id] = [q.message.chat.id, q.message.message_id];
+      if (cb === "check_subscription") {
+        const member = await isSubscribed(q.from.id);
+        if (member) {
+          await Promise.all([
+            call("answerCallbackQuery", { callback_query_id: q.id, text: "تم التحقق من اشتراكك ✅" }),
+            call("editMessageText", { chat_id, message_id, text: welcome, parse_mode: "HTML", reply_markup: mainMenu, disable_web_page_preview: true }),
+          ]);
+        } else {
+          await Promise.all([
+            call("answerCallbackQuery", { callback_query_id: q.id, text: "لم يظهر اشتراكك بعد. اشترك بالقناة ثم أعد المحاولة.", show_alert: true }),
+            call("editMessageText", { chat_id, message_id, text: subscriptionPrompt, parse_mode: "HTML", reply_markup: subscriptionMenu }),
+          ]);
+        }
+        return NextResponse.json({ ok: true });
+      }
+      // يمنع فتح القوائم إذا أُلغي الاشتراك بعد بدء البوت.
+      const member = await isSubscribed(q.from.id);
+      if (!member) {
+        await Promise.all([
+          call("answerCallbackQuery", { callback_query_id: q.id, text: "الاشتراك بالقناة مطلوب أولاً", show_alert: true }),
+          call("editMessageText", { chat_id, message_id, text: subscriptionPrompt, parse_mode: "HTML", reply_markup: subscriptionMenu }),
+        ]);
+        return NextResponse.json({ ok: true });
+      }
       const answer = call("answerCallbackQuery", { callback_query_id: q.id });
       if (cb === "menu") {
         await Promise.all([answer, call("editMessageText", {
