@@ -130,7 +130,7 @@ func _runtime() -> void:
 	_check(main != null, "main scene instantiates")
 	await _frames(8)
 	_check(SceneRouter.current_id == "boot", "boot screen opens")
-	await _frames(140)
+	await get_tree().create_timer(3.0).timeout
 	_check(SceneRouter.current_id == "menu", "boot -> menu")
 
 	for id in ["tracks", "garage", "shop", "achievements", "daily", "settings",

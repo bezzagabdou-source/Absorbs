@@ -115,7 +115,7 @@ func _build_road() -> void:
 		for vtx in [a, c, b, b, c, d]:
 			st.set_normal(Vector3.UP)
 			st.set_uv(Vector2(vtx.dot(rt0) * 0.25, vtx.dot(data.tangents[i0]) * 0.25))
-			st.set_vertex(vtx + Vector3.UP * 0.02)
+			st.add_vertex(vtx + Vector3.UP * 0.02)
 		# collider per ring
 		var mid = (p0 + p1) * 0.5
 		var fwd = p1 - p0
@@ -153,7 +153,7 @@ func _build_road() -> void:
 			for vtx in [e0, e1, x0, x0, e1, x1]:
 				kst.set_color(kc)
 				kst.set_normal(Vector3.UP)
-				kst.set_vertex(vtx + Vector3.UP * 0.07)
+				kst.add_vertex(vtx + Vector3.UP * 0.07)
 			var a0: Vector3 = e0 + data.rights[i0] * 0.14 * side
 			var a1: Vector3 = e1 + data.rights[i1] * 0.14 * side
 			var b0: Vector3 = a0 + data.rights[i0] * 0.24 * side
@@ -161,7 +161,7 @@ func _build_road() -> void:
 			for vtx in [a0 + Vector3.UP * 0.11, a1 + Vector3.UP * 0.11, b0 + Vector3.UP * 0.11,
 					b0 + Vector3.UP * 0.11, a1 + Vector3.UP * 0.11, b1 + Vector3.UP * 0.11]:
 				nst.set_normal(Vector3.UP)
-				nst.set_vertex(vtx)
+				nst.add_vertex(vtx)
 	var kmi = MeshInstance3D.new()
 	var kmat = StandardMaterial3D.new()
 	kmat.vertex_color_use_as_albedo = true
@@ -199,13 +199,13 @@ func _build_barriers() -> void:
 			var d = p1 + Vector3.UP * 0.85
 			for vtx in [a, c, b, b, c, d]:
 				bst.set_normal(-data.rights[i] * side)
-				bst.set_vertex(vtx)
+				bst.add_vertex(vtx)
 			var na = p0 + Vector3.UP * 0.9
 			var nb = p1 + Vector3.UP * 0.9
 			var off: Vector3 = data.rights[i] * 0.12
 			for vtx in [na - off, nb - off, na + off, na + off, nb - off, nb + off]:
 				nst.set_normal(Vector3.UP)
-				nst.set_vertex(vtx)
+				nst.add_vertex(vtx)
 			var fwd = p1 - p0
 			if fwd.length() > 0.01:
 				var cs = CollisionShape3D.new()

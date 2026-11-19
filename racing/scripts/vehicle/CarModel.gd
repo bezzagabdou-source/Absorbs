@@ -162,7 +162,7 @@ func _build_body(shape: Dictionary) -> void:
 				for v in [p0, p1, p2]:
 					st.set_normal(nrm)
 					st.set_uv(Vector2(v.x, v.z))
-					st.set_vertex(v)
+					st.add_vertex(v)
 	# caps
 	for endcap in [0, rings.size() - 1]:
 		var pts: Array = rings[endcap]
@@ -180,7 +180,7 @@ func _build_body(shape: Dictionary) -> void:
 			for v in tri:
 				st.set_normal(nrm)
 				st.set_uv(Vector2(v.x, v.y))
-				st.set_vertex(v)
+				st.add_vertex(v)
 	st.generate_tangents()
 	var mi = MeshInstance3D.new()
 	mi.name = "Body"
@@ -222,7 +222,7 @@ func _build_glasshouse(shape: Dictionary) -> void:
 		for v in [p0, p1, p2]:
 			st.set_normal(nrm)
 			st.set_uv(Vector2(v.x, v.z))
-			st.set_vertex(v)
+			st.add_vertex(v)
 	var mi = MeshInstance3D.new()
 	mi.name = "Glass"
 	mi.mesh = st.commit()
@@ -408,7 +408,6 @@ func _build_nitro(shape: Dictionary) -> void:
 		flame.rotation.x = PI * 0.5
 		flame.position = Vector3(width * 0.22 * side, 0.42, length * 0.5 + 0.7)
 		flame.visible = false
-		flame.modulate = Color(1, 1, 1, 1)
 		add_child(flame)
 		_nitro_nodes.append(flame)
 
