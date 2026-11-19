@@ -219,7 +219,10 @@ func show_toast(text: String) -> void:
 		bus.toast.emit(text)
 
 func _process(delta: float) -> void:
-	if "--capture-frames" in OS.get_cmdline_args():
+	var cli_args := OS.get_cmdline_user_args()
+	if cli_args.is_empty():
+		cli_args = OS.get_cmdline_args()
+	if "--capture-frames" in cli_args:
 		_capture_frame += 1
 		match _capture_frame:
 			200:
