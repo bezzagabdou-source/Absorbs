@@ -189,6 +189,10 @@ jobs:
             --rendering-driver opengl3 --script res://tools/capture_screens.gd 2>&1 | tee /tmp/screens.log
           test -s screenshots/01-main-menu.png
           ls -lh screenshots
+      - name: Screenshot log
+        if: always()
+        run: |
+          grep -iE 'ERROR|SHOT|failed|unrecognized|unsupported|crash' /tmp/screens.log 2>/dev/null | head -40 | while read -r line; do echo "::error::$line"; done || true
       - name: Commit screenshots to branch
         run: |
           git config user.name "Arena Agent"
