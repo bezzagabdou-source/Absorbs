@@ -50,8 +50,8 @@ func _animate_in() -> void:
 	tw.tween_property(content, "scale", Vector2.ONE, 0.42).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
-func go(scene_id: String, p: Dictionary = {}) -> void:
-	router.goto(scene_id, p)
+func go(scene_id: String, p: Dictionary = {}, push_history: bool = true) -> void:
+	router.goto(scene_id, p, push_history)
 
 
 func back() -> void:
