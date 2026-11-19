@@ -57,7 +57,7 @@ export default function MediatorsPanel() {
         <input style={input} placeholder="@username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
         <input style={input} placeholder="الضمان (50$)" value={form.guarantee} onChange={(e) => setForm({ ...form, guarantee: e.target.value })} />
         <input style={input} placeholder="ملاحظة" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-        <button style={btn} onClick={async () => { await act({ action: "add", section: cur, ...form }); setForm({ name: "", username: "", guarantee: "", note: "" }); }}>إضافة</button>
+        <button style={btn} onClick={async () => { await act({ action: "add", section: cur, ...form }); setForm({ name: "", username: "", guarantee: "", note: "" }); }}>➕ إضافة</button>
       </div>
     </div>
   );
