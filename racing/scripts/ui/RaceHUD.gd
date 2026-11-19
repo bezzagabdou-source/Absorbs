@@ -127,10 +127,10 @@ func _build_speedo() -> void:
 	# nitro bar under speedo
 	var nwrap = Panel.new()
 	nwrap.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	nwrap.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
-	nwrap.offset_top = -36
-	nwrap.offset_right = -SPEEDO_MARGIN
-	nwrap.offset_bottom = -12
+	nwrap.offset_left = -SPEEDO_SIZE - 8
+	nwrap.offset_top = -44
+	nwrap.offset_right = -10
+	nwrap.offset_bottom = -20
 	nwrap.add_theme_stylebox_override("panel", UIStyle.flat_box(Color(1, 1, 1, 0.08), 12))
 	nwrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(nwrap)
@@ -145,10 +145,10 @@ func _build_speedo() -> void:
 	nwrap.add_child(_nitro_fill)
 	var nlabel = UIStyle.make_kicker("NITRO", UIStyle.CYAN, 15)
 	nlabel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	nlabel.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
-	nlabel.offset_top = -58
-	nlabel.offset_right = -SPEEDO_MARGIN
-	nlabel.offset_bottom = -36
+	nlabel.offset_left = -SPEEDO_SIZE - 8
+	nlabel.offset_top = -68
+	nlabel.offset_right = -10
+	nlabel.offset_bottom = -44
 	nlabel.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	add_child(nlabel)
 	# damage bar on the left side under the minimap
@@ -247,7 +247,8 @@ func _build_warnings() -> void:
 func _build_countdown() -> void:
 	_countdown = UIStyle.make_title("3", 220, accent, HORIZONTAL_ALIGNMENT_CENTER)
 	_countdown.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_countdown.offset_top = -40
+	_countdown.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_countdown.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_countdown.modulate.a = 0.0
 	add_child(_countdown)
 
