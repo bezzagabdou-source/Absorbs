@@ -1,0 +1,5 @@
+build/
+*.tmp
+.import/
+android/
+export_cache/
