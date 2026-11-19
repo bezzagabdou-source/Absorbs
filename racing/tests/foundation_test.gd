@@ -5,8 +5,8 @@ extends SceneTree
 ## Run: godot --headless --path . --script res://tests/foundation_test.gd
 ## Exits non-zero on any failure.
 
-var failures := 0
-var checks := 0
+var failures = 0
+var checks = 0
 
 
 func _check(condition: bool, label: String) -> void:
@@ -41,9 +41,9 @@ func _test_scripts_parse() -> void:
 	print("[TEST] SECTION scripts")
 	var dirs = ["res://scripts/", "res://scripts/autoload/", "res://scripts/vehicle/",
 		"res://scripts/race/", "res://scripts/ui/", "res://scripts/ui/screens/"]
-	var count := 0
+	var count = 0
 	for d in dirs:
-		var dir := DirAccess.open(d)
+		var dir = DirAccess.open(d)
 		if dir == null:
 			continue
 		for f in dir.get_files():
@@ -129,7 +129,7 @@ func _test_cars_models() -> void:
 		root.add_child(model)
 		model.build(info, "cyan", "stock")
 		_check(model.wheels.size() == 4, "model %s has 4 wheels" % kind)
-		var has_body := false
+		var has_body = false
 		for c in model.get_children():
 			if c.name == "Shell":
 				has_body = true

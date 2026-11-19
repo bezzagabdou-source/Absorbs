@@ -25,7 +25,7 @@ func _build_audio_buses() -> void:
 	for bus_name in wanted:
 		if AudioServer.get_bus_index(bus_name) < 0:
 			AudioServer.add_bus()
-			var idx := AudioServer.bus_count - 1
+			var idx = AudioServer.bus_count - 1
 			AudioServer.set_bus_name(idx, bus_name)
 			AudioServer.set_bus_send(idx, "Master")
 	SettingsStore.apply_all()
@@ -57,9 +57,9 @@ func default_profile() -> Dictionary:
 func load_profile() -> void:
 	data = default_profile()
 	if FileAccess.file_exists(PATH):
-		var f := FileAccess.open(PATH, FileAccess.READ)
+		var f = FileAccess.open(PATH, FileAccess.READ)
 		if f:
-			var txt := f.get_as_text()
+			var txt = f.get_as_text()
 			f.close()
 			var parsed = JSON.parse_string(txt)
 			if parsed is Dictionary:
@@ -71,7 +71,7 @@ func load_profile() -> void:
 
 
 func _merge_into_default(parsed: Dictionary) -> void:
-	var base := default_profile()
+	var base = default_profile()
 	for k in base.keys():
 		if parsed.has(k):
 			base[k] = parsed[k]
@@ -118,13 +118,13 @@ func _quarantine_corrupt() -> void:
 
 func save_profile() -> void:
 	data["version"] = GameData.SAVE_VERSION
-	var f := FileAccess.open(TMP_PATH, FileAccess.WRITE)
+	var f = FileAccess.open(TMP_PATH, FileAccess.WRITE)
 	if not f:
 		push_error("cannot open profile for writing")
 		return
 	f.store_string(JSON.stringify(data, "  "))
 	f.close()
-	var d := DirAccess.open("user://")
+	var d = DirAccess.open("user://")
 	if d:
 		if d.file_exists("profile.json"):
 			d.remove("profile.json")
@@ -152,9 +152,9 @@ func spend_credits(amount: int) -> bool:
 
 
 func add_xp(amount: int) -> Dictionary:
-	var before := level()
+	var before = level()
 	data["xp"] = int(data.get("xp", 0)) + maxi(0, amount)
-	var after := level()
+	var after = level()
 	xp_changed.emit(int(data["xp"]), after)
 	var result: Dictionary = {"levels_gained": maxi(0, after - before), "level": after}
 	check_level_achievements()
@@ -196,7 +196,7 @@ func selected_car_id() -> String:
 
 
 func selected_car() -> Dictionary:
-	var info := GameData.car_by_id(selected_car_id())
+	var info = GameData.car_by_id(selected_car_id())
 	if info.is_empty():
 		info = GameData.CARS[0]
 	return info
@@ -211,7 +211,7 @@ func select_car(car_id: String) -> void:
 
 
 func buy_car(car_id: String) -> bool:
-	var info := GameData.car_by_id(car_id)
+	var info = GameData.car_by_id(car_id)
 	if info.is_empty() or owns(car_id):
 		return false
 	if level() < int(info.get("unlock", 0)):
@@ -234,7 +234,7 @@ func buy_car(car_id: String) -> bool:
 func _check_all_classes() -> void:
 	var classes: Dictionary = {}
 	for cid in data["owned"].keys():
-		var info := GameData.car_by_id(str(cid))
+		var info = GameData.car_by_id(str(cid))
 		if not info.is_empty():
 			classes[info["class"]] = true
 	if classes.size() >= 4:
@@ -263,7 +263,7 @@ func upgrade_level(car_id: String, kind: String) -> int:
 
 
 func upgrade_cost(car_id: String, kind: String) -> int:
-	var lvl := upgrade_level(car_id, kind)
+	var lvl = upgrade_level(car_id, kind)
 	var info: Dictionary = GameData.UPGRADES.get(kind, {})
 	var costs: Array = info.get("costs", [])
 	if lvl >= costs.size():
@@ -274,7 +274,7 @@ func upgrade_cost(car_id: String, kind: String) -> int:
 func buy_upgrade(car_id: String, kind: String) -> bool:
 	if not owns(car_id):
 		return false
-	var cost := upgrade_cost(car_id, kind)
+	var cost = upgrade_cost(car_id, kind)
 	if cost < 0 or not spend_credits(cost):
 		return false
 	var ups: Dictionary = data["owned"][car_id]["upgrades"]
@@ -282,7 +282,7 @@ func buy_upgrade(car_id: String, kind: String) -> bool:
 	var mx: int = GameData.UPGRADES[kind]["max"]
 	if int(ups[kind]) >= mx:
 		unlock_achievement_by_condition("tuner")
-	var all_max := true
+	var all_max = true
 	for u in GameData.UPGRADES.keys():
 		if int(ups.get(u, 0)) < int(GameData.UPGRADES[u]["max"]):
 			all_max = false
@@ -293,7 +293,7 @@ func buy_upgrade(car_id: String, kind: String) -> bool:
 
 
 func buy_rim(rim_id: String) -> bool:
-	var rim := GameData.rim_by_id(rim_id)
+	var rim = GameData.rim_by_id(rim_id)
 	if rim.is_empty():
 		return false
 	if data.get("rims_owned", []).has(rim_id):
@@ -317,7 +317,7 @@ func owns_rim(rim_id: String) -> bool:
 func buy_paint(paint_id: String) -> bool:
 	if data.get("paints_owned", []).has(paint_id):
 		return true
-	var p := GameData.paint_by_id(paint_id)
+	var p = GameData.paint_by_id(paint_id)
 	if p.is_empty() or not spend_credits(int(p["price"])):
 		return false
 	var owned_paints: Array = data.get("paints_owned", [])
@@ -333,14 +333,14 @@ func owns_paint(paint_id: String) -> bool:
 
 
 func tuned_stats(car_id: String) -> Dictionary:
-	var info := GameData.car_by_id(car_id)
+	var info = GameData.car_by_id(car_id)
 	if info.is_empty():
 		return {}
 	return GameData.tuned_stats(info, car_record(car_id).get("upgrades", {}))
 
 
 func physics_for(car_id: String) -> Dictionary:
-	var info := GameData.car_by_id(car_id)
+	var info = GameData.car_by_id(car_id)
 	if info.is_empty():
 		info = GameData.CARS[0]
 	return GameData.physics_for(info, car_record(car_id).get("upgrades", {}))
@@ -413,7 +413,7 @@ func claimed(id: String) -> bool:
 func unlock_achievement_by_condition(id: String) -> void:
 	if id == "" or unlocked(id):
 		return
-	var info := GameData.achievement_by_id(id)
+	var info = GameData.achievement_by_id(id)
 	if info.is_empty():
 		return
 	data["achievements"][id] = {"unlocked": true, "claimed": false}
@@ -452,16 +452,16 @@ func check_level_achievements() -> void:
 
 ## ------------------------------------------------------------------ daily
 func _local_day_index() -> int:
-	var t := Time.get_datetime_dict_from_system()
-	var unix := Time.get_unix_time_from_datetime_dict(t)
+	var t = Time.get_datetime_dict_from_system()
+	var unix = Time.get_unix_time_from_datetime_dict(t)
 	return int(unix / 86400.0)
 
 
 func daily_state() -> Dictionary:
 	var d: Dictionary = data["daily"]
-	var today := _local_day_index()
+	var today = _local_day_index()
 	var last = int(d.get("last_day", -1))
-	var claimed_today := last == today
+	var claimed_today: bool = last == today
 	var streak = int(d.get("streak", 0))
 	if last < today - 1:
 		streak = 0
@@ -470,11 +470,11 @@ func daily_state() -> Dictionary:
 
 
 func claim_daily() -> Dictionary:
-	var st := daily_state()
+	var st = daily_state()
 	if not st["can_claim"]:
 		return {}
 	var d: Dictionary = data["daily"]
-	var today: int = st["today"]
+	var today: int = int(st["today"])
 	var streak = int(d.get("streak", 0))
 	if int(d.get("last_day", -1)) == today - 1:
 		streak += 1
@@ -485,7 +485,7 @@ func claim_daily() -> Dictionary:
 	data["daily"] = d
 	var idx: int = (streak - 1) % GameData.DAILY_REWARDS.size()
 	var reward: Dictionary = GameData.DAILY_REWARDS[idx]
-	var amount := int(reward["credits"])
+	var amount: int = int(reward["credits"])
 	add_credits(amount)
 	if streak >= 7:
 		unlock_achievement_by_condition("daily_streak")
@@ -507,9 +507,9 @@ func total_distance_km() -> float:
 
 
 func format_credits(v: int) -> String:
-	var s := str(absi(v))
-	var out := ""
-	var count := 0
+	var s = str(absi(v))
+	var out = ""
+	var count = 0
 	for i in range(s.length() - 1, -1, -1):
 		out = s[i] + out
 		count += 1

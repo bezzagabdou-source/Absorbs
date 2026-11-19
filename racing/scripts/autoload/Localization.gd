@@ -545,7 +545,7 @@ func tr_key(key: String) -> String:
 
 
 func trf(key: String, args: Array) -> String:
-	var s := tr_key(key)
+	var s = tr_key(key)
 	return s % args
 
 

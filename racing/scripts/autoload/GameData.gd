@@ -352,7 +352,7 @@ func tuned_stats(car: Dictionary, upgrade_levels: Dictionary) -> Dictionary:
 
 
 func stat_rating(stats: Dictionary) -> int:
-	var total := 0
+	var total = 0
 	for k in stats:
 		total += int(stats[k])
 	return int(round(float(total) / float(stats.size())))
@@ -360,13 +360,13 @@ func stat_rating(stats: Dictionary) -> int:
 
 ## Physical tuning derived from 0..100 stats. Units: m/s, m/s^2, radians.
 func physics_for(car: Dictionary, upgrade_levels: Dictionary) -> Dictionary:
-	var st := tuned_stats(car, upgrade_levels)
-	var top_kmh := lerpf(168.0, 412.0, pow(float(st["speed"]) / 100.0, 1.35))
-	var accel := lerpf(4.0, 10.4, pow(float(st["accel"]) / 100.0, 1.6))
-	var grip := lerpf(0.78, 0.96, float(st["handling"]) / 100.0)
-	var brake_decel := lerpf(9.0, 21.0, float(st["brake"]) / 100.0)
-	var nitro_power := lerpf(0.22, 0.62, float(st["nitro"]) / 100.0)
-	var steer := lerpf(1.55, 1.92, float(st["handling"]) / 100.0)
+	var st = tuned_stats(car, upgrade_levels)
+	var top_kmh = lerpf(168.0, 412.0, pow(float(st["speed"]) / 100.0, 1.35))
+	var accel = lerpf(4.0, 10.4, pow(float(st["accel"]) / 100.0, 1.6))
+	var grip = lerpf(0.78, 0.96, float(st["handling"]) / 100.0)
+	var brake_decel = lerpf(9.0, 21.0, float(st["brake"]) / 100.0)
+	var nitro_power = lerpf(0.22, 0.62, float(st["nitro"]) / 100.0)
+	var steer = lerpf(1.55, 1.92, float(st["handling"]) / 100.0)
 	return {
 		"top_speed_ms": top_kmh / 3.6,
 		"top_kmh": top_kmh,
@@ -388,7 +388,7 @@ func xp_for_level(level: int) -> int:
 
 
 func level_for_xp(xp: int) -> int:
-	var lvl := 1
+	var lvl = 1
 	for i in range(LEVELS.size()):
 		if xp >= LEVELS[i]:
 			lvl = i + 1
@@ -398,8 +398,8 @@ func level_for_xp(xp: int) -> int:
 
 
 func level_progress(xp: int) -> Dictionary:
-	var lvl := level_for_xp(xp)
-	var cur := xp_for_level(lvl)
+	var lvl = level_for_xp(xp)
+	var cur = xp_for_level(lvl)
 	var nxt = xp_for_level(lvl + 1)
 	var span: int = maxi(1, nxt - cur)
 	return {"level": lvl, "cur": xp, "start": cur, "next": nxt,
@@ -411,8 +411,8 @@ func total_cars() -> int:
 
 
 func price_range(cls: String) -> Vector2i:
-	var lo := 99999999
-	var hi := 0
+	var lo = 99999999
+	var hi = 0
 	for c in cars_in_class(cls):
 		lo = mini(lo, int(c["price"]))
 		hi = maxi(hi, int(c["price"]))

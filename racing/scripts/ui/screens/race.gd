@@ -14,9 +14,9 @@ const HUD = preload("res://scripts/ui/RaceHUD.gd")
 var router
 var params: Dictionary = {}
 
-var mode := "circuit"
+var mode = "circuit"
 var track: Dictionary = {}
-var laps_target := 3
+var laps_target = 3
 
 var world: Node3D
 var viewport: SubViewport
@@ -28,21 +28,21 @@ var ai_cars: Array = []
 var cam
 var hud
 
-var race_time := 0.0
-var state := "countdown"     # countdown | racing | finished
-var lap := 1
-var checkpoint_idx := 0
+var race_time = 0.0
+var state = "countdown"     # countdown | racing | finished
+var lap = 1
+var checkpoint_idx = 0
 var laps: Array = []
-var lap_mark := 0.0
-var position := 1
-var player_progress := 0.0
-var best_lap_seen := 0.0
-var _last_speed := 0.0
-var _shake_cd := 0.0
-var _wrong_way_t := 0.0
-var _finish_delay := 0.0
-var _started_engine := false
-var _touch_steer_smooth := 0.0
+var lap_mark = 0.0
+var position = 1
+var player_progress = 0.0
+var best_lap_seen = 0.0
+var _last_speed = 0.0
+var _shake_cd = 0.0
+var _wrong_way_t = 0.0
+var _finish_delay = 0.0
+var _started_engine = false
+var _touch_steer_smooth = 0.0
 
 
 func _ready() -> void:
@@ -114,7 +114,7 @@ func _spawn_player() -> void:
 
 
 func _spawn_ai() -> void:
-	var count := 5
+	var count = 5
 	if mode == "drag":
 		count = 1
 	elif mode == "time_trial":
@@ -208,19 +208,19 @@ func _process(delta: float) -> void:
 
 
 func _read_driver_input(delta: float) -> void:
-	var steer := Input.get_axis("steer_left", "steer_right")
-	var throttle := Input.get_action_strength("throttle")
-	var brake := Input.get_action_strength("brake")
-	var nitro := Input.is_action_pressed("nitro")
-	var handbrake := Input.is_action_pressed("handbrake")
+	var steer = Input.get_axis("steer_left", "steer_right")
+	var throttle = Input.get_action_strength("throttle")
+	var brake = Input.get_action_strength("brake")
+	var nitro = Input.is_action_pressed("nitro")
+	var handbrake = Input.is_action_pressed("handbrake")
 	if Input.is_action_just_pressed("camera"):
 		cam.cycle_mode()
-	var mode_sel := str(SettingsStore.get_value("steer_mode", "buttons"))
+	var mode_sel = str(SettingsStore.get_value("steer_mode", "buttons"))
 	if mode_sel == "wheel":
 		steer = player.steer
 	elif mode_sel == "tilt":
 		var tilt = Input.get_gravity().x if Input.get_gravity().length() > 0.1 else 0.0
-		var t := clampf(tilt / 9.8, -1.0, 1.0)
+		var t = clampf(tilt / 9.8, -1.0, 1.0)
 		if bool(SettingsStore.get_value("invert_tilt", false)):
 			t = -t
 		steer = clampf(t * 1.8 * float(SettingsStore.get_value("sensitivity", 1.0)), -1.0, 1.0)
@@ -239,7 +239,7 @@ func _update_lap(_delta: float) -> void:
 	if cps.is_empty():
 		return
 	var next_cp: Dictionary = cps[checkpoint_idx % cps.size()]
-	var dist := global_along_distance(player_progress, float(next_cp["along"]))
+	var dist = global_along_distance(player_progress, float(next_cp["along"]))
 	if dist < 45.0:
 		checkpoint_idx += 1
 		AudioDirector.play_sfx("ui_confirm", -12.0)
@@ -247,7 +247,7 @@ func _update_lap(_delta: float) -> void:
 			_complete_lap()
 			checkpoint_idx = 0
 	var tan: Vector3 = prj["tan"] if prj.has("tan") else builder.data.tangents[int(prj["index"])]
-	var fwd := -player.global_transform.basis.z
+	var fwd = -player.global_transform.basis.z
 	if tan.dot(fwd) < -0.35 and player.speed_kmh() > 12.0:
 		_wrong_way_t += _delta
 	else:
@@ -256,12 +256,12 @@ func _update_lap(_delta: float) -> void:
 
 func global_along_distance(a: float, b: float) -> float:
 	var total: float = builder.data.total_length
-	var d := absf(a - b)
+	var d = absf(a - b)
 	return minf(d, total - d)
 
 
 func _complete_lap() -> void:
-	var lap_time := race_time - lap_mark
+	var lap_time = race_time - lap_mark
 	if lap_time < 3.0:
 		return
 	laps.append(lap_time)
@@ -283,11 +283,11 @@ func _finish_race() -> void:
 	for ai in ai_cars:
 		ai["node"].input_enabled = false
 	AudioDirector.stop_race_audio(1.2)
-	var total := race_time
+	var total = race_time
 	var reward: int = int(track.get("reward", 3000))
 	var pos_bonus = [1.0, 0.72, 0.55, 0.4, 0.3, 0.22]
 	var mult: float = pos_bonus[clampi(position - 1, 0, 5)] if mode == "circuit" else 1.0
-	var clean := player.wall_hits == 0
+	var clean = player.wall_hits == 0
 	var result: Dictionary = {
 		"track": str(track["id"]),
 		"track_name": str(track["name"]),
@@ -313,7 +313,7 @@ func _finish_race() -> void:
 
 
 func _update_standings() -> void:
-	var ahead := 0
+	var ahead = 0
 	for ai in ai_cars:
 		var prj: Dictionary = builder.data.project(ai["node"].global_position)
 		var ai_prog = float(prj["along"]) + float(ai["node"].laps_completed) * builder.data.total_length
@@ -331,7 +331,7 @@ func _update_audio() -> void:
 
 
 func _update_hud(delta: float) -> void:
-	var t := race_time
+	var t = race_time
 	var stats: Dictionary = {
 		"speed": player.speed_kmh(),
 		"gear": player.gear,
@@ -351,9 +351,9 @@ func _update_hud(delta: float) -> void:
 func format_time(t: float) -> String:
 	if t <= 0.0:
 		return "00:00.00"
-	var m := int(t / 60.0)
+	var m = int(t / 60.0)
 	var s = int(t) % 60
-	var cs := int((t - floorf(t)) * 100.0)
+	var cs = int((t - floorf(t)) * 100.0)
 	return "%02d:%02d.%02d" % [m, s, cs]
 
 
@@ -376,29 +376,29 @@ func _toggle_pause() -> void:
 
 
 func _build_pause_menu() -> void:
-	var overlay := ColorRect.new()
+	var overlay = ColorRect.new()
 	overlay.name = "PauseOverlay"
 	overlay.color = Color(0.01, 0.02, 0.04, 0.72)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(overlay)
-	var panel := UIStyle.make_glass_panel(34, Color(0.05, 0.08, 0.14, 0.92), 48, 0.35)
+	var panel = UIStyle.make_glass_panel(34, Color(0.05, 0.08, 0.14, 0.92), 48, 0.35)
 	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.offset_left = -280
 	panel.offset_right = 280
 	overlay.add_child(panel)
-	var v := VBoxContainer.new()
+	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", 18)
 	panel.add_child(v)
 	v.add_child(UIStyle.make_title(Localization.t("race.paused"), 64, builder.accent, HORIZONTAL_ALIGNMENT_CENTER))
-	var resume := UIStyle.make_button(Localization.t("race.resume"), builder.accent, true, 30, 84)
+	var resume = UIStyle.make_button(Localization.t("race.resume"), builder.accent, true, 30, 84)
 	resume.pressed.connect(_resume)
 	v.add_child(resume)
-	var restart := UIStyle.make_button(Localization.t("race.restart"), UIStyle.VIOLET, false, 30, 84)
+	var restart = UIStyle.make_button(Localization.t("race.restart"), UIStyle.VIOLET, false, 30, 84)
 	restart.pressed.connect(func(): _restart())
 	v.add_child(restart)
-	var quit := UIStyle.make_button(Localization.t("race.quit"), UIStyle.RED, false, 30, 84)
+	var quit = UIStyle.make_button(Localization.t("race.quit"), UIStyle.RED, false, 30, 84)
 	quit.pressed.connect(func(): _quit_to_menu())
 	v.add_child(quit)
 
@@ -406,7 +406,7 @@ func _build_pause_menu() -> void:
 func _resume() -> void:
 	get_tree().paused = false
 	state = "racing"
-	var overlay := get_node_or_null("PauseOverlay")
+	var overlay = get_node_or_null("PauseOverlay")
 	if overlay:
 		overlay.queue_free()
 

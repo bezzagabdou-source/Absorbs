@@ -4,11 +4,11 @@ extends Node3D
 ## proportions and silhouette.
 
 var car_info: Dictionary = {}
-var paint := Color("22e9ff")
-var paint_finish := 0
-var rim_id := "stock"
-var rim_spokes := 5
-var rim_style := 0
+var paint = Color("22e9ff")
+var paint_finish = 0
+var rim_id = "stock"
+var rim_spokes = 5
+var rim_style = 0
 var wheels: Array = []
 var _body_mat: StandardMaterial3D
 var _glass_mat: StandardMaterial3D
@@ -17,10 +17,10 @@ var _accent_mat: StandardMaterial3D
 var _head_mat: StandardMaterial3D
 var _tail_mat: StandardMaterial3D
 var _nitro_nodes: Array[Node3D] = []
-var _damage := 0.0
+var _damage = 0.0
 var _shapes: Dictionary = {}
 var _body_root: Node3D
-var _brake_light := false
+var _brake_light = false
 
 
 func build(info: Dictionary, paint_id: String = "", rim: String = "") -> void:
@@ -31,7 +31,7 @@ func build(info: Dictionary, paint_id: String = "", rim: String = "") -> void:
 	var paint_info = GameData.paint_by_id(paint_id if paint_id != "" else str(info.get("paint", "cyan")))
 	_set_paint(paint_info)
 	rim_id = rim if rim != "" else "stock"
-	var rim_info := GameData.rim_by_id(rim_id)
+	var rim_info = GameData.rim_by_id(rim_id)
 	rim_spokes = int(rim_info.get("spokes", 5))
 	rim_style = int(rim_info.get("style", 0))
 	_build_materials()
@@ -110,18 +110,18 @@ func _build_body(shape: Dictionary) -> void:
 	var stations = [
 		0.0, 0.06, 0.16, 0.30, 0.46, 0.62, 0.76, 0.88, 0.96, 1.0,
 	]
-	var st := SurfaceTool.new()
+	var st = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rings: Array = []
 	for s in stations:
 		var t: float = s
 		var z: float = lerpf(-length * 0.5, length * 0.5, t)
-		var taper := 1.0
+		var taper = 1.0
 		if t < 0.10:
 			taper = lerpf(nose + 0.28, 1.0, t / 0.10)
 		elif t > 0.90:
 			taper = lerpf(1.0, tail + 0.26, (t - 0.90) / 0.10)
-		var shoulder := 1.0
+		var shoulder = 1.0
 		if t > 0.30 and t < 0.72:
 			shoulder = 1.0 + 0.05 * stance
 		var half_w: float = width * 0.5 * taper * shoulder
@@ -158,7 +158,7 @@ func _build_body(shape: Dictionary) -> void:
 				var p0: Vector3 = pair[0]
 				var p1: Vector3 = pair[1]
 				var p2: Vector3 = pair[2]
-				var nrm := (p1 - p0).cross(p2 - p0).normalized()
+				var nrm = (p1 - p0).cross(p2 - p0).normalized()
 				for v in [p0, p1, p2]:
 					st.set_normal(nrm)
 					st.set_uv(Vector2(v.x, v.z))
@@ -166,7 +166,7 @@ func _build_body(shape: Dictionary) -> void:
 	# caps
 	for endcap in [0, rings.size() - 1]:
 		var pts: Array = rings[endcap]
-		var center := Vector3.ZERO
+		var center = Vector3.ZERO
 		for p in pts:
 			center += p
 		center /= float(pts.size())
@@ -174,7 +174,7 @@ func _build_body(shape: Dictionary) -> void:
 			var k2 = (k + 1) % pts.size()
 			var p0: Vector3 = pts[k]
 			var p1: Vector3 = pts[k2]
-			var flip := endcap == 0
+			var flip = endcap == 0
 			var tri = [center, p1, p0] if flip else [center, p0, p1]
 			var nrm = Vector3(0, 0, -1) if flip else Vector3(0, 0, 1)
 			for v in tri:
@@ -182,7 +182,7 @@ func _build_body(shape: Dictionary) -> void:
 				st.set_uv(Vector2(v.x, v.y))
 				st.set_vertex(v)
 	st.generate_tangents()
-	var mi := MeshInstance3D.new()
+	var mi = MeshInstance3D.new()
 	mi.name = "Body"
 	mi.mesh = st.commit()
 	mi.material_override = _body_mat
@@ -204,7 +204,7 @@ func _build_glasshouse(shape: Dictionary) -> void:
 	var w1: float = width * 0.36
 	var y_base: float = height * 0.62 + 0.30
 	var y_top: float = y_base + height * 0.42 * roof
-	var st := SurfaceTool.new()
+	var st = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var quads: Array = [
 		[Vector3(-w0, y_base, z0), Vector3(w0, y_base, z0), Vector3(w1, y_top, z0 + 0.25)],
@@ -218,12 +218,12 @@ func _build_glasshouse(shape: Dictionary) -> void:
 		var p0: Vector3 = q[0]
 		var p1: Vector3 = q[1]
 		var p2: Vector3 = q[2]
-		var nrm := (p1 - p0).cross(p2 - p0).normalized()
+		var nrm = (p1 - p0).cross(p2 - p0).normalized()
 		for v in [p0, p1, p2]:
 			st.set_normal(nrm)
 			st.set_uv(Vector2(v.x, v.z))
 			st.set_vertex(v)
-	var mi := MeshInstance3D.new()
+	var mi = MeshInstance3D.new()
 	mi.name = "Glass"
 	mi.mesh = st.commit()
 	mi.material_override = _glass_mat
@@ -244,7 +244,7 @@ func _build_details(shape: Dictionary) -> void:
 	_add_box(Vector3(width * 0.46, 0.15, 0.10), Vector3(0, 0.50, -length * 0.5 + 0.02), _trim_mat)
 	# mirrors
 	for side in [-1.0, 1.0]:
-		var m := _add_box(Vector3(0.22, 0.09, 0.12),
+		var m = _add_box(Vector3(0.22, 0.09, 0.12),
 			Vector3(width * 0.5 * side * 1.02, height * 0.62 + 0.28, lerpf(-length * 0.5, length * 0.5, shape["cabin"][0]) + 0.18),
 			_trim_mat)
 		m.name = "Mirror%s" % ("L" if side < 0 else "R")
@@ -257,15 +257,15 @@ func _build_details(shape: Dictionary) -> void:
 			_add_box(Vector3(0.06, wing * 0.42, 0.30),
 				Vector3(width * 0.34 * side, wing_y - wing * 0.22, wz), _trim_mat)
 	# accent stripe along the hood
-	var stripe := _add_box(Vector3(width * 0.10, 0.012, length * 0.32),
+	var stripe = _add_box(Vector3(width * 0.10, 0.012, length * 0.32),
 		Vector3(0, height * 0.62 + 0.315, -length * 0.30), _accent_mat)
 	stripe.name = "Stripe"
 
 
 func _add_box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
-	var bm := BoxMesh.new()
+	var bm = BoxMesh.new()
 	bm.size = size
-	var mi := MeshInstance3D.new()
+	var mi = MeshInstance3D.new()
 	mi.mesh = bm
 	mi.material_override = mat
 	mi.position = pos
@@ -279,19 +279,19 @@ func _build_wheels(shape: Dictionary) -> void:
 	var width: float = shape["width"]
 	var radius: float = shape["wheel"]
 	var track: float = width * 0.5 - 0.06
-	var axle_z := length * 0.5 - radius - 0.32
-	var tyre_mat := StandardMaterial3D.new()
+	var axle_z = length * 0.5 - radius - 0.32
+	var tyre_mat = StandardMaterial3D.new()
 	tyre_mat.albedo_color = Color(0.035, 0.035, 0.04)
 	tyre_mat.roughness = 0.92
 	tyre_mat.metallic = 0.0
-	var rim_mat := StandardMaterial3D.new()
+	var rim_mat = StandardMaterial3D.new()
 	rim_mat.albedo_color = Color(0.72, 0.76, 0.84)
 	rim_mat.metallic = 0.95
 	rim_mat.roughness = 0.18
 	if rim_style == 4:
 		rim_mat.albedo_color = Color(0.10, 0.11, 0.13)
 		rim_mat.roughness = 0.35
-	var brake_mat := StandardMaterial3D.new()
+	var brake_mat = StandardMaterial3D.new()
 	brake_mat.albedo_color = Color(0.55, 0.32, 0.10)
 	brake_mat.emission_enabled = true
 	brake_mat.emission = Color(1.0, 0.35, 0.05)
@@ -300,15 +300,15 @@ func _build_wheels(shape: Dictionary) -> void:
 	for front in [true, false]:
 		for side in [-1.0, 1.0]:
 			var z = -axle_z if front else axle_z
-			var holder := Node3D.new()
+			var holder = Node3D.new()
 			holder.name = "Wheel_%s_%s" % ["F" if front else "R", "L" if side < 0 else "R"]
 			holder.position = Vector3(track * side, radius, z)
 			add_child(holder)
-			var spin := Node3D.new()
+			var spin = Node3D.new()
 			spin.name = "Spin"
 			holder.add_child(spin)
-			var tyre := MeshInstance3D.new()
-			var tm := CylinderMesh.new()
+			var tyre = MeshInstance3D.new()
+			var tm = CylinderMesh.new()
 			tm.top_radius = radius
 			tm.bottom_radius = radius
 			tm.height = 0.31
@@ -319,8 +319,8 @@ func _build_wheels(shape: Dictionary) -> void:
 			tyre.rotation.x = PI * 0.5
 			tyre.layers = 1
 			spin.add_child(tyre)
-			var hub := MeshInstance3D.new()
-			var hm := CylinderMesh.new()
+			var hub = MeshInstance3D.new()
+			var hm = CylinderMesh.new()
 			hm.top_radius = radius * 0.62
 			hm.bottom_radius = radius * 0.62
 			hm.height = 0.33
@@ -331,8 +331,8 @@ func _build_wheels(shape: Dictionary) -> void:
 			hub.layers = 1
 			spin.add_child(hub)
 			for s in range(rim_spokes):
-				var spoke := MeshInstance3D.new()
-				var sm := BoxMesh.new()
+				var spoke = MeshInstance3D.new()
+				var sm = BoxMesh.new()
 				sm.size = Vector3(0.325, radius * 0.66, 0.055)
 				spoke.mesh = sm
 				spoke.material_override = rim_mat
@@ -343,8 +343,8 @@ func _build_wheels(shape: Dictionary) -> void:
 				spoke.rotation.z = float(s) / float(rim_spokes) * PI
 				spoke.layers = 1
 				spin.add_child(spoke)
-			var disc := MeshInstance3D.new()
-			var dm := CylinderMesh.new()
+			var disc = MeshInstance3D.new()
+			var dm = CylinderMesh.new()
 			dm.top_radius = radius * 0.55
 			dm.bottom_radius = radius * 0.55
 			dm.height = 0.02
@@ -370,13 +370,13 @@ func _build_lights(shape: Dictionary) -> void:
 	var height: float = shape["height"]
 	var y: float = height * 0.62 + 0.12
 	for side in [-1.0, 1.0]:
-		var h := _add_box(Vector3(width * 0.22, 0.10, 0.06),
+		var h = _add_box(Vector3(width * 0.22, 0.10, 0.06),
 			Vector3(width * 0.28 * side, y, -length * 0.5 + 0.03), _head_mat)
 		h.name = "Headlight%s" % ("L" if side < 0 else "R")
-		var t := _add_box(Vector3(width * 0.30, 0.075, 0.05),
+		var t = _add_box(Vector3(width * 0.30, 0.075, 0.05),
 			Vector3(width * 0.26 * side, y + 0.04, length * 0.5 - 0.02), _tail_mat)
 		t.name = "Taillight%s" % ("L" if side < 0 else "R")
-	var beam := SpotLight3D.new()
+	var beam = SpotLight3D.new()
 	beam.position = Vector3(0, height * 0.62 + 0.2, -length * 0.5 + 0.1)
 	beam.spot_range = 46.0
 	beam.spot_angle = 38.0
@@ -390,15 +390,15 @@ func _build_lights(shape: Dictionary) -> void:
 func _build_nitro(shape: Dictionary) -> void:
 	var length: float = shape["length"]
 	var width: float = shape["width"]
-	var flame_mat := StandardMaterial3D.new()
+	var flame_mat = StandardMaterial3D.new()
 	flame_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	flame_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	flame_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	flame_mat.albedo_color = Color(0.45, 0.8, 1.0, 0.85)
 	flame_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for side in [-1.0, 1.0]:
-		var flame := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
+		var flame = MeshInstance3D.new()
+		var cm = CylinderMesh.new()
 		cm.top_radius = 0.11
 		cm.bottom_radius = 0.0
 		cm.height = 1.5

@@ -116,7 +116,7 @@ var world_env: WorldEnvironment
 var sun: DirectionalLight3D
 var rain: GPUParticles3D
 var sky_mat: ShaderMaterial
-var _wet := false
+var _wet = false
 
 
 func setup(env: String, time_of_day: String, weather: String, accent: Color) -> void:
@@ -130,7 +130,7 @@ func setup(env: String, time_of_day: String, weather: String, accent: Color) -> 
 
 
 func _preset_key(env: String, tod: String) -> String:
-	var key := "city_night"
+	var key = "city_night"
 	if env == "city":
 		key = "city_night" if tod == "night" else "city_day"
 	elif env == "desert":
@@ -144,7 +144,7 @@ func _preset_key(env: String, tod: String) -> String:
 
 func _build_sky(p: Dictionary, weather: String) -> void:
 	sky_mat = ShaderMaterial.new()
-	var sh := Shader.new()
+	var sh = Shader.new()
 	sh.code = SKY_SHADER
 	sky_mat.shader = sh
 	sky_mat.set_shader_parameter("top_color", p["top"])
@@ -174,8 +174,8 @@ func _build_sun(p: Dictionary) -> void:
 
 func _build_world_env(p: Dictionary, accent: Color) -> void:
 	world_env = WorldEnvironment.new()
-	var e := Environment.new()
-	var sky := Sky.new()
+	var e = Environment.new()
+	var sky = Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	e.background_mode = Environment.BG_SKY
@@ -222,7 +222,7 @@ func _build_rain() -> void:
 	rain.preprocess = 1.0
 	rain.visibility_aabb = AABB(Vector3(-80, -30, -80), Vector3(160, 60, 160))
 	rain.position = Vector3(0, 26, 0)
-	var pm := ParticleProcessMaterial.new()
+	var pm = ParticleProcessMaterial.new()
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	pm.emission_box_extents = Vector3(60, 2, 60)
 	pm.direction = Vector3(0.12, -1, 0.05)
@@ -233,9 +233,9 @@ func _build_rain() -> void:
 	pm.scale_min = 0.6
 	pm.scale_max = 1.2
 	rain.process_material = pm
-	var mesh := QuadMesh.new()
+	var mesh = QuadMesh.new()
 	mesh.size = Vector2(0.035, 0.9)
-	var mat := StandardMaterial3D.new()
+	var mat = StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.albedo_color = Color(0.65, 0.8, 1.0, 0.35)

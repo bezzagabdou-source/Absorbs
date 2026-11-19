@@ -7,8 +7,8 @@ extends Control
 const SCREENS := ["boot", "menu", "tracks", "race", "garage", "shop", "results",
 	"achievements", "daily", "settings", "credits", "profile"]
 
-var _fps_accum := 0.0
-var _fps_frames := 0
+var _fps_accum = 0.0
+var _fps_frames = 0
 
 
 func _ready() -> void:
@@ -16,7 +16,7 @@ func _ready() -> void:
 	Localization.set_language(str(SettingsStore.get_value("language", "en")))
 	_apply_window()
 	SceneRouter.setup(self)
-	var forced := _forced_screen()
+	var forced = _forced_screen()
 	if forced != "":
 		SceneRouter.goto_instant(forced)
 	else:
@@ -29,7 +29,7 @@ func _apply_window() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	DisplayServer.screen_set_orientation(DisplayServer.SCREEN_SENSOR_LANDSCAPE)
 	Engine.set_physics_ticks_per_second(60)
-	var target := int(DisplayServer.screen_get_refresh_rate())
+	var target = int(DisplayServer.screen_get_refresh_rate())
 	Engine.max_fps = 0 if target <= 0 else maxi(60, target)
 
 
@@ -45,10 +45,10 @@ func _process(delta: float) -> void:
 		_fps_accum += delta
 		_fps_frames += 1
 		if _fps_accum >= 0.5:
-			var fps := float(_fps_frames) / _fps_accum
+			var fps = float(_fps_frames) / _fps_accum
 			_fps_accum = 0.0
 			_fps_frames = 0
-			var lbl := get_node_or_null("FpsLabel") as Label
+			var lbl = get_node_or_null("FpsLabel") as Label
 			if lbl == null:
 				lbl = UIStyle.make_label("", "numeric", 20, UIStyle.LIME)
 				lbl.name = "FpsLabel"

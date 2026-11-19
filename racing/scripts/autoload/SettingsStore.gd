@@ -81,7 +81,7 @@ func apply(key: String, value: Variant) -> void:
 
 
 func _set_bus_db(bus: String, linear: float) -> void:
-	var idx := AudioServer.get_bus_index(bus)
+	var idx = AudioServer.get_bus_index(bus)
 	if idx < 0:
 		return
 	if linear <= 0.001:
@@ -103,14 +103,14 @@ func _apply_quality(quality: String) -> void:
 		values["render_scale"] = cfg["scale"]
 	if int(cfg["shadow"]) > 0:
 		RenderingServer.directional_shadow_atlas_set_size(int(cfg["shadow"]), true)
-	var vp := get_viewport()
+	var vp = get_viewport()
 	if vp:
 		vp.msaa_3d = int(cfg["aa"])
 		vp.screen_space_aa = 1 if int(cfg["aa"]) == 0 else 0
 
 
 func save_settings() -> void:
-	var cfg := ConfigFile.new()
+	var cfg = ConfigFile.new()
 	for k in values.keys():
 		if str(k).begins_with("_"):
 			continue
@@ -119,7 +119,7 @@ func save_settings() -> void:
 
 
 func load_settings() -> void:
-	var cfg := ConfigFile.new()
+	var cfg = ConfigFile.new()
 	if cfg.load(PATH) != OK:
 		return
 	for k in DEFAULTS.keys():

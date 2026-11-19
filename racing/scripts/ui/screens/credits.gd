@@ -14,17 +14,17 @@ const ENTRIES := [
 
 func build() -> void:
 	top_bar(Localization.t("menu.credits"), true, false)
-	var panel := UIStyle.make_glass_panel(28, Color(0.04, 0.06, 0.11, 0.86), 32, 0.2)
+	var panel = UIStyle.make_glass_panel(28, Color(0.04, 0.06, 0.11, 0.86), 32, 0.2)
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.offset_left = 96
 	panel.offset_right = -96
 	panel.offset_top = 168
 	panel.offset_bottom = -60
 	content.add_child(panel)
-	var scroll := ScrollContainer.new()
+	var scroll = ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
-	var v := VBoxContainer.new()
+	var v = VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", 16)
 	scroll.add_child(v)
@@ -33,7 +33,7 @@ func build() -> void:
 		UIStyle.TEXT_DIM, 16))
 	v.add_child(UIStyle.make_rule())
 	for e in ENTRIES:
-		var row := VBoxContainer.new()
+		var row = VBoxContainer.new()
 		row.add_theme_constant_override("separation", -4)
 		row.add_child(UIStyle.make_kicker(str(e[0]), UIStyle.CYAN, 15))
 		row.add_child(UIStyle.make_label(str(e[1]), "body", 24, Color.WHITE))

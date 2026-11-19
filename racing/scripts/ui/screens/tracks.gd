@@ -2,8 +2,8 @@ extends "res://scripts/ui/ScreenBase.gd"
 ## Track + mode selection. A rotating coverflow of track cards with live art,
 ## mode pills, and a detail panel with start button.
 
-var _mode := "circuit"
-var _sel := 0
+var _mode = "circuit"
+var _sel = 0
 var _cards: Array = []
 var _detail: VBoxContainer
 var _mode_row: HBoxContainer
@@ -27,12 +27,12 @@ func _build_mode_row() -> void:
 	_mode_row.offset_bottom = 252
 	_mode_row.add_theme_constant_override("separation", 14)
 	content.add_child(_mode_row)
-	var idx := 0
+	var idx = 0
 	for mode in ["circuit", "trial", "drag"]:
 		var label = Localization.t("mode.circuit" if mode == "circuit" else ("mode.trial" if mode == "trial" else "mode.drag"))
-		var b := UIStyle.make_button(label, UIStyle.CYAN, mode == _mode, 24, 66)
+		var b = UIStyle.make_button(label, UIStyle.CYAN, mode == _mode, 24, 66)
 		b.custom_minimum_size = Vector2(240, 66)
-		var m := mode
+		var m = mode
 		b.pressed.connect(func(): _set_mode(m))
 		_mode_row.add_child(b)
 		idx += 1
@@ -50,7 +50,7 @@ func _set_mode(mode: String) -> void:
 
 
 func _build_coverflow() -> void:
-	var strip := HBoxContainer.new()
+	var strip = HBoxContainer.new()
 	strip.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	strip.offset_left = 96
 	strip.offset_right = -96
@@ -59,10 +59,10 @@ func _build_coverflow() -> void:
 	strip.add_theme_constant_override("separation", 22)
 	content.add_child(strip)
 	for i in range(4):
-		var card := _make_card(i)
+		var card = _make_card(i)
 		strip.add_child(card)
 		_cards.append(card)
-	var left := UIStyle.make_icon_button("back", 68, UIStyle.CYAN)
+	var left = UIStyle.make_icon_button("back", 68, UIStyle.CYAN)
 	left.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	left.offset_left = 14
 	left.offset_right = 82
@@ -70,7 +70,7 @@ func _build_coverflow() -> void:
 	left.offset_bottom = 498
 	left.pressed.connect(func(): _step(-1))
 	content.add_child(left)
-	var right := UIStyle.make_icon_button("play", 68, UIStyle.CYAN)
+	var right = UIStyle.make_icon_button("play", 68, UIStyle.CYAN)
 	right.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
 	right.offset_left = -82
 	right.offset_right = -14
@@ -81,26 +81,26 @@ func _build_coverflow() -> void:
 
 
 func _make_card(i: int) -> Control:
-	var holder := Control.new()
+	var holder = Control.new()
 	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	holder.custom_minimum_size = Vector2(0, 404)
-	var panel := PanelContainer.new()
+	var panel = PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.clip_contents = true
 	holder.add_child(panel)
-	var art := TextureRect.new()
+	var art = TextureRect.new()
 	art.name = "Art"
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(art)
-	var grad := TextureRect.new()
+	var grad = TextureRect.new()
 	grad.texture = UIStyle.gradient_tex(Color(0.02, 0.03, 0.06, 0.0), Color(0.01, 0.015, 0.03, 0.98), 10)
 	grad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	grad.stretch_mode = TextureRect.STRETCH_SCALE
 	grad.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(grad)
-	var info := VBoxContainer.new()
+	var info = VBoxContainer.new()
 	info.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	info.offset_left = 26
 	info.offset_right = -26
@@ -108,16 +108,16 @@ func _make_card(i: int) -> Control:
 	info.offset_bottom = -18
 	info.add_theme_constant_override("separation", 2)
 	panel.add_child(info)
-	var kicker := UIStyle.make_kicker("", UIStyle.CYAN, 15)
+	var kicker = UIStyle.make_kicker("", UIStyle.CYAN, 15)
 	kicker.name = "Kicker"
 	info.add_child(kicker)
-	var name_lbl := UIStyle.make_title("", 34, Color.WHITE)
+	var name_lbl = UIStyle.make_title("", 34, Color.WHITE)
 	name_lbl.name = "Name"
 	info.add_child(name_lbl)
-	var meta := UIStyle.make_label("", "body", 20, UIStyle.TEXT_DIM)
+	var meta = UIStyle.make_label("", "body", 20, UIStyle.TEXT_DIM)
 	meta.name = "Meta"
 	info.add_child(meta)
-	var lock := UIStyle.make_chip(Localization.t("common.locked"), UIStyle.RED, 16)
+	var lock = UIStyle.make_chip(Localization.t("common.locked"), UIStyle.RED, 16)
 	lock.name = "Lock"
 	lock.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	lock.offset_left = -180
@@ -125,7 +125,7 @@ func _make_card(i: int) -> Control:
 	lock.offset_top = 18
 	lock.offset_bottom = 60
 	panel.add_child(lock)
-	var btn := Button.new()
+	var btn = Button.new()
 	btn.flat = true
 	btn.set_anchors_preset(Control.PRESET_FULL_RECT)
 	btn.focus_mode = Control.FOCUS_NONE
@@ -175,13 +175,13 @@ func _refresh() -> void:
 			str(track.get("time", "")).to_upper()]
 		var lock: Control = card.find_child("Lock", true, false)
 		lock.visible = not _unlocked(track)
-		var selected := idx == _sel
+		var selected = idx == _sel
 		card.pivot_offset = card.size * 0.5
-		var tw := create_tween()
+		var tw = create_tween()
 		tw.set_parallel(true)
 		tw.tween_property(card, "modulate", Color(1, 1, 1, 1) if selected else Color(0.72, 0.76, 0.86, 1.0), 0.2)
 		tw.tween_property(card, "scale", Vector2(1, 1) if selected else Vector2(0.965, 0.965), 0.22)
-		var sb := UIStyle.glass_box(30, Color(0.06, 0.09, 0.16, 0.82),
+		var sb = UIStyle.glass_box(30, Color(0.06, 0.09, 0.16, 0.82),
 			0.62 if selected else 0.15, 0.55 if selected else 0.0)
 		panel.add_theme_stylebox_override("panel", sb)
 	_refresh_detail()
@@ -192,14 +192,14 @@ func _unlocked(track: Dictionary) -> bool:
 
 
 func _build_detail() -> void:
-	var panel := UIStyle.make_glass_panel(30, Color(0.04, 0.06, 0.11, 0.86), 30, 0.2)
+	var panel = UIStyle.make_glass_panel(30, Color(0.04, 0.06, 0.11, 0.86), 30, 0.2)
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	panel.offset_left = 96
 	panel.offset_right = -96
 	panel.offset_top = -300
 	panel.offset_bottom = -40
 	content.add_child(panel)
-	var h := HBoxContainer.new()
+	var h = HBoxContainer.new()
 	h.add_theme_constant_override("separation", 40)
 	panel.add_child(h)
 	_detail = VBoxContainer.new()
@@ -219,7 +219,7 @@ func _refresh_detail() -> void:
 	_detail.add_child(UIStyle.make_kicker(str(track.get("env", "")).to_upper() + " / " + _mode.to_upper(), UIStyle.CYAN, 14))
 	_detail.add_child(UIStyle.make_title(str(track["name"]), 48, UIStyle.CYAN))
 	_detail.add_child(UIStyle.make_label(str(track.get("desc", "")), "body", 24, UIStyle.TEXT_DIM))
-	var row := HBoxContainer.new()
+	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	_detail.add_child(row)
 	row.add_child(UIStyle.make_chip("%s KM" % "%.1f" % float(track["length"]), UIStyle.CYAN, 16))

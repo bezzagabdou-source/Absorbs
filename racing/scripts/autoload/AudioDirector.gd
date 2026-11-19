@@ -11,10 +11,10 @@ var _sfx: Dictionary = {}
 var _music_streams: Dictionary = {}
 var _music_a: AudioStreamPlayer
 var _music_b: AudioStreamPlayer
-var _active_music := "a"
-var _current_track := ""
+var _active_music = "a"
+var _current_track = ""
 var _pool: Array[AudioStreamPlayer] = []
-var _pool_index := 0
+var _pool_index = 0
 var engine_player: AudioStreamPlayer
 var screech_player: AudioStreamPlayer
 var wind_player: AudioStreamPlayer
@@ -37,7 +37,7 @@ func _ready() -> void:
 	_music_a = _make_music_player()
 	_music_b = _make_music_player()
 	for i in range(POOL_SIZE):
-		var p := AudioStreamPlayer.new()
+		var p = AudioStreamPlayer.new()
 		p.bus = "SFX"
 		add_child(p)
 		_pool.append(p)
@@ -47,7 +47,7 @@ func _ready() -> void:
 
 
 func _make_music_player() -> AudioStreamPlayer:
-	var p := AudioStreamPlayer.new()
+	var p = AudioStreamPlayer.new()
 	p.bus = "Music"
 	p.volume_db = -12.0
 	add_child(p)
@@ -55,7 +55,7 @@ func _make_music_player() -> AudioStreamPlayer:
 
 
 func _make_loop_player(sfx_name: String, bus: String, vol: float) -> AudioStreamPlayer:
-	var p := AudioStreamPlayer.new()
+	var p = AudioStreamPlayer.new()
 	p.bus = bus
 	p.volume_db = vol
 	if _sfx.has(sfx_name):
@@ -87,7 +87,7 @@ func play_music(track: String, fade: float = 1.2, volume_db: float = -8.0) -> vo
 	in_player.stream = _music_streams[track]
 	in_player.volume_db = -40.0
 	in_player.play()
-	var tw := create_tween()
+	var tw = create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(in_player, "volume_db", volume_db, fade).set_ease(Tween.EASE_OUT)
 	tw.tween_property(out_player, "volume_db", -40.0, fade * 0.8).set_ease(Tween.EASE_IN)
@@ -96,7 +96,7 @@ func play_music(track: String, fade: float = 1.2, volume_db: float = -8.0) -> vo
 
 func stop_music(fade: float = 0.8) -> void:
 	_current_track = ""
-	var tw := create_tween()
+	var tw = create_tween()
 	tw.set_parallel(true)
 	tw.tween_property(_music_a, "volume_db", -40.0, fade)
 	tw.tween_property(_music_b, "volume_db", -40.0, fade)

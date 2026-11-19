@@ -7,18 +7,18 @@ const TrackLib = preload("res://scripts/race/TrackLibrary.gd")
 
 var controller
 var data
-var skill := 0.8
-var target_index := 0
-var lane := 0.0
-var steer_smooth := 0.0
-var throttle := 0.0
-var brake := 0.0
-var nitro := false
-var _nitro_cd := 3.0
-var _lateral_bias := 0.0
-var _bias_timer := 0.0
-var _stuck_t := 0.0
-var _reverse_t := 0.0
+var skill = 0.8
+var target_index = 0
+var lane = 0.0
+var steer_smooth = 0.0
+var throttle = 0.0
+var brake = 0.0
+var nitro = false
+var _nitro_cd = 3.0
+var _lateral_bias = 0.0
+var _bias_timer = 0.0
+var _stuck_t = 0.0
+var _reverse_t = 0.0
 
 
 func setup(ctrl, track_data, skill_value: float, lane_offset: float) -> void:
@@ -36,16 +36,16 @@ func tick(delta: float, player_progress: float, my_progress: float) -> void:
 	var prj: Dictionary = data.project(pos, target_index)
 	target_index = int(prj["index"])
 	var along: float = float(prj["along"])
-	var look = 14.0 + controller.linear_speed() * 0.55
+	var look: float = 14.0 + controller.linear_speed() * 0.55
 	var target: Dictionary = data.sample_distance(along + look)
 	var aim: Vector3 = target["pos"] + target["right"] * _lane_offset_now()
-	var local := controller.to_local(aim)
+	var local: Vector3 = controller.to_local(aim)
 	local.y = 0.0
-	var desired_yaw := atan2(-local.x, -local.z)
+	var desired_yaw: float = atan2(-local.x, -local.z)
 	steer_smooth = lerpf(steer_smooth, clampf(desired_yaw * 1.6, -1.0, 1.0), delta * 7.0)
 	# speed planning: sample curvature over the next 60m
 	var speed_ms: float = controller.linear_speed()
-	var needed := 999.0
+	var needed: float = 999.0
 	for d in [18.0, 34.0, 52.0, 74.0]:
 		var s: Dictionary = data.sample_distance(along + d)
 		var t0: Dictionary = data.sample_distance(along + d + 8.0)
@@ -69,7 +69,7 @@ func tick(delta: float, player_progress: float, my_progress: float) -> void:
 		throttle = minf(throttle, 0.72)
 	# nitro on straights
 	_nitro_cd -= delta
-	var straight := needed > controller.top_speed * 0.9
+	var straight: bool = needed > controller.top_speed * 0.9
 	if straight and _nitro_cd <= 0.0 and controller.nitro_amount > 0.35:
 		nitro = true
 		_nitro_cd = 6.5 / maxf(0.5, skill)

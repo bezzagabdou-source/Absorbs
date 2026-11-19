@@ -205,7 +205,7 @@ func _build_theme() -> void:
 
 
 func flat_box(color: Color, radius: int = R, border: int = 0, border_color: Color = Color.TRANSPARENT) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
+	var sb = StyleBoxFlat.new()
 	sb.bg_color = color
 	sb.set_corner_radius_all(radius)
 	sb.set_border_width_all(border)
@@ -215,7 +215,7 @@ func flat_box(color: Color, radius: int = R, border: int = 0, border_color: Colo
 
 
 func glass_box(radius: int = R, tint: Color = GLASS, border_alpha: float = 0.16, glow: float = 0.0) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
+	var sb = StyleBoxFlat.new()
 	sb.bg_color = tint
 	sb.set_corner_radius_all(radius)
 	sb.set_border_width_all(1)
@@ -232,7 +232,7 @@ func glass_box(radius: int = R, tint: Color = GLASS, border_alpha: float = 0.16,
 
 
 func accent_box(accent: Color, fill: float, radius: int = 18, glow: float = 0.0) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
+	var sb = StyleBoxFlat.new()
 	sb.bg_color = Color(accent.r, accent.g, accent.b, fill)
 	sb.border_color = Color(accent.r, accent.g, accent.b, 0.65)
 	sb.set_border_width_all(2)
@@ -252,15 +252,15 @@ func gradient_tex(top: Color, bottom: Color, radius: int = R, size: int = 96) ->
 	var key = "g:%s:%s:%d:%d" % [top.to_html(), bottom.to_html(), radius, size]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var r := float(radius)
+	var img = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var r = float(radius)
 	for y in range(size):
-		var t := float(y) / float(size - 1)
-		var c := top.lerp(bottom, t)
+		var t = float(y) / float(size - 1)
+		var c = top.lerp(bottom, t)
 		for x in range(size):
-			var a := 1.0
-			var dx := 0.0
-			var dy := 0.0
+			var a = 1.0
+			var dx = 0.0
+			var dy = 0.0
 			if x < radius:
 				dx = r - float(x)
 			elif x >= size - radius:
@@ -273,13 +273,13 @@ func gradient_tex(top: Color, bottom: Color, radius: int = R, size: int = 96) ->
 				var d = sqrt(dx * dx + dy * dy)
 				a = clampf(r - d + 0.5, 0.0, 1.0)
 			img.set_pixel(x, y, Color(c.r, c.g, c.b, c.a * a))
-	var tex := ImageTexture.create_from_image(img)
+	var tex = ImageTexture.create_from_image(img)
 	_tex_cache[key] = tex
 	return tex
 
 
 func gradient_box(top: Color, bottom: Color, radius: int = R) -> StyleBoxTexture:
-	var sb := StyleBoxTexture.new()
+	var sb = StyleBoxTexture.new()
 	sb.texture = gradient_tex(top, bottom, radius)
 	var m = radius + 2
 	sb.texture_margin_left = m
@@ -297,14 +297,14 @@ func glow_tex(color: Color, size: int = 128) -> ImageTexture:
 	var key = "glow:%s:%d" % [color.to_html(), size]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var half := size * 0.5
+	var img = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var half = size * 0.5
 	for y in range(size):
 		for x in range(size):
-			var d := Vector2(x - half, y - half).length() / half
-			var a := pow(clampf(1.0 - d, 0.0, 1.0), 3.0)
+			var d = Vector2(x - half, y - half).length() / half
+			var a = pow(clampf(1.0 - d, 0.0, 1.0), 3.0)
 			img.set_pixel(x, y, Color(color.r, color.g, color.b, a * color.a))
-	var tex := ImageTexture.create_from_image(img)
+	var tex = ImageTexture.create_from_image(img)
 	_tex_cache[key] = tex
 	return tex
 
@@ -313,14 +313,14 @@ func circle_icon(size: int, color: Color) -> ImageTexture:
 	var key = "circle:%d:%s" % [size, color.to_html()]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var c := (size - 1) / 2.0
+	var img = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var c = (size - 1) / 2.0
 	for y in range(size):
 		for x in range(size):
-			var d := Vector2(x - c, y - c).length()
+			var d = Vector2(x - c, y - c).length()
 			var a = clampf(c - d + 0.5, 0.0, 1.0)
 			img.set_pixel(x, y, Color(color.r, color.g, color.b, a * color.a))
-	var tex := ImageTexture.create_from_image(img)
+	var tex = ImageTexture.create_from_image(img)
 	_tex_cache[key] = tex
 	return tex
 
@@ -329,12 +329,12 @@ func rounded_tex(fill: Color, radius: int = R, border: Color = Color.TRANSPARENT
 	var key = "round:%s:%d:%s:%d:%d" % [fill.to_html(), radius, border.to_html(), border_px, size]
 	if _tex_cache.has(key):
 		return _tex_cache[key]
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var r := float(radius)
+	var img = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var r = float(radius)
 	for y in range(size):
 		for x in range(size):
-			var dx := 0.0
-			var dy := 0.0
+			var dx = 0.0
+			var dy = 0.0
 			if x < radius:
 				dx = r - float(x)
 			elif x >= size - radius:
@@ -345,11 +345,11 @@ func rounded_tex(fill: Color, radius: int = R, border: Color = Color.TRANSPARENT
 				dy = float(y) - float(size - radius - 1)
 			var d = sqrt(dx * dx + dy * dy) if (dx > 0.0 and dy > 0.0) else 0.0
 			var a = clampf(r - d + 0.5, 0.0, 1.0) if d > 0.0 else 1.0
-			var col := fill
+			var col = fill
 			if border_px > 0 and border.a > 0.0 and d > maxf(0.0, r - float(border_px)):
 				col = border
 			img.set_pixel(x, y, Color(col.r, col.g, col.b, col.a * a))
-	var tex := ImageTexture.create_from_image(img)
+	var tex = ImageTexture.create_from_image(img)
 	_tex_cache[key] = tex
 	return tex
 
@@ -384,7 +384,7 @@ func class_color(cls: String) -> Color:
 
 func make_label(text: String, kind: String = "body", size: int = 26, color: Color = TEXT,
 		align: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
-	var l := Label.new()
+	var l = Label.new()
 	l.text = text
 	l.horizontal_alignment = align
 	l.add_theme_font_override("font", font_for(kind))
@@ -396,8 +396,8 @@ func make_label(text: String, kind: String = "body", size: int = 26, color: Colo
 
 func make_title(text: String, size: int = 64, accent: Color = CYAN,
 		align: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
-	var l := make_label(text, "display", size, Color.WHITE, align)
-	var ls := LabelSettings.new()
+	var l = make_label(text, "display", size, Color.WHITE, align)
+	var ls = LabelSettings.new()
 	ls.font = font_for("display")
 	ls.font_size = size
 	ls.font_color = Color.WHITE
@@ -411,7 +411,7 @@ func make_title(text: String, size: int = 64, accent: Color = CYAN,
 
 
 func make_kicker(text: String, accent: Color = CYAN, size: int = 20) -> Label:
-	var l := make_label(text.to_upper(), "kicker", size, accent)
+	var l = make_label(text.to_upper(), "kicker", size, accent)
 	l.add_theme_constant_override("shadow_outline_size", 8)
 	l.add_theme_color_override("font_shadow_color", Color(accent.r, accent.g, accent.b, 0.45))
 	return l
@@ -419,7 +419,7 @@ func make_kicker(text: String, accent: Color = CYAN, size: int = 20) -> Label:
 
 func make_button(text: String, accent: Color = CYAN, primary: bool = false,
 		font_size: int = 28, height: float = 78.0) -> Button:
-	var b := Button.new()
+	var b = Button.new()
 	b.text = text if Localization.is_rtl() else text.to_upper()
 	b.custom_minimum_size = Vector2(0, height)
 	b.focus_mode = Control.FOCUS_NONE
@@ -449,17 +449,17 @@ func make_button(text: String, accent: Color = CYAN, primary: bool = false,
 
 
 func _on_hover(b: Button, scale: float) -> void:
-	var tw := b.create_tween()
+	var tw = b.create_tween()
 	tw.tween_property(b, "scale", Vector2(scale, scale), 0.14).set_ease(Tween.EASE_OUT)
 
 
 func _on_press(b: Button) -> void:
-	var tw := b.create_tween()
+	var tw = b.create_tween()
 	tw.tween_property(b, "scale", Vector2(0.965, 0.965), 0.07).set_ease(Tween.EASE_OUT)
 
 
 func _on_release(b: Button) -> void:
-	var tw := b.create_tween()
+	var tw = b.create_tween()
 	tw.tween_property(b, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
@@ -469,18 +469,18 @@ func _on_click() -> void:
 
 func make_icon_button(icon_name: String, size: float = 84.0, accent: Color = CYAN,
 		text: String = "") -> Button:
-	var b := Button.new()
+	var b = Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(size, size)
 	b.text = text
 	b.add_theme_font_override("font", font_for("display"))
 	b.add_theme_font_size_override("font_size", 22)
 	b.add_theme_stylebox_override("normal", glass_box(int(size * 0.32), Color(0.08, 0.11, 0.2, 0.7), 0.25, 0.1))
-	var hover := glass_box(int(size * 0.32), Color(0.14, 0.22, 0.36, 0.9), 0.5, 0.35)
+	var hover = glass_box(int(size * 0.32), Color(0.14, 0.22, 0.36, 0.9), 0.5, 0.35)
 	b.add_theme_stylebox_override("hover", hover)
 	b.add_theme_stylebox_override("pressed", accent_box(accent, 0.4, int(size * 0.32), 0.45))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	var icon_rect := TextureRect.new()
+	var icon_rect = TextureRect.new()
 	icon_rect.texture = icon(icon_name)
 	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -499,8 +499,8 @@ func make_icon_button(icon_name: String, size: float = 84.0, accent: Color = CYA
 
 func make_glass_panel(radius: int = R, tint: Color = GLASS, padding: int = 26,
 		glow: float = 0.0) -> PanelContainer:
-	var p := PanelContainer.new()
-	var sb := glass_box(radius, tint, 0.18, glow)
+	var p = PanelContainer.new()
+	var sb = glass_box(radius, tint, 0.18, glow)
 	sb.content_margin_left = padding
 	sb.content_margin_right = padding
 	sb.content_margin_top = padding
@@ -511,8 +511,8 @@ func make_glass_panel(radius: int = R, tint: Color = GLASS, padding: int = 26,
 
 
 func make_gradient_panel(top: Color, bottom: Color, radius: int = R, padding: int = 26) -> PanelContainer:
-	var p := PanelContainer.new()
-	var sb := gradient_box(top, bottom, radius)
+	var p = PanelContainer.new()
+	var sb = gradient_box(top, bottom, radius)
 	sb.content_margin_left = padding
 	sb.content_margin_right = padding
 	sb.content_margin_top = padding
@@ -522,8 +522,8 @@ func make_gradient_panel(top: Color, bottom: Color, radius: int = R, padding: in
 
 
 func make_chip(text: String, accent: Color = CYAN, size: int = 20) -> PanelContainer:
-	var p := PanelContainer.new()
-	var sb := flat_box(Color(accent.r, accent.g, accent.b, 0.16), size, 1, Color(accent.r, accent.g, accent.b, 0.55))
+	var p = PanelContainer.new()
+	var sb = flat_box(Color(accent.r, accent.g, accent.b, 0.16), size, 1, Color(accent.r, accent.g, accent.b, 0.55))
 	sb.content_margin_left = 14
 	sb.content_margin_right = 14
 	sb.content_margin_top = 4
@@ -536,21 +536,21 @@ func make_chip(text: String, accent: Color = CYAN, size: int = 20) -> PanelConta
 
 func make_stat_bar(label_text: String, value: float, accent: Color = CYAN,
 		segments: int = 10, width: float = 300.0, show_value: bool = true) -> Control:
-	var root := VBoxContainer.new()
+	var root = VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
 	root.custom_minimum_size = Vector2(width, 0)
-	var top := HBoxContainer.new()
-	var lbl := make_label(label_text, "kicker", 17, TEXT_DIM)
+	var top = HBoxContainer.new()
+	var lbl = make_label(label_text, "kicker", 17, TEXT_DIM)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(lbl)
 	if show_value:
 		top.add_child(make_label(str(int(round(value))), "numeric", 20, accent))
 	root.add_child(top)
-	var bar := HBoxContainer.new()
+	var bar = HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 4)
-	var filled := int(round(clampf(value, 0.0, 100.0) / 100.0 * float(segments)))
+	var filled = int(round(clampf(value, 0.0, 100.0) / 100.0 * float(segments)))
 	for i in range(segments):
-		var seg := ColorRect.new()
+		var seg = ColorRect.new()
 		seg.custom_minimum_size = Vector2(0, 8)
 		seg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		seg.color = Color(accent.r, accent.g, accent.b, 0.95) if i < filled else Color(1, 1, 1, 0.07)
@@ -561,7 +561,7 @@ func make_stat_bar(label_text: String, value: float, accent: Color = CYAN,
 
 
 func make_progress_bar(value: float, accent: Color = CYAN, height: float = 10.0) -> ProgressBar:
-	var pb := ProgressBar.new()
+	var pb = ProgressBar.new()
 	pb.min_value = 0
 	pb.max_value = 100
 	pb.value = clampf(value, 0, 100)
@@ -574,7 +574,7 @@ func make_progress_bar(value: float, accent: Color = CYAN, height: float = 10.0)
 
 
 func make_toggle(initial: bool, accent: Color = CYAN) -> CheckButton:
-	var cb := CheckButton.new()
+	var cb = CheckButton.new()
 	cb.button_pressed = initial
 	cb.focus_mode = Control.FOCUS_NONE
 	cb.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
@@ -592,22 +592,22 @@ func _on_toggle(_on: bool) -> void:
 
 
 func make_art_background(art_name: String) -> Control:
-	var holder := Control.new()
+	var holder = Control.new()
 	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var rect := TextureRect.new()
+	var rect = TextureRect.new()
 	rect.texture = art(art_name)
 	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(rect)
-	var scrim := ColorRect.new()
+	var scrim = ColorRect.new()
 	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	scrim.color = Color(0.015, 0.02, 0.04, 0.66)
 	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(scrim)
-	var grad := TextureRect.new()
+	var grad = TextureRect.new()
 	grad.texture = gradient_tex(Color(0.01, 0.015, 0.03, 0.0), Color(0.01, 0.012, 0.025, 0.95), 8)
 	grad.set_anchors_preset(Control.PRESET_FULL_RECT)
 	grad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -618,11 +618,11 @@ func make_art_background(art_name: String) -> Control:
 
 
 func _shader_rect(code: String, params: Dictionary = {}) -> ColorRect:
-	var c := ColorRect.new()
+	var c = ColorRect.new()
 	c.set_anchors_preset(Control.PRESET_FULL_RECT)
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var mat := ShaderMaterial.new()
-	var sh := Shader.new()
+	var mat = ShaderMaterial.new()
+	var sh = Shader.new()
 	sh.code = code
 	mat.shader = sh
 	for k in params.keys():
@@ -648,7 +648,7 @@ func make_speedlines() -> ColorRect:
 
 
 func make_rule(accent: Color = Color(1, 1, 1, 0.12), height: float = 2.0) -> ColorRect:
-	var r := ColorRect.new()
+	var r = ColorRect.new()
 	r.color = accent
 	r.custom_minimum_size = Vector2(0, height)
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE

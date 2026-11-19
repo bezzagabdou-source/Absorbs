@@ -5,8 +5,8 @@ extends SceneTree
 ##
 ## Run: godot --headless --path . --script res://tests/runtime_test.gd
 
-var failures := 0
-var checks := 0
+var failures = 0
+var checks = 0
 
 
 func _check(cond: bool, label: String) -> void:
@@ -21,7 +21,7 @@ func _check(cond: bool, label: String) -> void:
 func _initialize() -> void:
 	await process_frame
 	print("[RUNTIME] ==== BOOT ====")
-	var main := load("res://scenes/Main.tscn").instantiate()
+	var main = load("res://scenes/Main.tscn").instantiate()
 	root.add_child(main)
 	await process_frame
 	await process_frame

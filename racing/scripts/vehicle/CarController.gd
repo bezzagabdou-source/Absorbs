@@ -11,43 +11,43 @@ signal nitro_started
 signal nitro_ended
 
 # --- tuning (filled from GameData.physics_for) -----------------------------
-var top_speed := 80.0            # m/s
-var engine_accel := 11.0         # m/s^2 at rest
-var grip := 0.9                  # 0..1 lateral grip factor
-var brake_decel := 18.0
-var nitro_power := 0.4
-var steer_rate := 1.7
-var mass := 1350.0
+var top_speed = 80.0            # m/s
+var engine_accel = 11.0         # m/s^2 at rest
+var grip = 0.9                  # 0..1 lateral grip factor
+var brake_decel = 18.0
+var nitro_power = 0.4
+var steer_rate = 1.7
+var mass = 1350.0
 
 # --- state -----------------------------------------------------------------
-var speed := 0.0                 # signed forward speed m/s
-var steer := 0.0                 # smoothed -1..1
-var throttle := 0.0
-var brake_input := 0.0
-var handbrake := false
-var nitro_active := false
-var nitro_amount := 1.0          # 0..1 tank
-var gear := 1
-var rpm := 900.0
-var drift_amount := 0.0          # 0..1 visual/score
-var damage := 0.0                # 0..1
-var wheel_spin := 0.0
-var airborne := false
-var distance_travelled := 0.0
-var nitro_used_time := 0.0
-var drift_time := 0.0
-var wall_hits := 0
-var laps_completed := 0
-var last_safe_position := Vector3.ZERO
-var input_enabled := true
-var autopilot := false
+var speed = 0.0                 # signed forward speed m/s
+var steer = 0.0                 # smoothed -1..1
+var throttle = 0.0
+var brake_input = 0.0
+var handbrake = false
+var nitro_active = false
+var nitro_amount = 1.0          # 0..1 tank
+var gear = 1
+var rpm = 900.0
+var drift_amount = 0.0          # 0..1 visual/score
+var damage = 0.0                # 0..1
+var wheel_spin = 0.0
+var airborne = false
+var distance_travelled = 0.0
+var nitro_used_time = 0.0
+var drift_time = 0.0
+var wall_hits = 0
+var laps_completed = 0
+var last_safe_position = Vector3.ZERO
+var input_enabled = true
+var autopilot = false
 
-var _yaw_rate := 0.0
-var _is_player := false
-var _nitro_hold := false
-var _impact_cooldown := 0.0
-var _prev_velocity := Vector3.ZERO
-var _assist := true
+var _yaw_rate = 0.0
+var _is_player = false
+var _nitro_hold = false
+var _impact_cooldown = 0.0
+var _prev_velocity = Vector3.ZERO
+var _assist = true
 var _body: Node3D = null
 
 const GEAR_RATIOS := [3.6, 2.5, 1.9, 1.5, 1.2, 1.0]
@@ -122,14 +122,14 @@ func _read_input(delta: float) -> void:
 	brake_input = Input.get_action_strength("brake")
 	handbrake = Input.is_action_pressed("handbrake")
 	_nitro_hold = Input.is_action_pressed("nitro")
-	var target := Input.get_action_strength("steer_right") - Input.get_action_strength("steer_left")
-	var rate := 9.0 * float(SettingsStore.get_value("sensitivity", 1.0))
+	var target = Input.get_action_strength("steer_right") - Input.get_action_strength("steer_left")
+	var rate = 9.0 * float(SettingsStore.get_value("sensitivity", 1.0))
 	steer = move_toward(steer, target, rate * delta)
 	_apply_nitro(_nitro_hold)
 
 
 func _apply_nitro(hold: bool) -> void:
-	var want := hold and nitro_amount > 0.001 and throttle > 0.2
+	var want = hold and nitro_amount > 0.001 and throttle > 0.2
 	if want and not nitro_active:
 		nitro_active = true
 		nitro_started.emit()
@@ -139,7 +139,7 @@ func _apply_nitro(hold: bool) -> void:
 
 
 func _update_gearbox(delta: float) -> void:
-	var kmh := absf(speed) * 3.6
+	var kmh = absf(speed) * 3.6
 	var ratio: float = float(GEAR_RATIOS[clampi(gear - 1, 0, GEAR_RATIOS.size() - 1)])
 	var max_for_gear = top_speed * 3.6 / GEAR_RATIOS.size() * gear + 18.0
 	if kmh > max_for_gear and gear < GEAR_RATIOS.size():
@@ -155,10 +155,10 @@ func _update_gearbox(delta: float) -> void:
 
 
 func _longitudinal(delta: float) -> void:
-	var accel := 0.0
-	var kmh := absf(speed) * 3.6
+	var accel = 0.0
+	var kmh = absf(speed) * 3.6
 	if throttle > 0.0:
-		var power_band := clampf(1.0 - pow(kmh / maxf(1.0, top_speed * 3.6), 1.7), 0.0, 1.0)
+		var power_band = clampf(1.0 - pow(kmh / maxf(1.0, top_speed * 3.6), 1.7), 0.0, 1.0)
 		accel = engine_accel * throttle * (0.35 + 0.65 * power_band)
 		if nitro_active and nitro_amount > 0.0:
 			accel += engine_accel * nitro_power
@@ -175,10 +175,10 @@ func _longitudinal(delta: float) -> void:
 	if handbrake:
 		accel -= brake_decel * 0.55
 	# aero drag + rolling resistance, calibrated so full throttle tops out at top_speed
-	var v := absf(speed)
-	var v_top := maxf(1.0, top_speed)
-	var roll := 0.35
-	var drag := maxf(0.0001, engine_accel * 0.35 - roll) / (v_top * v_top)
+	var v = absf(speed)
+	var v_top = maxf(1.0, top_speed)
+	var roll = 0.35
+	var drag = maxf(0.0001, engine_accel * 0.35 - roll) / (v_top * v_top)
 	accel -= drag * v * v * signf(speed)
 	accel -= roll * signf(speed)
 	speed += accel * delta
@@ -191,13 +191,13 @@ func _longitudinal(delta: float) -> void:
 
 
 func _lateral(delta: float) -> void:
-	var speed_norm := clampf(absf(speed) / maxf(1.0, top_speed), 0.0, 1.0)
-	var steer_authority := steer_rate * (1.0 - speed_norm * 0.52)
+	var speed_norm = clampf(absf(speed) / maxf(1.0, top_speed), 0.0, 1.0)
+	var steer_authority = steer_rate * (1.0 - speed_norm * 0.52)
 	var turn = steer * steer_authority * (0.35 + speed_norm * 0.9)
 	# Lateral grip: high grip resists sliding, handbrake/damage reduces it
 	var grip_factor = grip * (1.0 - damage * 0.35) - (0.42 if handbrake else 0.0)
 	grip_factor = clampf(grip_factor, 0.12, 1.0)
-	var target_yaw := turn * clampf(absf(speed) / 14.0, 0.0, 1.0)
+	var target_yaw = turn * clampf(absf(speed) / 14.0, 0.0, 1.0)
 	if speed < 0.0:
 		target_yaw = -target_yaw
 	_yaw_rate = lerpf(_yaw_rate, target_yaw, clampf(delta * (3.2 + grip_factor * 5.0), 0.0, 1.0))
@@ -216,23 +216,23 @@ func _lateral(delta: float) -> void:
 
 
 func _apply_motion(_delta: float) -> void:
-	var forward := -global_transform.basis.z
-	var motion := forward * speed
+	var forward = -global_transform.basis.z
+	var motion = forward * speed
 	# lateral slip vector for drift look
-	var side := global_transform.basis.x
+	var side = global_transform.basis.x
 	motion += side * drift_amount * speed * 0.16 * signf(steer)
 	velocity = motion
 	_prev_velocity = velocity
 	airborne = not is_on_floor() and global_position.y > 1.0
 	move_and_slide()
-	var hit := false
-	var strength := 0.0
+	var hit = false
+	var strength = 0.0
 	for i in range(get_slide_collision_count()):
-		var col := get_slide_collision(i)
-		var n := col.get_normal()
+		var col = get_slide_collision(i)
+		var n = col.get_normal()
 		if absf(n.y) > 0.55:
 			continue
-		var other := col.get_collider()
+		var other = col.get_collider()
 		if other is StaticBody3D or other is CSGShape3D:
 			hit = true
 			strength = maxf(strength, absf(speed) * 0.35)
@@ -252,7 +252,7 @@ func _post(delta: float) -> void:
 	distance_travelled += absf(speed) * delta
 	wheel_spin += speed * delta / WHEEL_RADIUS
 	if _body != null and _body.has_method("steer_wheels"):
-		var steer_vis := steer * 0.42
+		var steer_vis = steer * 0.42
 		_body.steer_wheels(steer_vis, wheel_spin)
 		if _body.has_method("set_nitro"):
 			_body.set_nitro(nitro_active, nitro_amount)

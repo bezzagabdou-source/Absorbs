@@ -7,10 +7,10 @@ signal screen_changed(id: String)
 
 var root: Control          # set by Driver
 var current: Control = null
-var current_id := ""
+var current_id = ""
 var _wipe: ColorRect
 var _wipe_mat: ShaderMaterial
-var _busy := false
+var _busy = false
 var history: Array[String] = []
 
 const WIPE_SHADER := """
@@ -37,7 +37,7 @@ func setup(host: Control) -> void:
 	_wipe.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_wipe.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_wipe_mat = ShaderMaterial.new()
-	var sh := Shader.new()
+	var sh = Shader.new()
 	sh.code = WIPE_SHADER
 	_wipe_mat.shader = sh
 	_wipe.material = _wipe_mat
@@ -83,7 +83,7 @@ func back() -> void:
 	_is_back = false
 
 
-var _is_back := false
+var _is_back = false
 
 
 func replace(scene_id: String, params: Dictionary = {}) -> void:
@@ -94,7 +94,7 @@ func replace(scene_id: String, params: Dictionary = {}) -> void:
 func _transition_out() -> void:
 	_wipe.visible = true
 	_wipe_mat.set_shader_parameter("progress", 0.0)
-	var tw := create_tween()
+	var tw = create_tween()
 	tw.tween_method(func(v: float): _wipe_mat.set_shader_parameter("progress", v), 0.0, 1.25, 0.24) \
 		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 	await tw.finished
@@ -103,7 +103,7 @@ func _transition_out() -> void:
 func _transition_in() -> void:
 	_wipe.visible = true
 	_wipe_mat.set_shader_parameter("progress", 1.25)
-	var tw := create_tween()
+	var tw = create_tween()
 	tw.tween_method(func(v: float): _wipe_mat.set_shader_parameter("progress", v), 1.25, 2.0, 0.32) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	await tw.finished

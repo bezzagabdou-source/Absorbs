@@ -8,7 +8,7 @@ const ARC_SEGMENTS := 44
 
 var player
 var track_data
-var accent := Color("22e9ff")
+var accent = Color("22e9ff")
 
 var _rpm_arc: Control
 var _speed_label: Label
@@ -25,13 +25,13 @@ var _minimap: Control
 var _speedlines: ColorRect
 var _damage_fill: ColorRect
 var _drift_label: Label
-var _drift_score := 0.0
-var _steer_touch := 0.0
-var _touch_left := false
-var _touch_right := false
+var _drift_score = 0.0
+var _steer_touch = 0.0
+var _touch_left = false
+var _touch_right = false
 var _nitro_btn: Button
 var _brake_btn: Button
-var _mobile := true
+var _mobile = true
 
 const SPEEDO_SIZE := 300.0
 const SPEEDO_MARGIN := 46.0
@@ -52,36 +52,36 @@ func _ready() -> void:
 
 
 func _build_top() -> void:
-	var top := HBoxContainer.new()
+	var top = HBoxContainer.new()
 	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	top.offset_left = 40
 	top.offset_right = -40
 	top.offset_top = 34
 	top.add_theme_constant_override("separation", 18)
 	add_child(top)
-	var pos_panel := UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 20, 0.18)
+	var pos_panel = UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 20, 0.18)
 	pos_panel.custom_minimum_size = Vector2(210, 0)
-	var pv := VBoxContainer.new()
+	var pv = VBoxContainer.new()
 	pv.add_theme_constant_override("separation", -6)
 	pos_panel.add_child(pv)
 	pv.add_child(UIStyle.make_kicker(Localization.t("hud.position"), accent, 16))
 	_pos_label = UIStyle.make_title("1/6", 54, accent)
 	pv.add_child(_pos_label)
 	top.add_child(pos_panel)
-	var lap_panel := UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 20, 0.0)
+	var lap_panel = UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 20, 0.0)
 	lap_panel.custom_minimum_size = Vector2(210, 0)
-	var lv := VBoxContainer.new()
+	var lv = VBoxContainer.new()
 	lv.add_theme_constant_override("separation", -6)
 	lap_panel.add_child(lv)
 	lv.add_child(UIStyle.make_kicker(Localization.t("hud.lap"), accent, 16))
 	_lap_label = UIStyle.make_title("1/3", 54, Color.WHITE)
 	lv.add_child(_lap_label)
 	top.add_child(lap_panel)
-	var spacer := Control.new()
+	var spacer = Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(spacer)
-	var time_panel := UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 20, 0.0)
-	var tv := VBoxContainer.new()
+	var time_panel = UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 20, 0.0)
+	var tv = VBoxContainer.new()
 	tv.add_theme_constant_override("separation", -4)
 	time_panel.add_child(tv)
 	tv.add_child(UIStyle.make_kicker(Localization.t("hud.time"), accent, 16))
@@ -90,13 +90,13 @@ func _build_top() -> void:
 	_best_label = UIStyle.make_label("--:--.--", "numeric", 20, UIStyle.TEXT_DIM)
 	tv.add_child(_best_label)
 	top.add_child(time_panel)
-	var pause := UIStyle.make_icon_button("pause", 74, accent)
+	var pause = UIStyle.make_icon_button("pause", 74, accent)
 	pause.pressed.connect(func(): pause_pressed.emit())
 	top.add_child(pause)
 
 
 func _build_speedo() -> void:
-	var wrap := Control.new()
+	var wrap = Control.new()
 	wrap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	wrap.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
 	wrap.offset_top = -SPEEDO_SIZE - SPEEDO_MARGIN + 10
@@ -109,7 +109,7 @@ func _build_speedo() -> void:
 	_rpm_arc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rpm_arc.draw.connect(_draw_speedo)
 	wrap.add_child(_rpm_arc)
-	var v := VBoxContainer.new()
+	var v = VBoxContainer.new()
 	v.set_anchors_preset(Control.PRESET_CENTER)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -117,7 +117,7 @@ func _build_speedo() -> void:
 	_speed_label = UIStyle.make_title("0", 96, accent, HORIZONTAL_ALIGNMENT_CENTER)
 	_speed_label.custom_minimum_size = Vector2(SPEEDO_SIZE, 0)
 	v.add_child(_speed_label)
-	var kmh := UIStyle.make_kicker("KM/H", UIStyle.TEXT_DIM, 18)
+	var kmh = UIStyle.make_kicker("KM/H", UIStyle.TEXT_DIM, 18)
 	kmh.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	kmh.custom_minimum_size = Vector2(SPEEDO_SIZE, 0)
 	v.add_child(kmh)
@@ -125,7 +125,7 @@ func _build_speedo() -> void:
 	_gear_label.custom_minimum_size = Vector2(SPEEDO_SIZE, 0)
 	v.add_child(_gear_label)
 	# nitro bar under speedo
-	var nwrap := Panel.new()
+	var nwrap = Panel.new()
 	nwrap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	nwrap.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
 	nwrap.offset_top = -36
@@ -143,7 +143,7 @@ func _build_speedo() -> void:
 	_nitro_fill.color = UIStyle.CYAN
 	_nitro_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nwrap.add_child(_nitro_fill)
-	var nlabel := UIStyle.make_kicker("NITRO", UIStyle.CYAN, 15)
+	var nlabel = UIStyle.make_kicker("NITRO", UIStyle.CYAN, 15)
 	nlabel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	nlabel.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN
 	nlabel.offset_top = -58
@@ -152,7 +152,7 @@ func _build_speedo() -> void:
 	nlabel.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	add_child(nlabel)
 	# damage bar on the left side under the minimap
-	var dwrap := Panel.new()
+	var dwrap = Panel.new()
 	dwrap.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	dwrap.offset_left = 46
 	dwrap.offset_top = -10
@@ -167,7 +167,7 @@ func _build_speedo() -> void:
 	_damage_fill.offset_right = 0
 	_damage_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dwrap.add_child(_damage_fill)
-	var dl := UIStyle.make_kicker("HULL", UIStyle.TEXT_DIM, 14)
+	var dl = UIStyle.make_kicker("HULL", UIStyle.TEXT_DIM, 14)
 	dl.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	dl.offset_left = 46
 	dl.offset_top = -34
@@ -195,7 +195,7 @@ func _build_speedo() -> void:
 
 
 func _build_touch() -> void:
-	var left := UIStyle.make_icon_button("back", 132, Color.WHITE)
+	var left = UIStyle.make_icon_button("back", 132, Color.WHITE)
 	left.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	left.offset_left = 40
 	left.offset_top = -176
@@ -205,7 +205,7 @@ func _build_touch() -> void:
 	left.button_up.connect(func(): _touch_left = false)
 	left.visible = _mobile
 	add_child(left)
-	var right := UIStyle.make_icon_button("play", 132, Color.WHITE)
+	var right = UIStyle.make_icon_button("play", 132, Color.WHITE)
 	right.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	right.offset_left = 188
 	right.offset_top = -176
@@ -257,13 +257,13 @@ func start_countdown() -> void:
 		_countdown.text = txt
 		_countdown.scale = Vector2(1.6, 1.6)
 		_countdown.pivot_offset = size * 0.5
-		var tw := create_tween()
+		var tw = create_tween()
 		tw.set_parallel(true)
 		tw.tween_property(_countdown, "modulate:a", 1.0, 0.08)
 		tw.tween_property(_countdown, "scale", Vector2.ONE, 0.30).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		AudioDirector.play_sfx("countdown_beep" if txt != "GO!" else "countdown_go", -2.0)
 		await get_tree().create_timer(0.72).timeout
-		var out := create_tween()
+		var out = create_tween()
 		out.tween_property(_countdown, "modulate:a", 0.0, 0.18)
 		await out.finished
 
@@ -285,7 +285,7 @@ func tick(delta: float, stats: Dictionary) -> void:
 	var dmg: float = float(stats.get("damage", 0.0))
 	_damage_fill.offset_right = 200.0 * (1.0 - clampf(dmg, 0.0, 1.0))
 	_damage_fill.color = UIStyle.LIME if dmg < 0.4 else (UIStyle.AMBER if dmg < 0.75 else UIStyle.RED)
-	var target_intensity := clampf((kmh - 140.0) / 260.0, 0.0, 1.0) * 0.9
+	var target_intensity = clampf((kmh - 140.0) / 260.0, 0.0, 1.0) * 0.9
 	if stats.get("nitro_active", false):
 		target_intensity = minf(1.0, target_intensity + 0.45)
 	var mat: ShaderMaterial = _speedlines.material
@@ -318,19 +318,19 @@ func _process(delta: float) -> void:
 func _draw_speedo() -> void:
 	if player == null:
 		return
-	var c := Vector2(SPEEDO_SIZE * 0.5, SPEEDO_SIZE * 0.5)
-	var r := SPEEDO_SIZE * 0.5 - 16.0
-	var start := deg_to_rad(138.0)
-	var span := deg_to_rad(264.0)
+	var c = Vector2(SPEEDO_SIZE * 0.5, SPEEDO_SIZE * 0.5)
+	var r = SPEEDO_SIZE * 0.5 - 16.0
+	var start = deg_to_rad(138.0)
+	var span = deg_to_rad(264.0)
 	_rpm_arc.draw_arc(c, r, start, start + span, 64, Color(1, 1, 1, 0.07), 16.0, true)
 	var rpm: float = clampf(float(player.call("rpm_ratio")), 0.0, 1.0)
 	var fill_end = start + span * rpm
-	var col := accent.lerp(UIStyle.MAGENTA, rpm)
+	var col = accent.lerp(UIStyle.MAGENTA, rpm)
 	_rpm_arc.draw_arc(c, r, start, fill_end, 64, Color(col.r, col.g, col.b, 0.95), 16.0, true)
 	_rpm_arc.draw_arc(c, r, start, start + span, 64, Color(1, 1, 1, 0.05), 3.0, true)
 	for i in range(ARC_SEGMENTS + 1):
 		var a = start + span * (float(i) / float(ARC_SEGMENTS))
-		var d := Vector2(cos(a), sin(a))
+		var d = Vector2(cos(a), sin(a))
 		var inner = c + d * (r - 26.0)
 		var outer = c + d * (r - 18.0) if i % 4 == 0 else c + d * (r - 22.0)
 		_rpm_arc.draw_line(inner, outer, Color(1, 1, 1, 0.22), 2.0)
@@ -339,29 +339,29 @@ func _draw_speedo() -> void:
 func _draw_minimap() -> void:
 	if track_data == null:
 		return
-	var rect := Rect2(Vector2.ZERO, _minimap.size)
+	var rect = Rect2(Vector2.ZERO, _minimap.size)
 	_minimap.draw_rect(rect, Color(0.02, 0.03, 0.06, 0.55), true)
 	var pts: PackedVector3Array = track_data.points
 	if pts.size() < 2:
 		return
-	var min_x := 1.0e9
-	var max_x := -1.0e9
-	var min_z := 1.0e9
-	var max_z := -1.0e9
+	var min_x = 1.0e9
+	var max_x = -1.0e9
+	var min_z = 1.0e9
+	var max_z = -1.0e9
 	for i in range(0, pts.size(), 8):
 		min_x = minf(min_x, pts[i].x)
 		max_x = maxf(max_x, pts[i].x)
 		min_z = minf(min_z, pts[i].z)
 		max_z = maxf(max_z, pts[i].z)
-	var pad := 18.0
-	var sc := minf((_minimap.size.x - pad * 2.0) / maxf(1.0, max_x - min_x),
+	var pad = 18.0
+	var sc = minf((_minimap.size.x - pad * 2.0) / maxf(1.0, max_x - min_x),
 		(_minimap.size.y - pad * 2.0) / maxf(1.0, max_z - min_z))
 	for i in range(0, pts.size() - 1, 4):
 		var a = _map_point(pts[i], min_x, min_z, sc, pad)
 		var b = _map_point(pts[i + 1], min_x, min_z, sc, pad)
 		_minimap.draw_line(a, b, Color(0.55, 0.72, 0.95, 0.75), 3.0)
 	if player and is_instance_valid(player):
-		var p := _map_point(player.global_position, min_x, min_z, sc, pad)
+		var p = _map_point(player.global_position, min_x, min_z, sc, pad)
 		_minimap.draw_circle(p, 6.0, accent)
 
 
@@ -370,7 +370,7 @@ func _map_point(v: Vector3, min_x: float, min_z: float, sc: float, pad: float) -
 
 
 func touch_steer() -> float:
-	var v := 0.0
+	var v = 0.0
 	if _touch_left:
 		v -= 1.0
 	if _touch_right:
