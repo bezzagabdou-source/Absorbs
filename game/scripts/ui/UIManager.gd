@@ -309,25 +309,25 @@ func _build_overlays() -> void:
 	overlay.visible = false
 	root.add_child(overlay)
 	pause = _make_overlay_panel("PAUSE")
-	var pv := pause.get_child(0).get_child(0) as VBoxContainer
+	var pv := pause.get_child(1).get_child(0) as VBoxContainer
 	pv.add_child(_button("RESUME", _close_overlays))
 	pv.add_child(_button("SAVE", func(): save_requested.emit()))
 	pv.add_child(_button("SETTINGS", _open_settings))
 	pv.add_child(_button("QUIT", func(): quit_requested.emit()))
 	phone = _make_overlay_panel("PHONE")
-	var hv := phone.get_child(0).get_child(0) as VBoxContainer
+	var hv := phone.get_child(1).get_child(0) as VBoxContainer
 	hv.add_child(_button("MESSAGES", func(): show_toast("Nova Mira: the harbour deal is still on.")))
 	hv.add_child(_button("MAP", _close_overlays))
 	hv.add_child(_button("JOBS", _open_missions))
 	hv.add_child(_button("CLOSE", _close_overlays))
 	shop_panel = _make_overlay_panel("STORE")
-	var sv := shop_panel.get_child(0).get_child(0) as VBoxContainer
+	var sv := shop_panel.get_child(1).get_child(0) as VBoxContainer
 	for item in Economy.SHOP_ITEMS:
 		var id := String(item["id"])
 		sv.add_child(_button("%s  $%d" % [loc.tr_text(String(item["name"])), int(item["price"])], func(): shop_requested.emit(id)))
 	sv.add_child(_button("CLOSE", _close_overlays))
 	settings_panel = _make_overlay_panel("SETTINGS")
-	var ev := settings_panel.get_child(0).get_child(0) as VBoxContainer
+	var ev := settings_panel.get_child(1).get_child(0) as VBoxContainer
 	ev.add_child(_button("QUALITY: LOW", func(): quality_requested.emit(0)))
 	ev.add_child(_button("QUALITY: MEDIUM", func(): quality_requested.emit(1)))
 	ev.add_child(_button("QUALITY: HIGH", func(): quality_requested.emit(2)))
@@ -341,7 +341,7 @@ func _build_overlays() -> void:
 	ev.add_child(_button("ENGLISH", func(): locale_requested.emit("en")))
 	ev.add_child(_button("CLOSE", _close_overlays))
 	mission_panel = _make_overlay_panel("MISSIONS")
-	var mv := mission_panel.get_child(0).get_child(0) as VBoxContainer
+	var mv := mission_panel.get_child(1).get_child(0) as VBoxContainer
 	for i in range(9):
 		var idx := i
 		mv.add_child(_button("MISSION %d" % (idx + 1), func(): mission_requested.emit(idx)))
