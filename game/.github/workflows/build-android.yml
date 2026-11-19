@@ -193,11 +193,11 @@ jobs:
             --rendering-driver opengl3 --resolution 960x540 \
             --write-movie /tmp/nova_frames.png --fixed-fps 30 --quit-after 300 2>&1 | tee /tmp/screens.log
           mkdir -p screenshots
-          cp /tmp/nova_frames_00000060.png screenshots/01-main-menu.png
-          cp /tmp/nova_frames_00000130.png screenshots/02-gameplay-day.png
-          cp /tmp/nova_frames_00000190.png screenshots/03-gameplay-night-rain.png
-          cp /tmp/nova_frames_00000240.png screenshots/04-phone-ui.png
-          cp /tmp/nova_frames_00000290.png screenshots/05-debug-overlay.png
+          cp /tmp/nova_frames00000060.png screenshots/01-main-menu.png
+          cp /tmp/nova_frames00000130.png screenshots/02-gameplay-day.png
+          cp /tmp/nova_frames00000190.png screenshots/03-gameplay-night-rain.png
+          cp /tmp/nova_frames00000240.png screenshots/04-phone-ui.png
+          cp /tmp/nova_frames00000290.png screenshots/05-debug-overlay.png
           ls -lh screenshots
       - name: Screenshot log
         if: always()
