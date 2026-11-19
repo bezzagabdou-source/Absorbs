@@ -4,7 +4,7 @@ extends CharacterBody3D
 
 signal died
 
-var input: InputManager
+var input: RefCounted
 var bus: EventBus
 var camera_rig: CameraRig
 var health: float = 100.0
@@ -22,7 +22,7 @@ var _walk_time: float = 0.0
 var _hurt_cooldown: float = 0.0
 var _skills: Dictionary = {"strength": 1, "speed": 1, "accuracy": 1, "driving": 1}
 
-func setup(p_input: InputManager, p_bus: EventBus) -> void:
+func setup(p_input: RefCounted, p_bus: EventBus) -> void:
 	input = p_input
 	bus = p_bus
 	_build_body()

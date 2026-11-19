@@ -7,7 +7,7 @@ enum State { BOOT, SPLASH, MENU, PLAY }
 var state: int = State.BOOT
 var bus: EventBus
 var loc: Localization3
-var input: InputManagerV2
+var input: RefCountedV2
 var settings: SettingsStore
 var quality: QualityManager
 var perf: PerformanceDashboard
