@@ -1,0 +1,234 @@
+{
+  "bot_name": "بوت الوسطاء المضمونين 🛡️",
+  "welcome": "أهلاً بك في بوت الوسطاء المضمونين 🛡️\nاختر القسم من الأسفل للاطلاع على الوسطاء الموثوقين",
+  "xr_info": {
+    "owner": "@X_S_S_R",
+    "complaints": [
+      "@X_8_8_R",
+      "@X_W_W_R"
+    ],
+    "group": "@X_P_P_R",
+    "store": "@XR_KKK"
+  },
+  "bm_info": {
+    "owner": "@E_M_E_G"
+  },
+  "ft_info": {
+    "owner": "@F_Y_Y_T",
+    "guarantee": "@F_Z_Z_T",
+    "proof": "@F_V_V_T"
+  },
+  "sections": {
+    "xr": [
+      {
+        "name": "وسيط XR",
+        "username": "@X_W_W_R",
+        "guarantee": "130$",
+        "note": "💠"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_8_8_R",
+        "guarantee": "100$",
+        "note": "🔳"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_J_J_R",
+        "guarantee": "100$",
+        "note": "🔳"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_2_2_R",
+        "guarantee": "70$",
+        "note": "✅"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_4_4_R",
+        "guarantee": "60$",
+        "note": "✅"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_6_6_R",
+        "guarantee": "60$",
+        "note": "✅"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_R_M_R",
+        "guarantee": "60$",
+        "note": "✅"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_3_3_R",
+        "guarantee": "55$",
+        "note": "✅"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_D_L_R",
+        "guarantee": "55$",
+        "note": "✅"
+      },
+      {
+        "name": "وسيط XR",
+        "username": "@X_I_I_R",
+        "guarantee": "55$",
+        "note": "✅"
+      }
+    ],
+    "bm": [
+      {
+        "name": "محمد — نائب ثالث",
+        "username": "@B_2_2_M",
+        "guarantee": "55$",
+        "note": "دلائله: @B_2_2_M1"
+      },
+      {
+        "name": "ضياء — مساعد",
+        "username": "@B_6_7_M",
+        "guarantee": "40$",
+        "note": "دلائله: @B_6_7_M"
+      },
+      {
+        "name": "زينو — مدير",
+        "username": "@B_Z_Z_M",
+        "guarantee": "38$",
+        "note": "دلائله: @B_Z_Z_M_1"
+      },
+      {
+        "name": "كرولو — مسؤول",
+        "username": "@B_1_0_M",
+        "guarantee": "33$",
+        "note": "دلائله: @B_2_9_M"
+      },
+      {
+        "name": "زيزو — وسيط أول",
+        "username": "@B_B_M_T",
+        "guarantee": "32$",
+        "note": "دلائله: @B_B_M_T_T"
+      },
+      {
+        "name": "جوهان — وسيط ثاني",
+        "username": "@B_J_J_M",
+        "guarantee": "25$",
+        "note": "دلائله: @B_JJ_M"
+      },
+      {
+        "name": "كيرو — وسيط ثالث",
+        "username": "@K_R_O_O_5",
+        "guarantee": "23$",
+        "note": "دلائله: @K_R_O_O_6"
+      },
+      {
+        "name": "شادو",
+        "username": "@B_3_3_M",
+        "guarantee": "20$",
+        "note": "دلائله: @b_3_7_m"
+      },
+      {
+        "name": "ايوب",
+        "username": "@ayou_b_1",
+        "guarantee": "20$",
+        "note": "دلائله: @B_HH_M"
+      },
+      {
+        "name": "زكريا",
+        "username": "@B_4_4_M",
+        "guarantee": "20$",
+        "note": "دلائله: @zaki_genfoud"
+      }
+    ],
+    "ft": [
+      {
+        "name": "شينوي",
+        "username": "@F_Q_Q_T",
+        "guarantee": "30$",
+        "note": "🔹"
+      },
+      {
+        "name": "ياتو — الأساسيين",
+        "username": "@F_4_4_T",
+        "guarantee": "40$",
+        "note": "🔹️"
+      },
+      {
+        "name": "ليفاي — النواب",
+        "username": "@F_2_2_T",
+        "guarantee": "34$",
+        "note": "🔹️"
+      },
+      {
+        "name": "دوما — النواب",
+        "username": "@F_3_3_T",
+        "guarantee": "30$",
+        "note": "🔹️"
+      },
+      {
+        "name": "دزاي — النواب",
+        "username": "@F_9_9_T",
+        "guarantee": "32$",
+        "note": "🔹️"
+      },
+      {
+        "name": "كيلوا — المساعدين",
+        "username": "@F_1_1_T",
+        "guarantee": "23$",
+        "note": "🔹️"
+      },
+      {
+        "name": "مادارا",
+        "username": "@F_M_O_T",
+        "guarantee": "25$",
+        "note": "🔹"
+      }
+    ],
+    "owners": [
+      {
+        "name": "مالك",
+        "username": "@ViP_1830",
+        "guarantee": "",
+        "note": ""
+      },
+      {
+        "name": "مالك",
+        "username": "@KAYAD_CR7",
+        "guarantee": "",
+        "note": ""
+      },
+      {
+        "name": "مالك",
+        "username": "@vh_le",
+        "guarantee": "",
+        "note": ""
+      }
+    ],
+    "free": [
+      {
+        "name": "وسيط مجاني مؤقت",
+        "username": "@B_6_7_M",
+        "guarantee": "",
+        "note": ""
+      },
+      {
+        "name": "وسيط مجاني مؤقت",
+        "username": "@F_i_j_T",
+        "guarantee": "",
+        "note": ""
+      },
+      {
+        "name": "وسيط مجاني مؤقت",
+        "username": "@F_V_M_T",
+        "guarantee": "",
+        "note": ""
+      }
+    ],
+    "scammers": []
+  },
+  "users": [],
+  "admins": []
+}

@@ -1,0 +1,1 @@
+{"name":"mediators-bot","private":true,"scripts":{"build":"next build","start":"next start"},"dependencies":{"@neondatabase/serverless":"^1.2.1","next":"16.2.6","react":"19.2.6","react-dom":"19.2.6"},"devDependencies":{"@types/node":"22.19.15","@types/react":"19.2.14","@types/react-dom":"19.2.3","typescript":"5.9.3"}}
