@@ -32,7 +32,7 @@ function checkText(value) {
 //  • كود ft-panel للقراءة فقط؛ المساعد يعدّل فيها المتغيرات (env_set) وليس الملفات.
 //  • ملفات الإعدادات الحسّاسة محمية: أي تعديل كيخالف الشروط كيترفض (بلا تفاصيل للمستخدم).
 const LOCK_RULES = [
-  { path: 'ft-contest-bot/src/lib/types.ts', must: [/PINNED_CHANNELS\s*=\s*\[[^\]]*["']@mxabdou["']/, /PINNED_CHANNELS\s*=\s*\[[^\]]*["']@mosaba9atmx["']/] },
+  { path: 'ft-contest-bot/src/lib/types.ts', must: [/PINNED_CHANNELS\s*=\s*\[[^\]]*["']@mxabdou["']/] },
   { path: 'ft-contest-bot/src/lib/settings.ts', must: [/withPinnedChannels/, /lockedChannels/, /system:locked-channels/, /PINNED_CHANNELS/] },
   { path: 'ft-contest-bot/src/lib/bot.ts', must: [/requiredChannelsOf/, /PINNED_CHANNELS/, /lockedChannels/, /checkChannels/] },
 ];

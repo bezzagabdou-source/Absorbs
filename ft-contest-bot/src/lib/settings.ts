@@ -1,5 +1,5 @@
 import { getStore } from "./store";
-import { DEFAULT_SETTINGS, OWNER_USERNAME, PINNED_CHANNELS, WELCOME_TEXT, type Settings } from "./types";
+import { DEFAULT_SETTINGS, OWNER_USERNAME, PINNED_CHANNELS, RETIRED_CHANNELS, WELCOME_TEXT, type Settings } from "./types";
 
 /** 🔐 كنضيفو القنوات المثبّتة (بلا تكرار) — ما تسقطش من البوابة */
 export function withPinnedChannels(list: unknown, locked: string[] = []): string[] {
@@ -9,32 +9,31 @@ export function withPinnedChannels(list: unknown, locked: string[] = []): string
 }
 
 /**
- * 🔒 القنوات المقفولة: اتحاد (الكود ∪ سجل system:locked-channels ف قاعدة البيانات).
- * السجل كيتكتب من الكود فقط ويكبر ولا يصغر؛ المفاتيح `system:*` محمية من أدوات المساعد وأي أداة بيانات.
- * يعني حتى إلا تحيّدات القناة من الكود، كتبقى مفروضة من قاعدة البيانات.
+ * 🔒 القنوات المقفولة = القنوات المثبّتة فالكود فقط (مصدر واحد).
+ * أي أثر قديم ف سجل system:locked-channels كيتنحّى، باش قناة تحيّدات ما تبقاش مفروضة.
  */
 const LOCK_KEY = "system:locked-channels";
-let lockMemo: { at: number; list: string[] } | null = null;
+let lockCheckedAt = 0;
 export async function lockedChannels(): Promise<string[]> {
   const code = normalizeChannels(PINNED_CHANNELS);
-  if (lockMemo && Date.now() - lockMemo.at < 60_000) return [...new Set([...lockMemo.list, ...code])];
-  let stored: string[] = [];
+  if (Date.now() - lockCheckedAt < 60_000) return code;
+  lockCheckedAt = Date.now();
   try {
-    const record = await getStore().get<{ channels?: unknown }>(LOCK_KEY);
-    stored = normalizeChannels(record?.channels);
+    const store = getStore();
+    const record = await store.get<{ channels?: unknown }>(LOCK_KEY);
+    if (record && normalizeChannels(record?.channels).some((chat) => !code.includes(chat))) {
+      await store.del(LOCK_KEY); // 🗑️ سجل قديم فيه قناة محيّدة → نمسحوه
+    }
   } catch {
     /* التخزين غير متاح مؤقتاً: الكود وحده كافي */
   }
-  const merged = [...new Set([...stored, ...code])];
-  if (merged.length > stored.length) {
-    try {
-      await getStore().set(LOCK_KEY, { channels: merged, at: Date.now() });
-    } catch {
-      /* نعاودو ف الطلب الجاي */
-    }
-  }
-  lockMemo = { at: Date.now(), list: merged };
-  return merged;
+  return code;
+}
+
+/** 🗑️ كنحيّدو القنوات المحيّدة من أي قائمة (قديمة كانت ولا جديدة) */
+export function pruneRetired(list: unknown): string[] {
+  const retired = new Set(normalizeChannels(RETIRED_CHANNELS));
+  return normalizeChannels(list).filter((chat) => !retired.has(chat));
 }
 
 /** تطبيع قائمة القنوات: نص أو مصفوفة → مصفوفة @usernames فريدة */
@@ -96,13 +95,15 @@ async function loadSettings(): Promise<Settings> {
         ? WELCOME_TEXT
         : savedWelcome,
     requiredChannels: withPinnedChannels(
-      (() => {
-        const list = normalizeChannels(saved.requiredChannels);
-        if (list.length) return list;
-        const legacy = normalizeChannels(saved.channelChat);
-        if (legacy.length) return legacy;
-        return DEFAULT_SETTINGS.requiredChannels;
-      })(),
+      pruneRetired(
+        (() => {
+          const list = normalizeChannels(saved.requiredChannels);
+          if (list.length) return list;
+          const legacy = normalizeChannels(saved.channelChat);
+          if (legacy.length) return legacy;
+          return DEFAULT_SETTINGS.requiredChannels;
+        })(),
+      ),
       locked,
     ),
     // 🔒 نسخة الاشتراك الإجباري: البوابة شغّالة افتراضياً (كيما كانت).
@@ -123,6 +124,15 @@ async function loadSettings(): Promise<Settings> {
       process.env.WEBHOOK_SECRET ||
       "",
   };
+  // 🗑️ تنظيف قاعدة البيانات: القناة المحيّدة كتتنحّى نهائياً من الإعدادات المخزّنة
+  const retired = new Set(normalizeChannels(RETIRED_CHANNELS));
+  if (normalizeChannels(saved.requiredChannels).some((chat) => retired.has(chat))) {
+    try {
+      await store.set(SETTINGS_KEY, { ...saved, requiredChannels: settings.requiredChannels });
+    } catch {
+      /* نعاودو المحاولة ف الطلب الجاي */
+    }
+  }
   return settings;
 }
 
@@ -132,7 +142,7 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
   // 🔐 القنوات المثبّتة ما تسقطش حتى إلا تحيّدتا من اللوحة
   const locked = await lockedChannels();
   next.lockedChannels = locked;
-  next.requiredChannels = withPinnedChannels(patch.requiredChannels !== undefined ? patch.requiredChannels : next.requiredChannels, locked);
+  next.requiredChannels = withPinnedChannels(pruneRetired(patch.requiredChannels !== undefined ? patch.requiredChannels : next.requiredChannels), locked);
   // أي تعديل صريح على requireJoin = قرار المالك → نثبّتوه
   if (patch.requireJoin !== undefined) next.gateOn = Boolean(patch.requireJoin);
   // 🔐 والبوابة كتبقى شغّالة على الكل دام كاينة قناة مثبّتة (المالك يطفيها غير بـ GATE_OFF=1)
