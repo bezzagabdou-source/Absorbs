@@ -220,14 +220,17 @@ jobs:
             xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 --quit-after 60 \
-              -- --screen=$screen --diag 2>&1 | grep '^\[DIAG\]' | while read -r l; do echo "::notice::$l"; done
+              -- --screen=$screen --diag > /tmp/diag_$screen.log 2>&1 || true
+            grep '^\[DIAG\]' /tmp/diag_$screen.log | head -40 | while read -r l; do echo "::warning::$l"; done
           done
+          cat /tmp/diag_*.log | grep -E '^\[DIAG\]|ERROR|SCRIPT' > racing/docs/diag.log || true
+          echo "--- diag.log ---"; head -60 racing/docs/diag.log
 
       - name: Commit screenshots to the branch
         run: |
           git config user.name "Arena Agent"
           git config user.email "agent@arena.ai"
-          git add racing/docs/screenshots
+          git add racing/docs/screenshots racing/docs/diag.log
           if git diff --cached --quiet; then
             echo "no screenshot changes"
           else
