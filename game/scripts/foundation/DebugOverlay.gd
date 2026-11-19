@@ -49,5 +49,5 @@ func _process(delta: float) -> void:
 	if provider != null and provider.has_method("get_debug_data"):
 		var extra: Dictionary = provider.call("get_debug_data")
 		for k in extra.keys():
-			lines.append("%s: %s" % [String(k), String(extra[k])])
+			lines.append("%s: %s" % [str(k), str(extra[k])])
 	label.text = "\n".join(lines)
