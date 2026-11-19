@@ -86,9 +86,9 @@ jobs:
           echo "::notice::Installed templates: $(find "$DEST" -maxdepth 1 -type f -printf '%f ' | head -c 600)"
           test -f "$DEST/android_release.apk" || { echo "::error::android_release.apk missing from export templates"; exit 1; }
           test -f "$DEST/android_debug.apk" || { echo "::error::android_debug.apk missing from export templates"; exit 1; }
-          echo "::notice::Template dir: $(ls -la "$DEST" | head -20 | tr '\n' '|')"
-          echo "::notice::Template version: $(cat "$DEST/version.txt" 2>/dev/null || echo none)"
-          echo "::notice::HOME=$HOME XDG_DATA_HOME=$XDG_DATA_HOME"
+          echo "::error::Template dir: $(ls -la "$DEST" | head -20 | tr '\n' '|')"
+          echo "::error::Template version: $(cat "$DEST/version.txt" 2>/dev/null || echo none)"
+          echo "::error::HOME=$HOME XDG_DATA_HOME=$XDG_DATA_HOME"
       - name: Generate fresh release keystore (not committed)
         run: |
           mkdir -p game/build
