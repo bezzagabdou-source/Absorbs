@@ -4,6 +4,9 @@ on:
   push:
     branches: ["**"]
     tags: ["v*"]
+    paths-ignore:
+      - "screenshots/**"
+      - "game/screenshots/**"
   pull_request:
   workflow_dispatch:
 
@@ -125,7 +128,9 @@ jobs:
           test -s build/NovaMira-v0.1.0.apk
           ls -lh build/NovaMira-v0.1.0.apk
       - name: APK size gate (200 MB)
-        run: python3 game/tools/check_apk_size.py build/NovaMira-v0.1.0.apk
+        run: |
+          python3 game/tools/check_apk_size.py build/NovaMira-v0.1.0.apk
+          echo "::error::APK_SIZE_BYTES=$(stat -c%s build/NovaMira-v0.1.0.apk)"
       - name: Diagnose failed export
         if: failure()
         run: |
@@ -159,3 +164,35 @@ jobs:
             `KNOWN_LIMITATIONS.md` for what is not implemented yet.
           files: build/NovaMira-v0.1.0.apk
           fail_on_unmatched_files: true
+
+  screenshots:
+    name: Capture in-game screenshots
+    needs: verify
+    if: github.event_name == 'push' && github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot + software GL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
+          mkdir -p "$GODOT_DIR"
+          curl -fL --retry 3 -o "$GODOT_DIR/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          mv "$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.x86_64" "$GODOT_DIR/godot"
+          chmod +x "$GODOT_DIR/godot"
+      - name: Render real gameplay frames
+        run: |
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            "$GODOT_DIR/godot" --path game --rendering-method gl_compatible \
+            --rendering-driver opengl3 --script res://tools/capture_screens.gd 2>&1 | tee /tmp/screens.log
+          test -s screenshots/01-main-menu.png
+          ls -lh screenshots
+      - name: Commit screenshots to branch
+        run: |
+          git config user.name "Arena Agent"
+          git config user.email "agent@arena.ai"
+          git checkout -B "$GITHUB_REF_NAME"
+          git add screenshots
+          if git diff --cached --quiet; then echo "No screenshot changes"; else git commit -m "chore(phase1): capture in-game screenshots [skip ci]"; git push origin "$GITHUB_REF_NAME"; fi
