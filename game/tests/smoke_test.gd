@@ -44,8 +44,8 @@ func _initialize() -> void:
 		quit(1)
 		return
 	var main := scene.instantiate()
-	root.add_child(main)
-	for i in range(24):
+	root.add_child.call_deferred(main)
+	for i in range(30):
 		await process_frame
 	_check(main.get("graph") != null, "world graph booted")
 	_check(main.get("city") != null and int(main.get("city").chunk_count()) > 0, "city chunks generated")
