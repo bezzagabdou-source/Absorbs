@@ -161,7 +161,9 @@ class handler(rabot.Handler):
                                 ('connection reset', 'connection_reset'),
                                 ('network:', 'network'), ('invalid json', 'invalid_response')]
                                 if marker in description), 'other')
-                            self._simple(200, {'ok': False, 'stage': 'telegram_error', 'code': exc.code, 'reason': reason})
+                            self._simple(200, {'ok': False, 'stage': 'telegram_error', 'code': exc.code, 'reason': reason,
+                                'token_fingerprint': hashlib.sha256(rabot.BOT_TOKEN.encode()).hexdigest()[:12],
+                                'token_length': len(rabot.BOT_TOKEN)})
                     else:
                         me = rabot.tg.get_me()
                         result = rabot.tg.call('setWebhook',
