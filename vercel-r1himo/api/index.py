@@ -144,7 +144,21 @@ class handler(rabot.Handler):
                     claimed = raw.execute('INSERT INTO r1_bootstrap(id) VALUES(2) ON CONFLICT DO NOTHING RETURNING id').fetchone()
                     raw.commit()
                     if not claimed:
-                        self._simple(200, {'ok': False, 'stage': 'already_attempted'})
+                        try:
+                            me = rabot.tg.get_me()
+                            info = rabot.tg.call('getWebhookInfo') or {}
+                            self._simple(200, {'ok': True, 'stage': 'already_attempted',
+                                'username': me.get('username', ''),
+                                'webhook_matches': info.get('url') == _public_url() + '/api/telegram',
+                                'pending_updates': info.get('pending_update_count'),
+                                'last_error': info.get('last_error_message')})
+                        except rabot.TgError as exc:
+                            description = exc.description.lower()
+                            reason = next((name for marker, name in [
+                                ('certificate_verify_failed', 'certificate'), ('timed out', 'timeout'),
+                                ('connection reset', 'connection_reset'), ('network:', 'network'),
+                                ('invalid json', 'invalid_response')] if marker in description), 'other')
+                            self._simple(200, {'ok': False, 'stage': 'telegram_error', 'code': exc.code, 'reason': reason})
                     else:
                         me = rabot.tg.get_me()
                         result = rabot.tg.call('setWebhook',
