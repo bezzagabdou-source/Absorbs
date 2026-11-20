@@ -153,7 +153,15 @@ class handler(rabot.Handler):
                                 'pending_updates': info.get('pending_update_count'),
                                 'last_error': info.get('last_error_message')})
                         except rabot.TgError as exc:
-                            self._simple(200, {'ok': False, 'stage': 'telegram_error', 'code': exc.code})
+                            description = exc.description.lower()
+                            reason = next((name for marker, name in [
+                                ('certificate_verify_failed', 'certificate'),
+                                ('timed out', 'timeout'), ('name or service not known', 'dns'),
+                                ('temporary failure in name resolution', 'dns'),
+                                ('connection reset', 'connection_reset'),
+                                ('network:', 'network'), ('invalid json', 'invalid_response')]
+                                if marker in description), 'other')
+                            self._simple(200, {'ok': False, 'stage': 'telegram_error', 'code': exc.code, 'reason': reason})
                     else:
                         me = rabot.tg.get_me()
                         result = rabot.tg.call('setWebhook',
