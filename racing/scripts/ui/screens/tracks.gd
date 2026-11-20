@@ -88,49 +88,54 @@ func _make_card(i: int) -> Control:
 	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	panel.clip_contents = true
 	holder.add_child(panel)
+	# vertical layout: fixed art block on top, caption block underneath
+	var col = VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	panel.add_child(col)
+	var art_holder = Control.new()
+	art_holder.custom_minimum_size = Vector2(0, 268)
+	art_holder.size_flags_vertical = Control.SIZE_FILL
+	art_holder.clip_contents = true
+	col.add_child(art_holder)
 	var art = TextureRect.new()
 	art.name = "Art"
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	panel.add_child(art)
-	var grad = TextureRect.new()
-	grad.texture = UIStyle.gradient_tex(Color(0.02, 0.03, 0.06, 0.0), Color(0.01, 0.015, 0.03, 0.98), 10)
-	grad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	grad.stretch_mode = TextureRect.STRETCH_SCALE
-	grad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	panel.add_child(grad)
+	art_holder.add_child(art)
 	var info = VBoxContainer.new()
-	info.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	info.offset_left = 26
-	info.offset_right = -26
-	info.offset_top = -142
-	info.offset_bottom = -18
-	info.add_theme_constant_override("separation", 2)
-	panel.add_child(info)
+	info.custom_minimum_size = Vector2(0, 122)
+	info.add_theme_constant_override("separation", 0)
+	col.add_child(info)
 	var kicker = UIStyle.make_kicker("", UIStyle.CYAN, 15)
 	kicker.name = "Kicker"
+	kicker.autowrap_mode = TextServer.AUTOWRAP_OFF
+	kicker.clip_text = true
 	info.add_child(kicker)
-	var name_lbl = UIStyle.make_title("", 34, Color.WHITE)
+	var name_lbl = UIStyle.make_title("", 30, Color.WHITE)
 	name_lbl.name = "Name"
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	name_lbl.clip_text = true
 	info.add_child(name_lbl)
-	var meta = UIStyle.make_label("", "body", 20, UIStyle.TEXT_DIM)
+	var meta = UIStyle.make_label("", "body", 18, UIStyle.TEXT_DIM)
 	meta.name = "Meta"
+	meta.autowrap_mode = TextServer.AUTOWRAP_OFF
+	meta.clip_text = true
 	info.add_child(meta)
 	var lock = UIStyle.make_chip(Localization.t("common.locked"), UIStyle.RED, 16)
 	lock.name = "Lock"
 	lock.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	lock.offset_left = -180
+	lock.offset_left = -190
 	lock.offset_right = -18
-	lock.offset_top = 18
-	lock.offset_bottom = 60
-	panel.add_child(lock)
+	lock.offset_top = 16
+	lock.offset_bottom = 58
+	art_holder.add_child(lock)
 	var btn = Button.new()
 	btn.flat = true
 	btn.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.pressed.connect(func(): _select(i))
-	panel.add_child(btn)
+	holder.add_child(btn)
 	return holder
 
 
@@ -161,7 +166,7 @@ func _refresh() -> void:
 		var track: Dictionary = tracks[idx]
 		var card: Control = _cards[i]
 		var panel: PanelContainer = card.get_child(0)
-		var art: TextureRect = panel.get_node("Art")
+		var art: TextureRect = card.get_node("Art")
 		var art_name = str(track.get("art", "city_night"))
 		art.texture = UIStyle.art(art_name)
 		if art.texture == null:
