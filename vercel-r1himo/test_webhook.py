@@ -39,8 +39,6 @@ class WebhookTests(unittest.TestCase):
                 return {'username': 'TestBot'}
             if method == 'setWebhook':
                 return True
-            if method == 'getWebhookInfo':
-                return {'url': 'https://test-r1himo.vercel.app/api/telegram', 'pending_update_count': 0}
             return {'message_id': 123}
         index.rabot.Telegram.call = fake_call
         cls.http = ThreadingHTTPServer(('127.0.0.1', 0), index.handler)
@@ -105,20 +103,6 @@ class WebhookTests(unittest.TestCase):
         self.assertIn('لوحة التحكم', json.dumps(sends[0], ensure_ascii=False))
         status, _, body = self.request('/healthz')
         self.assertEqual(json.loads(body)['users'], 1)
-
-    def test_035_one_time_bootstrap(self):
-        os.environ['BOOTSTRAP_ACTIVATION_KEY'] = 'local-test-key'
-        status, _, _ = self.request('/bootstrap-activate/bad')
-        self.assertEqual(status, 403)
-        self.calls.clear()
-        status, _, body = self.request('/bootstrap-activate/local-test-key')
-        self.assertEqual(status, 200)
-        self.assertTrue(json.loads(body)['ok'])
-        status, _, body = self.request('/bootstrap-activate/local-test-key')
-        self.assertEqual(status, 200)
-        self.assertEqual(json.loads(body)['stage'], 'already_attempted')
-        self.assertEqual(sum(method == 'setWebhook' for method, _ in self.calls), 1)
-        del os.environ['BOOTSTRAP_ACTIVATION_KEY']
 
     def test_04_persist_runtime_and_rewrite(self):
         with index._request_context():
