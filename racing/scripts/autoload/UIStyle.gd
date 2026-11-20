@@ -161,6 +161,13 @@ func _safe_load(path: String) -> FontFile:
 	return null
 
 
+func make_numeral(text: String, size: int = 42, color: Color = TEXT,
+		align: int = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+	## Title-sized numerals. Orbitron's slashed zero looks like a missing glyph,
+	## so numbers always use the Rajdhani numeric face.
+	return make_label(text, "numeric", size, color, align)
+
+
 func font_for(kind: String = "body") -> Font:
 	if Localization.is_rtl():
 		return arabic_bold if kind in ["display", "kicker", "bold"] else arabic_font

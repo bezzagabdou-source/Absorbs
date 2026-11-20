@@ -32,7 +32,7 @@ func _build_level_card() -> void:
 	_ring.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ring.draw.connect(_draw_ring)
 	ring_holder.add_child(_ring)
-	var lv = UIStyle.make_title(str(Game.level()), 96, UIStyle.CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+	var lv = UIStyle.make_numeral(str(Game.level()), 96, UIStyle.CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	lv.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	lv.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	ring_holder.add_child(lv)
@@ -44,7 +44,7 @@ func _build_level_card() -> void:
 	v.add_theme_constant_override("separation", 6)
 	h.add_child(v)
 	v.add_child(UIStyle.make_kicker(Localization.t("profile.title"), UIStyle.CYAN, 16))
-	v.add_child(UIStyle.make_title("LEVEL %d" % Game.level(), 64, UIStyle.CYAN))
+	v.add_child(UIStyle.make_title(Localization.trf("profile.level_fmt", [Game.level()]), 64, UIStyle.CYAN))
 	v.add_child(UIStyle.make_label(Localization.trf("profile.next_level", [Game.level() + 1]), "body", 24,
 		UIStyle.TEXT_DIM))
 	v.add_child(UIStyle.make_kicker(Localization.t("profile.total_xp"), UIStyle.TEXT_DIM, 14))
@@ -160,7 +160,7 @@ func _collection_card(title: String, have: int, total: int, accent: Color, cb: C
 	v.add_theme_constant_override("separation", 4)
 	p.add_child(v)
 	v.add_child(UIStyle.make_kicker(title, UIStyle.TEXT_DIM, 14))
-	v.add_child(UIStyle.make_title("%d / %d" % [have, total], 42, accent))
+	v.add_child(UIStyle.make_numeral("%d / %d" % [have, total], 42, accent))
 	v.add_child(UIStyle.make_progress_bar(float(have) / maxf(1.0, float(total)) * 100.0, accent, 8))
 	var b = UIStyle.make_button("VIEW", accent, false, 16, 48)
 	b.pressed.connect(cb)

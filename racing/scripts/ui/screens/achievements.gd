@@ -25,22 +25,27 @@ func _build_summary() -> void:
 	row.offset_bottom = 268
 	row.add_theme_constant_override("separation", 18)
 	content.add_child(row)
-	var p = UIStyle.make_glass_panel(24, Color(0.05, 0.08, 0.14, 0.8), 24, 0.2)
+	var p = UIStyle.make_glass_panel(24, Color(0.05, 0.08, 0.14, 0.8), 20, 0.2)
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	p.add_child(v)
 	v.add_child(UIStyle.make_kicker("UNLOCKED", UIStyle.TEXT_DIM, 14))
-	v.add_child(UIStyle.make_title("%d / %d" % [unlocked, total], 52, UIStyle.CYAN))
+	v.add_child(UIStyle.make_numeral("%d / %d" % [unlocked, total], 44, UIStyle.CYAN))
 	v.add_child(UIStyle.make_progress_bar(float(unlocked) / float(total) * 100.0, UIStyle.CYAN, 10))
 	row.add_child(p)
-	var p2 = UIStyle.make_glass_panel(24, Color(0.05, 0.08, 0.14, 0.8), 24, 0.2)
+	var p2 = UIStyle.make_glass_panel(24, Color(0.05, 0.08, 0.14, 0.8), 20, 0.2)
 	p2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	p2.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var v2 = VBoxContainer.new()
 	v2.add_theme_constant_override("separation", 2)
 	p2.add_child(v2)
 	v2.add_child(UIStyle.make_kicker("READY TO CLAIM", UIStyle.TEXT_DIM, 14))
-	v2.add_child(UIStyle.make_title(str(claimable), 52, UIStyle.GOLD if claimable > 0 else UIStyle.TEXT_DIM))
+	var cnt = UIStyle.make_numeral(str(claimable), 44, UIStyle.GOLD if claimable > 0 else UIStyle.TEXT_DIM)
+	v2.add_child(cnt)
+	v2.add_child(UIStyle.make_label(Localization.t("profile.claim_all") if claimable > 0 else "—",
+		"body", 18, UIStyle.TEXT_DIM))
 	if claimable > 0:
 		var claim_all = UIStyle.make_button(Localization.t("profile.claim_all"), UIStyle.GOLD, true, 20, 54)
 		claim_all.pressed.connect(_claim_all)
@@ -61,10 +66,13 @@ func _build_grid() -> void:
 	grid.columns = 3
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 18)
+	grid.columns = 3
 	grid.add_theme_constant_override("v_separation", 18)
 	scroll.add_child(grid)
 	for a in GameData.ACHIEVEMENTS:
-		grid.add_child(_card(a))
+		var card = _card(a)
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(card)
 
 
 func _card(a: Dictionary) -> Control:

@@ -65,7 +65,7 @@ func _build_top() -> void:
 	pv.add_theme_constant_override("separation", -6)
 	pos_panel.add_child(pv)
 	pv.add_child(UIStyle.make_kicker(Localization.t("hud.position"), accent, 16))
-	_pos_label = UIStyle.make_title("1/6", 54, accent)
+	_pos_label = UIStyle.make_numeral("1/6", 54, accent)
 	pv.add_child(_pos_label)
 	top.add_child(pos_panel)
 	var lap_panel = UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 20, 0.0)
@@ -74,7 +74,7 @@ func _build_top() -> void:
 	lv.add_theme_constant_override("separation", -6)
 	lap_panel.add_child(lv)
 	lv.add_child(UIStyle.make_kicker(Localization.t("hud.lap"), accent, 16))
-	_lap_label = UIStyle.make_title("1/3", 54, Color.WHITE)
+	_lap_label = UIStyle.make_numeral("1/3", 54, Color.WHITE)
 	lv.add_child(_lap_label)
 	top.add_child(lap_panel)
 	var spacer = Control.new()
@@ -114,14 +114,14 @@ func _build_speedo() -> void:
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(v)
-	_speed_label = UIStyle.make_title("0", 96, accent, HORIZONTAL_ALIGNMENT_CENTER)
+	_speed_label = UIStyle.make_numeral("0", 96, accent, HORIZONTAL_ALIGNMENT_CENTER)
 	_speed_label.custom_minimum_size = Vector2(SPEEDO_SIZE, 0)
 	v.add_child(_speed_label)
 	var kmh = UIStyle.make_kicker("KM/H", UIStyle.TEXT_DIM, 18)
 	kmh.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	kmh.custom_minimum_size = Vector2(SPEEDO_SIZE, 0)
 	v.add_child(kmh)
-	_gear_label = UIStyle.make_title("1", 44, UIStyle.MAGENTA, HORIZONTAL_ALIGNMENT_CENTER)
+	_gear_label = UIStyle.make_numeral("1", 44, UIStyle.MAGENTA, HORIZONTAL_ALIGNMENT_CENTER)
 	_gear_label.custom_minimum_size = Vector2(SPEEDO_SIZE, 0)
 	v.add_child(_gear_label)
 	# nitro bar under speedo
@@ -245,7 +245,7 @@ func _build_warnings() -> void:
 
 
 func _build_countdown() -> void:
-	_countdown = UIStyle.make_title("3", 220, accent, HORIZONTAL_ALIGNMENT_CENTER)
+	_countdown = UIStyle.make_numeral("3", 220, accent, HORIZONTAL_ALIGNMENT_CENTER)
 	_countdown.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_countdown.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_countdown.mouse_filter = Control.MOUSE_FILTER_IGNORE
