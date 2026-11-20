@@ -110,7 +110,7 @@ func _build_speedo() -> void:
 	_rpm_arc.draw.connect(_draw_speedo)
 	wrap.add_child(_rpm_arc)
 	var v = VBoxContainer.new()
-	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wrap.add_child(v)

@@ -26,9 +26,12 @@ func build() -> void:
 	panel.add_child(scroll)
 	var v = VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", 16)
+	v.add_theme_constant_override("separation", 14)
 	scroll.add_child(v)
-	v.add_child(UIStyle.make_title("APEX VELOCITY", 64, UIStyle.CYAN))
+	var ttl = UIStyle.make_title("APEX VELOCITY", 56, UIStyle.CYAN)
+	ttl.autowrap_mode = TextServer.AUTOWRAP_OFF
+	ttl.clip_text = true
+	v.add_child(ttl)
 	v.add_child(UIStyle.make_kicker("VERSION " + str(ProjectSettings.get_setting("application/config/version", "1.0.0")),
 		UIStyle.TEXT_DIM, 16))
 	v.add_child(UIStyle.make_rule())
@@ -36,11 +39,15 @@ func build() -> void:
 		var row = VBoxContainer.new()
 		row.add_theme_constant_override("separation", -4)
 		row.add_child(UIStyle.make_kicker(str(e[0]), UIStyle.CYAN, 15))
-		row.add_child(UIStyle.make_label(str(e[1]), "body", 24, Color.WHITE))
+		var el = UIStyle.make_label(str(e[1]), "body", 22, Color.WHITE)
+		el.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row.add_child(el)
 		v.add_child(row)
 	v.add_child(UIStyle.make_rule())
-	v.add_child(UIStyle.make_label(
+	var foot = UIStyle.make_label(
 		"All assets are either original works released under CC0 or third-party works used under " \
 		+ "their respective licenses listed above. No copyrighted car brands, logos or music are used; " \
 		+ "every vehicle, track and audio cue is fictional and procedurally generated.",
-		"body", 22, UIStyle.TEXT_DIM))
+		"body", 20, UIStyle.TEXT_DIM)
+	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(foot)

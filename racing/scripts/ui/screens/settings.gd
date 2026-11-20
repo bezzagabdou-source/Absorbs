@@ -30,8 +30,10 @@ func _build_layout() -> void:
 	_tabs_col.add_theme_constant_override("separation", 10)
 	nav_panel.add_child(_tabs_col)
 	var body_panel = UIStyle.make_glass_panel(26, Color(0.04, 0.06, 0.11, 0.86), 30)
-	body_panel.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
-	body_panel.offset_left = 392
+	body_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	body_panel.anchor_left = 0.5
+	body_panel.anchor_right = 1.0
+	body_panel.offset_left = -400
 	body_panel.offset_right = -44
 	body_panel.offset_top = 168
 	body_panel.offset_bottom = -44
