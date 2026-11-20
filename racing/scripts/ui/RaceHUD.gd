@@ -143,7 +143,7 @@ func _build_speedo() -> void:
 	_nitro_fill.color = UIStyle.CYAN
 	_nitro_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nwrap.add_child(_nitro_fill)
-	var nlabel = UIStyle.make_kicker("NITRO", UIStyle.CYAN, 15)
+	var nlabel = UIStyle.make_kicker(Localization.t("hud.nitro").to_upper(), UIStyle.CYAN, 15)
 	nlabel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	nlabel.offset_left = -SPEEDO_SIZE - 8
 	nlabel.offset_top = -68

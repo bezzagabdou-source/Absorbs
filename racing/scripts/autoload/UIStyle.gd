@@ -374,6 +374,8 @@ func art(name: String) -> Texture2D:
 	var tex: Texture2D = null
 	if ResourceLoader.exists(path):
 		tex = load(path)
+	elif ResourceLoader.exists("res://assets/art/track_%s.webp" % name):
+		tex = load("res://assets/art/track_%s.webp" % name)
 	_art_cache[name] = tex
 	return tex
 
