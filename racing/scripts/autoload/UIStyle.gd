@@ -426,13 +426,23 @@ func make_kicker(text: String, accent: Color = CYAN, size: int = 20) -> Label:
 	return l
 
 
+func _has_digits(text: String) -> bool:
+	for i in range(text.length()):
+		var code = text.unicode_at(i)
+		if code >= 48 and code <= 57:
+			return true
+	return false
+
+
 func make_button(text: String, accent: Color = CYAN, primary: bool = false,
 		font_size: int = 28, height: float = 78.0) -> Button:
 	var b = Button.new()
 	b.text = text if Localization.is_rtl() else text.to_upper()
 	b.custom_minimum_size = Vector2(0, height)
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_override("font", font_for("display"))
+	# Orbitron draws zero with a slash that reads as a missing glyph at small
+	# sizes, so numeric captions ("0.6", "1.0", "LV 2") use the numeric face.
+	b.add_theme_font_override("font", font_for("numeric" if _has_digits(text) else "display"))
 	b.add_theme_font_size_override("font_size", font_size)
 	b.add_theme_color_override("font_color", Color.WHITE if primary else Color(0.88, 0.94, 1.0))
 	b.add_theme_color_override("font_hover_color", Color.WHITE)
