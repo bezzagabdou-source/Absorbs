@@ -6,6 +6,8 @@ import {
   LogOut, PackagePlus, PackageX, Pencil, Plus, RotateCcw, Save, Search, Settings,
   ShoppingBag, Trash2, Users, X,
 } from "lucide-react";
+import { draftKey, editDraft } from "@/lib/draft";
+import { catalogSchema } from "@/lib/file-catalog";
 import type { AdminData, Availability, Product } from "@/lib/types";
 
 type Action = (body: Record<string, unknown>, message?: string) => Promise<boolean>;
@@ -24,7 +26,13 @@ export default function AdminPanel({ onClose, onStoreChanged }: Props) {
   async function loadData() {
     const response = await fetch("/api/admin", { cache: "no-store" });
     if (response.ok) {
-      setData(await response.json());
+      const published = await response.json();
+      let catalog = published;
+      try {
+        const saved = localStorage.getItem(draftKey);
+        if (saved) catalog = catalogSchema.parse(JSON.parse(saved));
+      } catch { setError("تعذر فتح المسودة المحلية. نعرض النسخة المنشورة."); }
+      setData(catalog);
       return true;
     }
     setData(null);
@@ -55,19 +63,14 @@ export default function AdminPanel({ onClose, onStoreChanged }: Props) {
   const runAction: Action = async (body, message = "تم حفظ التغييرات بنجاح.") => {
     setBusy(true); setError(""); setSuccess("");
     try {
-      const response = await fetch("/api/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const result = await response.json();
-      if (!response.ok) {
-        setError(result.error || "تعذر حفظ التغييرات.");
-        if (response.status === 401) setData(null);
-        return false;
-      }
-      await loadData();
-      await onStoreChanged();
-      setSuccess(message);
+      if (!data) return false;
+      const next = editDraft(data, body);
+      localStorage.setItem(draftKey, JSON.stringify(next));
+      setData(next);
+      setSuccess("حُفظت المسودة على جهازك. انشر الملف لتظهر التغييرات لكل الزوار.");
       return true;
     } catch {
-      setError("تعذر الاتصال بالخادم.");
+      setError("تعذر حفظ المسودة. تحقق من الحقول ومساحة التخزين.");
       return false;
     } finally { setBusy(false); }
   };
@@ -79,9 +82,13 @@ export default function AdminPanel({ onClose, onStoreChanged }: Props) {
     </div> : <div className="admin-shell" role="dialog" aria-modal="true" aria-label="لوحة تحكم المتجر" onClick={(event) => event.stopPropagation()}>
       <div className="admin-top"><div className="admin-title"><span><Leaf size={21} /></span><div><b>لوحة تحكم الأصيل</b><small>إدارة متجرك بكل سهولة</small></div></div><div className="admin-top-actions"><button onClick={logout}><LogOut size={16} /> تسجيل الخروج</button><button className="close-button" onClick={onClose} aria-label="إغلاق لوحة التحكم"><X size={20} /></button></div></div>
       <div className="admin-layout"><aside className="admin-sidebar"><span className="admin-sidebar-label">القائمة الرئيسية</span><button className={tab === "dashboard" ? "active" : ""} onClick={() => { setTab("dashboard"); setError(""); setSuccess(""); }}><LayoutDashboard size={18} /> نظرة عامة</button><button className={tab === "products" ? "active" : ""} onClick={() => { setTab("products"); setError(""); setSuccess(""); }}><ShoppingBag size={18} /> المنتجات والأقسام</button><button className={tab === "settings" ? "active" : ""} onClick={() => { setTab("settings"); setError(""); setSuccess(""); }}><Settings size={18} /> إعدادات المتجر</button></aside><div className="admin-content">
+        <section className="admin-box"><b>مسودة على هذا الجهاز</b><p>للنشر: نزّل الملف وارفعه بنفس الاسم في المجلد المرتبط، ثم اضغط Commit changes. تظهر التعديلات للزوار بعد تحديث نسخة GitHub.</p>
+          <button className="button button-green" onClick={() => { const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)+"\n"],{type:"application/json"})); const a=document.createElement("a"); a.href=url; a.download="catalog.json"; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }}>تنزيل ملف الكتالوج</button>{" "}
+          <a className="button button-outline" target="_blank" rel="noreferrer" href="https://github.com/bezzagabdou-source/Absorbs/upload/arena/09b8ccc0-absorbs/spice-store/src/data">نشر الملف في GitHub</a>{" "}
+          <button className="text-link" onClick={async()=>{ if(confirm("حذف المسودة من جهازك وفتح النسخة المنشورة؟")){localStorage.removeItem(draftKey); await loadData(); await onStoreChanged();}}}>الرجوع للنسخة المنشورة</button></section>
         {error && <div className="admin-error admin-message">{error}<button onClick={() => setError("")} aria-label="إغلاق"><X size={15} /></button></div>}
         {success && <div className="admin-success admin-message"><Check size={16} /> {success}<button onClick={() => setSuccess("")} aria-label="إغلاق"><X size={15} /></button></div>}
-        {tab === "dashboard" && <Dashboard key={`${data.stats.totalVisits}-${data.stats.todayVisits}`} data={data} action={runAction} busy={busy} />}
+        {tab === "dashboard" && <Dashboard data={data} />}
         {tab === "products" && <ProductsManager data={data} action={runAction} busy={busy} />}
         {tab === "settings" && <SettingsForm data={data} action={runAction} busy={busy} />}
       </div></div>
@@ -89,17 +96,8 @@ export default function AdminPanel({ onClose, onStoreChanged }: Props) {
   </div>;
 }
 
-function Dashboard({ data, action, busy }: { data: AdminData; action: Action; busy: boolean }) {
-  const [total, setTotal] = useState(String(data.stats.totalVisits));
-  const [today, setToday] = useState(String(data.stats.todayVisits));
-  const unavailable = data.products.filter((product) => product.status === "unavailable").length;
-  const cards = [
-    { label: "إجمالي الزيارات", value: data.stats.totalVisits, icon: <Users size={21} /> },
-    { label: "زيارات اليوم", value: data.stats.todayVisits, icon: <CalendarDays size={21} /> },
-    { label: "عدد المنتجات", value: data.products.length, icon: <ShoppingBag size={21} /> },
-    { label: "منتجات غير متوفرة", value: unavailable, icon: <PackageX size={21} /> },
-  ];
-  return <><div className="admin-page-heading"><span>مرحباً بك من جديد</span><h2>نظرة عامة</h2><p>كل ما تحتاج معرفته عن متجرك في مكان واحد.</p></div><div className="stats-grid">{cards.map((card) => <div className="stat-card" key={card.label}><span>{card.icon}</span><b>{card.value.toLocaleString("ar-DZ")}</b><small>{card.label}</small></div>)}</div><div className="admin-box"><div className="admin-box-title"><span><BarChart3 size={19} /></span><div><h3>إدارة عداد الزيارات</h3><p>تُسجل زيارة واحدة لكل جلسة تصفح، وتحفظ الإحصاءات في قاعدة البيانات.</p></div></div><form onSubmit={(event) => { event.preventDefault(); action({ action: "setVisits", totalVisits: Number(total), todayVisits: Number(today) }, "تم تحديث عداد الزيارات."); }} className="stats-form"><label>إجمالي الزيارات<input type="number" min="0" step="1" value={total} onChange={(event) => setTotal(event.target.value)} required /></label><label>زيارات اليوم<input type="number" min="0" step="1" value={today} onChange={(event) => setToday(event.target.value)} required /></label><button disabled={busy} className="button button-green"><Save size={16} /> حفظ العداد</button><button type="button" className="button button-outline" disabled={busy} onClick={() => { if (window.confirm("هل تريد تصفير عداد الزيارات؟")) action({ action: "setVisits", totalVisits: 0, todayVisits: 0 }, "تم تصفير عداد الزيارات."); }}><RotateCcw size={16} /> تصفير</button></form></div></>;
+function Dashboard({data}:{data:AdminData}) {
+  return <div className="admin-box"><h2>نظرة عامة</h2><p>{data.categories.length} أقسام · {data.products.length} منتج</p><p>التعديلات لا تمسّ النسخة المنشورة حتى ترفع ملف الكتالوج.</p></div>;
 }
 
 function ProductsManager({ data, action, busy }: { data: AdminData; action: Action; busy: boolean }) {
@@ -129,7 +127,7 @@ function ProductsManager({ data, action, busy }: { data: AdminData; action: Acti
 }
 
 function SettingsForm({ data, action, busy }: { data: AdminData; action: Action; busy: boolean }) {
-  const [form, setForm] = useState({ ...data.settings, password: "" });
+  const [form, setForm] = useState({ ...data.settings });
   const change = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  return <><div className="admin-page-heading"><span>تفاصيل متجرك</span><h2>إعدادات المتجر</h2><p>خصص معلومات المتجر والتواصل وكلمة المرور.</p></div><form className="admin-box settings-form" onSubmit={async (event) => { event.preventDefault(); if (await action({ action: "saveSettings", settings: form }, "تم حفظ إعدادات المتجر.")) change("password", ""); }}><div className="admin-box-title"><span><Settings size={19} /></span><div><h3>المعلومات العامة</h3><p>ستظهر التغييرات للزوار مباشرة بعد الحفظ.</p></div></div><div className="admin-form-grid"><label>اسم المتجر<input value={form.storeName} onChange={(event) => change("storeName", event.target.value)} maxLength={100} required /></label><label>رقم واتساب<input value={form.whatsapp} onChange={(event) => change("whatsapp", event.target.value)} dir="ltr" required /></label><label>رسالة حالة التوصيل<input value={form.deliveryMessage} onChange={(event) => change("deliveryMessage", event.target.value)} maxLength={150} required /></label><label>العملة<input value={form.currency} onChange={(event) => change("currency", event.target.value)} maxLength={12} required /></label><label className="wide-field">كلمة مرور جديدة <small>اتركها فارغة للإبقاء على كلمة المرور الحالية</small><input type="password" value={form.password} onChange={(event) => change("password", event.target.value)} placeholder="8 أحرف على الأقل" minLength={8} autoComplete="new-password" /></label></div><button className="button button-green" disabled={busy}><Save size={16} /> حفظ الإعدادات</button></form></>;
+  return <><div className="admin-page-heading"><span>تفاصيل متجرك</span><h2>إعدادات المتجر</h2><p>خصص معلومات المتجر والتواصل. تغيير كلمة المرور يتم من إعداد ADMIN_PASSWORD في Vercel ثم إعادة النشر.</p></div><form className="admin-box settings-form" onSubmit={async (event) => { event.preventDefault(); await action({ action: "saveSettings", settings: form }); }}><div className="admin-box-title"><span><Settings size={19} /></span><div><h3>المعلومات العامة</h3><p>تظهر التغييرات للزوار بعد نشر الملف.</p></div></div><div className="admin-form-grid"><label>اسم المتجر<input value={form.storeName} onChange={(event) => change("storeName", event.target.value)} maxLength={100} required /></label><label>رقم واتساب<input value={form.whatsapp} onChange={(event) => change("whatsapp", event.target.value)} dir="ltr" required /></label><label>رسالة حالة التوصيل<input value={form.deliveryMessage} onChange={(event) => change("deliveryMessage", event.target.value)} maxLength={150} required /></label><label>العملة<input value={form.currency} onChange={(event) => change("currency", event.target.value)} maxLength={12} required /></label></div><button className="button button-green" disabled={busy}><Save size={16} /> حفظ الإعدادات</button></form></>;
 }

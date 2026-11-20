@@ -1,12 +1,2 @@
-import { getStoreData } from "@/lib/server/store";
-
-export const dynamic = "force-dynamic";
-
-export async function GET() {
-  try {
-    await getStoreData();
-    return Response.json({ ok: true });
-  } catch {
-    return Response.json({ ok: false }, { status: 503 });
-  }
-}
+import { bundledCatalog } from '@/lib/file-catalog';
+export function GET() { return Response.json({ok: true, storage:'catalog-file', products:bundledCatalog.products.length}); }

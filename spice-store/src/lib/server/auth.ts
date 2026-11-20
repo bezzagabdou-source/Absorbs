@@ -1,49 +1,14 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { eq, gt, and } from "drizzle-orm";
-import { db } from "@/db";
-import { adminSessions } from "@/db/schema";
-import type { NextRequest } from "next/server";
-
-export function initialAdminPassword() {
-  const password = process.env.ADMIN_PASSWORD;
-  if (!password) throw new Error("Set ADMIN_PASSWORD before initializing the store");
-  return password;
-}
-export const SESSION_COOKIE = "asil_admin_session";
-
-export function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const hash = scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
-}
-
-export function verifyPassword(password: string, stored: string) {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
-  try {
-    const expected = Buffer.from(hash, "hex");
-    const actual = scryptSync(password, salt, 64);
-    return expected.length === actual.length && timingSafeEqual(expected, actual);
-  } catch {
-    return false;
-  }
-}
-
-export function hashToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-export async function createSession() {
-  const token = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 12);
-  await db.insert(adminSessions).values({ tokenHash: hashToken(token), expiresAt });
-  return { token, expiresAt };
-}
-
-export async function authenticated(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) return false;
-  const [session] = await db.select({ tokenHash: adminSessions.tokenHash }).from(adminSessions)
-    .where(and(eq(adminSessions.tokenHash, hashToken(token)), gt(adminSessions.expiresAt, new Date()))).limit(1);
-  return !!session;
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { NextRequest } from 'next/server';
+export const SESSION_COOKIE='asil_admin_session';
+export const sessionSeconds=60*60*4;
+const equal=(a:string,b:string)=>timingSafeEqual(createHash('sha256').update(a).digest(),createHash('sha256').update(b).digest());
+export const verifyPassword=(password:string)=>!!process.env.ADMIN_PASSWORD && equal(password,process.env.ADMIN_PASSWORD);
+function sign(body:string) {return createHmac('sha256',process.env.ADMIN_PASSWORD!).update('asil-session-v1:'+body).digest('base64url');}
+export function createSession(){const body=`${Math.floor(Date.now()/1000)+sessionSeconds}.${randomBytes(24).toString('hex')}`;return `${body}.${sign(body)}`;}
+export function authenticated(request:NextRequest){
+  const value=request.cookies.get(SESSION_COOKIE)?.value || '';
+  if(!process.env.ADMIN_PASSWORD || !/^\d{10}\.[a-f0-9]{48}\.[A-Za-z0-9_-]{43}$/.test(value)) return false;
+  const [expiry,nonce,mac]=value.split('.');
+  return Number(expiry)>Date.now()/1000 && equal(mac,sign(`${expiry}.${nonce}`));
 }

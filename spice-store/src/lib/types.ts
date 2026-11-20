@@ -30,6 +30,4 @@ export type StoreData = {
   settings: PublicSettings;
 };
 
-export type AdminData = StoreData & {
-  stats: { totalVisits: number; todayVisits: number };
-};
+export type AdminData = StoreData;
