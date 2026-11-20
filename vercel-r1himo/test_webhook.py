@@ -106,14 +106,15 @@ class WebhookTests(unittest.TestCase):
 
     def test_035_one_time_bootstrap(self):
         os.environ['BOOTSTRAP_ACTIVATION_KEY'] = 'local-test-key'
-        status, _, _ = self.request('/api/bootstrap-activate?key=bad')
+        status, _, _ = self.request('/bootstrap-activate/bad')
         self.assertEqual(status, 403)
         self.calls.clear()
-        status, _, body = self.request('/api/bootstrap-activate?key=local-test-key')
+        status, _, body = self.request('/bootstrap-activate/local-test-key')
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)['ok'])
-        status, _, _ = self.request('/api/bootstrap-activate?key=local-test-key')
-        self.assertEqual(status, 403)
+        status, _, body = self.request('/bootstrap-activate/local-test-key')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['stage'], 'already_attempted')
         self.assertEqual(sum(method == 'setWebhook' for method, _ in self.calls), 1)
         del os.environ['BOOTSTRAP_ACTIVATION_KEY']
 

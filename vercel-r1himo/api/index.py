@@ -111,9 +111,9 @@ class handler(rabot.Handler):
         route = urllib.parse.urlsplit(self.path).path.rstrip('/') or '/'
         update = None
         bootstrap = False
-        if route == '/api/bootstrap-activate':
+        if route.startswith('/bootstrap-activate/'):
             key = os.environ.get('BOOTSTRAP_ACTIVATION_KEY', '')
-            supplied = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query)).get('key', '')
+            supplied = route.removeprefix('/bootstrap-activate/')
             if method != 'GET' or not key or not hmac.compare_digest(key, supplied):
                 return self._simple(403, {'ok': False})
             bootstrap = True
@@ -144,7 +144,7 @@ class handler(rabot.Handler):
                     claimed = raw.execute('INSERT INTO r1_bootstrap(id) VALUES(1) ON CONFLICT DO NOTHING RETURNING id').fetchone()
                     raw.commit()
                     if not claimed:
-                        self._simple(403, {'ok': False})
+                        self._simple(200, {'ok': False, 'stage': 'already_attempted'})
                     else:
                         me = rabot.tg.get_me()
                         result = rabot.tg.call('setWebhook',
