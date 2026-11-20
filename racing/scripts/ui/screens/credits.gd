@@ -32,8 +32,8 @@ func build() -> void:
 	ttl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	ttl.clip_text = true
 	v.add_child(ttl)
-	v.add_child(UIStyle.make_kicker("VERSION " + str(ProjectSettings.get_setting("application/config/version", "1.0.0")),
-		UIStyle.TEXT_DIM, 16))
+	v.add_child(UIStyle.make_label("VERSION " + str(ProjectSettings.get_setting("application/config/version", "1.0.0")),
+		"numeric", 18, UIStyle.TEXT_DIM))
 	v.add_child(UIStyle.make_rule())
 	for e in ENTRIES:
 		var row = VBoxContainer.new()
