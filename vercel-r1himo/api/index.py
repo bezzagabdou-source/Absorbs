@@ -6,6 +6,7 @@ import io
 import json
 import os
 import threading
+import time
 import urllib.parse
 
 os.environ['RABOT_SERVERLESS'] = '1'
@@ -102,6 +103,16 @@ def _public_url():
     return 'https://' + host
 
 
+def _telegram_retry(method, **params):
+    for attempt in range(4):
+        try:
+            return rabot.tg.call(method, **params)
+        except rabot.TgError as exc:
+            if exc.code or attempt == 3:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+
+
 class handler(rabot.Handler):
     def _simple(self, status, obj):
         self._send(status, json.dumps(obj, ensure_ascii=False), 'application/json; charset=utf-8')
@@ -141,7 +152,7 @@ class handler(rabot.Handler):
                 if bootstrap:
                     raw = store.conn.connection
                     raw.execute('CREATE TABLE IF NOT EXISTS r1_bootstrap (id INT PRIMARY KEY)')
-                    claimed = raw.execute('INSERT INTO r1_bootstrap(id) VALUES(2) ON CONFLICT DO NOTHING RETURNING id').fetchone()
+                    claimed = raw.execute('INSERT INTO r1_bootstrap(id) VALUES(3) ON CONFLICT DO NOTHING RETURNING id').fetchone()
                     raw.commit()
                     if not claimed:
                         try:
@@ -160,15 +171,15 @@ class handler(rabot.Handler):
                                 ('invalid json', 'invalid_response')] if marker in description), 'other')
                             self._simple(200, {'ok': False, 'stage': 'telegram_error', 'code': exc.code, 'reason': reason})
                     else:
-                        me = rabot.tg.get_me()
-                        result = rabot.tg.call('setWebhook',
+                        me = _telegram_retry('getMe')
+                        result = _telegram_retry('setWebhook',
                             url=_public_url() + '/api/telegram',
                             secret_token=webhook_secret(),
                             allowed_updates=['message', 'callback_query'], max_connections=1)
                         if not result:
                             raise RuntimeError('Telegram did not accept webhook')
                         store.set_setting('bot_username', me.get('username', ''))
-                        info = rabot.tg.call('getWebhookInfo') or {}
+                        info = _telegram_retry('getWebhookInfo') or {}
                         self._simple(200, {'ok': True, 'username': me.get('username', ''),
                                           'webhook_matches': info.get('url') == _public_url() + '/api/telegram',
                                           'pending_updates': info.get('pending_update_count'),
