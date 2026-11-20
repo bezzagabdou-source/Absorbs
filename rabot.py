@@ -59,6 +59,28 @@ APP_VERSION = "1.0.0"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) or os.getcwd()
 DEFAULT_DB_PATH = os.path.join(BASE_DIR, "rabot_data", "rabot.db")
 
+def _load_dotenv():
+    """Read KEY=VALUE from a .env next to the script (never overrides real env)."""
+    path = os.path.join(BASE_DIR, ".env")
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = val
+    except Exception:
+        pass
+
+
+_load_dotenv()
+
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 OWNER_ID_ENV = os.environ.get("OWNER_ID", "").strip()
 PANEL_PASSWORD_ENV = os.environ.get("PANEL_PASSWORD", "").strip()
@@ -4404,6 +4426,30 @@ POST_ROUTES = {
     "/panel/broadcast/send": page_broadcast_send,
 }
 
+LOGIN_ATTEMPTS = {}          # ip -> [timestamps]
+LOGIN_LOCK = threading.RLock()
+LOGIN_MAX_ATTEMPTS = 8
+LOGIN_WINDOW = 600           # 10 minutes
+
+
+def login_throttled(ip):
+    now = time.time()
+    with LOGIN_LOCK:
+        hits = [t for t in LOGIN_ATTEMPTS.get(ip, []) if now - t < LOGIN_WINDOW]
+        LOGIN_ATTEMPTS[ip] = hits
+        return len(hits) >= LOGIN_MAX_ATTEMPTS
+
+
+def login_failed(ip):
+    with LOGIN_LOCK:
+        LOGIN_ATTEMPTS.setdefault(ip, []).append(time.time())
+
+
+def login_ok(ip):
+    with LOGIN_LOCK:
+        LOGIN_ATTEMPTS.pop(ip, None)
+
+
 FLASHES = {}
 FLASH_LOCK = threading.RLock()
 
@@ -4444,7 +4490,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
         for key, value in (extra_headers or []):
             self.send_header(key, value)
         self.end_headers()
@@ -4465,6 +4513,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header(key, value)
         self.send_header("Content-Length", "0")
         self.end_headers()
+
+    def _is_https(self):
+        """True when the request arrived over HTTPS (direct or via proxy)."""
+        proto = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
+        if proto:
+            return proto == "https"
+        return False
+
+    def _cookie_flags(self):
+        return "; Secure" if self._is_https() else ""
 
     def _authed(self):
         return session_valid(self._cookie("rs_session"))
@@ -4570,18 +4628,23 @@ class Handler(BaseHTTPRequestHandler):
         form = self._read_form()
 
         if path == "/login":
+            client_ip = self.client_address[0] if self.client_address else "?"
+            if login_throttled(client_ip):
+                return self._send(429, login_html(error="محاولات كثيرة. انتظر 10 دقائق ثم أعد المحاولة."))
             password = (form.get("password", [""])[0] or "")
             if check_panel_password(password):
+                login_ok(client_ip)
                 token = session_create()
-                return self._redirect("/panel", cookie="rs_session=%s; Path=/; HttpOnly; SameSite=Lax; Max-Age=%d"
-                                                      % (token, SESSION_TTL))
-            with SESSION_LOCK:
-                pass
+                return self._redirect(
+                    "/panel",
+                    cookie="rs_session=%s; Path=/; HttpOnly; SameSite=Lax; Max-Age=%d%s"
+                           % (token, SESSION_TTL, self._cookie_flags()))
+            login_failed(client_ip)
             return self._send(200, login_html(error=store.get_setting(
                 "panel_login_error", "تعذر تسجيل الدخول.")))
         if path == "/logout":
             session_destroy(self._cookie("rs_session"))
-            return self._redirect("/", cookie="rs_session=; Path=/; Max-Age=0")
+            return self._redirect("/", cookie="rs_session=; Path=/; Max-Age=0" + self._cookie_flags())
 
         if path not in POST_ROUTES:
             return self._send(404, "not found")
