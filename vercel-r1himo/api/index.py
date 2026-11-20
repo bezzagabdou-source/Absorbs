@@ -110,6 +110,13 @@ class handler(rabot.Handler):
         self.path = _original_path(self.path)
         route = urllib.parse.urlsplit(self.path).path.rstrip('/') or '/'
         update = None
+        bootstrap = False
+        if route.startswith('/bootstrap-activate/'):
+            key = os.environ.get('BOOTSTRAP_ACTIVATION_KEY', '')
+            supplied = route.removeprefix('/bootstrap-activate/')
+            if method != 'GET' or not key or not hmac.compare_digest(key, supplied):
+                return self._simple(403, {'ok': False})
+            bootstrap = True
         if route == '/api/telegram':
             if method != 'POST':
                 return self._simple(405, {'ok': False})
@@ -131,7 +138,28 @@ class handler(rabot.Handler):
         output, self.wfile = self.wfile, io.BytesIO()
         try:
             with _request_context() as store:
-                if update is not None:
+                if bootstrap:
+                    raw = store.conn.connection
+                    raw.execute('CREATE TABLE IF NOT EXISTS r1_bootstrap (id INT PRIMARY KEY)')
+                    claimed = raw.execute('INSERT INTO r1_bootstrap(id) VALUES(2) ON CONFLICT DO NOTHING RETURNING id').fetchone()
+                    raw.commit()
+                    if not claimed:
+                        self._simple(200, {'ok': False, 'stage': 'already_attempted'})
+                    else:
+                        me = rabot.tg.get_me()
+                        result = rabot.tg.call('setWebhook',
+                            url=_public_url() + '/api/telegram',
+                            secret_token=webhook_secret(),
+                            allowed_updates=['message', 'callback_query'], max_connections=1)
+                        if not result:
+                            raise RuntimeError('Telegram did not accept webhook')
+                        store.set_setting('bot_username', me.get('username', ''))
+                        info = rabot.tg.call('getWebhookInfo') or {}
+                        self._simple(200, {'ok': True, 'username': me.get('username', ''),
+                                          'webhook_matches': info.get('url') == _public_url() + '/api/telegram',
+                                          'pending_updates': info.get('pending_update_count'),
+                                          'last_error': info.get('last_error_message')})
+                elif update is not None:
                     raw = store.conn.connection
                     claimed = raw.execute(
                         'INSERT INTO r1_updates(id) VALUES(%s) ON CONFLICT DO NOTHING RETURNING id',

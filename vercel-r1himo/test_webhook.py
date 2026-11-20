@@ -104,6 +104,20 @@ class WebhookTests(unittest.TestCase):
         status, _, body = self.request('/healthz')
         self.assertEqual(json.loads(body)['users'], 1)
 
+    def test_035_one_time_bootstrap(self):
+        os.environ['BOOTSTRAP_ACTIVATION_KEY'] = 'local-test-key'
+        status, _, _ = self.request('/bootstrap-activate/bad')
+        self.assertEqual(status, 403)
+        self.calls.clear()
+        status, _, body = self.request('/bootstrap-activate/local-test-key')
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)['ok'])
+        status, _, body = self.request('/bootstrap-activate/local-test-key')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['stage'], 'already_attempted')
+        self.assertEqual(sum(method == 'setWebhook' for method, _ in self.calls), 1)
+        del os.environ['BOOTSTRAP_ACTIVATION_KEY']
+
     def test_04_persist_runtime_and_rewrite(self):
         with index._request_context():
             index.rabot.state_set(123, 'deposit_amount')
