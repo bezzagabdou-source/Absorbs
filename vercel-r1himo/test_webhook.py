@@ -39,6 +39,8 @@ class WebhookTests(unittest.TestCase):
                 return {'username': 'TestBot'}
             if method == 'setWebhook':
                 return True
+            if method == 'getWebhookInfo':
+                return {'url': 'https://test-r1himo.vercel.app/api/telegram', 'pending_update_count': 0}
             return {'message_id': 123}
         index.rabot.Telegram.call = fake_call
         cls.http = ThreadingHTTPServer(('127.0.0.1', 0), index.handler)
