@@ -624,6 +624,7 @@ def default_settings():
         "payment_methods": "binance",
         # ---- economy ----
         "referral_percent": "10",
+        "discount_percent": "0",
         "currency": CURRENCY,
         # ---- behaviour ----
         "page_size": "10",
@@ -741,6 +742,7 @@ class Store:
     # -- seed ---------------------------------------------------------------
     def _seed(self):
         if self.get_setting("seeded") == "1":
+            self._ensure_offers_button()
             return
         defaults = default_settings()
         missing = {k: v for k, v in defaults.items() if k not in self._settings}
@@ -832,9 +834,30 @@ class Store:
                         )
 
         self.set_setting("seeded", "1")
+        self._ensure_offers_button()
         log.info("Base de données initialisée: %d boutons, %d produits",
                  self.scalar("SELECT COUNT(*) FROM buttons"),
                  self.scalar("SELECT COUNT(*) FROM products"))
+
+    def _ensure_offers_button(self):
+        # A one-time migration: the owner can later edit or remove the button.
+        if self.get_setting("offers_button_migrated") == "1":
+            return
+        with self.lock:
+            try:
+                self._begin_financial()
+                marker = self.conn.execute("SELECT value FROM settings WHERE key=?" + self._financial_lock_suffix(), ("offers_button_migrated",)).fetchone()
+                if not marker:
+                    existing = self.conn.execute("SELECT id FROM buttons WHERE action=? LIMIT 1", ("offers",)).fetchone()
+                    if not existing:
+                        self.conn.execute("INSERT INTO buttons(label_ar,label_en,icon,emoji_id,color,row,sort,action,payload,visible,owner_only) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                                          ("الخصومات", "Discounts", "🏷", "", "success", 2, 1, "offers", "", 1, 0))
+                    self.conn.execute("INSERT INTO settings(key,value) VALUES(?,?)", ("offers_button_migrated", "1"))
+                self.conn.commit()
+                self._settings["offers_button_migrated"] = "1"
+            except Exception:
+                self.conn.rollback()
+                raise
 
     # ------------------------------------------------------------------
     #  BUTTONS
@@ -1203,6 +1226,7 @@ class Store:
                 if not math.isfinite(price) or price < 0:
                     self.conn.rollback()
                     return {"error": "invalid"}
+                price = discounted_price(price, self)
                 total = round(price * qty, 2)
                 if to_float(user.get("balance"), 0) < total:
                     self.conn.rollback()
@@ -1732,13 +1756,24 @@ def build_main_keyboard(user=None):
     return reply_keyboard(rows)
 
 
+def discount_percent(db=None):
+    db = db or store
+    return max(0, min(90, db.get_int("discount_percent", 0)))
+
+
+def discounted_price(price, db=None):
+    price = to_float(price, 0)
+    result = round(price * (100 - discount_percent(db)) / 100, 2)
+    return max(0.01, result) if price > 0 else result
+
+
 def build_products_keyboard(page, products, total_pages, lang, page_size):
     """Product buttons: green when in stock, red when out of stock + pagination."""
     rows = []
     for p in products:
         stock = store.available_stock(p)
         mode = p.get("stock_mode") or "auto"
-        price = money(p.get("price"), store.get_setting("currency", "$"))
+        price = money(discounted_price(p.get("price")), store.get_setting("currency", "$"))
         if mode == "unlimited":
             text = "%s %s [%s]" % (p.get("icon") or "", p.get("name") or "", price)
         else:
@@ -1756,7 +1791,8 @@ def build_products_keyboard(page, products, total_pages, lang, page_size):
         nav.append(_btn(label("lbl_next", lang), "default", None, cb="pg:%d" % (page + 1)))
     if nav:
         rows.append(nav)
-    rows.append([_btn(label("lbl_search", lang), "primary", None, cb="search")])
+    rows.append([_btn("🏷 الخصومات" if lang == "ar" else "🏷 Discounts", "success", None, cb="offers"),
+                 _btn(label("lbl_search", lang), "primary", None, cb="search")])
     rows.append([_btn(label("lbl_close", lang), "default", None, cb="close")])
     return inline_keyboard(rows)
 
@@ -1986,7 +2022,10 @@ def product_view(user, product_id, edit=None, back="pg:0"):
     body = "%s <b>%s</b>\n" % (icon, esc(title))
     if desc:
         body += "\n%s\n" % esc(desc)
-    body += "\n💵 %s\n📦 %s" % (price_str(p.get("price")), esc(stock_line))
+    discount = discount_percent()
+    if discount:
+        body += "\n🏷 %s %s%%: <s>%s</s>" % ("خصم" if lang == "ar" else "Discount", discount, price_str(p.get("price")))
+    body += "\n💵 %s\n📦 %s" % (price_str(discounted_price(p.get("price"))), esc(stock_line))
     markup = build_product_keyboard(p, lang, back=back)
     if edit:
         return safe_edit(user["tg_id"], edit, body, markup)
@@ -2062,7 +2101,12 @@ def referrals_text(user):
         "أرباحك" if lang == "ar" else "Earnings",
         price_str(user.get("ref_earnings")),
     )
-    return body, build_back_keyboard(lang)
+    rows = []
+    if bot_username:
+        share = "https://t.me/share/url?" + urllib.parse.urlencode({"url": link, "text": "انضم إلى متجرنا" if lang == "ar" else "Join our shop"})
+        rows.append([_btn("📤 نشر رابط الإحالة" if lang == "ar" else "📤 Share invite link", "primary", None, url=share)])
+    rows.append([_btn(t("lbl_back", lang), "default", None, cb="listen:0")])
+    return body, inline_keyboard(rows)
 
 
 def orders_text(user):
@@ -2225,6 +2269,7 @@ COMMANDS = {
     "products": "products",
     "product": "products",
     "search": "search",
+    "offers": "offers",
     "profile": "profile",
     "wallet": "wallet",
     "deposit": "deposit",
@@ -2334,9 +2379,13 @@ def handle_message(msg):
             return safe_send(tg_id, "⚠️ أرسل نصاً أو اضغط إلغاء.")
         else:
             # Preview and explicit confirmation prevent accidental broadcasts.
+            if len(text) > 4000:
+                return safe_send(tg_id, "⚠️ النص طويل جداً؛ أرسل 4000 حرف أو أقل.")
             nonce = secrets.token_hex(6)
-            PENDING_BROADCAST[tg_id] = {"text": text, "nonce": nonce}
-            return safe_send(tg_id, "📣 <b>معاينة الإذاعة</b>\n\n%s\n\nإرسال إلى المستخدمين؟" % esc(text),
+            PENDING_BROADCAST.pop(tg_id, None)
+            state_set(tg_id, "broadcast_preview", text=text, nonce=nonce, expires=time.time() + 86400)
+            preview = text[:400] + ("…" if len(text) > 400 else "")
+            return safe_send(tg_id, "📣 <b>معاينة الإذاعة</b>\n\n%s\n\nإرسال النص كاملاً إلى المستخدمين؟" % esc(preview),
                 inline_keyboard([[_btn("✅ تأكيد الإرسال", "success", None, cb="adm:send_broadcast:" + nonce),
                                   _btn(t("lbl_cancel", lang), "danger", None, cb="cancel")]]))
 
@@ -2390,6 +2439,19 @@ def handle_state(user, st, text, msg):
     tg_id = user["tg_id"]
     lang = lang_of(user)
     kind = st.get("kind")
+
+    if kind == "admin_discount":
+        if not is_owner_user(user):
+            state_clear(tg_id)
+            return True
+        if not text.strip().isdigit() or not 0 <= int(text.strip()) <= 90:
+            safe_send(tg_id, "⚠️ أرسل نسبة صحيحة بين 0 و90، أو /cancel للإلغاء.")
+            return True
+        percent = int(text.strip())
+        store.set_setting("discount_percent", str(percent))
+        state_clear(tg_id)
+        safe_send(tg_id, "✅ تم ضبط الخصم العام على %d%%. 0 يلغي الخصم." % percent, build_main_keyboard(user))
+        return True
 
     if kind == "search":
         if not text.strip():
@@ -2450,6 +2512,8 @@ def run_route(user, action, payload=""):
         return send_main_menu(user)
     if action == "products":
         return products_page(user, 0)
+    if action == "offers":
+        return show_offers(user)
     if action == "search":
         if payload.strip():
             return show_search_results(user, payload)
@@ -2522,12 +2586,24 @@ def run_route(user, action, payload=""):
     return send_main_menu(user)
 
 
+def show_offers(user, edit=None):
+    lang = lang_of(user)
+    percent = discount_percent()
+    body = ("🏷 الخصم الحالي: <b>%d%%</b> على المنتجات." if lang == "ar" else "🏷 Current discount: <b>%d%%</b> on products.") % percent
+    if not percent:
+        body += "\n" + ("لا توجد خصومات حالياً." if lang == "ar" else "No discounts right now.")
+    markup = inline_keyboard([[_btn("🏪 المنتجات" if lang == "ar" else "🏪 Products", "primary", None, cb="pg:0")]])
+    if edit:
+        return safe_edit(user["tg_id"], edit, body, markup)
+    return safe_send(user["tg_id"], body, markup)
+
+
 def show_search_results(user, query):
     lang = lang_of(user)
     wanted = query.strip().casefold()[:100]
     items = [p for p in store.products() if wanted and
              wanted in ((p.get("name") or "") + " " + (p.get("name_en") or "")).casefold()][:20]
-    rows = [[_btn("%s %s · %s" % (p.get("icon") or "", p.get("name") or "", price_str(p.get("price"))),
+    rows = [[_btn("%s %s · %s" % (p.get("icon") or "", p.get("name") or "", price_str(discounted_price(p.get("price")))),
                   "success" if store.available_stock(p) > 0 else "danger", None,
                   cb="view:%d" % p["id"])] for p in items]
     rows.append([_btn(t("lbl_back", lang), "default", None, cb="listen:0")])
@@ -2561,7 +2637,7 @@ def category_products(user, cid, edit=None):
         color = p.get("color") if p.get("color") not in (None, "", "auto") else (
             "success" if stock > 0 else "danger")
         text = "%s %s [%s]" % (p.get("icon") or "", p.get("name") or "",
-                               price_str(p.get("price")))
+                               price_str(discounted_price(p.get("price"))))
         rows.append([_btn(re.sub(r"\s+", " ", text).strip(), color, p.get("emoji_id"),
                           cb="view:%d:c:%d" % (p["id"], cid))])
     rows.append([_btn(t("lbl_back", lang), "default", None, cb="listen:0")])
@@ -2632,6 +2708,9 @@ def handle_callback(cb):
         if message_id:
             return safe_edit(chat_id, message_id, body, markup)
         return safe_send(chat_id, body, markup)
+
+    if head == "offers":
+        return show_offers(user, edit=message_id)
 
     if head == "search":
         return run_route(user, "search")
@@ -2732,23 +2811,28 @@ def handle_callback(cb):
         if not is_owner_user(user):
             return
         action = parts[1] if len(parts) > 1 else "refresh"
+        if action == "discount":
+            state_clear(user["tg_id"])
+            PENDING_BROADCAST.pop(user["tg_id"], None)
+            state_set(user["tg_id"], "admin_discount", expires=time.time() + 1800)
+            return safe_send(chat_id, "🏷 الخصم العام الحالي %d%%. أرسل نسبة من 0 إلى 90 (0 للإيقاف)." % discount_percent(),
+                             reply_keyboard([[_rbtn("❌ إلغاء", "danger")]]))
         if action == "broadcast":
+            state_clear(user["tg_id"])
             PENDING_BROADCAST[user["tg_id"]] = {"text": ""}
             return safe_send(chat_id, "📣 <b>أرسل نص الرسالة الآن</b>\n\n"
                                       "سيتم إرسالها لكل المستخدمين. للإلغاء: /cancel",
                              reply_keyboard([[_rbtn("❌ إلغاء", "danger")]]))
         if action == "send_broadcast":
-            job = PENDING_BROADCAST.get(user["tg_id"])
+            job = state_get(user["tg_id"])
             nonce = parts[2] if len(parts) > 2 else ""
-            if not job or not job.get("text") or not nonce or not hmac.compare_digest(job.get("nonce", ""), nonce):
+            if not job or job.get("kind") not in ("broadcast_preview", "broadcast_progress") or not job.get("text") or not nonce or not hmac.compare_digest(job.get("nonce", ""), nonce):
                 return safe_send(chat_id, "⚠️ هذه المعاينة منتهية أو لا توجد إذاعة بانتظار التأكيد.", build_main_keyboard(user))
-            PENDING_BROADCAST.pop(user["tg_id"], None)
+            job["kind"] = "broadcast_progress"
+            job["nonce"] = secrets.token_hex(6)  # old confirmation is single use
             if message_id:
-                safe_edit(chat_id, message_id, "📣 بدأ الإرسال...")
-            if os.environ.get("RABOT_SERVERLESS") == "1":
-                return run_broadcast(user["tg_id"], job["text"])
-            threading.Thread(target=run_broadcast, args=(user["tg_id"], job["text"]), daemon=True).start()
-            return None
+                safe_edit(chat_id, message_id, "📣 جارٍ إرسال الدفعة...")
+            return run_broadcast_batch(user, job)
         if action == "deposits":
             pending = store.deposits_list(limit=10, status="pending")
             if not pending:
@@ -2793,38 +2877,58 @@ def admin_home(user, edit=None):
     rows = [
         [_btn("📣 إرسال جماعي", "primary", None, cb="adm:broadcast"),
          _btn("💳 الشحنات", "success", None, cb="adm:deposits")],
+        [_btn("🏷 ضبط الخصم", "success", None, cb="adm:discount")],
         [_btn("🔄 تحديث", "default", None, cb="adm:refresh"),
          _btn("🏪 المتجر", "default", None, cb="menu")],
     ]
     if url:
         rows.insert(1, [_btn("🌐 لوحة الويب", "primary", None, url=url + "/panel")])
+        rows.insert(2, [_btn("📦 المنتجات", "primary", None, url=url + "/panel/products"),
+                        _btn("🧾 الطلبات", "primary", None, url=url + "/panel/orders")])
+        rows.insert(3, [_btn("👥 المستخدمون", "primary", None, url=url + "/panel/users"),
+                        _btn("✏️ الأزرار", "primary", None, url=url + "/panel/buttons")])
     markup = inline_keyboard(rows)
     if edit:
         return safe_edit(user["tg_id"], edit, body, markup)
     return safe_send(user["tg_id"], body, markup)
 
 
-def run_broadcast(owner_tg, text):
-    ids = store.all_user_ids()
-    sent = failed = 0
-    for i, uid in enumerate(ids, 1):
+def _broadcast_one(uid, text):
+    # Plain text accepts <, &, etc.; a short timeout keeps serverless batches bounded.
+    for attempt in range(2):
         try:
-            tg.send_message(uid, text)
-            sent += 1
+            tg.call("sendMessage", timeout=5, chat_id=uid, text=text, disable_web_page_preview=True)
+            return True
         except TgError as exc:
-            failed += 1
-            if exc.code == 429 and exc.retry_after:
-                time.sleep(min(30, exc.retry_after))
-            elif exc.code == 403:
-                pass
+            if exc.code == 429 and 0 < exc.retry_after <= 5 and attempt == 0:
+                time.sleep(exc.retry_after)
+                continue
+            log.warning("broadcast to %s failed: %s", uid, exc.description)
+            return False
         except Exception:
-            failed += 1
-        if i % 25 == 0:
-            time.sleep(1.0)
+            log.exception("broadcast send failed")
+            return False
+    return False
+
+
+def run_broadcast_batch(owner, job):
+    # The cursor and nonce persist across Vercel requests. Large broadcasts are
+    # continued by the owner so no background thread is killed at request end.
+    rows = store.q("SELECT tg_id FROM users WHERE banned=0 AND tg_id>? ORDER BY tg_id LIMIT 21", (job.get("cursor", 0),))
+    for row in rows[:20]:
+        uid = row["tg_id"]
+        ok = _broadcast_one(uid, job["text"])
+        job["sent" if ok else "failed"] = job.get("sent" if ok else "failed", 0) + 1
+        job["cursor"] = uid
+    sent, failed = job.get("sent", 0), job.get("failed", 0)
+    if len(rows) > 20:
+        return safe_send(owner["tg_id"], "📣 تم إرسال دفعة. ✅ %d · ❌ %d\nاضغط للمتابعة أو الإلغاء." % (sent, failed),
+                         inline_keyboard([[_btn("▶️ متابعة الإذاعة", "success", None, cb="adm:send_broadcast:" + job["nonce"]),
+                                           _btn("❌ إيقاف", "danger", None, cb="cancel")]]))
     store.ex("INSERT INTO broadcasts(text,sent,failed,created_at) VALUES(?,?,?,?)",
-             (text[:4000], sent, failed, now_iso()))
-    safe_send(owner_tg, "📣 <b>انتهى الإرسال</b>\n\n✅ %d\n❌ %d" % (sent, failed),
-              build_main_keyboard(store.get_user(owner_tg)))
+             (job["text"], sent, failed, now_iso()))
+    state_clear(owner["tg_id"])
+    return safe_send(owner["tg_id"], "📣 <b>انتهى الإرسال</b>\n\n✅ %d\n❌ %d" % (sent, failed), build_main_keyboard(owner))
 
 
 # ============================================================================
@@ -3310,6 +3414,7 @@ def page_dashboard(qs, flash_msg=None):
 BUTTON_ACTIONS = [
     ("products", "عرض المنتجات"),
     ("search", "البحث عن منتج"),
+    ("offers", "عرض الخصومات"),
     ("profile", "الملف الشخصي"),
     ("wallet", "المحفظة"),
     ("referrals", "الإحالات"),
@@ -4295,6 +4400,7 @@ def page_settings(qs, flash_msg=None):
     %s
     %s
     %s
+    %s
   </div>
   <div class="row end" style="margin-top:14px"><button class="btn sm green">💾 حفظ الإعدادات</button></div>
 </form></div>""" % (
@@ -4308,6 +4414,7 @@ def page_settings(qs, flash_msg=None):
               kind="number"),
         field("نسبة أرباح الإحالة %", "referral_percent",
               store.get_setting("referral_percent", "10"), kind="number"),
+        field("الخصم العام % (من 0 إلى 90)", "discount_percent", str(discount_percent()), kind="number"),
         field("ألوان أزرار تيليغرام", "style_enabled",
               store.get_setting("style_enabled", "1"), kind="select",
               options=[("1", "مفعّلة (success/danger/primary)"), ("0", "معطّلة")],
@@ -4371,9 +4478,14 @@ def page_settings(qs, flash_msg=None):
 
 def page_settings_save(form):
     keys = ["store_name", "support_username", "default_lang", "currency", "page_size",
-            "referral_percent", "style_enabled", "mirror_rows", "maintenance",
+            "referral_percent", "discount_percent", "style_enabled", "mirror_rows", "maintenance",
             "dm_owner_on_order", "dm_owner_on_deposit", "public_url"]
     updates = {k: form[k][0] for k in keys if k in form}
+    if "discount_percent" in updates:
+        value = updates["discount_percent"].strip()
+        if not value.isdigit() or not 0 <= int(value) <= 90:
+            return "/panel/settings", "❌ نسبة الخصم يجب أن تكون بين 0 و90", "err"
+        updates["discount_percent"] = str(int(value))
     if updates.get("support_username"):
         updates["support_username"] = updates["support_username"].strip().lstrip("@")
     store.set_settings(updates)
@@ -4451,24 +4563,14 @@ def page_broadcast(qs, flash_msg=None):
 
 def page_broadcast_send(form):
     text = (form.get("text", [""])[0] or "").strip()
-    if not text:
-        return "/panel/broadcast", "❌ النص مطلوب", "err"
+    if not text or len(text) > 4000:
+        return "/panel/broadcast", "❌ أدخل نصاً بين 1 و4000 حرف", "err"
     ids = store.all_user_ids()
-    sent = failed = 0
-    for i, uid in enumerate(ids, 1):
-        try:
-            tg.send_message(uid, text)
-            sent += 1
-        except TgError as exc:
-            failed += 1
-            if exc.code == 429 and exc.retry_after:
-                time.sleep(min(20, exc.retry_after))
-        except Exception:
-            failed += 1
-        if i % 25 == 0:
-            time.sleep(0.8)
-    store.ex("INSERT INTO broadcasts(text,sent,failed,created_at) VALUES(?,?,?,?)",
-             (text[:4000], sent, failed, now_iso()))
+    if len(ids) > 20:
+        return "/panel/broadcast", "⚠️ للإذاعات الكبيرة استخدم /admin في البوت لإرسال دفعات متتابعة", "err"
+    sent = sum(1 for uid in ids if _broadcast_one(uid, text))
+    failed = len(ids) - sent
+    store.ex("INSERT INTO broadcasts(text,sent,failed,created_at) VALUES(?,?,?,?)", (text, sent, failed, now_iso()))
     return "/panel/broadcast", "📣 تم الإرسال: ✅ %d · ❌ %d" % (sent, failed), "ok"
 
 

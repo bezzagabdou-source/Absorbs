@@ -40,6 +40,15 @@ class SQLiteFinancialTests(unittest.TestCase):
         self.assertFalse(errors, errors)
         return results
 
+    def test_offers_button_migration_only_once(self):
+        button = next(b for b in self.db.buttons() if b['action'] == 'offers')
+        self.db.delete_button(button['id'])
+        other = Store(self.path)
+        try:
+            self.assertFalse(any(b['action'] == 'offers' for b in other.buttons()))
+        finally:
+            other.conn.close()
+
     def test_competing_purchase_and_refund(self):
         results = self.race(lambda db: db.purchase_atomic(99123, self.pid, 1, 0))
         self.assertEqual(sum('order_id' in r for r in results), 1)
@@ -48,6 +57,13 @@ class SQLiteFinancialTests(unittest.TestCase):
         results = self.race(lambda db: db.refund_order_atomic(oid, 'refunded'))
         self.assertEqual(sum(r is not None for r in results), 1)
         self.assertAlmostEqual(self.db.get_user(99123)['balance'], 10)
+
+    def test_discount_is_used_by_transaction(self):
+        self.db.set_setting('discount_percent', '20')
+        result = self.db.purchase_atomic(99123, self.pid, 1, 0)
+        self.assertAlmostEqual(result['total'], 2.4)
+        self.assertAlmostEqual(self.db.get_user(99123)['balance'], 7.6)
+        self.assertAlmostEqual(self.db.get_order(result['order_id'])['unit_price'], 2.4)
 
     def test_deposit_once(self):
         did = self.db.create_deposit(self.user['id'], 5, 'binance', 'test')

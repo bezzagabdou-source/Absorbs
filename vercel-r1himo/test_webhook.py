@@ -250,6 +250,67 @@ class WebhookTests(unittest.TestCase):
             self.assertEqual(order['status'], 'delivered')
             self.assertEqual(index.rabot.store.product_stock(pid), 0)
 
+    def test_079_discount_and_referral_share(self):
+        self.calls.clear()
+        self.message(2010, '/start', user=222)
+        keyboard = self.sent('sendMessage')[-1]['reply_markup']['keyboard']
+        self.assertTrue(any('الخصومات' in b['text'] for row in keyboard for b in row))
+        self.calls.clear()
+        self.message(2011, '🏷 الخصومات', user=222)
+        self.assertIn('الخصم الحالي', self.sent('sendMessage')[-1]['text'])
+        self.calls.clear()
+        self.message(201, '/referrals', user=222)
+        markup = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard']
+        share = next(b['url'] for row in markup for b in row if 'url' in b)
+        self.assertIn('t.me/share/url', share)
+        self.assertIn('ref_222', share)
+        self.calls.clear()
+        self.callback(202, 'adm:discount', user=222)
+        self.assertFalse(self.sent('sendMessage'))
+        self.callback(203, 'adm:discount')
+        self.message(204, '20')
+        with index._request_context():
+            self.assertEqual(index.rabot.store.get_setting('discount_percent'), '20')
+            buyer = index.rabot.store.get_user(222)
+            index.rabot.store.adjust_balance(222, 10)
+            pid = index.rabot.store.add_product({'name': 'Discount test', 'price': 5})
+            index.rabot.store.add_stock_lines(pid, ['discount delivery'])
+            before = index.rabot.store.get_user(222)['balance']
+        self.calls.clear()
+        self.callback(205, 'view:%d' % pid, user=222)
+        self.assertIn('20%', self.sent('editMessageText')[-1]['text'])
+        self.callback(206, 'confirm:%d' % pid, user=222)
+        with index._request_context():
+            order = index.rabot.store.user_orders(buyer['id'], 1)[0]
+            self.assertAlmostEqual(order['total'], 4)
+            self.assertAlmostEqual(index.rabot.store.get_user(222)['balance'], before - 4)
+            self.assertEqual(index.rabot.page_settings_save({'discount_percent': ['101']})[2], 'err')
+            index.rabot.store.set_setting('discount_percent', '0')
+
+    def test_0795_broadcast_batches_plain_text_and_replay(self):
+        with index._request_context():
+            for n in range(30000, 30023):
+                index.rabot.store.get_or_create_user({'id': n, 'first_name': 'Batch'})
+        self.callback(210, 'adm:broadcast')
+        self.message(211, 'اختبار < و &')
+        confirm = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard'][0][0]['callback_data']
+        self.calls.clear()
+        self.callback(212, confirm)
+        deliveries = [p for p in self.sent('sendMessage') if p.get('text') == 'اختبار < و &']
+        self.assertEqual(len(deliveries), 20)
+        self.assertTrue(all(not p.get('parse_mode') for p in deliveries))
+        continuation = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard'][0][0]['callback_data']
+        self.calls.clear()
+        self.callback(213, confirm)
+        self.assertFalse(any(p.get('text') == 'اختبار < و &' for p in self.sent('sendMessage')))
+        self.calls.clear()
+        self.callback(214, continuation)
+        self.assertGreater(len([p for p in self.sent('sendMessage') if p.get('text') == 'اختبار < و &']), 0)
+        self.assertIn('انتهى الإرسال', self.sent('sendMessage')[-1]['text'])
+        self.calls.clear()
+        self.callback(215, continuation)
+        self.assertFalse(any(p.get('text') == 'اختبار < و &' for p in self.sent('sendMessage')))
+
     def test_08_one_time_password_reset(self):
         old_password = index.rabot.PANEL_PASSWORD_ENV
         try:

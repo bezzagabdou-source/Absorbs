@@ -32,7 +32,8 @@ class PostgreSQLTests(unittest.TestCase):
         cls.server.cleanup()
 
     def test_01_defaults_and_big_telegram_id(self):
-        self.assertEqual(len(self.store.buttons()), 7)
+        self.assertEqual(len(self.store.buttons()), 8)
+        self.assertTrue(any(b['action'] == 'offers' for b in self.store.buttons()))
         self.assertEqual(len(self.store.products()), 12)
         user = self.store.get_or_create_user({'id': 6818164226, 'first_name': 'Owner'})
         self.assertEqual(user['tg_id'], 6818164226)
