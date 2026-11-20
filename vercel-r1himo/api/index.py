@@ -87,7 +87,7 @@ def _original_path(path):
     parsed = urllib.parse.urlsplit(path)
     query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
     routes = [v for k, v in query if k == '__path']
-    if routes and parsed.path == '/api/index':
+    if routes and parsed.path in ('/api', '/api/index'):
         path = '/' + routes[-1].lstrip('/')
         remaining = [(k, v) for k, v in query if k != '__path']
         return path + ('?' + urllib.parse.urlencode(remaining) if remaining else '')

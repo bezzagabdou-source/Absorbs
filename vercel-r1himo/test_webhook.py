@@ -110,7 +110,7 @@ class WebhookTests(unittest.TestCase):
         index.rabot.STATE = {}  # emulate a cold instance
         with index._request_context():
             self.assertEqual(index.rabot.state_get(123)['kind'], 'deposit_amount')
-        status, _, body = self.request('/api/index?__path=healthz')
+        status, _, body = self.request('/api?__path=healthz')
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)['ok'])
 

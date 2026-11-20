@@ -1,4 +1,4 @@
 {
   "framework": null,
-  "rewrites": [{"source": "/(.*)", "destination": "/api/index?__path=$1"}]
+  "routes": [{"src": "/(.*)", "dest": "/api?__path=$1"}]
 }
