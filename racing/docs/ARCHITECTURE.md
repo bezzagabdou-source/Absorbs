@@ -62,3 +62,40 @@ racing/
 `user://profile.json` (ConfigFile-versioned JSON): credits, xp, owned cars + per-car upgrade
 levels + paint/rim, achievements, daily streak, best laps per track, settings mirror.
 Atomic write (temp file then rename) and corrupt-file quarantine.
+
+## Layout invariants (learned the hard way)
+
+These rules keep the UI from silently collapsing; every one of them cost a CI
+round to discover.
+
+* Any Control that must fill its parent uses
+  `set_anchors_and_offsets_preset(PRESET_FULL_RECT)`. `set_anchors_preset()`
+  alone only moves the anchors and leaves the size at its minimum, which
+  collapses panels to the top-left.
+* After a preset, set anchors explicitly if the preset is relative to the wrong
+  edge (`PRESET_RIGHT_WIDE` on a panel that must span the middle of the canvas
+  ends up off-screen once a sibling changes the rect).
+* Title-sized numerals use the Rajdhani numeric face (`UIStyle.make_numeral`).
+  Orbitron draws zero as a slashed box, which reads as a missing glyph in QA.
+* `look_at()` / `look_at_from_position()` require the node to already be in the
+  tree; otherwise the rotation silently stays identity. Add the child first.
+* `Basis.looking_at()` is a camera basis (forward is `-Z`). For meshes and
+  colliders use `rotation.y = atan2(dir.x, dir.z)`.
+* `MultiMesh.use_colors` must be enabled **before** `instance_count`, otherwise
+  the instance colours are rejected and the props render white.
+* A `SubViewportContainer` with `stretch = true` squashes the render target to
+  the container. Either size the `SubViewport` to the container each frame or
+  derive the camera FOV from the on-screen stage ratio.
+
+## CI
+
+`.github/workflows/apex-velocity.yml` has three jobs:
+
+1. **verify** — gdparse + gdlint, `physics_sim.py`, `godot --import` (fails on
+   any SCRIPT ERROR), then the headless test suite.
+2. **build** — generates a throwaway keystore, imports, exports the release APK,
+   validates it with `aapt2` + `apksigner` + the size/content gate, uploads the
+   artifact and publishes a Release on any `v*` tag.
+3. **screenshots** — renders ten screens under Xvfb at 1920x1080, dumps a layout
+   diagnostics log, and commits both back to the branch. Non-blocking: it runs
+   with `continue-on-error` so a software-GL hiccup can never block a build.

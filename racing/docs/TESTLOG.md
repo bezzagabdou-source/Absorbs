@@ -133,6 +133,34 @@ crop of a 1920x1080 layout in a smaller window, and the hero art was absent.
    is wrapped in a hard 120 s timeout because the software GL driver
    occasionally hangs under Xvfb.
 
+## Round 11 — visual QA on real 1080p frames
+
+Each round below was driven by looking at the PNG the CI committed, fixing the
+defect, and re-running.
+
+| # | Symptom seen in the capture | Root cause | Fix |
+|---|---|---|---|
+| 1 | Content squeezed into the left ~500 px | `set_anchors_preset()` without offsets leaves size at minimum | switched all 76 call sites to `set_anchors_and_offsets_preset()` |
+| 2 | Track cards all shared one image | data says `city_night`, files are `track_city_night.webp` | loader falls back to the `track_` prefix |
+| 3 | Card titles washed out by the art | gradient overlay + `KEEP_ASPECT_COVERED` fighting the caption | rebuilt the card as art block + caption block |
+| 4 | Garage car cropped, orbit ring under the list | narrow `SubViewport` + vertical FOV | `KEEP_WIDTH`, stage between panels, wider orbit |
+| 5 | Zeroes rendered as empty boxes | Orbitron's slashed zero is part of the typeface, not a missing glyph | all numerals use the Rajdhani numeric face (`UIStyle.make_numeral`) |
+| 6 | Settings right pane blank | `PRESET_RIGHT_WIDE` overwritten after `LEFT_WIDE` pushed it off-canvas | explicit `anchor_left = 0.5` + offsets |
+| 7 | Menu showcase car invisible | `Camera3D.look_at()` before the node was in the tree leaves an identity basis | add to tree, then position + `look_at` |
+| 8 | Showcase car stretched wide | viewport aspect did not match the on-screen stage | stage-sized viewport + FOV derived from the stage ratio |
+| 9 | Race HUD speedometer clipped at the right edge | inner `VBox` used `PRESET_CENTER` inside a fixed box | `PRESET_FULL_RECT` |
+| 10 | Countdown digit stuck to the top edge | title label defaulted to top alignment | `vertical_alignment = CENTER` |
+| 11 | Road colliders rotated like cameras | `Basis.looking_at()` is a camera basis (-Z forward) | `rotation.y = atan2(fwd.x, fwd.z)` |
+| 12 | `Can't set instance color ... use_colors` spam | colours enabled after `instance_count` | `use_colors = true` set first |
+| 13 | `Node not inside tree. Use look_at_from_position()` | sun aimed before being added | `add_child` then `look_at` |
+
+Also fixed: FSR guard compared the wrong project setting key; credits text did
+not wrap and overflowed the panel; achievements summary panels were sized for
+content they didn't have.
+
+**Artifact:** release `v1.0.6`, `APEX-VELOCITY.apk`, 47,391,592 bytes, signed
+and size-gated in CI (`APK_SIZE_BYTES` notice on the verifying run).
+
 ## Not verified (honest limitations)
 
 * **On-device performance** (60 fps / 120 Hz) — no Android device or emulator

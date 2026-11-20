@@ -63,3 +63,14 @@ apksigner verification) was adapted from this repository's earlier workflow
 
 If you believe something in the build is misattributed, open an issue on the
 repository and it will be corrected or replaced.
+
+## Playable build
+
+| Item | Value |
+|---|---|
+| Release | `v1.0.6` — `APEX-VELOCITY.apk` |
+| Size | 47,391,592 bytes (45.2 MiB) |
+| Min Android | as declared in `export_presets.cfg` (Android 6.0+) |
+| ABI | arm64-v8a |
+| Signing | release keystore generated in CI (`apksigner verify` passes) |
+| Download | https://github.com/bezzagabdou-source/Absorbs/releases/tag/v1.0.6 |
