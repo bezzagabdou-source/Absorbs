@@ -1,0 +1,6 @@
+{
+  "buildCommand": "echo 'Single-file Python bot: nothing to build'",
+  "outputDirectory": "public",
+  "installCommand": "echo 'no dependencies'",
+  "framework": null
+}

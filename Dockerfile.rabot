@@ -1,0 +1,7 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY rabot.py .
+ENV PORT=8080 HOST=0.0.0.0 DB_PATH=/data/rabot.db
+VOLUME ["/data"]
+EXPOSE 8080
+CMD ["python3", "rabot.py"]

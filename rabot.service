@@ -1,0 +1,14 @@
+[Unit]
+Description=R1HIMO SHOP Telegram Bot + Panel
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/rabot
+EnvironmentFile=/opt/rabot/.env
+ExecStart=/usr/bin/python3 /opt/rabot/rabot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

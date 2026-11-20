@@ -25,3 +25,9 @@ PRO-CODES-V*.txt
 .v11-build/
 .v13-build/
 .v14-build/
+
+# R1HIMO SHOP bot runtime data (never commit customer/DB data)
+rabot_data/
+rabot.db
+rabot.db-wal
+rabot.db-shm
