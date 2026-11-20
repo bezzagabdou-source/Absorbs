@@ -44,6 +44,7 @@ type Cart = Record<number, number>;
 
 export default function Storefront({ initialData }: { initialData: StoreData }) {
   const [data, setData] = useState(initialData);
+  const [live, setLive] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<number | "all">("all");
   const [availability, setAvailability] = useState("all");
@@ -58,6 +59,7 @@ export default function Storefront({ initialData }: { initialData: StoreData }) 
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    void refreshStore();
     try {
       const stored = localStorage.getItem("asil-cart-v1");
       if (stored) {
@@ -115,7 +117,7 @@ export default function Storefront({ initialData }: { initialData: StoreData }) 
   }
 
   function addToCart(product: Product) {
-    if (product.status === "unavailable") return;
+    if (!live || product.status === "unavailable") return;
     setCart((current) => ({ ...current, [product.id]: Math.min((current[product.id] || 0) + 1, 99) }));
     setNotice(`تمت إضافة ${product.name} إلى السلة`);
     window.setTimeout(() => setNotice(""), 2600);
@@ -134,7 +136,11 @@ export default function Storefront({ initialData }: { initialData: StoreData }) 
   async function refreshStore() {
     try {
       const response = await fetch("/api/store", { cache: "no-store" });
-      if (response.ok) setData(await response.json());
+      if (response.ok) {
+        setData(await response.json());
+        setCategory("all");
+        setLive(true);
+      }
     } catch { /* Keep the last loaded data visible. */ }
   }
 
@@ -231,6 +237,7 @@ export default function Storefront({ initialData }: { initialData: StoreData }) 
               <div><span className="eyebrow"><span /> من رفوف الأصيل</span><h2>منتجات اختيرت بعناية <span className="heading-dot">.</span></h2><p>نكهات أصيلة ومنتجات طبيعية تضيف الخير إلى يومكم.</p></div>
               <div className="catalog-note"><Leaf size={19} /><span>تشكيلة طبيعية<br /><b>بكل تفاصيلها</b></span></div>
             </div>
+            {!live && <p role="status" className="health-note">كتالوج للتصفح. لتأكيد السعر والتوفر تواصل معنا عبر واتساب. <button className="text-link" onClick={refreshStore}>تحديث المنتجات</button></p>}
             <div className="catalog-toolbar">
               <div className="filter-pills" aria-label="تصفية حسب القسم">
                 <button className={category === "all" ? "selected" : ""} onClick={() => setCategory("all")}>الكل</button>
@@ -238,7 +245,7 @@ export default function Storefront({ initialData }: { initialData: StoreData }) 
               </div>
               <div className="catalog-controls">
                 <label className="search-field"><Search size={17} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث عن منتج أو قسم..." aria-label="البحث عن منتج أو قسم" />{query && <button onClick={() => setQuery("")} aria-label="مسح البحث"><X size={15} /></button>}</label>
-                <label className="select-field"><SlidersHorizontal size={16} /><select value={availability} onChange={(event) => setAvailability(event.target.value)} aria-label="التصفية حسب التوفر"><option value="all">كل الحالات</option><option value="available">متوفر</option><option value="unavailable">غير متوفر حالياً</option><option value="limited">لا يتوفر دائماً</option></select><ChevronDown size={14} /></label>
+                <label className="select-field"><SlidersHorizontal size={16} /><select disabled={!live} value={availability} onChange={(event) => setAvailability(event.target.value)} aria-label="التصفية حسب التوفر"><option value="all">كل الحالات</option><option value="available">متوفر</option><option value="unavailable">غير متوفر حالياً</option><option value="limited">لا يتوفر دائماً</option></select><ChevronDown size={14} /></label>
               </div>
             </div>
             <div className="results-line"><span>نعرض <b>{Math.min(visible, filtered.length)}</b> من أصل <b>{filtered.length}</b> منتج</span><span>الأسعار استرشادية، يرجى تأكيد السعر والكمية معنا.</span></div>
@@ -248,8 +255,8 @@ export default function Storefront({ initialData }: { initialData: StoreData }) 
                 const status = statusInfo[product.status] || statusInfo.available;
                 const link = whatsappLink(data.settings.whatsapp, `السلام عليكم، أود الاستفسار عن ${product.name} من ${data.settings.storeName}. هل هو متوفر؟`);
                 return <article className="product-card" key={product.id}>
-                  <div className="product-image"><img src={product.image || group?.image} alt={product.name} loading="lazy" /><span className={`status-badge ${status.className}`}><i />{status.label}</span><a href={link} className="product-contact" target="_blank" rel="noreferrer" aria-label={`استفسر عن ${product.name} عبر واتساب`} title="استفسر عبر واتساب"><MessageCircle size={17} /></a></div>
-                  <div className="product-body"><div className="product-category">{group ? categoryLabel(group) : "منتجات طبيعية"}</div><h3>{product.name}</h3><p className="product-description">صورة توضيحية • جودة من الطبيعة</p><div className="product-footer"><div className="product-price"><strong>{money(product.price)} <small>{data.settings.currency}</small></strong><span>سعر استرشادي</span></div><button disabled={product.status === "unavailable"} onClick={() => addToCart(product)} className="add-cart" aria-label={`إضافة ${product.name} إلى السلة`}><Plus size={17} /><span>أضف</span></button></div></div>
+                  <div className="product-image"><img src={product.image || group?.image} alt={product.name} loading="lazy" /><span className={`status-badge ${status.className}`}><i />{live ? status.label : "التوفر عند الاستفسار"}</span><a href={link} className="product-contact" target="_blank" rel="noreferrer" aria-label={`استفسر عن ${product.name} عبر واتساب`} title="استفسر عبر واتساب"><MessageCircle size={17} /></a></div>
+                  <div className="product-body"><div className="product-category">{group ? categoryLabel(group) : "منتجات طبيعية"}</div><h3>{product.name}</h3><p className="product-description">صورة توضيحية • جودة من الطبيعة</p><div className="product-footer"><div className="product-price"><strong>{live ? <>{money(product.price)} <small>{data.settings.currency}</small></> : "اسأل عن السعر"}</strong>{live && <span>سعر استرشادي</span>}</div><button disabled={!live || product.status === "unavailable"} onClick={() => addToCart(product)} className="add-cart" aria-label={`إضافة ${product.name} إلى السلة`}><Plus size={17} /><span>أضف</span></button></div></div>
                 </article>;
               })}
             </div> : <div className="empty-results"><Search size={30} /><h3>لم نجد منتجات مطابقة</h3><p>جرب كلمة أخرى أو غيّر خيارات التصفية.</p><button className="button button-green" onClick={() => { setQuery(""); setCategory("all"); setAvailability("all"); }}>عرض كل المنتجات</button></div>}
