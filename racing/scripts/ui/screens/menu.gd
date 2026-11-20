@@ -76,23 +76,26 @@ func _add_left_column() -> void:
 func _add_quick_actions() -> void:
 	var bar = HBoxContainer.new()
 	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	bar.offset_left = -560
+	bar.anchor_left = 1.0
+	bar.anchor_right = 1.0
+	bar.offset_left = -1120
 	bar.offset_right = -84
 	bar.offset_top = 96
-	bar.add_theme_constant_override("separation", 14)
+	bar.offset_bottom = 172
+	bar.add_theme_constant_override("separation", 12)
 	bar.alignment = BoxContainer.ALIGNMENT_END
 	content.add_child(bar)
 	var cr = _credits_chip()
 	bar.add_child(cr)
 	bar.add_child(_level_chip())
-	var daily = UIStyle.make_icon_button("trophy", 76, UIStyle.GOLD)
+	var daily = UIStyle.make_icon_button("trophy", 68, UIStyle.GOLD)
 	daily.tooltip_text = Localization.t("menu.daily")
 	daily.pressed.connect(func(): go("daily"))
 	bar.add_child(daily)
-	var ach = UIStyle.make_icon_button("star", 76, UIStyle.AMBER)
+	var ach = UIStyle.make_icon_button("star", 68, UIStyle.AMBER)
 	ach.pressed.connect(func(): go("achievements"))
 	bar.add_child(ach)
-	var set_btn = UIStyle.make_icon_button("settings", 76, UIStyle.TEXT_DIM)
+	var set_btn = UIStyle.make_icon_button("settings", 68, UIStyle.TEXT_DIM)
 	set_btn.pressed.connect(func(): go("settings"))
 	bar.add_child(set_btn)
 
@@ -179,9 +182,11 @@ func _add_car_showcase() -> void:
 	# nameplate
 	var plate = UIStyle.make_glass_panel(24, Color(0.03, 0.05, 0.1, 0.72), 22, 0.25)
 	plate.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	plate.anchor_right = 1.0
+	plate.anchor_bottom = 1.0
 	plate.offset_left = -700
-	plate.offset_right = -100
-	plate.offset_top = -168
+	plate.offset_right = -84
+	plate.offset_top = -214
 	plate.offset_bottom = -40
 	content.add_child(plate)
 	var v = VBoxContainer.new()
@@ -191,9 +196,9 @@ func _add_car_showcase() -> void:
 	v.add_child(UIStyle.make_title(str(car["name"]), 48, GameData.CLASS_INFO[str(car["class"])]["color"]))
 	var stats: Dictionary = Game.tuned_stats(str(car["id"]))
 	v.add_child(UIStyle.make_stat_bar(Localization.t("common.speed"), float(stats["speed"]),
-		UIStyle.CYAN, 12, 520))
+		UIStyle.CYAN, 10, 560))
 	v.add_child(UIStyle.make_stat_bar(Localization.t("common.accel"), float(stats["accel"]),
-		UIStyle.MAGENTA, 12, 520))
+		UIStyle.MAGENTA, 10, 560))
 
 
 func _add_footer_stats() -> void:
@@ -214,7 +219,7 @@ func _add_footer_stats() -> void:
 	for item in items:
 		var v = VBoxContainer.new()
 		v.add_theme_constant_override("separation", -6)
-		var val = UIStyle.make_label(item[1], "display", 34, Color.WHITE)
+		var val = UIStyle.make_label(item[1], "numeric", 34, Color.WHITE)
 		v.add_child(val)
 		v.add_child(UIStyle.make_kicker(item[0], UIStyle.TEXT_DIM, 14))
 		strip.add_child(v)
