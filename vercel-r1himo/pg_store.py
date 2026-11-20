@@ -93,6 +93,13 @@ class PostgresStore(rabot.Store):
             raw.close()
             raise
 
+    def _begin_financial(self):
+        # psycopg starts a transaction implicitly on the first statement.
+        pass
+
+    def _financial_lock_suffix(self):
+        return ' FOR UPDATE'
+
     def take_stock(self, product_id, order_id):
         # PostgreSQL evaluates a subquery before waiting on a contested row.
         # FOR UPDATE SKIP LOCKED ensures two orders never claim the same item.

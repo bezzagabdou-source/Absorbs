@@ -35,6 +35,7 @@ import hmac
 import html
 import json
 import logging
+import math
 import mimetypes
 import os
 import random
@@ -1176,6 +1177,149 @@ class Store:
     def all_user_ids(self):
         return [r["tg_id"] for r in self.q("SELECT tg_id FROM users WHERE banned=0")]
 
+    def _begin_financial(self):
+        # SQLite obtains a write reservation before reading balances or stock.
+        self.conn.execute("BEGIN IMMEDIATE")
+
+    def _financial_lock_suffix(self):
+        return ""
+
+    def purchase_atomic(self, tg_id, product_id, qty, referral_percent):
+        """Commit debit, order, stock and referral credit together, or none."""
+        qty = to_int(qty, 0)
+        if qty < 1 or qty > 100:
+            return {"error": "invalid"}
+        with self.lock:
+            try:
+                self._begin_financial()
+                suffix = self._financial_lock_suffix()
+                product = self.conn.execute("SELECT * FROM products WHERE id=?" + suffix, (product_id,)).fetchone()
+                user = self.conn.execute("SELECT * FROM users WHERE tg_id=?" + suffix, (tg_id,)).fetchone()
+                if not product or not user or not product["visible"]:
+                    self.conn.rollback()
+                    return {"error": "invalid"}
+                product, user = dict(product), dict(user)
+                price = round(to_float(product.get("price"), 0), 2)
+                if not math.isfinite(price) or price < 0:
+                    self.conn.rollback()
+                    return {"error": "invalid"}
+                total = round(price * qty, 2)
+                if to_float(user.get("balance"), 0) < total:
+                    self.conn.rollback()
+                    return {"error": "balance", "product": product, "balance": user["balance"], "total": total}
+                stock = self.conn.execute("SELECT id,content FROM stock_items WHERE product_id=? AND used=0 ORDER BY id LIMIT ?" + suffix,
+                                          (product_id, qty)).fetchall()
+                if (len(stock) < qty and (product.get("stock_mode") != "unlimited" or not (product.get("feed") or "").strip())) or any(not (row["content"] or "").strip() for row in stock):
+                    self.conn.rollback()
+                    return {"error": "stock"}
+                cur = self.conn.execute("UPDATE users SET balance=ROUND(balance-?,2), spent=ROUND(spent+?,2) WHERE id=? AND balance>=?",
+                                        (total, total, user["id"], total))
+                if not cur.rowcount:
+                    self.conn.rollback()
+                    return {"error": "balance", "product": product, "balance": user["balance"], "total": total}
+                now = now_iso()
+                cur = self.conn.execute("INSERT INTO orders(user_id,product_id,product_name,qty,unit_price,total,status,delivery,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    (user["id"], product_id, product["name"], qty, price, total, "pending", "", "", now, now))
+                oid = cur.lastrowid
+                delivery_parts = []
+                for row in stock:
+                    updated = self.conn.execute("UPDATE stock_items SET used=1,order_id=? WHERE id=? AND used=0", (oid, row["id"]))
+                    if updated.rowcount != 1:
+                        raise RuntimeError("stock claim conflict")
+                    delivery_parts.append(row["content"])
+                for i in range(len(stock), qty):
+                    delivery_parts.append(fill(product["feed"], {"order": oid, "qty": qty, "index": i + 1,
+                        "user": user.get("username") or tg_id, "date": now[:10], "store": self.get_setting("store_name", APP_NAME)}))
+                delivery = "\n".join(x for x in delivery_parts if x).strip()
+                if not delivery:
+                    raise RuntimeError("empty delivery")
+                self.conn.execute("UPDATE products SET sold=sold+? WHERE id=?", (qty, product_id))
+                self.conn.execute("UPDATE orders SET status='delivered',delivery=?,updated_at=? WHERE id=?", (delivery, now, oid))
+                referrer_id = to_int(user.get("referrer_id"), 0)
+                commission = round(total * max(0, min(100, to_int(referral_percent, 0))) / 100.0, 2)
+                if commission > 0 and referrer_id and referrer_id != user["id"]:
+                    self.conn.execute("UPDATE users SET balance=ROUND(balance+?,2),ref_earnings=ROUND(ref_earnings+?,2) WHERE id=?", (commission, commission, referrer_id))
+                self.conn.commit()
+                return {"product": product, "user": user, "order_id": oid, "total": total, "delivery": delivery,
+                        "balance_after": round(to_float(user["balance"], 0) - total, 2), "status": "delivered",
+                        "referrer_id": referrer_id, "commission": commission}
+            except Exception:
+                self.conn.rollback()
+                raise
+
+    def deliver_pending_atomic(self, oid):
+        """Complete a legacy pending order without racing a refund."""
+        with self.lock:
+            try:
+                self._begin_financial()
+                suffix = self._financial_lock_suffix()
+                order = self.conn.execute("SELECT * FROM orders WHERE id=?" + suffix, (oid,)).fetchone()
+                if not order or order["status"] != "pending":
+                    self.conn.rollback()
+                    return None
+                order = dict(order)
+                existing = (order.get("delivery") or "").strip()
+                claimed = self.conn.execute("SELECT COUNT(*) AS n FROM stock_items WHERE order_id=? AND used=1", (oid,)).fetchone()["n"]
+                if existing and not claimed:
+                    # Older records may not link stock. Only a single-unit delivery
+                    # can safely be considered complete without that evidence.
+                    if order["qty"] != 1:
+                        self.conn.rollback()
+                        return None
+                    claimed = 1
+                if claimed and not existing:
+                    self.conn.rollback()
+                    return None
+                needed = max(0, order["qty"] - claimed)
+                stock = self.conn.execute("SELECT id,content FROM stock_items WHERE product_id=? AND used=0 ORDER BY id LIMIT ?" + suffix,
+                                          (order["product_id"], needed)).fetchall()
+                if len(stock) != needed or any(not (row["content"] or "").strip() for row in stock):
+                    self.conn.rollback()
+                    return None
+                for row in stock:
+                    self.conn.execute("UPDATE stock_items SET used=1,order_id=? WHERE id=? AND used=0", (oid, row["id"]))
+                delivery = "\n".join(([existing] if existing else []) + [row["content"] for row in stock])
+                if not delivery:
+                    self.conn.rollback()
+                    return None
+                self.conn.execute("UPDATE orders SET status='delivered',delivery=?,updated_at=? WHERE id=?", (delivery, now_iso(), oid))
+                if needed:
+                    self.conn.execute("UPDATE products SET sold=sold+? WHERE id=?", (needed, order["product_id"]))
+                self.conn.commit()
+                return delivery
+            except Exception:
+                self.conn.rollback()
+                raise
+
+    def refund_order_atomic(self, oid, status):
+        if status not in ("cancelled", "refunded"):
+            return None
+        with self.lock:
+            try:
+                self._begin_financial()
+                order = self.conn.execute("SELECT * FROM orders WHERE id=?" + self._financial_lock_suffix(), (oid,)).fetchone()
+                if not order or order["status"] in ("cancelled", "refunded"):
+                    self.conn.rollback()
+                    return None
+                order = dict(order)
+                total = to_float(order.get("total"), 0)
+                if not math.isfinite(total) or total < 0:
+                    raise ValueError("invalid order total")
+                changed = self.conn.execute("UPDATE orders SET status=?,updated_at=? WHERE id=? AND status NOT IN ('cancelled','refunded')", (status, now_iso(), oid))
+                if not changed.rowcount:
+                    self.conn.rollback()
+                    return None
+                credit = self.conn.execute("UPDATE users SET balance=ROUND(balance+?,2),spent=MAX(0, ROUND(spent-?,2)) WHERE id=?",
+                                          (order["total"], order["total"], order["user_id"]))
+                if credit.rowcount != 1:
+                    raise RuntimeError("order owner missing")
+                self.conn.commit()
+                return order
+            except Exception:
+                self.conn.rollback()
+                raise
+
+
     # ------------------------------------------------------------------
     #  ORDERS / DEPOSITS
     # ------------------------------------------------------------------
@@ -1245,17 +1389,33 @@ class Store:
         return self.one("SELECT * FROM deposits WHERE id=?", (did,))
 
     def review_deposit(self, did, status, note=""):
-        dep = self.get_deposit(did)
-        if not dep or dep["status"] != "pending":
+        if status not in ("approved", "rejected"):
             return None
-        self.ex("UPDATE deposits SET status=?,note=?,reviewed_at=? WHERE id=?",
-                (status, note, now_iso(), did))
-        if status == "approved":
-            self.adjust_balance(
-                self.scalar("SELECT tg_id FROM users WHERE id=?", (dep["user_id"],)),
-                dep["amount"],
-            )
-        return dep
+        with self.lock:
+            try:
+                self._begin_financial()
+                dep = self.conn.execute("SELECT * FROM deposits WHERE id=?" + self._financial_lock_suffix(), (did,)).fetchone()
+                if not dep or dep["status"] != "pending":
+                    self.conn.rollback()
+                    return None
+                dep = dict(dep)
+                amount = to_float(dep.get("amount"), 0)
+                if status == "approved" and (not math.isfinite(amount) or amount <= 0):
+                    raise ValueError("invalid deposit amount")
+                cur = self.conn.execute("UPDATE deposits SET status=?,note=?,reviewed_at=? WHERE id=? AND status='pending'",
+                                        (status, note, now_iso(), did))
+                if not cur.rowcount:
+                    self.conn.rollback()
+                    return None
+                if status == "approved":
+                    cur = self.conn.execute("UPDATE users SET balance=ROUND(balance+?,2) WHERE id=?", (dep["amount"], dep["user_id"]))
+                    if cur.rowcount != 1:
+                        raise RuntimeError("deposit owner missing")
+                self.conn.commit()
+                return dep
+            except Exception:
+                self.conn.rollback()
+                raise
 
     # ------------------------------------------------------------------
     #  STATS
@@ -1927,104 +2087,35 @@ def orders_text(user):
 def deliver_order(user, product, qty=1):
     """Charge balance, take stock, deliver. Returns (ok, message)."""
     lang = lang_of(user)
-    fresh = store.get_user(user["tg_id"])
-    p = store.product_by_id(product["id"])
-    if not p:
+    result = store.purchase_atomic(user["tg_id"], product["id"], qty, store.get_int("referral_percent", 10))
+    error = result.get("error")
+    if error == "invalid":
         return False, "❌ المنتج غير متاح." if lang == "ar" else "❌ Product unavailable."
-
-    if not p.get("visible"):
-        return False, "❌ المنتج غير متاح." if lang == "ar" else "❌ Product unavailable."
-
-    stock = store.available_stock(p)
-    if stock < qty:
-        return False, "❌ نفد المخزون." if lang == "ar" else "❌ Out of stock."
-
-    total = round(to_float(p.get("price"), 0) * qty, 2)
-    balance = to_float(fresh.get("balance"), 0)
-    if balance < total:
-        short = round(total - balance, 2)
-        body = ("⚠️ <b>%s</b>\n\n%s\n💰 %s\n💵 %s\n\n%s" % (
+    if error == "stock":
+        return False, ("❌ نفد المخزون." if lang == "ar" else "❌ Out of stock.",
+                       inline_keyboard([[_btn(t("lbl_back", lang), "default", None, cb="pg:0")]]))
+    if error == "balance":
+        body = ("⚠️ <b>%s</b>\n\n💰 %s\n💵 %s" % (
             "الرصيد غير كافٍ" if lang == "ar" else "Insufficient balance",
-            esc(p.get("name")),
-            price_str(balance),
-            price_str(total),
-            ("تحتاج %s إضافية. اشحن محفظتك ثم أعد المحاولة." % price_str(short)) if lang == "ar"
-            else ("You need %s more. Top up your wallet and try again." % price_str(short)),
-        ))
-        markup = inline_keyboard([
+            price_str(result.get("balance", 0)), price_str(result.get("total", 0))))
+        return False, (body, inline_keyboard([
             [_btn(t("lbl_topup", lang), "success", None, cb="topup")],
-            [_btn(t("lbl_close", lang), "default", None, cb="close")],
-        ])
-        return False, (body, markup)
-
-    # ---- charge the wallet atomically: never lets the balance go negative ----
-    if not store.debit_balance(fresh["tg_id"], total):
-        data = store.get_user(fresh["tg_id"])
-        body = ("⚠️ <b>%s</b>\n\n%s\n💰 %s\n💵 %s" % (
-            "الرصيد غير كافٍ" if lang == "ar" else "Insufficient balance",
-            esc(p.get("name")), price_str(data.get("balance")), price_str(total)))
-        markup = inline_keyboard([
-            [_btn(t("lbl_topup", lang), "success", None, cb="topup")],
-            [_btn(t("lbl_close", lang), "default", None, cb="close")],
-        ])
-        return False, (body, markup)
-
-    balance_after = to_float(store.get_user(fresh["tg_id"]).get("balance"), 0)
-
-    # ---- reserve delivery content (atomic claim per item) ----
-    order_id = store.create_order(fresh["id"], p, qty)
-    claimed = store.claim_stock_batch(p["id"], order_id, qty)
-    delivery_parts = list(claimed)
+            [_btn(t("lbl_close", lang), "default", None, cb="close")]]))
+    fresh = result["user"]
+    p = result["product"]
+    total = result["total"]
+    balance_after = result["balance_after"]
+    order_id = result["order_id"]
+    delivery = result["delivery"]
+    status = result["status"]
     manual = False
-
-    if len(claimed) < qty and p.get("feed"):
-        # product has a delivery template -> generate the missing units
-        template = p["feed"]
-        for i in range(len(claimed), qty):
-            delivery_parts.append(fill(template, {
-                "order": order_id, "qty": qty, "index": i + 1,
-                "user": fresh.get("username") or fresh["tg_id"],
-                "date": now_iso()[:10], "store": store_name(),
-            }))
-    elif len(claimed) < qty:
-        manual = True
-
-    if not delivery_parts:
-        # nothing could be reserved and there is nothing to deliver: refund fully
-        # (e.g. the last unit was taken by a concurrent buyer a millisecond ago)
-        store.adjust_balance(fresh["tg_id"], total)
-        store.ex("UPDATE users SET spent = MAX(0, ROUND(spent - ?, 2)) WHERE tg_id=?",
-                 (total, fresh["tg_id"]))
-        store.update_order(order_id, status="cancelled", note="out_of_stock_refund")
-        return False, ("❌ <b>%s</b>\n\n%s" % (
-            "نفد المخزون" if lang == "ar" else "Out of stock",
-            "لم يتم خصم أي مبلغ، أعد المحاولة." if lang == "ar"
-            else "Nothing was charged, please try again."),
-            inline_keyboard([[_btn(t("lbl_back", lang), "default", None, cb="listen:0")]]))
-
-    delivery = "\n".join(x for x in delivery_parts if x).strip()
-    store.ex("UPDATE products SET sold = sold + ? WHERE id=?", (len(delivery_parts), p["id"]))
-
-    status = "pending" if manual else "delivered"
-    store.update_order(order_id, status=status, delivery=delivery, updated_at=now_iso())
-
-    # referral commission
-    percent = store.get_int("referral_percent", 10)
-    referrer_id = to_int(fresh.get("referrer_id"), 0)
-    if percent > 0 and referrer_id and status == "delivered" and referrer_id != fresh["id"]:
-        commission = round(total * percent / 100.0, 2)
-        if commission > 0:
-            ref_user = store.get_user_by_id(referrer_id)
-            if ref_user:
-                store.adjust_balance(ref_user["tg_id"], commission)
-                store.ex("UPDATE users SET ref_earnings = ROUND(ref_earnings + ?, 2) WHERE id=?",
-                         (commission, referrer_id))
-                safe_send(ref_user["tg_id"], "🎁 <b>%s</b>\n\n+%s %s @%s" % (
-                    "عمولة إحالة جديدة" if lang_of(ref_user) == "ar" else "New referral commission",
-                    price_str(commission),
-                    "من" if lang_of(ref_user) == "ar" else "from",
-                    esc(fresh.get("username") or fresh.get("first_name") or fresh["tg_id"]),
-                ))
+    if result.get("referrer_id") and result.get("commission"):
+        ref_user = store.get_user_by_id(result["referrer_id"])
+        if ref_user and ref_user["id"] != fresh["id"]:
+            safe_send(ref_user["tg_id"], "🎁 <b>%s</b>\n\n+%s %s @%s" % (
+                "عمولة إحالة جديدة" if lang_of(ref_user) == "ar" else "New referral commission",
+                price_str(result["commission"]), "من" if lang_of(ref_user) == "ar" else "from",
+                esc(fresh.get("username") or fresh.get("first_name") or fresh["tg_id"])))
 
     # confirmation to buyer
     head = "✅ <b>%s</b>" % ("تم تسليم طلبك" if status == "delivered" else "تم استلام طلبك")
@@ -2581,7 +2672,9 @@ def handle_callback(cb):
         if not dep:
             return
         if action == "ok":
-            store.review_deposit(did, "approved", "approved via bot")
+            dep = store.review_deposit(did, "approved", "approved via bot")
+            if not dep:
+                return safe_edit(chat_id, message_id, "⚠️ تمت مراجعة طلب الشحن مسبقاً.")
             target = store.get_user_by_id(dep["user_id"])
             if target:
                 safe_send(target["tg_id"], "✅ <b>%s</b>\n\n+%s\n💰 %s: %s" % (
@@ -2592,7 +2685,9 @@ def handle_callback(cb):
                 ), build_main_keyboard(store.get_user(target["tg_id"])))
             return safe_edit(chat_id, message_id, "✅ #%d — %s" % (did, price_str(dep["amount"])))
         if action == "no":
-            store.review_deposit(did, "rejected", "rejected via bot")
+            dep = store.review_deposit(did, "rejected", "rejected via bot")
+            if not dep:
+                return safe_edit(chat_id, message_id, "⚠️ تمت مراجعة طلب الشحن مسبقاً.")
             target = store.get_user_by_id(dep["user_id"])
             if target:
                 safe_send(target["tg_id"], "❌ <b>%s</b>" % (
@@ -3795,23 +3890,21 @@ def page_orders_action(form):
     user = store.get_user_by_id(order["user_id"])
 
     if action == "deliver":
-        product = store.product_by_id(order["product_id"])
-        delivery = order.get("delivery") or ""
-        if not delivery and product:
-            delivery = store.take_stock(product["id"], order["id"]) or "—"
-        store.update_order(oid, status="delivered", delivery=delivery)
+        delivery = store.deliver_pending_atomic(oid)
+        if not delivery:
+            return "/panel/orders", "❌ الطلب غير معلّق أو لا يوجد مخزون كافٍ للتسليم", "err"
         if user:
             safe_send(user["tg_id"], "✅ <b>تم تسليم طلبك #%d</b>\n\n<pre>%s</pre>" % (
                 oid, html.escape(delivery, quote=False)), build_main_keyboard(user))
         return "/panel/orders", "✅ تم التسليم اليدوي #%d" % oid, "ok"
 
-    if action in ("cancel", "refund") and order["status"] in ("cancelled", "refunded"):
-        return "/panel/orders", "❌ تم إرجاع مبلغ هذا الطلب مسبقاً", "err"
+    if action in ("cancel", "refund"):
+        order = store.refund_order_atomic(oid, "cancelled" if action == "cancel" else "refunded")
+        if not order:
+            return "/panel/orders", "❌ تم إرجاع مبلغ هذا الطلب مسبقاً", "err"
+        user = store.get_user_by_id(order["user_id"])
 
     if action == "cancel":
-        store.update_order(oid, status="cancelled")
-        if order["status"] != "cancelled" and user:
-            store.adjust_balance(user["tg_id"], order["total"])
         if user:
             safe_send(user["tg_id"], "❌ <b>تم إلغاء طلبك #%d</b>\n\n💰 %s: %s" % (
                 oid, "تم إرجاع المبلغ للمحفظة" if lang_of(user) == "ar" else "Refunded to wallet",
@@ -3820,11 +3913,7 @@ def page_orders_action(form):
         return "/panel/orders", "❌ تم إلغاء الطلب #%d" % oid, "ok"
 
     if action == "refund":
-        store.update_order(oid, status="refunded")
         if user:
-            store.adjust_balance(user["tg_id"], order["total"])
-            store.ex("UPDATE users SET spent = MAX(0, ROUND(spent - ?, 2)) WHERE tg_id=?",
-                     (order["total"], user["tg_id"]))
             safe_send(user["tg_id"], "💸 <b>%s #%d</b>\n\n+%s" % (
                 "تم استرجاع مبلغ طلبك" if lang_of(user) == "ar" else "Order refunded",
                 oid, price_str(order["total"])), build_main_keyboard(store.get_user(user["tg_id"])))
@@ -3898,7 +3987,9 @@ def page_deposits_action(form):
     if not dep:
         return "/panel/deposits", "❌ الشحنة غير موجودة", "err"
     if action == "approve":
-        store.review_deposit(did, "approved", "panel")
+        dep = store.review_deposit(did, "approved", "panel")
+        if not dep:
+            return "/panel/deposits", "❌ تمت مراجعة طلب الشحن مسبقاً", "err"
         target = store.get_user_by_id(dep["user_id"])
         if target:
             fresh = store.get_user(target["tg_id"])
@@ -3909,7 +4000,9 @@ def page_deposits_action(form):
                 price_str(fresh.get("balance"))), build_main_keyboard(fresh))
         return "/panel/deposits", "✅ تمت الموافقة على #%d" % did, "ok"
     if action == "reject":
-        store.review_deposit(did, "rejected", "panel")
+        dep = store.review_deposit(did, "rejected", "panel")
+        if not dep:
+            return "/panel/deposits", "❌ تمت مراجعة طلب الشحن مسبقاً", "err"
         target = store.get_user_by_id(dep["user_id"])
         if target:
             safe_send(target["tg_id"], "❌ <b>%s</b>\n\n%s" % (

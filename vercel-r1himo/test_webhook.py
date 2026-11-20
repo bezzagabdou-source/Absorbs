@@ -234,6 +234,22 @@ class WebhookTests(unittest.TestCase):
         with index._request_context():
             self.assertIsNone(index.rabot.state_get(6818164226))
 
+    def test_078_atomic_purchase_via_webhook(self):
+        with index._request_context():
+            buyer = index.rabot.store.get_user(222)
+            index.rabot.store.adjust_balance(222, 10)
+            pid = index.rabot.store.add_product({'name': 'Test purchase', 'price': 3})
+            index.rabot.store.add_stock_lines(pid, ['fake delivery'])
+        self.calls.clear()
+        self.callback(200, 'confirm:%d' % pid, user=222)
+        self.assertTrue(any('تم تسليم طلبك' in c.get('text', '') for c in self.sent('editMessageText')))
+        with index._request_context():
+            self.assertAlmostEqual(index.rabot.store.get_user(222)['balance'], 7)
+            order = index.rabot.store.user_orders(buyer['id'], 1)[0]
+            self.assertEqual(order['delivery'], 'fake delivery')
+            self.assertEqual(order['status'], 'delivered')
+            self.assertEqual(index.rabot.store.product_stock(pid), 0)
+
     def test_08_one_time_password_reset(self):
         old_password = index.rabot.PANEL_PASSWORD_ENV
         try:
