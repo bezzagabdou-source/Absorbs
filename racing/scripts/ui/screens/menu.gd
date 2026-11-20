@@ -102,11 +102,15 @@ func _add_quick_actions() -> void:
 
 func _add_car_showcase() -> void:
 	_car_view = SubViewportContainer.new()
-	_car_view.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	_car_view.offset_left = -1180
-	_car_view.offset_right = 60
-	_car_view.offset_top = -560
-	_car_view.offset_bottom = -10
+	_car_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_car_view.anchor_left = 0.28
+	_car_view.anchor_right = 1.0
+	_car_view.anchor_top = 0.16
+	_car_view.anchor_bottom = 1.0
+	_car_view.offset_left = 0
+	_car_view.offset_right = -40
+	_car_view.offset_top = 0
+	_car_view.offset_bottom = -250
 	_car_view.stretch = true
 	_car_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_car_view)
@@ -157,9 +161,10 @@ func _add_car_showcase() -> void:
 	model.position = Vector3(0, -0.55, 0)
 	_car_pivot.add_child(model)
 	var cam = Camera3D.new()
-	cam.fov = 34.0
-	cam.position = Vector3(4.6, 1.9, 5.4)
-	cam.look_at(Vector3(0, 0.55, 0))
+	cam.fov = 32.0
+	cam.keep_aspect = Camera3D.KEEP_HEIGHT
+	cam.position = Vector3(6.4, 2.2, 7.2)
+	cam.look_at(Vector3(0, 0.15, 0))
 	root.add_child(cam)
 	cam.current = true
 	# floor glow ellipse
