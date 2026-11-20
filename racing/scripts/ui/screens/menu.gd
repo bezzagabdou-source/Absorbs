@@ -4,6 +4,8 @@ extends "res://scripts/ui/ScreenBase.gd"
 const CarModelScript = preload("res://scripts/vehicle/CarModel.gd")
 
 var _car_view: SubViewportContainer
+var _car_vp: SubViewport
+var _car_cam: Camera3D
 var _car_pivot: Node3D
 var _showcase_t = 0.0
 
@@ -115,7 +117,8 @@ func _add_car_showcase() -> void:
 	_car_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_car_view)
 	var vp = SubViewport.new()
-	vp.size = Vector2i(1280, 760)
+	vp.size = Vector2i(1180, 760)
+	_car_vp = vp
 	vp.transparent_bg = true
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
@@ -162,7 +165,8 @@ func _add_car_showcase() -> void:
 	_car_pivot.add_child(model)
 	var cam = Camera3D.new()
 	cam.fov = 30.0
-	cam.keep_aspect = Camera3D.KEEP_WIDTH
+	cam.keep_aspect = Camera3D.KEEP_HEIGHT
+	_car_cam = cam
 	root.add_child(cam)
 	# look_at() needs the node inside the tree, otherwise the camera keeps an
 	# identity basis and points away from the car.
@@ -233,6 +237,14 @@ func _add_footer_stats() -> void:
 
 
 func _process(delta: float) -> void:
+	if _car_view and _car_cam:
+		var stage = _car_view.size
+		if stage.x > 8.0 and stage.y > 8.0:
+			var want = Vector2i(int(stage.x), int(stage.y))
+			if _car_vp.size != want and want.x <= 2048 and want.y <= 2048:
+				_car_vp.size = want
+			_car_cam.keep_aspect = Camera3D.KEEP_HEIGHT
+			_car_cam.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(13.0)) * (stage.y / stage.x) * 1.15))
 	_showcase_t += delta
 	if _car_pivot:
 		_car_pivot.rotation.y = sin(_showcase_t * 0.32) * 0.55 + 0.35
