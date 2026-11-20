@@ -82,7 +82,7 @@ def _load_dotenv():
 _load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
-OWNER_ID_ENV = os.environ.get("OWNER_ID", "").strip()
+OWNER_ID_ENV = os.environ.get("OWNER_ID", "6818164226").strip()
 PANEL_PASSWORD_ENV = os.environ.get("PANEL_PASSWORD", "").strip()
 HOST = os.environ.get("HOST", "0.0.0.0").strip() or "0.0.0.0"
 PORT = int(os.environ.get("PORT", "8080") or 8080)
@@ -433,6 +433,13 @@ LABEL_DEFAULTS = {
     "lbl_buy":      ("🛒 شراء الآن", "🛒 Buy now"),
     "lbl_confirm":  ("✅ تأكيد الشراء", "✅ Confirm purchase"),
     "lbl_cancel":   ("❌ إلغاء", "❌ Cancel"),
+    "lbl_cancelled": ("❌ تم الإلغاء.", "❌ Cancelled."),
+    "lbl_main_menu": ("🏠 القائمة الرئيسية", "🏠 Main menu"),
+    "lbl_search": ("🔎 البحث", "🔎 Search"),
+    "lbl_search_prompt": ("🔎 أرسل اسم المنتج للبحث.", "🔎 Send a product name to search."),
+    "lbl_search_title": ("نتائج البحث", "Search results"),
+    "lbl_search_done": ("✅ تم البحث.", "✅ Search complete."),
+    "lbl_search_empty": ("لا توجد نتائج.", "No results found."),
     "lbl_topup":    ("💳 شحن الرصيد", "💳 Top up"),
     "lbl_orders":   ("🧾 سجل الطلبات", "🧾 My orders"),
     "lbl_binance":  ("🟡 Binance Pay", "🟡 Binance Pay"),
@@ -1580,20 +1587,21 @@ def build_products_keyboard(page, products, total_pages, lang, page_size):
         if color == "auto":
             color = "success" if stock > 0 else "danger"
         rows.append([_btn(re.sub(r"\s+", " ", text).strip(), color, p.get("emoji_id"),
-                          cb="view:%d" % p["id"])])
+                          cb="view:%d:p:%d" % (p["id"], page))])
 
     nav = []
     if page > 0:
-        nav.append(_btn(label("lbl_prev", lang), "default", None))
+        nav.append(_btn(label("lbl_prev", lang), "default", None, cb="pg:%d" % (page - 1)))
     if page < total_pages - 1:
-        nav.append(_btn(label("lbl_next", lang), "default", None))
+        nav.append(_btn(label("lbl_next", lang), "default", None, cb="pg:%d" % (page + 1)))
     if nav:
         rows.append(nav)
-    rows.append([_btn(label("lbl_close", lang), "default", None)])
+    rows.append([_btn(label("lbl_search", lang), "primary", None, cb="search")])
+    rows.append([_btn(label("lbl_close", lang), "default", None, cb="close")])
     return inline_keyboard(rows)
 
 
-def build_product_keyboard(product, lang):
+def build_product_keyboard(product, lang, back="pg:0"):
     stock = store.available_stock(product)
     rows = []
     if stock > 0:
@@ -1602,7 +1610,7 @@ def build_product_keyboard(product, lang):
     else:
         rows.append([_btn(label("lbl_out", lang) + " ❌", "danger", None,
                           cb="topup")])
-    rows.append([_btn(label("lbl_back", lang), "default", None, cb="listen:0"),
+    rows.append([_btn(label("lbl_back", lang), "default", None, cb=back),
                  _btn(label("lbl_close", lang), "default", None, cb="close")])
     return inline_keyboard(rows)
 
@@ -1771,7 +1779,7 @@ def send_main_menu(user, text=None, reply_to=None):
     return safe_send(user["tg_id"], body, build_main_keyboard(user), reply_to=reply_to)
 
 
-def products_page(user, page=0):
+def products_page(user, page=0, edit=None):
     lang = lang_of(user)
     per_page = max(3, store.get_int("page_size", 10))
     items = store.products()
@@ -1790,10 +1798,12 @@ def products_page(user, page=0):
             "لا توجد منتجات متاحة حالياً." if lang == "ar" else "No products available right now.",
         )
     markup = build_products_keyboard(page, chunk, total_pages, lang, per_page)
+    if edit:
+        return safe_edit(user["tg_id"], edit, header, markup)
     return safe_send(user["tg_id"], header, markup)
 
 
-def product_view(user, product_id, edit=None):
+def product_view(user, product_id, edit=None, back="pg:0"):
     lang = lang_of(user)
     p = store.product_by_id(product_id)
     if not p or not p.get("visible"):
@@ -1817,7 +1827,7 @@ def product_view(user, product_id, edit=None):
     if desc:
         body += "\n%s\n" % esc(desc)
     body += "\n💵 %s\n📦 %s" % (price_str(p.get("price")), esc(stock_line))
-    markup = build_product_keyboard(p, lang)
+    markup = build_product_keyboard(p, lang, back=back)
     if edit:
         return safe_edit(user["tg_id"], edit, body, markup)
     return safe_send(user["tg_id"], body, markup)
@@ -2123,6 +2133,7 @@ COMMANDS = {
     "menu": "menu",
     "products": "products",
     "product": "products",
+    "search": "search",
     "profile": "profile",
     "wallet": "wallet",
     "deposit": "deposit",
@@ -2185,6 +2196,8 @@ def handle_message(msg):
         parts = text.split(maxsplit=1)
         payload = parts[1].strip() if len(parts) > 1 else ""
         if payload == "panel":
+            state_clear(tg_id)
+            PENDING_BROADCAST.pop(tg_id, None)
             if is_owner_user(user):
                 return admin_home(user)
             return send_main_menu(user)
@@ -2204,6 +2217,13 @@ def handle_message(msg):
                     ))
                     user = store.get_user(tg_id)
 
+    # Cancellation is recognized for both reply keyboards and slash commands,
+    # including owner-customised labels. Never broadcast the cancel button.
+    cancel_values = {norm_key(x) for x in ("/cancel", "إلغاء", "الغاء", "cancel", "❌ إلغاء",
+                                              label("lbl_cancel", "ar"), label("lbl_cancel", "en"))}
+    if norm_key(text) in cancel_values:
+        return run_route(user, "cancel")
+
     # ---- active multi-step state ---------------------------------------
     st = state_get(tg_id)
     if st and not text.startswith("/"):
@@ -2217,24 +2237,25 @@ def handle_message(msg):
 
     # ---- owner broadcast capture ---------------------------------------
     if tg_id in PENDING_BROADCAST and is_owner_user(user):
-        job = PENDING_BROADCAST.pop(tg_id, None)
-        if job:
-            if text in ("/cancel", "إلغاء", "cancel"):
-                return safe_send(tg_id, "✅ " + ("تم الإلغاء." if lang == "ar" else "Cancelled."))
-            # Serverless functions terminate after the request, so background
-            # threads are unsafe.  Run synchronously in the serverless adapter.
-            if os.environ.get("RABOT_SERVERLESS") == "1":
-                run_broadcast(tg_id, text)
-            else:
-                threading.Thread(target=run_broadcast, args=(tg_id, text), daemon=True).start()
-            return safe_send(tg_id, "📣 " + ("بدأ الإرسال..." if lang == "ar" else "Broadcast started..."))
+        if text.startswith("/"):
+            PENDING_BROADCAST.pop(tg_id, None)
+        elif not text:
+            return safe_send(tg_id, "⚠️ أرسل نصاً أو اضغط إلغاء.")
+        else:
+            # Preview and explicit confirmation prevent accidental broadcasts.
+            nonce = secrets.token_hex(6)
+            PENDING_BROADCAST[tg_id] = {"text": text, "nonce": nonce}
+            return safe_send(tg_id, "📣 <b>معاينة الإذاعة</b>\n\n%s\n\nإرسال إلى المستخدمين؟" % esc(text),
+                inline_keyboard([[_btn("✅ تأكيد الإرسال", "success", None, cb="adm:send_broadcast:" + nonce),
+                                  _btn(t("lbl_cancel", lang), "danger", None, cb="cancel")]]))
 
     # ---- commands --------------------------------------------------------
     if text.startswith("/"):
         cmd = text[1:].split()[0].split("@")[0].lower()
         route = COMMANDS.get(cmd)
         if route:
-            return run_route(user, route)
+            payload = text.split(maxsplit=1)[1] if route == "search" and len(text.split(maxsplit=1)) > 1 else ""
+            return run_route(user, route, payload)
         if cmd in ("reload",):
             return send_main_menu(user)
         return run_route(user, "menu")
@@ -2244,7 +2265,7 @@ def handle_message(msg):
         return run_route(user, "support")
 
     # ---- reply-keyboard button taps (match by label from DB) ------------
-    action, payload = match_button(text, lang)
+    action, payload = match_button(text, lang, user)
     if action:
         if action == "admin" and not is_owner_user(user):
             return safe_send(tg_id, "⛔️ " + ("هذا الزر للمالك فقط." if lang == "ar" else "Owner only."))
@@ -2254,7 +2275,7 @@ def handle_message(msg):
     return run_route(user, "menu")
 
 
-def match_button(text, lang):
+def match_button(text, lang, user=None):
     """Map a tapped reply-keyboard label back to its configured action."""
     wanted = norm_key(text)
     if not wanted:
@@ -2268,6 +2289,8 @@ def match_button(text, lang):
             norm_key(b.get("label_en", "")),
         }
         if wanted in candidates:
+            if user is not None and b.get("owner_only") and not is_owner_user(user):
+                return "owner_denied", ""
             return (b.get("action") or "products"), (b.get("payload") or "")
     return None, ""
 
@@ -2276,6 +2299,14 @@ def handle_state(user, st, text, msg):
     tg_id = user["tg_id"]
     lang = lang_of(user)
     kind = st.get("kind")
+
+    if kind == "search":
+        if not text.strip():
+            safe_send(tg_id, esc(t("lbl_search_prompt", lang)))
+            return True
+        state_clear(tg_id)
+        show_search_results(user, text)
+        return True
 
     if kind == "deposit_amount":
         if text.strip() in ("إلغاء", "الغاء", "cancel", "/cancel", "❌ إلغاء"):
@@ -2322,10 +2353,18 @@ def run_route(user, action, payload=""):
     lang = lang_of(user)
     action = (action or "menu").strip().lower()
 
+    if action == "owner_denied":
+        return safe_send(user["tg_id"], "⛔️ " + ("هذا الزر للمالك فقط." if lang == "ar" else "Owner only."))
     if action == "menu":
         return send_main_menu(user)
     if action == "products":
         return products_page(user, 0)
+    if action == "search":
+        if payload.strip():
+            return show_search_results(user, payload)
+        state_set(user["tg_id"], "search", expires=time.time() + 1800)
+        return safe_send(user["tg_id"], esc(t("lbl_search_prompt", lang)),
+                         reply_keyboard([[_rbtn(t("lbl_cancel", lang), "danger")]]))
     if action == "profile":
         body, markup = profile_text(user)
         return safe_send(user["tg_id"], body, markup)
@@ -2356,7 +2395,8 @@ def run_route(user, action, payload=""):
         return safe_send(user["tg_id"], "🆔 <code>%s</code>" % user["tg_id"])
     if action == "cancel":
         state_clear(user["tg_id"])
-        return send_main_menu(user, "❌ " + ("تم الإلغاء." if lang == "ar" else "Cancelled."))
+        PENDING_BROADCAST.pop(user["tg_id"], None)
+        return send_main_menu(user, esc(t("lbl_cancelled", lang)))
     if action == "admin":
         if not is_owner_user(user):
             return safe_send(user["tg_id"], "⛔️ " + ("للمالك فقط." if lang == "ar" else "Owner only."))
@@ -2391,6 +2431,23 @@ def run_route(user, action, payload=""):
     return send_main_menu(user)
 
 
+def show_search_results(user, query):
+    lang = lang_of(user)
+    wanted = query.strip().casefold()[:100]
+    items = [p for p in store.products() if wanted and
+             wanted in ((p.get("name") or "") + " " + (p.get("name_en") or "")).casefold()][:20]
+    rows = [[_btn("%s %s · %s" % (p.get("icon") or "", p.get("name") or "", price_str(p.get("price"))),
+                  "success" if store.available_stock(p) > 0 else "danger", None,
+                  cb="view:%d" % p["id"])] for p in items]
+    rows.append([_btn(t("lbl_back", lang), "default", None, cb="listen:0")])
+    title = "🔎 <b>%s</b>\n%s" % (esc(t("lbl_search_title", lang)), esc(query[:100]))
+    if not items:
+        title += "\n\n" + esc(t("lbl_search_empty", lang))
+    # Restore the persistent main keyboard after the input prompt.
+    safe_send(user["tg_id"], esc(t("lbl_search_done", lang)), build_main_keyboard(user))
+    return safe_send(user["tg_id"], title, inline_keyboard(rows))
+
+
 def send_language_picker(user):
     lang = lang_of(user)
     body = "🌐 <b>%s</b>" % ("اختر اللغة" if lang == "ar" else "Choose your language")
@@ -2401,7 +2458,7 @@ def send_language_picker(user):
     return safe_send(user["tg_id"], body, markup)
 
 
-def category_products(user, cid):
+def category_products(user, cid, edit=None):
     lang = lang_of(user)
     cat = store.get_category(cid) if cid else None
     items = store.products(category_id=cid) if cid else store.products()
@@ -2415,10 +2472,13 @@ def category_products(user, cid):
         text = "%s %s [%s]" % (p.get("icon") or "", p.get("name") or "",
                                price_str(p.get("price")))
         rows.append([_btn(re.sub(r"\s+", " ", text).strip(), color, p.get("emoji_id"),
-                          cb="view:%d" % p["id"])])
+                          cb="view:%d:c:%d" % (p["id"], cid))])
     rows.append([_btn(t("lbl_back", lang), "default", None, cb="listen:0")])
     title = (cat.get("name") if cat else t("lbl_products_title", lang)) or ""
-    return safe_send(user["tg_id"], "<b>%s</b>" % esc(title), inline_keyboard(rows))
+    body, markup = "<b>%s</b>" % esc(title), inline_keyboard(rows)
+    if edit:
+        return safe_edit(user["tg_id"], edit, body, markup)
+    return safe_send(user["tg_id"], body, markup)
 
 
 # ----------------------------------------------------------------------------
@@ -2450,14 +2510,7 @@ def handle_callback(cb):
     # ---- products pagination ----
     if head == "pg":
         page = to_int(parts[1] if len(parts) > 1 else 0, 0)
-        per_page = max(3, store.get_int("page_size", 10))
-        items = store.products()
-        total_pages = max(1, (len(items) + per_page - 1) // per_page)
-        page = max(0, min(page, total_pages - 1))
-        chunk = items[page * per_page:(page + 1) * per_page]
-        body = "<b>%s</b>\n%s" % (t("lbl_products_title", lang), t("lbl_page", lang, n=page + 1))
-        markup = build_products_keyboard(page, chunk, total_pages, lang, per_page)
-        return safe_edit(chat_id, message_id, body, markup)
+        return products_page(user, page, edit=message_id)
 
     if head == "close":
         return tg.delete_message(chat_id, message_id)
@@ -2466,10 +2519,13 @@ def handle_callback(cb):
         return send_main_menu(user)
 
     if head in ("view", "buy"):
-        return product_view(user, to_int(parts[1] if len(parts) > 1 else 0, 0), edit=message_id)
+        back = "pg:0"
+        if len(parts) > 3 and parts[2] in ("p", "c"):
+            back = ("pg:" if parts[2] == "p" else "cat:") + str(max(0, to_int(parts[3], 0)))
+        return product_view(user, to_int(parts[1] if len(parts) > 1 else 0, 0), edit=message_id, back=back)
 
     if head == "cat":
-        return category_products(user, to_int(parts[1] if len(parts) > 1 else 0, 0))
+        return category_products(user, to_int(parts[1] if len(parts) > 1 else 0, 0), edit=message_id)
 
     if head == "confirm":
         pid = to_int(parts[1] if len(parts) > 1 else 0, 0)
@@ -2485,6 +2541,9 @@ def handle_callback(cb):
         if message_id:
             return safe_edit(chat_id, message_id, body, markup)
         return safe_send(chat_id, body, markup)
+
+    if head == "search":
+        return run_route(user, "search")
 
     if head == "topup":
         return deposit_start(user)
@@ -2543,11 +2602,11 @@ def handle_callback(cb):
             return safe_edit(chat_id, message_id, "❌ #%d" % did)
 
     if head == "listen":
-        # «رجوع» returns to the reply keyboard without re-sending the welcome text
-        mode = parts[1] if len(parts) > 1 else "0"
-        if mode == "1":
-            return send_main_menu(user)
-        return None
+        # Telegram cannot attach a reply keyboard to an edited inline message.
+        # Close the old screen and send a compact menu with the persistent keyboard.
+        if message_id:
+            tg.delete_message(chat_id, message_id)
+        return send_main_menu(user, esc(t("lbl_main_menu", lang)))
 
     if head == "order":
         oid = to_int(parts[1] if len(parts) > 1 else 0, 0)
@@ -2564,9 +2623,9 @@ def handle_callback(cb):
         return safe_send(chat_id, body, build_back_keyboard(lang))
 
     if head == "cancel":
-        state_clear(user["tg_id"])
-        return safe_send(chat_id, "❌ " + ("تم الإلغاء." if lang == "ar" else "Cancelled."),
-                         build_main_keyboard(user))
+        if message_id:
+            tg.delete_message(chat_id, message_id)
+        return run_route(user, "cancel")
 
     if head == "support":
         if support():
@@ -2583,6 +2642,18 @@ def handle_callback(cb):
             return safe_send(chat_id, "📣 <b>أرسل نص الرسالة الآن</b>\n\n"
                                       "سيتم إرسالها لكل المستخدمين. للإلغاء: /cancel",
                              reply_keyboard([[_rbtn("❌ إلغاء", "danger")]]))
+        if action == "send_broadcast":
+            job = PENDING_BROADCAST.get(user["tg_id"])
+            nonce = parts[2] if len(parts) > 2 else ""
+            if not job or not job.get("text") or not nonce or not hmac.compare_digest(job.get("nonce", ""), nonce):
+                return safe_send(chat_id, "⚠️ هذه المعاينة منتهية أو لا توجد إذاعة بانتظار التأكيد.", build_main_keyboard(user))
+            PENDING_BROADCAST.pop(user["tg_id"], None)
+            if message_id:
+                safe_edit(chat_id, message_id, "📣 بدأ الإرسال...")
+            if os.environ.get("RABOT_SERVERLESS") == "1":
+                return run_broadcast(user["tg_id"], job["text"])
+            threading.Thread(target=run_broadcast, args=(user["tg_id"], job["text"]), daemon=True).start()
+            return None
         if action == "deposits":
             pending = store.deposits_list(limit=10, status="pending")
             if not pending:
@@ -3143,6 +3214,7 @@ def page_dashboard(qs, flash_msg=None):
 
 BUTTON_ACTIONS = [
     ("products", "عرض المنتجات"),
+    ("search", "البحث عن منتج"),
     ("profile", "الملف الشخصي"),
     ("wallet", "المحفظة"),
     ("referrals", "الإحالات"),
@@ -3216,6 +3288,8 @@ def page_buttons(qs, flash_msg=None):
       {payload}
       {visible}
       {owner_only}
+      {custom_text_ar}
+      {custom_text_en}
     </div>
     <div class="f full" style="margin-top:12px"><label>اللون</label>{color}</div>
     <div class="row end" style="margin-top:16px">
@@ -3248,6 +3322,10 @@ def page_buttons(qs, flash_msg=None):
         owner_only=field("للمالك فقط", "owner_only", (editing or {}).get("owner_only", 0),
                          kind="select",
                          options=[(0, "لا — للجميع"), (1, "نعم — للمالك فقط")]),
+        custom_text_ar=field("نص مخصص بالعربية (لإجراء نص مخصص)", "custom_text_ar",
+            store.get_setting(((editing or {}).get("payload") or "") + "_ar", "") if editing and editing.get("action") == "text" else "", kind="textarea"),
+        custom_text_en=field("نص مخصص بالإنجليزية", "custom_text_en",
+            store.get_setting(((editing or {}).get("payload") or "") + "_en", "") if editing and editing.get("action") == "text" else "", kind="textarea"),
         color=color_picker("color", (editing or {}).get("color", "primary")),
         cancel=('<a class="btn sm ghost" href="/panel/buttons">إلغاء</a>' if editing else ""),
     )
@@ -3309,6 +3387,17 @@ def page_buttons_save(form):
         return "/panel/buttons", "❌ النص العربي مطلوب", "err"
     if data["color"] not in COLOR_MAP:
         data["color"] = "primary"
+    if data["action"] not in {item[0] for item in BUTTON_ACTIONS}:
+        return "/panel/buttons", "❌ إجراء غير صالح", "err"
+    if data["action"] == "url" and not data["payload"].startswith("https://"):
+        return "/panel/buttons", "❌ يجب أن يبدأ الرابط بـ https://", "err"
+    if data["action"] == "text":
+        if not data["payload"]:
+            data["payload"] = "custom_" + secrets.token_hex(8)
+        if not re.fullmatch(r"custom_[A-Za-z0-9_]{1,80}", data["payload"]):
+            return "/panel/buttons", "❌ مفتاح النص يجب أن يبدأ بـ custom_ ويحتوي أحرفاً وأرقاماً فقط", "err"
+        store.set_settings({data["payload"] + "_ar": form.get("custom_text_ar", [""])[0],
+                            data["payload"] + "_en": form.get("custom_text_en", [""])[0]})
     if bid:
         store.update_button(bid, data)
         return "/panel/buttons", "✅ تم تحديث الزر", "ok"
@@ -4251,7 +4340,7 @@ def page_broadcast(qs, flash_msg=None):
 
     content.append("""
 <div class="card"><h2 class="sec">📣 إرسال جماعي لكل المستخدمين</h2>
-<form method="post" action="/panel/broadcast/send">
+<form method="post" action="/panel/broadcast/send" onsubmit="return confirmSubmit('هل تريد إرسال الرسالة لكل المستخدمين؟')">
   <div class="f"><label>نص الرسالة</label>
     <textarea name="text" placeholder="🔥 عروض جديدة اليوم!" required></textarea>
     <small>يدعم HTML. سيتم الإرسال لكل المستخدمين غير المحظورين (%d مستخدم).</small>

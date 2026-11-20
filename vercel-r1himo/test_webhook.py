@@ -114,6 +114,142 @@ class WebhookTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)['ok'])
 
+    def update(self, uid, data):
+        headers = {'X-Telegram-Bot-Api-Secret-Token': index.webhook_secret(), 'Content-Type': 'application/json'}
+        status, _, body = self.request('/api/telegram', json.dumps({'update_id': uid, **data}).encode(), headers)
+        self.assertEqual(status, 200, body)
+        return json.loads(body)
+
+    def message(self, uid, text, user=6818164226):
+        return self.update(uid, {'message': {'message_id': uid, 'chat': {'id': user, 'type': 'private'},
+                           'from': {'id': user, 'first_name': 'Test'}, 'text': text}})
+
+    def callback(self, uid, data, user=6818164226):
+        return self.update(uid, {'callback_query': {'id': str(uid), 'from': {'id': user, 'first_name': 'Test'},
+            'message': {'message_id': 7, 'chat': {'id': user, 'type': 'private'}}, 'data': data}})
+
+    def sent(self, method):
+        return [params for name, params in self.calls if name == method]
+
+    def test_05_pagination_and_return(self):
+        self.calls.clear()
+        self.message(100, '/products')
+        rows = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard']
+        buttons = [b for row in rows for b in row]
+        self.assertTrue(any(b.get('callback_data') == 'pg:1' for b in buttons))
+        self.assertTrue(any(b.get('callback_data') == 'close' for b in buttons))
+        self.assertTrue(any(b.get('callback_data') == 'search' for b in buttons))
+        self.calls.clear()
+        self.callback(101, 'pg:1')
+        rows = self.sent('editMessageText')[-1]['reply_markup']['inline_keyboard']
+        item = next(b for row in rows for b in row if b.get('callback_data', '').startswith('view:'))
+        self.calls.clear()
+        self.callback(102, item['callback_data'])
+        buttons = [b for row in self.sent('editMessageText')[-1]['reply_markup']['inline_keyboard'] for b in row]
+        self.assertTrue(any(b.get('callback_data') == 'pg:1' for b in buttons))
+        self.calls.clear()
+        self.callback(103, 'listen:0')
+        self.assertTrue(self.sent('deleteMessage'))
+        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
+
+    def test_06_cancel_and_admin_broadcast(self):
+        self.calls.clear()
+        self.message(110, '/admin')
+        self.assertIn('لوحة تحكم المالك', self.sent('sendMessage')[-1]['text'])
+        self.calls.clear()
+        self.message(111, '/admin', user=222)
+        self.assertNotIn('لوحة تحكم المالك', self.sent('sendMessage')[-1]['text'])
+        self.callback(112, 'adm:broadcast')
+        self.calls.clear()
+        self.message(113, '❌ إلغاء')
+        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
+        self.assertFalse(any('❌ إلغاء' == x.get('text') for x in self.sent('sendMessage')))
+        with index._request_context():
+            self.assertNotIn(6818164226, index.rabot.PENDING_BROADCAST)
+        self.callback(114, 'adm:broadcast')
+        self.calls.clear()
+        self.message(115, 'إعلان تجريبي')
+        sends = self.sent('sendMessage')
+        self.assertEqual(len(sends), 1)
+        self.assertIn('معاينة', sends[0]['text'])
+        self.assertEqual(sends[0]['chat_id'], 6818164226)
+        self.calls.clear()
+        self.callback(116, 'cancel')
+        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
+        self.assertEqual(len(self.sent('sendMessage')), 1)
+        with index._request_context():
+            self.assertNotIn(6818164226, index.rabot.PENDING_BROADCAST)
+
+    def test_065_broadcast_confirmation_and_replay(self):
+        self.callback(117, 'adm:broadcast')
+        self.calls.clear()
+        self.message(118, 'إعلان بعد التأكيد')
+        preview = self.sent('sendMessage')[-1]
+        confirm = preview['reply_markup']['inline_keyboard'][0][0]['callback_data']
+        self.calls.clear()
+        self.callback(119, 'adm:send_broadcast:wrong')
+        self.assertFalse(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
+        self.calls.clear()
+        self.callback(125, confirm, user=222)
+        self.assertFalse(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
+        self.calls.clear()
+        self.callback(126, confirm)
+        self.assertTrue(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
+        self.calls.clear()
+        self.callback(127, confirm)
+        self.assertFalse(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
+
+    def test_07_search_and_custom_button(self):
+        self.calls.clear()
+        self.message(120, '/search')
+        self.message(121, 'Netflix')
+        self.assertTrue(any('نتائج البحث' in p.get('text', '') for p in self.sent('sendMessage')))
+        with index._request_context():
+            result = index.rabot.page_buttons_save({'label_ar': ['عروض'], 'action': ['text'],
+                'custom_text_ar': ['نص العرض'], 'color': ['danger']})
+            self.assertIn('تمت إضافة', result[1])
+            button = next(b for b in index.rabot.store.buttons() if b['label_ar'] == 'عروض')
+            self.assertEqual(button['color'], 'danger')
+            self.assertEqual(index.rabot.store.get_setting(button['payload'] + '_ar'), 'نص العرض')
+            self.assertIn('نص العرض', index.rabot.page_buttons({'edit': [str(button['id'])]}))
+        self.calls.clear()
+        self.message(122, 'عروض', user=222)
+        self.assertIn('نص العرض', self.sent('sendMessage')[-1]['text'])
+
+    def test_075_panel_pages_and_search_cancel(self):
+        form = urllib.parse.urlencode({'password': 'TestPass123'}).encode()
+        status, headers, _ = self.request('/login', form)
+        self.assertEqual(status, 302)
+        cookie = headers['Set-Cookie'].split(';')[0]
+        for path in ('/panel', '/panel/buttons', '/panel/products', '/panel/categories', '/panel/orders',
+                     '/panel/deposits', '/panel/users', '/panel/texts', '/panel/payments',
+                     '/panel/settings', '/panel/broadcast', '/bot-preview'):
+            status, _, body = self.request(path, headers={'Cookie': cookie})
+            self.assertEqual(status, 200, path)
+            self.assertNotIn('حدث خطأ أثناء عرض الصفحة', body.decode(), path)
+        self.message(123, '/search')
+        self.calls.clear()
+        self.message(124, '❌ إلغاء')
+        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
+        with index._request_context():
+            self.assertIsNone(index.rabot.state_get(6818164226))
+
+    def test_08_one_time_password_reset(self):
+        old_password = index.rabot.PANEL_PASSWORD_ENV
+        try:
+            index.rabot.PANEL_PASSWORD_ENV = 'new-test-password'
+            os.environ['PANEL_PASSWORD_RESET_VERSION'] = 'test-reset-1'
+            with index._request_context():
+                self.assertTrue(index.rabot.check_panel_password('new-test-password'))
+                self.assertFalse(index.rabot.check_panel_password(old_password))
+                index.rabot.store.set_setting('panel_password_hash', index.rabot.hash_password('changed-in-panel'))
+            with index._request_context():
+                self.assertTrue(index.rabot.check_panel_password('changed-in-panel'))
+                self.assertFalse(index.rabot.check_panel_password('new-test-password'))
+        finally:
+            os.environ.pop('PANEL_PASSWORD_RESET_VERSION', None)
+            index.rabot.PANEL_PASSWORD_ENV = old_password
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -68,6 +68,14 @@ def _request_context():
                 store.set_setting('public_url', rabot.PUBLIC_URL)
             if not store.get_setting('panel_password_hash') and rabot.PANEL_PASSWORD_ENV:
                 store.set_setting('panel_password_hash', rabot.hash_password(rabot.PANEL_PASSWORD_ENV))
+            # An explicit, one-time deployment setting can reset an existing
+            # password. Later changes made through the panel remain in force.
+            reset_version = os.environ.get('PANEL_PASSWORD_RESET_VERSION', '').strip()
+            if reset_version and rabot.PANEL_PASSWORD_ENV and store.get_setting('panel_password_reset_version') != reset_version:
+                store.set_settings({'panel_password_hash': rabot.hash_password(rabot.PANEL_PASSWORD_ENV),
+                                    'panel_password_reset_version': reset_version})
+                rabot.SESSIONS.clear()
+                rabot.FLASHES.clear()
             rabot.init_telegram(rabot.BOT_TOKEN)
             try:
                 yield store
