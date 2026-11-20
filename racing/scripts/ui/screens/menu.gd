@@ -128,7 +128,7 @@ func _add_car_showcase() -> void:
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.45, 0.55, 0.75)
-	e.ambient_light_energy = 1.3
+	e.ambient_light_energy = 1.9
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.glow_enabled = true
 	e.glow_intensity = 0.9
@@ -136,8 +136,8 @@ func _add_car_showcase() -> void:
 	env.environment = e
 	root.add_child(env)
 	var key = DirectionalLight3D.new()
-	key.light_color = Color(0.8, 0.9, 1.0)
-	key.light_energy = 2.0
+	key.light_color = Color(0.85, 0.93, 1.0)
+	key.light_energy = 3.4
 	key.rotation_degrees = Vector3(-28, -135, 0)
 	root.add_child(key)
 	var rim = DirectionalLight3D.new()
@@ -158,13 +158,13 @@ func _add_car_showcase() -> void:
 	var rec: Dictionary = Game.car_record(str(car["id"]))
 	var model = CarModelScript.new()
 	model.build(car, str(rec.get("paint", car.get("paint", "cyan"))), str(rec.get("rim", "stock")))
-	model.position = Vector3(0, -0.55, 0)
+	model.position = Vector3(0, -0.42, 0)
 	_car_pivot.add_child(model)
 	var cam = Camera3D.new()
 	cam.fov = 32.0
 	cam.keep_aspect = Camera3D.KEEP_HEIGHT
-	cam.position = Vector3(6.4, 2.2, 7.2)
-	cam.look_at(Vector3(0, 0.15, 0))
+	cam.position = Vector3(5.6, 1.85, 6.4)
+	cam.look_at(Vector3(0, 0.25, 0))
 	root.add_child(cam)
 	cam.current = true
 	# floor glow ellipse
@@ -182,7 +182,7 @@ func _add_car_showcase() -> void:
 	dmat.emission_energy_multiplier = 0.55
 	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	disc.material_override = dmat
-	disc.position = Vector3(0, -0.53, 0)
+	disc.position = Vector3(0, -0.40, 0)
 	root.add_child(disc)
 	# nameplate
 	var plate = UIStyle.make_glass_panel(24, Color(0.03, 0.05, 0.1, 0.72), 22, 0.25)
