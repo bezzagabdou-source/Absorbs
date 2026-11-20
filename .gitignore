@@ -31,3 +31,6 @@ rabot_data/
 rabot.db
 rabot.db-wal
 rabot.db-shm
+
+# سكريبت فيه توكن البوت — ما يتدفعش أبداً
+r1himo-termux-ready.sh
