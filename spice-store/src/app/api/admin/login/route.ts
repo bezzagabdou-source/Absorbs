@@ -14,8 +14,8 @@ export async function POST(request: NextRequest) {
     if (existing && existing.until > Date.now() && existing.count >= 8) {
       return NextResponse.json({ error: "محاولات كثيرة، يرجى المحاولة بعد قليل." }, { status: 429 });
     }
-    const body = await request.json();
-    const password = typeof body.password === "string" ? body.password : "";
+    const body = await request.json().catch(() => null);
+    const password = typeof body?.password === "string" ? body.password : "";
     if (!password || password.length > 200) return NextResponse.json({ error: "أدخل كلمة المرور." }, { status: 400 });
     await ensureStore();
     const [store] = await db.select({ passwordHash: settings.passwordHash }).from(settings).where(eq(settings.id, 1));
@@ -31,9 +31,9 @@ export async function POST(request: NextRequest) {
       httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/", expires: session.expiresAt,
     });
     return response;
-  } catch (error) {
-    console.error("Admin login error", error);
-    return NextResponse.json({ error: "تعذر تسجيل الدخول." }, { status: 500 });
+  } catch {
+    console.error("Admin login: store authentication service unavailable");
+    return NextResponse.json({ error: "خدمة الدخول غير متاحة حالياً. تعذّر الوصول إلى بيانات الإدارة؛ لا تغيّر كلمة المرور بسبب هذه الرسالة." }, { status: 503 });
   }
 }
 
