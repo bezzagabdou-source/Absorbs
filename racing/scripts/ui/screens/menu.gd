@@ -115,7 +115,7 @@ func _add_car_showcase() -> void:
 	_car_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_car_view)
 	var vp = SubViewport.new()
-	vp.size = Vector2i(1280, 720)
+	vp.size = Vector2i(1280, 760)
 	vp.transparent_bg = true
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
@@ -161,13 +161,13 @@ func _add_car_showcase() -> void:
 	model.position = Vector3(0, -0.42, 0)
 	_car_pivot.add_child(model)
 	var cam = Camera3D.new()
-	cam.fov = 32.0
-	cam.keep_aspect = Camera3D.KEEP_HEIGHT
+	cam.fov = 30.0
+	cam.keep_aspect = Camera3D.KEEP_WIDTH
 	root.add_child(cam)
 	# look_at() needs the node inside the tree, otherwise the camera keeps an
 	# identity basis and points away from the car.
-	cam.position = Vector3(5.6, 1.85, 6.4)
-	cam.look_at(Vector3(0, 0.25, 0), Vector3.UP)
+	cam.position = Vector3(5.2, 1.7, 6.0)
+	cam.look_at(Vector3(0, 0.30, 0), Vector3.UP)
 	cam.current = true
 	# floor glow ellipse
 	var disc = MeshInstance3D.new()
