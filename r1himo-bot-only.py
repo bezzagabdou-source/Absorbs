@@ -2518,6 +2518,10 @@ def handle_callback(cb):
     parts = data.split(":")
     head = parts[0] if parts else ""
 
+    # Administration and payment decisions must stay in a private chat.
+    if head in ("a", "adm", "dep") and (msg.get("chat") or {}).get("type") != "private":
+        return
+
     if head == "a":
         if is_owner_user(user):
             return admin_dispatch(user, parts[1:], message_id)
@@ -3090,21 +3094,27 @@ def admin_dispatch(user, parts, edit=None):
 
 
 def admin_send_backup(owner_id):
-    # A consistent SQLite snapshot; never send it to an ordinary admin.
-    fd,path=tempfile.mkstemp(prefix='r1_backup_', suffix='.db')
-    os.close(fd)
+    # Snapshot SQLite locally, or export JSON through the PostgreSQL adapter.
+    path = None
     try:
-        dest=sqlite3.connect(path)
-        try:
-            with store.lock:
-                store.conn.backup(dest)
-        finally:
-            dest.close()
-        if os.path.getsize(path)>45*1024*1024:
-            return False
-        with open(path,'rb') as fh: data=fh.read()
+        if hasattr(store, 'export_backup'):
+            data = store.export_backup()
+            filename = 'r1himo-backup.json'
+        else:
+            fd,path=tempfile.mkstemp(prefix='r1_backup_', suffix='.db')
+            os.close(fd)
+            dest=sqlite3.connect(path)
+            try:
+                with store.lock:
+                    store.conn.backup(dest)
+            finally:
+                dest.close()
+            if os.path.getsize(path)>45*1024*1024:
+                return False
+            with open(path,'rb') as fh: data=fh.read()
+            filename = 'r1himo-backup.db'
         boundary='r1'+secrets.token_hex(16)
-        prefix=('--'+boundary+'\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n'+str(owner_id)+'\r\n--'+boundary+'\r\nContent-Disposition: form-data; name="document"; filename="r1himo-backup.db"\r\nContent-Type: application/octet-stream\r\n\r\n').encode()
+        prefix=('--'+boundary+'\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n'+str(owner_id)+'\r\n--'+boundary+'\r\nContent-Disposition: form-data; name="document"; filename="'+filename+'"\r\nContent-Type: application/octet-stream\r\n\r\n').encode()
         body=prefix+data+('\r\n--'+boundary+'--\r\n').encode()
         req=urllib.request.Request(tg.api_base+'/bot'+tg.token+'/sendDocument',data=body,headers={'Content-Type':'multipart/form-data; boundary='+boundary},method='POST')
         with urllib.request.urlopen(req,timeout=30) as response:
@@ -3113,8 +3123,9 @@ def admin_send_backup(owner_id):
         log.warning('تعذر إرسال النسخة الاحتياطية.')
         return False
     finally:
-        try: os.unlink(path)
-        except OSError: pass
+        if path:
+            try: os.unlink(path)
+            except OSError: pass
 
 
 def admin_apply_input(user, st, text):

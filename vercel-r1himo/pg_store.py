@@ -2,6 +2,8 @@
 
 Requires a dedicated PostgreSQL database. Does not affect the local SQLite bot.
 """
+import io
+import json
 import re
 import threading
 from decimal import Decimal
@@ -116,6 +118,34 @@ class PostgresStore(rabot.Store):
             except Exception:
                 self.conn.rollback()
                 raise
+
+    def export_backup(self):
+        """Owner-only JSON data export; contains confidential customer and stock data."""
+        limit = 45 * 1024 * 1024
+        out = io.BytesIO()
+        def write(value):
+            out.write(value.encode('utf-8'))
+            if out.tell() > limit:
+                raise ValueError('backup is too large')
+        tables = ('settings', 'categories', 'products', 'stock_items', 'buttons', 'users', 'orders', 'deposits', 'broadcasts')
+        write('{"format":"r1himo-data-v1","tables":{')
+        for ti, table in enumerate(tables):
+            if ti: write(',')
+            write(json.dumps(table) + ':[')
+            # Table names are a fixed allowlist, not user input.
+            with self.conn.connection.cursor() as cur:
+                cur.execute('SELECT * FROM ' + table)
+                first = True
+                while True:
+                    rows = cur.fetchmany(200)
+                    if not rows: break
+                    for row in rows:
+                        if not first: write(',')
+                        first = False
+                        write(json.dumps(_row(row), ensure_ascii=False, default=str))
+            write(']')
+        write('}}')
+        return out.getvalue()
 
     def close(self):
         self.conn.connection.close()

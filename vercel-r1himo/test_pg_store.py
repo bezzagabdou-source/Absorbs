@@ -3,6 +3,7 @@
 Run: python -m pip install 'psycopg[binary]' pgserver
      python vercel-r1himo/test_pg_store.py
 """
+import json
 import logging
 import os
 from pathlib import Path
@@ -11,7 +12,7 @@ import tempfile
 import threading
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault('OWNER_ID', '6818164226')
 from pgserver import PostgresServer
 from pg_store import PostgresStore
@@ -34,7 +35,7 @@ class PostgreSQLTests(unittest.TestCase):
     def test_01_defaults_and_big_telegram_id(self):
         self.assertEqual(len(self.store.buttons()), 8)
         self.assertTrue(any(b['action'] == 'offers' for b in self.store.buttons()))
-        self.assertEqual(len(self.store.products()), 12)
+        self.assertEqual(len(self.store.products()), 0)
         user = self.store.get_or_create_user({'id': 6818164226, 'first_name': 'Owner'})
         self.assertEqual(user['tg_id'], 6818164226)
         self.assertEqual(user['is_admin'], 1)
@@ -153,6 +154,13 @@ class PostgreSQLTests(unittest.TestCase):
         oid2 = self.store.create_order(user['id'], self.store.product_by_id(pid), 1)
         self.assertEqual(self.store.deliver_pending_atomic(oid2), 'legacy stock')
         self.assertEqual(self.store.get_order(oid2)['status'], 'delivered')
+
+    def test_067_export_backup(self):
+        backup = json.loads(self.store.export_backup())
+        self.assertEqual(backup['format'], 'r1himo-data-v1')
+        self.assertTrue(any(u['tg_id'] == 6818164226 for u in backup['tables']['users']))
+        self.assertIn('orders', backup['tables'])
+        self.assertIn('stock_items', backup['tables'])
 
     def test_07_purchase_rolls_back_on_database_failure(self):
         user = self.store.get_or_create_user({'id': 44001, 'first_name': 'Rollback'})

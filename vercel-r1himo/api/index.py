@@ -1,46 +1,32 @@
-"""Vercel adapter for the existing R1HIMO bot. Uses PostgreSQL and webhooks."""
+"""Vercel webhook adapter: Telegram administration only, PostgreSQL persistence."""
 import contextlib
 import hashlib
 import hmac
-import io
 import json
 import os
 import threading
 import urllib.parse
+from http.server import BaseHTTPRequestHandler
 
-os.environ['RABOT_SERVERLESS'] = '1'
-# Telegram's quick-login links need a stable public base, never a request host.
-production_host = os.environ.get('VERCEL_PROJECT_PRODUCTION_URL', '').strip()
-if not os.environ.get('PUBLIC_URL') and production_host.endswith('.vercel.app') and '/' not in production_host and ':' not in production_host:
-    os.environ['PUBLIC_URL'] = 'https://' + production_host
 import rabot
 from pg_store import PostgresStore
 
-# Existing handlers use module-level globals. Protect them within one process;
-# the PostgreSQL advisory lock serializes other instances as well.
 _PROCESS_LOCK = threading.RLock()
 _DB_LOCK = 1380534595
 
 
 def webhook_secret():
     token = os.environ.get('BOT_TOKEN', '')
-    if not token:
-        return ''
-    return hmac.new(token.encode(), b'r1himo-telegram-webhook-v1', hashlib.sha256).hexdigest()
+    return hmac.new(token.encode(), b'r1himo-telegram-webhook-v1', hashlib.sha256).hexdigest() if token else ''
 
 
 def _restore(data):
     rabot.STATE = {int(k): v for k, v in data.get('state', {}).items()}
     rabot.PENDING_BROADCAST = {int(k): v for k, v in data.get('broadcast', {}).items()}
-    rabot.SESSIONS = data.get('sessions', {})
-    rabot.FLASHES = data.get('flashes', {})
-    rabot.LOGIN_ATTEMPTS = data.get('login_attempts', {})
 
 
 def _snapshot():
-    return {'state': rabot.STATE, 'broadcast': rabot.PENDING_BROADCAST,
-            'sessions': rabot.SESSIONS, 'flashes': rabot.FLASHES,
-            'login_attempts': rabot.LOGIN_ATTEMPTS}
+    return {'state': rabot.STATE, 'broadcast': rabot.PENDING_BROADCAST}
 
 
 @contextlib.contextmanager
@@ -52,7 +38,7 @@ def _request_context():
         store = PostgresStore(url)
         raw = store.conn.connection
         try:
-            # Session-scoped: direct (unpooled) connection required.
+            # Session lock remains held across commits and serializes instances.
             raw.execute('SELECT pg_advisory_lock(%s)', (_DB_LOCK,))
             raw.commit()
             store._load_settings()
@@ -64,31 +50,17 @@ def _request_context():
             rabot.store = store
             if not store.get_setting('owner_ids') and rabot.OWNER_ID_ENV:
                 store.set_setting('owner_ids', rabot.OWNER_ID_ENV)
-            if not store.get_setting('public_url') and rabot.PUBLIC_URL:
-                store.set_setting('public_url', rabot.PUBLIC_URL)
-            if not store.get_setting('panel_password_hash') and rabot.PANEL_PASSWORD_ENV:
-                store.set_setting('panel_password_hash', rabot.hash_password(rabot.PANEL_PASSWORD_ENV))
-            # An explicit, one-time deployment setting can reset an existing
-            # password. Later changes made through the panel remain in force.
-            reset_version = os.environ.get('PANEL_PASSWORD_RESET_VERSION', '').strip()
-            if reset_version and rabot.PANEL_PASSWORD_ENV and store.get_setting('panel_password_reset_version') != reset_version:
-                store.set_settings({'panel_password_hash': rabot.hash_password(rabot.PANEL_PASSWORD_ENV),
-                                    'panel_password_reset_version': reset_version})
-                rabot.SESSIONS.clear()
-                rabot.FLASHES.clear()
             rabot.init_telegram(rabot.BOT_TOKEN)
             try:
                 yield store
             finally:
-                # Keep multi-step conversations, login sessions and throttles across
-                # cold starts. Save even after an application error.
                 raw.rollback()
                 raw.execute('INSERT INTO r1_runtime(id,state) VALUES(1,%s::jsonb) '
                             'ON CONFLICT(id) DO UPDATE SET state=EXCLUDED.state',
                             (json.dumps(_snapshot(), ensure_ascii=False),))
                 raw.commit()
         finally:
-            store.close()  # also releases the advisory lock on every exit
+            store.close()
 
 
 def _original_path(path):
@@ -96,31 +68,31 @@ def _original_path(path):
     query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
     routes = [v for k, v in query if k == '__path']
     if routes and parsed.path in ('/api', '/api/index'):
-        path = '/' + routes[-1].lstrip('/')
-        remaining = [(k, v) for k, v in query if k != '__path']
-        return path + ('?' + urllib.parse.urlencode(remaining) if remaining else '')
-    return path
+        return '/' + routes[-1].lstrip('/')
+    return parsed.path
 
 
-def _public_url():
-    # Never use the incoming Host header when configuring Telegram.
-    host = os.environ.get('VERCEL_PROJECT_PRODUCTION_URL', '').strip()
-    if not host or '/' in host or ':' in host or not host.endswith('.vercel.app'):
-        raise RuntimeError('Production URL is not configured')
-    return 'https://' + host
+class handler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        pass
 
-
-class handler(rabot.Handler):
     def _simple(self, status, obj):
-        self._send(status, json.dumps(obj, ensure_ascii=False), 'application/json; charset=utf-8')
+        body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _run(self, method):
-        self.path = _original_path(self.path)
-        route = urllib.parse.urlsplit(self.path).path.rstrip('/') or '/'
+        route = _original_path(self.path).rstrip('/') or '/'
+        if route not in ('/healthz', '/api/telegram'):
+            return self._simple(404, {'ok': False, 'error': 'not found'})
+        if (route == '/healthz' and method != 'GET') or (route == '/api/telegram' and method != 'POST'):
+            return self._simple(405, {'ok': False})
         update = None
         if route == '/api/telegram':
-            if method != 'POST':
-                return self._simple(405, {'ok': False})
             supplied = self.headers.get('X-Telegram-Bot-Api-Secret-Token', '')
             secret = webhook_secret()
             if not secret or not hmac.compare_digest(secret, supplied):
@@ -130,55 +102,34 @@ class handler(rabot.Handler):
                 if size <= 0 or size > 1024 * 1024:
                     raise ValueError('invalid body size')
                 update = json.loads(self.rfile.read(size))
-                if not isinstance(update, dict) or not isinstance(update.get('update_id'), int):
+                if not isinstance(update, dict) or type(update.get('update_id')) is not int:
                     raise ValueError('invalid update')
             except (ValueError, TypeError, UnicodeError):
                 return self._simple(400, {'ok': False})
-
-        # Stage the HTTP response until persistent state has been committed.
-        output, self.wfile = self.wfile, io.BytesIO()
         try:
             with _request_context() as store:
                 if update is not None:
                     raw = store.conn.connection
-                    claimed = raw.execute(
-                        'INSERT INTO r1_updates(id) VALUES(%s) ON CONFLICT DO NOTHING RETURNING id',
-                        (update['update_id'],)).fetchone()
-                    raw.commit()  # prevents duplicate financial operations on Telegram retry
+                    claimed = raw.execute('INSERT INTO r1_updates(id) VALUES(%s) ON CONFLICT DO NOTHING RETURNING id',
+                                          (update['update_id'],)).fetchone()
+                    # Prevent repeated purchases on retries. A failure after this
+                    # commit can still lose an update; see README limitations.
+                    raw.commit()
                     if claimed:
                         if 'message' in update:
                             rabot.handle_message(update['message'])
                         elif 'callback_query' in update:
                             rabot.handle_callback(update['callback_query'])
-                    self._simple(200, {'ok': True})
-                elif route == '/panel/activate-bot' and method == 'POST':
-                    if not self._authed():
-                        self._redirect('/')
-                    else:
-                        me = rabot.tg.get_me()
-                        result = rabot.tg.call('setWebhook',
-                            url=_public_url() + '/api/telegram',
-                            secret_token=webhook_secret(),
-                            allowed_updates=['message', 'callback_query'],
-                            max_connections=1)
-                        if not result:
-                            raise RuntimeError('Telegram did not accept webhook')
-                        store.set_setting('bot_username', me.get('username', ''))
-                        self._redirect('/panel', flash=('✅ تم تفعيل البوت في تيليغرام', 'ok'))
-                elif method == 'GET':
-                    self._do_get()
+                    result = {'ok': True}
                 else:
-                    self._do_post()
-            data = self.wfile.getvalue()
+                    result = {'ok': True, 'app': rabot.APP_NAME, 'version': rabot.APP_VERSION,
+                              'bot': store.get_setting('bot_username', ''), 'users': store.users_count(),
+                              'time': rabot.now_iso()}
+            return self._simple(200, result)
         except Exception:
-            # Do not print tokens, PostgreSQL URLs or message payloads.
+            # Do not log credentials or customer content.
             rabot.log.error('Serverless request failed; check service configuration')
-            self.wfile = io.BytesIO()
-            self._simple(503, {'ok': False, 'error': 'service unavailable'})
-            data = self.wfile.getvalue()
-        finally:
-            self.wfile = output
-        self.wfile.write(data)
+            return self._simple(503, {'ok': False, 'error': 'service unavailable'})
 
     def do_GET(self):
         return self._run('GET')

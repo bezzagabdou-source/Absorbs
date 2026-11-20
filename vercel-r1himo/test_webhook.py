@@ -1,4 +1,4 @@
-"""Local serverless integration test using disposable PostgreSQL and fake Telegram."""
+"""اختبارات webhook وPostgreSQL محلياً مع Telegram وهمي دون أي اتصال بالإنتاج."""
 import json
 import os
 from pathlib import Path
@@ -7,23 +7,14 @@ import tempfile
 import threading
 import unittest
 import urllib.error
-import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
-
 from pgserver import PostgresServer
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-os.environ.update(BOT_TOKEN='test-token-not-real', OWNER_ID='6818164226',
-                  PANEL_PASSWORD='TestPass123',
-                  VERCEL_PROJECT_PRODUCTION_URL='test-r1himo.vercel.app')
+os.environ.update(BOT_TOKEN='test-token-not-real', OWNER_ID='6818164226')
 from api import index
-
-
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs):
-        return None
 
 
 class WebhookTests(unittest.TestCase):
@@ -35,17 +26,12 @@ class WebhookTests(unittest.TestCase):
         cls.old_call = index.rabot.Telegram.call
         def fake_call(tg, method, timeout=30, **params):
             cls.calls.append((method, params))
-            if method == 'getMe':
-                return {'username': 'TestBot'}
-            if method == 'setWebhook':
-                return True
             return {'message_id': 123}
         index.rabot.Telegram.call = fake_call
         cls.http = ThreadingHTTPServer(('127.0.0.1', 0), index.handler)
         cls.thread = threading.Thread(target=cls.http.serve_forever, daemon=True)
         cls.thread.start()
         cls.base = 'http://127.0.0.1:%d' % cls.http.server_port
-        cls.client = urllib.request.build_opener(NoRedirect())
 
     @classmethod
     def tearDownClass(cls):
@@ -55,278 +41,153 @@ class WebhookTests(unittest.TestCase):
 
     def request(self, path, data=None, headers=None):
         req = urllib.request.Request(self.base + path, data=data, headers=headers or {})
-        try:
-            response = self.client.open(req, timeout=20)
-        except urllib.error.HTTPError as e:
-            response = e
-        with response:
-            return response.code, dict(response.headers), response.read()
-
-    def test_01_health_and_authorization(self):
-        status, _, body = self.request('/healthz')
-        self.assertEqual(status, 200)
-        self.assertEqual(json.loads(body)['users'], 0)
-        status, _, _ = self.request('/api/telegram', b'{}')
-        self.assertEqual(status, 403)
-        status, headers, _ = self.request('/panel/activate-bot', b'')
-        self.assertEqual(status, 302)
-        self.assertEqual(headers['Location'], '/')
-
-    def test_02_login_and_activate(self):
-        form = urllib.parse.urlencode({'password': 'TestPass123'}).encode()
-        status, headers, _ = self.request('/login', form)
-        self.assertEqual(status, 302)
-        self.cookie = headers['Set-Cookie'].split(';')[0]
-        status, _, body = self.request('/panel', headers={'Cookie': self.cookie})
-        self.assertEqual(status, 200)
-        self.assertIn('/panel/activate-bot', body.decode())
-        status, headers, _ = self.request('/panel/activate-bot', b'', {'Cookie': self.cookie})
-        self.assertEqual(status, 302)
-        webhook = next(args for method, args in self.calls if method == 'setWebhook')
-        self.assertEqual(webhook['url'], 'https://test-r1himo.vercel.app/api/telegram')
-        self.assertEqual(webhook['secret_token'], index.webhook_secret())
-        self.assertEqual(webhook['max_connections'], 1)
-
-    def test_03_telegram_start_and_duplicate(self):
-        msg = {'update_id': 42, 'message': {'message_id': 1,
-            'chat': {'id': 6818164226, 'type': 'private'},
-            'from': {'id': 6818164226, 'first_name': 'Owner'}, 'text': '/start'}}
-        headers = {'X-Telegram-Bot-Api-Secret-Token': index.webhook_secret(),
-                   'Content-Type': 'application/json'}
-        self.calls.clear()
-        for _ in range(2):
-            status, _, body = self.request('/api/telegram', json.dumps(msg).encode(), headers)
-            self.assertEqual(status, 200)
-            self.assertTrue(json.loads(body)['ok'])
-        sends = [p for method, p in self.calls if method == 'sendMessage']
-        self.assertEqual(len(sends), 1)
-        self.assertIn('لوحة التحكم', json.dumps(sends[0], ensure_ascii=False))
-        status, _, body = self.request('/healthz')
-        self.assertEqual(json.loads(body)['users'], 1)
-
-    def test_04_persist_runtime_and_rewrite(self):
-        with index._request_context():
-            index.rabot.state_set(123, 'deposit_amount')
-        index.rabot.STATE = {}  # emulate a cold instance
-        with index._request_context():
-            self.assertEqual(index.rabot.state_get(123)['kind'], 'deposit_amount')
-        status, _, body = self.request('/api?__path=healthz')
-        self.assertEqual(status, 200)
-        self.assertTrue(json.loads(body)['ok'])
+        try: response = urllib.request.urlopen(req, timeout=20)
+        except urllib.error.HTTPError as e: response = e
+        with response: return response.code, response.read()
 
     def update(self, uid, data):
         headers = {'X-Telegram-Bot-Api-Secret-Token': index.webhook_secret(), 'Content-Type': 'application/json'}
-        status, _, body = self.request('/api/telegram', json.dumps({'update_id': uid, **data}).encode(), headers)
+        status, body = self.request('/api/telegram', json.dumps({'update_id':uid, **data}).encode(), headers)
         self.assertEqual(status, 200, body)
         return json.loads(body)
 
     def message(self, uid, text, user=6818164226):
-        return self.update(uid, {'message': {'message_id': uid, 'chat': {'id': user, 'type': 'private'},
-                           'from': {'id': user, 'first_name': 'Test'}, 'text': text}})
+        return self.update(uid, {'message': {'message_id':uid, 'chat':{'id':user, 'type':'private'},
+                                             'from':{'id':user, 'first_name':'Test'}, 'text':text}})
 
     def callback(self, uid, data, user=6818164226):
-        return self.update(uid, {'callback_query': {'id': str(uid), 'from': {'id': user, 'first_name': 'Test'},
-            'message': {'message_id': 7, 'chat': {'id': user, 'type': 'private'}}, 'data': data}})
+        return self.update(uid, {'callback_query': {'id':str(uid), 'from':{'id':user,'first_name':'Test'},
+            'message':{'message_id':7,'chat':{'id':user,'type':'private'}},'data':data}})
 
     def sent(self, method):
-        return [params for name, params in self.calls if name == method]
+        return [p for n,p in self.calls if n==method]
 
-    def test_05_pagination_and_return(self):
-        self.calls.clear()
-        self.message(100, '/products')
-        rows = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard']
-        buttons = [b for row in rows for b in row]
-        self.assertTrue(any(b.get('callback_data') == 'pg:1' for b in buttons))
-        self.assertTrue(any(b.get('callback_data') == 'close' for b in buttons))
-        self.assertTrue(any(b.get('callback_data') == 'search' for b in buttons))
-        self.calls.clear()
-        self.callback(101, 'pg:1')
-        rows = self.sent('editMessageText')[-1]['reply_markup']['inline_keyboard']
-        item = next(b for row in rows for b in row if b.get('callback_data', '').startswith('view:'))
-        self.calls.clear()
-        self.callback(102, item['callback_data'])
-        buttons = [b for row in self.sent('editMessageText')[-1]['reply_markup']['inline_keyboard'] for b in row]
-        self.assertTrue(any(b.get('callback_data') == 'pg:1' for b in buttons))
-        self.calls.clear()
-        self.callback(103, 'listen:0')
-        self.assertTrue(self.sent('deleteMessage'))
-        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
+    def buttons(self):
+        for name, p in reversed(self.calls):
+            markup = p.get('reply_markup') or {}
+            if markup.get('inline_keyboard'):
+                return [b for row in markup['inline_keyboard'] for b in row]
+        return []
 
-    def test_06_cancel_and_admin_broadcast(self):
-        self.calls.clear()
-        self.message(110, '/admin')
-        self.assertIn('لوحة تحكم المالك', self.sent('sendMessage')[-1]['text'])
-        self.calls.clear()
-        self.message(111, '/admin', user=222)
-        self.assertNotIn('لوحة تحكم المالك', self.sent('sendMessage')[-1]['text'])
-        self.callback(112, 'adm:broadcast')
-        self.calls.clear()
-        self.message(113, '❌ إلغاء')
-        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
-        self.assertFalse(any('❌ إلغاء' == x.get('text') for x in self.sent('sendMessage')))
+    def test_01_health_web_removed_auth_and_duplicate(self):
+        status, body=self.request('/healthz'); self.assertEqual(status,200); self.assertTrue(json.loads(body)['ok'])
+        self.assertEqual(self.request('/api?__path=healthz')[0],200)
+        for path in ('/', '/panel', '/login', '/panel/activate-bot'):
+            self.assertEqual(self.request(path)[0],404)
+        self.assertEqual(self.request('/api/telegram',b'{}')[0],403)
+        self.calls.clear(); self.message(100,'/admin'); self.message(100,'/admin')
+        self.assertEqual(len(self.sent('sendMessage')),1)
+        self.assertIn('لوحة التحكم داخل البوت',self.sent('sendMessage')[0]['text'])
+        callbacks=[b.get('callback_data') for b in self.buttons()]
+        for cb in ('a:ls:p:0','a:ls:c:0','a:ls:b:0','a:ls:u:0','a:ls:o:0','a:ls:d:0','a:ls:t:0','a:ls:s:0','adm:broadcast'):
+            self.assertIn(cb,callbacks)
+        self.calls.clear(); self.message(101,'/admin',user=222)
+        self.assertNotIn('لوحة التحكم داخل البوت',self.sent('sendMessage')[-1]['text'])
+
+    def test_02_create_product_and_buy_across_requests(self):
+        self.callback(110,'a:new:p'); self.message(111,'منتج اختباري')
         with index._request_context():
-            self.assertNotIn(6818164226, index.rabot.PENDING_BROADCAST)
-        self.callback(114, 'adm:broadcast')
-        self.calls.clear()
-        self.message(115, 'إعلان تجريبي')
-        sends = self.sent('sendMessage')
-        self.assertEqual(len(sends), 1)
-        self.assertIn('معاينة', sends[0]['text'])
-        self.assertEqual(sends[0]['chat_id'], 6818164226)
-        self.calls.clear()
-        self.callback(116, 'cancel')
-        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
-        self.assertEqual(len(self.sent('sendMessage')), 1)
+            product=next(p for p in index.rabot.store.products(include_hidden=True) if p['name']=='منتج اختباري')
+            pid=product['id']; self.assertEqual(product['visible'],0)
+        self.callback(112,'a:edit:p:%d:price' % pid); self.message(113,'5')
+        self.callback(114,'a:stock:add:%d' % pid); self.message(115,'fake-item')
+        self.callback(116,'a:toggle:p:%d:visible' % pid)
+        with index._request_context(): index.rabot.store.adjust_balance(222,10)
+        self.calls.clear(); self.callback(117,'confirm:%d' % pid,user=222)
+        self.assertIn('تم تسليم طلبك', self.sent('editMessageText')[-1]['text'])
         with index._request_context():
-            self.assertNotIn(6818164226, index.rabot.PENDING_BROADCAST)
+            self.assertEqual(index.rabot.store.product_stock(pid),0)
+            self.assertAlmostEqual(index.rabot.store.get_user(222)['balance'],5)
+            order=index.rabot.store.user_orders(index.rabot.store.get_user(222)['id'])[0]
+            self.assertEqual(order['delivery'],'fake-item')
+        self.callback(118,'a:confirm:refund:%d' % order['id'])
+        confirm=next(b['callback_data'] for b in self.buttons() if b['text']=='✅ تأكيد')
+        self.callback(119,confirm); self.callback(120,confirm)
+        with index._request_context(): self.assertAlmostEqual(index.rabot.store.get_user(222)['balance'],10)
 
-    def test_065_broadcast_confirmation_and_replay(self):
-        self.callback(117, 'adm:broadcast')
-        self.calls.clear()
-        self.message(118, 'إعلان بعد التأكيد')
-        preview = self.sent('sendMessage')[-1]
-        confirm = preview['reply_markup']['inline_keyboard'][0][0]['callback_data']
-        self.calls.clear()
-        self.callback(119, 'adm:send_broadcast:wrong')
-        self.assertFalse(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
-        self.calls.clear()
-        self.callback(125, confirm, user=222)
-        self.assertFalse(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
-        self.calls.clear()
-        self.callback(126, confirm)
-        self.assertTrue(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
-        self.calls.clear()
-        self.callback(127, confirm)
-        self.assertFalse(any(p.get('text') == 'إعلان بعد التأكيد' for p in self.sent('sendMessage')))
-
-    def test_07_search_and_custom_button(self):
-        self.calls.clear()
-        self.message(120, '/search')
-        self.message(121, 'Netflix')
-        self.assertTrue(any('نتائج البحث' in p.get('text', '') for p in self.sent('sendMessage')))
+    def test_02z_bot_management_crud_and_deposits(self):
+        self.callback(201,'a:new:c'); self.message(202,'تصنيف جديد')
         with index._request_context():
-            result = index.rabot.page_buttons_save({'label_ar': ['عروض'], 'action': ['text'],
-                'custom_text_ar': ['نص العرض'], 'color': ['danger']})
-            self.assertIn('تمت إضافة', result[1])
-            button = next(b for b in index.rabot.store.buttons() if b['label_ar'] == 'عروض')
-            self.assertEqual(button['color'], 'danger')
-            self.assertEqual(index.rabot.store.get_setting(button['payload'] + '_ar'), 'نص العرض')
-            self.assertIn('نص العرض', index.rabot.page_buttons({'edit': [str(button['id'])]}))
-        self.calls.clear()
-        self.message(122, 'عروض', user=222)
-        self.assertIn('نص العرض', self.sent('sendMessage')[-1]['text'])
+            category=next(c for c in index.rabot.store.categories() if c['name']=='تصنيف جديد')
+        self.callback(203,'a:edit:c:%d:name' % category['id']); self.message(204,'تصنيف معدل')
+        self.callback(205,'a:new:b'); self.message(206,'زر عروض')
+        with index._request_context():
+            button=next(b for b in index.rabot.store.buttons() if b['label_ar']=='زر عروض')
+            u=index.rabot.store.get_user(222)
+            did=index.rabot.store.create_deposit(u['id'], 4, 'binance','fake-deposit')
+        self.callback(207,'a:custom:%d:ar' % button['id']); self.message(208,'رسالة الزر')
+        self.callback(209,'dep:ok:%d' % did); self.callback(210,'dep:ok:%d' % did)
+        self.callback(211,'a:wallet:sub:222'); self.message(212,'2')
+        with index._request_context():
+            self.assertEqual(index.rabot.store.get_category(category['id'])['name'],'تصنيف معدل')
+            b=index.rabot.store.get_button(button['id'])
+            self.assertEqual(index.rabot.store.get_setting(b['payload']+'_ar'),'رسالة الزر')
+            self.assertAlmostEqual(index.rabot.store.get_user(222)['balance'],12)
 
-    def test_075_panel_pages_and_search_cancel(self):
-        form = urllib.parse.urlencode({'password': 'TestPass123'}).encode()
-        status, headers, _ = self.request('/login', form)
-        self.assertEqual(status, 302)
-        cookie = headers['Set-Cookie'].split(';')[0]
-        for path in ('/panel', '/panel/buttons', '/panel/products', '/panel/categories', '/panel/orders',
-                     '/panel/deposits', '/panel/users', '/panel/texts', '/panel/payments',
-                     '/panel/settings', '/panel/broadcast', '/bot-preview'):
-            status, _, body = self.request(path, headers={'Cookie': cookie})
-            self.assertEqual(status, 200, path)
-            self.assertNotIn('حدث خطأ أثناء عرض الصفحة', body.decode(), path)
-        self.message(123, '/search')
-        self.calls.clear()
-        self.message(124, '❌ إلغاء')
-        self.assertIn('keyboard', self.sent('sendMessage')[-1]['reply_markup'])
+    def test_03_settings_referrals_and_discounts(self):
+        with index._request_context():
+            index.rabot.store.set_setting('bot_username','TestBot')
+            n=next(i for i,item in enumerate(index.rabot.ADMIN_SETTINGS) if item[0]=='discount_percent')
+        self.callback(130,'a:set:s:%d' % n); self.message(131,'20')
+        with index._request_context(): self.assertEqual(index.rabot.store.get_setting('discount_percent'),'20')
+        self.calls.clear(); self.message(132,'/referrals',user=222)
+        self.assertTrue(any('t.me/share/url' in b.get('url','') and 'ref_222' in b.get('url','') for b in self.buttons()))
+        self.callback(133,'a:set:s:%d' % n); self.message(134,'0')
+
+    def test_04_broadcast_and_backup(self):
+        self.callback(140,'adm:broadcast'); self.message(141,'إعلان < &')
+        confirm=next(b['callback_data'] for b in self.buttons() if b['text']=='✅ تأكيد الإرسال')
+        self.calls.clear(); self.callback(142,confirm)
+        sends=[p for p in self.sent('sendMessage') if p.get('text')=='إعلان < &']
+        self.assertEqual(len(sends),2)
+        self.assertTrue(all(not p.get('parse_mode') for p in sends))
+        self.calls.clear(); self.callback(143,confirm)
+        self.assertFalse(any(p.get('text')=='إعلان < &' for p in self.sent('sendMessage')))
+        with index._request_context() as store:
+            data=json.loads(store.export_backup())
+            self.assertTrue(any(u['tg_id']==222 for u in data['tables']['users']))
+            old=index.rabot.urllib.request.urlopen
+            payload=[]
+            class Response:
+                def __enter__(self): return self
+                def __exit__(self,*args): return False
+                def read(self): return b'{"ok":true}'
+            def fake(req,timeout): payload.append(req.data); return Response()
+            index.rabot.urllib.request.urlopen=fake
+            try:
+                self.assertTrue(index.rabot.admin_send_backup(6818164226))
+                self.assertIn(b'r1himo-backup.json',payload[0])
+            finally: index.rabot.urllib.request.urlopen=old
+
+    def test_04z_broadcast_batches_survive_requests(self):
+        with index._request_context():
+            for uid in range(30000,30023):
+                index.rabot.store.get_or_create_user({'id':uid,'first_name':'Batch'})
+        self.callback(144,'adm:broadcast'); self.message(145,'إعلان متعدد')
+        confirm=next(b['callback_data'] for b in self.buttons() if b['text']=='✅ تأكيد الإرسال')
+        self.calls.clear(); self.callback(146,confirm)
+        self.assertEqual(len([p for p in self.sent('sendMessage') if p.get('text')=='إعلان متعدد']),20)
+        continuation=next(b['callback_data'] for b in self.buttons() if 'متابعة' in b['text'])
+        self.calls.clear(); self.callback(147,confirm)
+        self.assertFalse(any(p.get('text')=='إعلان متعدد' for p in self.sent('sendMessage')))
+        self.calls.clear(); self.callback(148,continuation)
+        self.assertGreater(len([p for p in self.sent('sendMessage') if p.get('text')=='إعلان متعدد']),0)
+        self.assertIn('انتهى الإرسال',self.sent('sendMessage')[-1]['text'])
+
+    def test_05_runtime_persists_and_nonowner_rejected(self):
+        self.callback(150,'a:new:p',user=222)
+        self.update(149, {'callback_query': {'id':'group', 'from':{'id':6818164226,'first_name':'Owner'},
+            'message':{'message_id':7,'chat':{'id':-123,'type':'supergroup'}}, 'data':'a:new:p'}})
         with index._request_context():
             self.assertIsNone(index.rabot.state_get(6818164226))
-
-    def test_078_atomic_purchase_via_webhook(self):
+            self.assertIsNone(index.rabot.state_get(222))
+        self.callback(151,'a:new:b')
+        index.rabot.STATE = {}
         with index._request_context():
-            buyer = index.rabot.store.get_user(222)
-            index.rabot.store.adjust_balance(222, 10)
-            pid = index.rabot.store.add_product({'name': 'Test purchase', 'price': 3})
-            index.rabot.store.add_stock_lines(pid, ['fake delivery'])
-        self.calls.clear()
-        self.callback(200, 'confirm:%d' % pid, user=222)
-        self.assertTrue(any('تم تسليم طلبك' in c.get('text', '') for c in self.sent('editMessageText')))
+            self.assertEqual(index.rabot.state_get(6818164226)['kind'],'admin_input')
+        self.message(152,'زر جديد')
         with index._request_context():
-            self.assertAlmostEqual(index.rabot.store.get_user(222)['balance'], 7)
-            order = index.rabot.store.user_orders(buyer['id'], 1)[0]
-            self.assertEqual(order['delivery'], 'fake delivery')
-            self.assertEqual(order['status'], 'delivered')
-            self.assertEqual(index.rabot.store.product_stock(pid), 0)
-
-    def test_079_discount_and_referral_share(self):
-        self.calls.clear()
-        self.message(2010, '/start', user=222)
-        keyboard = self.sent('sendMessage')[-1]['reply_markup']['keyboard']
-        self.assertTrue(any('الخصومات' in b['text'] for row in keyboard for b in row))
-        self.calls.clear()
-        self.message(2011, '🏷 الخصومات', user=222)
-        self.assertIn('الخصم الحالي', self.sent('sendMessage')[-1]['text'])
-        self.calls.clear()
-        self.message(201, '/referrals', user=222)
-        markup = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard']
-        share = next(b['url'] for row in markup for b in row if 'url' in b)
-        self.assertIn('t.me/share/url', share)
-        self.assertIn('ref_222', share)
-        self.calls.clear()
-        self.callback(202, 'adm:discount', user=222)
-        self.assertFalse(self.sent('sendMessage'))
-        self.callback(203, 'adm:discount')
-        self.message(204, '20')
-        with index._request_context():
-            self.assertEqual(index.rabot.store.get_setting('discount_percent'), '20')
-            buyer = index.rabot.store.get_user(222)
-            index.rabot.store.adjust_balance(222, 10)
-            pid = index.rabot.store.add_product({'name': 'Discount test', 'price': 5})
-            index.rabot.store.add_stock_lines(pid, ['discount delivery'])
-            before = index.rabot.store.get_user(222)['balance']
-        self.calls.clear()
-        self.callback(205, 'view:%d' % pid, user=222)
-        self.assertIn('20%', self.sent('editMessageText')[-1]['text'])
-        self.callback(206, 'confirm:%d' % pid, user=222)
-        with index._request_context():
-            order = index.rabot.store.user_orders(buyer['id'], 1)[0]
-            self.assertAlmostEqual(order['total'], 4)
-            self.assertAlmostEqual(index.rabot.store.get_user(222)['balance'], before - 4)
-            self.assertEqual(index.rabot.page_settings_save({'discount_percent': ['101']})[2], 'err')
-            index.rabot.store.set_setting('discount_percent', '0')
-
-    def test_0795_broadcast_batches_plain_text_and_replay(self):
-        with index._request_context():
-            for n in range(30000, 30023):
-                index.rabot.store.get_or_create_user({'id': n, 'first_name': 'Batch'})
-        self.callback(210, 'adm:broadcast')
-        self.message(211, 'اختبار < و &')
-        confirm = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard'][0][0]['callback_data']
-        self.calls.clear()
-        self.callback(212, confirm)
-        deliveries = [p for p in self.sent('sendMessage') if p.get('text') == 'اختبار < و &']
-        self.assertEqual(len(deliveries), 20)
-        self.assertTrue(all(not p.get('parse_mode') for p in deliveries))
-        continuation = self.sent('sendMessage')[-1]['reply_markup']['inline_keyboard'][0][0]['callback_data']
-        self.calls.clear()
-        self.callback(213, confirm)
-        self.assertFalse(any(p.get('text') == 'اختبار < و &' for p in self.sent('sendMessage')))
-        self.calls.clear()
-        self.callback(214, continuation)
-        self.assertGreater(len([p for p in self.sent('sendMessage') if p.get('text') == 'اختبار < و &']), 0)
-        self.assertIn('انتهى الإرسال', self.sent('sendMessage')[-1]['text'])
-        self.calls.clear()
-        self.callback(215, continuation)
-        self.assertFalse(any(p.get('text') == 'اختبار < و &' for p in self.sent('sendMessage')))
-
-    def test_08_one_time_password_reset(self):
-        old_password = index.rabot.PANEL_PASSWORD_ENV
-        try:
-            index.rabot.PANEL_PASSWORD_ENV = 'new-test-password'
-            os.environ['PANEL_PASSWORD_RESET_VERSION'] = 'test-reset-1'
-            with index._request_context():
-                self.assertTrue(index.rabot.check_panel_password('new-test-password'))
-                self.assertFalse(index.rabot.check_panel_password(old_password))
-                index.rabot.store.set_setting('panel_password_hash', index.rabot.hash_password('changed-in-panel'))
-            with index._request_context():
-                self.assertTrue(index.rabot.check_panel_password('changed-in-panel'))
-                self.assertFalse(index.rabot.check_panel_password('new-test-password'))
-        finally:
-            os.environ.pop('PANEL_PASSWORD_RESET_VERSION', None)
-            index.rabot.PANEL_PASSWORD_ENV = old_password
+            self.assertTrue(any(b['label_ar']=='زر جديد' for b in index.rabot.store.buttons()))
 
 
-if __name__ == '__main__':
-    unittest.main()
+if __name__ == '__main__': unittest.main()

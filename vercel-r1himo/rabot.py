@@ -1,50 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-================================================================================
- R1HIMO SHOP  —  Telegram Digital Products Bot + Owner Control Panel
- --------------------------------------------------------------------------
- ملف واحد فقط (Single Source File) — يعمل بمكتبات بايثون القياسية فقط
- Python 3.8+  |  لا يحتاج أي pip install
- --------------------------------------------------------------------------
- التشغيل:
-     export BOT_TOKEN="123456:ABC..."
-     export OWNER_ID="123456789"
-     export PANEL_PASSWORD="كلمة-مرور-قوية"
-     python3 rabot.py
-
- المتغيرات الاختيارية:
-     PORT            منفذ لوحة التحكم (افتراضي 8080)
-     HOST            عنوان الاستماع (افتراضي 0.0.0.0)
-     DB_PATH         مسار قاعدة البيانات (افتراضي rabot_data/rabot.db)
-     PUBLIC_URL      رابط عام للوحة (لعرض روابط الدخول السريع)
-     BOT_API_BASE    افتراضي https://api.telegram.org
- --------------------------------------------------------------------------
- المزايا:
-   * بوت متجر منتجات رقمية: تعدد اللغات (عربي/إنجليزي)، سلة شراء فورية،
-     تسليم تلقائي من المخزون، محفظة، شحن عبر Binance Pay، إحالات، إحصائيات.
-   * أزرار ملونة (success/danger/primary) مطابقة للتصميم الأصلي.
-   * لوحة تحكم كاملة للمالك فقط: كل زر، كل منتج، كل تصنيف، كل نص،
-     كل إعداد، المستخدمون، الطلبات، الشحنات، البث الجماعي.
-================================================================================
+"""R1HIMO SHOP — بوت مستقل بلوحة إدارة داخل تيليغرام فقط.
+Python 3.8+، مكتبات Python القياسية وSQLite، ولا يحتاج موقعاً أو Vercel.
+ضع BOT_TOKEN و OWNER_ID كمتغيرات بيئة ثم شغّل: python3 r1himo-bot-only.py
+OWNER_ID الافتراضي 6818164226؛ يجب تغييره عند نقل البوت لشخص آخر.
+استخدم توكن بوت جديد وقاعدة بيانات منفصلة، ولا تشغل نفس التوكن في مكانين.
+البيانات محلية داخل rabot_data؛ لا تستخدم أموالاً حقيقية قبل مراجعة واختبار شاملين.
 """
 
-import base64
-import hashlib
 import hmac
 import html
 import json
 import logging
 import math
-import mimetypes
 import os
-import random
 import re
 import secrets
 import socket
 import sqlite3
-import string
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -52,13 +27,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 APP_NAME = "R1HIMO SHOP"
 APP_VERSION = "1.0.0"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) or os.getcwd()
-DEFAULT_DB_PATH = os.path.join(BASE_DIR, "rabot_data", "rabot.db")
+DEFAULT_DB_PATH = os.path.join(BASE_DIR, "r1himo_bot_data", "store.db")
 
 def _load_dotenv():
     """Read KEY=VALUE from a .env next to the script (never overrides real env)."""
@@ -84,19 +58,10 @@ _load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 OWNER_ID_ENV = os.environ.get("OWNER_ID", "6818164226").strip()
-PANEL_PASSWORD_ENV = os.environ.get("PANEL_PASSWORD", "").strip()
-HOST = os.environ.get("HOST", "0.0.0.0").strip() or "0.0.0.0"
-PORT = int(os.environ.get("PORT", "8080") or 8080)
 DB_PATH = os.environ.get("DB_PATH", DEFAULT_DB_PATH).strip() or DEFAULT_DB_PATH
-PUBLIC_URL = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
 BOT_API_BASE = os.environ.get("BOT_API_BASE", "https://api.telegram.org").strip().rstrip("/")
 
 CURRENCY = "$"
-
-# Placeholder stock line written once at first run so every stock product is
-# immediately sellable/deliverable. The owner replaces these from
-# «المنتجات ← المخزون» with the real accounts/links.
-DEMO_STOCK = "DEMO-ITEM-{n} | {name}"
 
 # ============================================================================
 #  LOGGING
@@ -205,41 +170,6 @@ def rand_token(n=32):
 
 def now_iso():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-# ---------------------------------------------------------------------------
-#  Password hashing (PBKDF2-HMAC-SHA256, stdlib only)
-# ---------------------------------------------------------------------------
-
-PBKDF2_ROUNDS = 200_000
-
-
-def hash_password(password, salt=None):
-    salt = salt or secrets.token_bytes(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, PBKDF2_ROUNDS)
-    return "pbkdf2_sha256$%d$%s$%s" % (
-        PBKDF2_ROUNDS,
-        base64.b64encode(salt).decode(),
-        base64.b64encode(dk).decode(),
-    )
-
-
-def verify_password(password, stored):
-    try:
-        algo, rounds, salt_b64, hash_b64 = str(stored).split("$")
-        if algo != "pbkdf2_sha256":
-            return False
-        salt = base64.b64decode(salt_b64)
-        expected = base64.b64decode(hash_b64)
-        dk = hashlib.pbkdf2_hmac("sha256", (password or "").encode("utf-8"), salt, int(rounds))
-        return hmac.compare_digest(dk, expected)
-    except Exception:
-        return False
-
-
-def gen_password(length=12):
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-    return "".join(random.choice(alphabet) for _ in range(length))
 
 
 # ============================================================================
@@ -355,37 +285,8 @@ POLICY_EN_DEFAULT = (
     "Any order issue is handled by support within 24 hours: @{support}"
 )
 
-API_AR_DEFAULT = (
-    "🧩 <b>خدمات API</b>\n"
-    "\n"
-    "مفتاح API الخاص بك:\n"
-    "<code>{api_key}</code>\n"
-    "\n"
-    "<b>نقاط النهاية</b>\n"
-    "• <code>GET /api/v1/me</code> — بيانات الحساب والرصيد\n"
-    "• <code>GET /api/v1/products</code> — قائمة المنتجات المتوفرة\n"
-    "• <code>POST /api/v1/order</code> — إنشاء طلب جديد\n"
-    "\n"
-    "يُرسَل المفتاح في الترويسة: <code>X-API-Key</code>\n"
-    "\n"
-    "لطلب وصول API تواصل مع: @{support}"
-)
-
-API_EN_DEFAULT = (
-    "🧩 <b>API services</b>\n"
-    "\n"
-    "Your API key:\n"
-    "<code>{api_key}</code>\n"
-    "\n"
-    "<b>Endpoints</b>\n"
-    "• <code>GET /api/v1/me</code> — account and balance\n"
-    "• <code>GET /api/v1/products</code> — available products\n"
-    "• <code>POST /api/v1/order</code> — create an order\n"
-    "\n"
-    "Send the key in the header: <code>X-API-Key</code>\n"
-    "\n"
-    "Request API access from: @{support}"
-)
+API_AR_DEFAULT = "🧩 خدمة API غير متاحة في هذه النسخة المستقلة."
+API_EN_DEFAULT = "🧩 API service is not available in this standalone version."
 
 # نص تعليمات الدفع — مطابق للصور
 BINANCE_STEPS_AR = (
@@ -602,7 +503,6 @@ def default_settings():
         "support_username": "r1himo_dx",
         "default_lang": "ar",
         "owner_ids": OWNER_ID_ENV,
-        "public_url": PUBLIC_URL,
         # ---- texts ----
         "welcome": WELCOME_DEFAULT,
         "welcome_ar": WELCOME_DEFAULT,
@@ -620,8 +520,6 @@ def default_settings():
         "binance_prompt_en": BINANCE_TXID_PROMPT_EN,
         "deposit_min": "1",
         "deposit_session_minutes": "30",
-        "auto_approve_deposits": "0",
-        "payment_methods": "binance",
         # ---- economy ----
         "referral_percent": "10",
         "discount_percent": "0",
@@ -635,12 +533,6 @@ def default_settings():
         "maintenance_text_en": "🛠 Store is under maintenance, back soon.",
         "dm_owner_on_order": "1",
         "dm_owner_on_deposit": "1",
-        # ---- panel ----
-        "panel_title": "لوحة تحكم المتجر",
-        "panel_eyebrow": "مساحة خاصة",
-        "panel_subtitle": "أدخل كلمة المرور للمتابعة إلى لوحة إدارة المتجر.",
-        "panel_password_hash": "",
-        "panel_login_error": "تعذر تسجيل الدخول.",
         # ---- internals ----
         "seeded": "0",
         "tg_offset": "0",
@@ -785,53 +677,7 @@ class Store:
                     (name, name_en, icon, "", sort),
                 )
 
-        if self.scalar("SELECT COUNT(*) FROM products") == 0:
-            cats = {c["name"]: c["id"] for c in self.q("SELECT id, name FROM categories")}
-            # name, cat, icon, price, stock_mode, stock, desc
-            seed_products = [
-                ("Telegram premium 3month", "Telegram Premium", "⭐️", 12.50, "unlimited", 0,
-                 "اشتراك Telegram Premium لمدة 3 أشهر — يُسلَّم مباشرة بعد الشراء."),
-                ("Telegram premium 6month", "Telegram Premium", "⭐️", 16.50, "unlimited", 0,
-                 "اشتراك Telegram Premium لمدة 6 أشهر — يُسلَّم مباشرة بعد الشراء."),
-                ("Telegram premium 12month", "Telegram Premium", "⭐️", 29.99, "unlimited", 0,
-                 "اشتراك Telegram Premium لمدة 12 شهراً — يُسلَّم مباشرة بعد الشراء."),
-                ("Hotmail Mail Accounts", "Hotmail Accounts", "📨", 0.05, "auto", 5,
-                 "حسابات Hotmail جاهزة للاستخدام. يُسلَّم حساب واحد لكل قطعة."),
-                ("Proxy 2GB", "OWL Proxy", "🌐", 0.25, "auto", 3,
-                 "بروكسي بحجم 2GB — سرعة عالية واستقرار ممتاز."),
-                ("Amazon Prime Video 6m", "Netflix Login Links", "📺", 1.50, "auto", 0,
-                 "اشتراك Amazon Prime Video لمدة 6 أشهر."),
-                ("OWL Proxy 200mb", "OWL Proxy", "🌐", 0.20, "auto", 2,
-                 "بروكسي OWL بحجم 200MB — مناسب للاستخدام الخفيف."),
-                ("Flexy Ooredoo 100AD", "Proxy 2GB", "⏰", 0.65, "auto", 0,
-                 "عرض فليكسي أوريدو 100 دج."),
-                ("Flexy Djezzy 100AD", "Proxy 2GB", "⏰", 0.65, "auto", 0,
-                 "عرض فليكسي جيزي 100 دج."),
-                ("Gemini Plus 12M [Credit Card Required]", "Gemini Links", "✨", 1.00, "auto", 4,
-                 "رابط Gemini Plus لمدة 12 شهراً — يتطلب بطاقة بنكية."),
-                ("EXPRESS VPN Account", "ExpressVPN Accounts", "🛡️", 0.50, "auto", 1,
-                 "حساب ExpressVPN جاهز للاستخدام."),
-                ("Netflix Phone login link", "Netflix Login Links", "🎬", 0.30, "auto", 0,
-                 "رابط تسجيل دخول Netflix عبر الهاتف."),
-            ]
-            for idx, (name, cat, icon, price, mode, stock, desc) in enumerate(seed_products):
-                pid = self.ex(
-                    "INSERT INTO products(category_id,name,name_en,icon,emoji_id,price,stock_mode,stock,"
-                    "description,description_en,feed,color,visible,sort,sold,created_at)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (cats.get(cat, 0), name, name, icon, "", price, mode, stock,
-                     desc, desc, "", "auto", 1, idx, 0, now_iso()),
-                )
-                # Demo stock: exactly `stock` deliverable units so the panel counts are real,
-                # not a number the bot only pretends to have. Replace from the panel.
-                if mode == "auto" and stock > 0:
-                    self.ex("DELETE FROM stock_items WHERE product_id=?", (pid,))
-                    for n in range(1, stock + 1):
-                        self.ex(
-                            "INSERT INTO stock_items(product_id,content,used,order_id,created_at)"
-                            " VALUES(?,?,0,0,?)",
-                            (pid, DEMO_STOCK % {"name": name, "n": n}, now_iso()),
-                        )
+        # المنتجات والمخزون يضيفهما المالك يدوياً؛ لا نبيع بيانات تجريبية.
 
         self.set_setting("seeded", "1")
         self._ensure_offers_button()
@@ -986,7 +832,7 @@ class Store:
     def available_stock(self, product):
         if not product:
             return 0
-        if product.get("stock_mode") == "unlimited":
+        if product.get("stock_mode") == "unlimited" and (product.get("feed") or "").strip():
             return 10 ** 9
         return self.product_stock(product["id"])
 
@@ -1960,11 +1806,6 @@ def notify_owner(text, reply_markup=None):
         safe_send(oid, text, reply_markup=reply_markup)
 
 
-def panel_url():
-    url = store.get_setting("public_url", "") or PUBLIC_URL
-    return url.rstrip("/")
-
-
 # ============================================================================
 #  UI SCREENS
 # ============================================================================
@@ -2010,7 +1851,7 @@ def product_view(user, product_id, edit=None, back="pg:0"):
 
     stock = store.available_stock(p)
     mode = p.get("stock_mode") or "auto"
-    if mode == "unlimited":
+    if mode == "unlimited" and (p.get("feed") or "").strip():
         stock_line = t("lbl_unlimited", lang)
     else:
         stock_line = "%d %s" % (stock, t("lbl_in_stock", lang)) if stock > 0 else t("lbl_out", lang)
@@ -2440,6 +2281,9 @@ def handle_state(user, st, text, msg):
     lang = lang_of(user)
     kind = st.get("kind")
 
+    if kind == "admin_input":
+        return admin_apply_input(user, st, text)
+
     if kind == "admin_discount":
         if not is_owner_user(user):
             state_clear(tg_id)
@@ -2674,6 +2518,15 @@ def handle_callback(cb):
     parts = data.split(":")
     head = parts[0] if parts else ""
 
+    # Administration and payment decisions must stay in a private chat.
+    if head in ("a", "adm", "dep") and (msg.get("chat") or {}).get("type") != "private":
+        return
+
+    if head == "a":
+        if is_owner_user(user):
+            return admin_dispatch(user, parts[1:], message_id)
+        return
+
     # ---- products pagination ----
     if head == "pg":
         page = to_int(parts[1] if len(parts) > 1 else 0, 0)
@@ -2850,51 +2703,11 @@ def handle_callback(cb):
 
 
 # ============================================================================
-#  OWNER ADMIN (inside Telegram)  — اللوحة الكاملة موجودة في الويب،
-#  وهذه واجهة سريعة للمالك من داخل البوت نفسه.
+#  OWNER ADMIN — جميع أدوات الإدارة داخل تيليغرام.
 # ============================================================================
 
-def admin_home(user, edit=None):
-    if not is_owner_user(user):
-        return
-    s = store.stats()
-    url = panel_url()
-    body = (
-        "⚙️ <b>لوحة تحكم المالك</b>\n\n"
-        "👥 المستخدمون: <b>%d</b>\n"
-        "🧾 الطلبات: <b>%d</b>\n"
-        "💰 المبيعات: <b>%s</b>\n"
-        "💳 شحنات بانتظار المراجعة: <b>%d</b>\n"
-        "📦 منتجات: <b>%d</b>\n"
-        "🗂 مخزون متاح: <b>%d</b>\n"
-    ) % (s["users"], s["orders"], price_str(s["revenue"]), s["pending_deposits"],
-         s["products"], s["stock"])
-    if url:
-        body += "\n🌐 <a href=\"%s/panel\">افتح لوحة التحكم الكاملة</a>" % esc(url)
-    else:
-        body += "\n🌐 اضبط <code>PUBLIC_URL</code> لفتح اللوحة الكاملة."
-
-    rows = [
-        [_btn("📣 إرسال جماعي", "primary", None, cb="adm:broadcast"),
-         _btn("💳 الشحنات", "success", None, cb="adm:deposits")],
-        [_btn("🏷 ضبط الخصم", "success", None, cb="adm:discount")],
-        [_btn("🔄 تحديث", "default", None, cb="adm:refresh"),
-         _btn("🏪 المتجر", "default", None, cb="menu")],
-    ]
-    if url:
-        rows.insert(1, [_btn("🌐 لوحة الويب", "primary", None, url=url + "/panel")])
-        rows.insert(2, [_btn("📦 المنتجات", "primary", None, url=url + "/panel/products"),
-                        _btn("🧾 الطلبات", "primary", None, url=url + "/panel/orders")])
-        rows.insert(3, [_btn("👥 المستخدمون", "primary", None, url=url + "/panel/users"),
-                        _btn("✏️ الأزرار", "primary", None, url=url + "/panel/buttons")])
-    markup = inline_keyboard(rows)
-    if edit:
-        return safe_edit(user["tg_id"], edit, body, markup)
-    return safe_send(user["tg_id"], body, markup)
-
-
 def _broadcast_one(uid, text):
-    # Plain text accepts <, &, etc.; a short timeout keeps serverless batches bounded.
+    # الإذاعة نص عادي لتجنب أخطاء تنسيق HTML.
     for attempt in range(2):
         try:
             tg.call("sendMessage", timeout=5, chat_id=uid, text=text, disable_web_page_preview=True)
@@ -2990,2057 +2803,439 @@ class Poller(threading.Thread):
                 on_update(upd)
             if updates:
                 store.set_setting("tg_offset", str(self.offset))
-
-
-# ============================================================================
-#  WEB CONTROL PANEL — design tokens (sampled from the reference screenshots)
-# ============================================================================
-
-PALETTE = {
-    "page_bg":      "#1d2f23",   # الخلفية الداكنة
-    "card":         "#ffffff",   # البطاقة البيضاء
-    "title":        "#314a35",   # العنوان الأخضر الغامق
-    "button":       "#33533c",   # الزر الأساسي
-    "gold":         "#9a7c3e",   # الذهبي (مساحة خاصة)
-    "error_bg":     "#fbf0ed",   # خلفية الخطأ
-    "error_text":   "#9a5247",   # نص الخطأ
-    "muted":        "#98a198",   # النص الرمادي
-    "soft":         "#eef4ea",   # مربع الأيقونة
-    "border":       "#e3e8e2",
-    "green":        "#55af53",   # أخضر أزرار تيليغرام
-    "blue":         "#3b86f7",   # أزرق
-    "red":          "#e4553f",   # أحمر
-}
-
-PANEL_CSS = """
-:root{
-  --page:#1d2f23; --card:#ffffff; --title:#314a35; --btn:#33533c; --gold:#9a7c3e;
-  --errbg:#fbf0ed; --errtx:#9a5247; --muted:#98a198; --soft:#eef4ea; --border:#e3e8e2;
-  --green:#55af53; --blue:#3b86f7; --red:#e4553f; --radius:16px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{min-height:100%}
-body{
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Cairo","Tajawal",Roboto,Arial,sans-serif;
-  background:var(--page); color:#1b2b20; -webkit-font-smoothing:antialiased; line-height:1.6;
-}
-body.dark{background:#16241b}
-a{color:inherit;text-decoration:none}
-.wrap{max-width:1180px;margin:0 auto;padding:18px 14px 60px}
-.topbar{display:flex;align-items:center;gap:12px;padding:14px 4px 22px;color:#e9f0e8;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:.2px}
-.brand .dot{width:34px;height:34px;border-radius:11px;background:linear-gradient(145deg,#8fbf8c,#557e59);
-  display:grid;place-items:center;font-size:16px}
-.topbar .spacer{flex:1}
-.topbar .pill{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);
-  color:#dfe9dd;padding:6px 12px;border-radius:999px;font-size:12.5px}
-.topbar a.pill:hover{background:rgba(255,255,255,.16)}
-
-/* ---------- login card (exact reference look) ---------- */
-.login-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.login-card{width:100%;max-width:420px;background:var(--card);border-radius:24px;padding:26px 22px 22px;
-  box-shadow:0 24px 60px rgba(0,0,0,.28);position:relative}
-.login-close{position:absolute;top:18px;left:18px;width:42px;height:42px;border-radius:13px;
-  border:1px solid var(--border);background:#fff;color:#9aa79b;display:grid;place-items:center;
-  font-size:19px;line-height:1}
-.login-badge{width:86px;height:86px;margin:6px auto 20px;border-radius:26px;background:var(--soft);
-  display:grid;place-items:center}
-.login-badge svg{width:36px;height:36px;stroke:#4f7752;fill:none;stroke-width:2.1}
-.eyebrow{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--gold);
-  font-weight:700;font-size:13.5px;letter-spacing:.2px}
-.eyebrow .dash{width:34px;height:3px;border-radius:3px;background:var(--gold)}
-.login-title{text-align:center;color:var(--title);font-size:30px;font-weight:900;margin:8px 0 6px}
-.login-sub{text-align:center;color:var(--muted);font-size:13.5px;margin-bottom:22px}
-label.fld{display:block;font-size:13.5px;font-weight:700;color:#5d6b60;margin:0 0 7px;text-align:right}
-input[type=password],input[type=text],input[type=number],input[type=url],select,textarea{
-  width:100%;border:1px solid var(--border);background:#fff;border-radius:12px;padding:13px 15px;
-  font-size:15px;color:#22302a;font-family:inherit;outline:none;transition:.15s}
-input:focus,select:focus,textarea:focus{border-color:#9dbf9f;box-shadow:0 0 0 3px rgba(85,126,89,.12)}
-.err{background:var(--errbg);color:var(--errtx);border-radius:11px;padding:12px 15px;font-size:13px;
-  text-align:right;margin:12px 0}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;
-  background:var(--btn);color:#fff;border:0;border-radius:13px;padding:15px 18px;font-size:16px;
-  font-weight:800;cursor:pointer;font-family:inherit;transition:.15s}
-.btn:hover{filter:brightness(1.08)}
-.btn:active{transform:translateY(1px)}
-.btn.sm{width:auto;padding:9px 14px;font-size:13.5px;border-radius:10px}
-.btn.ghost{background:#eef2ec;color:#3b4f40}
-.btn.green{background:var(--green)}
-.btn.blue{background:var(--blue)}
-.btn.red{background:var(--red)}
-.btn.gold{background:var(--gold)}
-.btn.warn{background:#c8892d}
-.btn.danger-ghost{background:#fdeeeb;color:#b0452f}
-
-/* ---------- app shell ---------- */
-.layout{display:grid;grid-template-columns:240px 1fr;gap:16px;align-items:start}
-.side{background:#223528;border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:12px;
-  position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}
-.side a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;
-  color:#cfdccb;font-size:13.5px;font-weight:600;margin-bottom:3px}
-.side a:hover{background:rgba(255,255,255,.07);color:#fff}
-.side a.active{background:#3a5a41;color:#fff}
-.side .grp{color:#7d9480;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
-  padding:12px 12px 6px;font-weight:800}
-.main{min-width:0}
-.card{background:var(--card);border-radius:18px;padding:20px;box-shadow:0 8px 26px rgba(0,0,0,.10);
-  margin-bottom:16px}
-.card.tight{padding:14px 16px}
-h1.page{color:#fff;font-size:22px;font-weight:900;margin-bottom:14px;letter-spacing:.2px}
-h2.sec{color:var(--title);font-size:16.5px;font-weight:900;margin-bottom:12px;display:flex;
-  align-items:center;gap:8px}
-.muted{color:var(--muted);font-size:12.8px}
-.grid{display:grid;gap:12px}
-.grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.grid.c4{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media(max-width:900px){.layout{grid-template-columns:1fr}.side{position:static;max-height:none}
-  .grid.c4,.grid.c3{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}}
-.stat{background:#fff;border-radius:16px;padding:16px;border:1px solid var(--border)}
-.stat .k{color:var(--muted);font-size:12px;font-weight:700}
-.stat .v{color:var(--title);font-size:23px;font-weight:900;margin-top:3px;direction:ltr;text-align:right}
-table{width:100%;border-collapse:collapse;font-size:13.3px}
-th{text-align:right;color:#7b8a7e;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;
-  padding:8px 10px;border-bottom:1px solid var(--border);font-weight:800}
-td{padding:10px;border-bottom:1px solid #f1f4f0;vertical-align:middle}
-tr:last-child td{border-bottom:0}
-.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:800}
-.b-gray{background:#eef2ec;color:#5d6b60}
-.b-green{background:#e6f4e4;color:#3e7a3c}
-.b-red{background:#fdeae7;color:#b0452f}
-.b-blue{background:#e7f0fe;color:#2f6bd6}
-.b-gold{background:#f7efdd;color:#8a6d33}
-.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
-.row.end{justify-content:flex-end}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;
-  margin-bottom:12px}
-.sw{display:inline-flex;border-radius:11px;overflow:hidden;border:1px solid var(--border)}
-.sw button{border:0;background:#fff;padding:9px 14px;font-family:inherit;font-size:13px;
-  font-weight:800;cursor:pointer;color:#5d6b60}
-.sw button.on{color:#fff}
-.sw button[data-c=success].on{background:var(--green)}
-.sw button[data-c=primary].on{background:var(--blue)}
-.sw button[data-c=danger].on{background:var(--red)}
-.sw button[data-c=default].on{background:#8b9a8d}
-.chip{background:#f2f6f1;border:1px solid var(--border);border-radius:10px;padding:6px 10px;
-  font-size:12.5px;font-weight:700;color:#4c5d50;cursor:pointer}
-.chip:hover{background:#e8f0e7}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.tabs a{padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.09);color:#dbe7d8;
-  font-size:13px;font-weight:700}
-.tabs a.active{background:#fff;color:var(--title)}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#22352a;color:#fff;
-  padding:12px 20px;border-radius:12px;font-size:13.5px;font-weight:700;box-shadow:0 10px 30px rgba(0,0,0,.3);
-  z-index:99}
-.helptext{color:var(--muted);font-size:12px;margin-top:5px}
-details{border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:9px;background:#fbfdfa}
-details summary{cursor:pointer;font-weight:800;color:var(--title);font-size:14px}
-details[open] summary{margin-bottom:10px}
-.kb-preview{background:#dfe8dc;padding:12px;border-radius:14px;display:grid;gap:7px}
-.kb-row{display:flex;gap:7px}
-.kb-b{flex:1;text-align:center;padding:10px 6px;border-radius:10px;color:#fff;font-size:13px;
-  font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kb-success{background:var(--green)}.kb-primary{background:var(--blue)}
-.kb-danger{background:var(--red)}.kb-default{background:#8b9a8d}
-.kb-inline{background:#f4f8f2;padding:12px;border-radius:14px;display:grid;gap:6px}
-.kb-inline .kb-b{font-size:12.5px}
-.empty{text-align:center;color:var(--muted);padding:26px;font-size:13px}
-.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-@media(max-width:640px){.formgrid{grid-template-columns:1fr}}
-.f{display:flex;flex-direction:column;gap:5px}
-.f.full{grid-column:1/-1}
-.f label{font-size:12.5px;font-weight:800;color:#57685b}
-.f small{color:var(--muted);font-size:11.5px}
-textarea{min-height:90px;resize:vertical;line-height:1.55}
-.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;direction:ltr;
-  text-align:left;background:#f5f8f4;padding:10px 12px;border-radius:10px;overflow:auto}
-.tag{font-size:11px;background:#eef4ea;color:#4f7752;border-radius:6px;padding:2px 7px;font-weight:800}
-"""
-
-PANEL_JS = """
-function paint(btn){
-  document.querySelectorAll('.sw button[data-g="'+btn.dataset.g+'"]').forEach(function(b){
-    b.classList.toggle('on', b===btn);
-  });
-  var hidden=document.getElementById(btn.dataset.g);
-  if(hidden) hidden.value=btn.dataset.c;
-}
-document.addEventListener('DOMContentLoaded',function(){
-  document.querySelectorAll('.sw button').forEach(function(b){
-    b.addEventListener('click',function(){paint(b)});
-  });
-});
-function confirmSubmit(msg){return confirm(msg||'تأكيد العملية؟')}
-"""
-
-
-def html_page(title, body, extra_head="", dark=False, show_bar=True):
-    return (
-        "<!DOCTYPE html><html lang=\"ar\" dir=\"rtl\"><head><meta charset=\"utf-8\">"
-        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-        "<meta name=\"theme-color\" content=\"%(page)s\">"
-        "<title>%(title)s</title><style>%(css)s</style>%(head)s</head>"
-        "<body class=\"%(cls)s\">%(body)s<script>%(js)s</script></body></html>"
-    ) % {
-        "page": PALETTE["page_bg"], "title": html.escape(title), "css": PANEL_CSS,
-        "head": extra_head, "body": body, "js": PANEL_JS,
-        "cls": "dark" if dark else "",
-    }
-
-
-LOCK_SVG = (
-    '<svg viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10.5" rx="2.6"/>'
-    '<path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9"/><circle cx="12" cy="15.8" r="1.1" fill="#4f7752" '
-    'stroke="none"/></svg>'
-)
-
-
-def login_html(error="", notice=""):
-    s = store
-    title = s.get_setting("panel_title", "لوحة تحكم المتجر")
-    eyebrow = s.get_setting("panel_eyebrow", "مساحة خاصة")
-    subtitle = s.get_setting("panel_subtitle", "")
-    err_box = ('<div class="err">%s</div>' % html.escape(error)) if error else ""
-    note_box = ('<div class="err" style="background:#eef4ea;color:#4f7752">%s</div>' % html.escape(notice)) if notice else ""
-    body = """
-<div class="login-shell"><div class="login-card">
-  <div class="login-close">✕</div>
-  <div class="login-badge">%(lock)s</div>
-  <div class="eyebrow">%(eyebrow)s <span class="dash"></span></div>
-  <h1 class="login-title">%(title)s</h1>
-  <div class="login-sub">%(subtitle)s</div>
-  %(note)s
-  <form method="post" action="/login">
-    <label class="fld">كلمة المرور</label>
-    <input type="password" name="password" autocomplete="current-password" required autofocus>
-    %(err)s
-    <button class="btn" type="submit" style="margin-top:14px">
-      <span style="font-size:18px">‹</span> دخول لوحة التحكم
-    </button>
-  </form>
-</div></div>""" % {"lock": LOCK_SVG, "eyebrow": html.escape(eyebrow), "title": html.escape(title),
-                   "subtitle": html.escape(subtitle), "err": err_box, "note": note_box}
-    return html_page(title, body)
-
-
-# ============================================================================
-#  PANEL SHELL
-# ============================================================================
-
-PANEL_NAV = [
-    ("nav-core", [
-        ("/panel", "📊 لوحة المعلومات", "home"),
-        ("/panel/buttons", "🔘 أزرار البوت", "buttons"),
-        ("/panel/products", "📦 المنتجات", "products"),
-        ("/panel/categories", "🗂 التصنيفات", "categories"),
-    ]),
-    ("nav-ops", [
-        ("/panel/orders", "🧾 الطلبات", "orders"),
-        ("/panel/deposits", "💳 الشحنات", "deposits"),
-        ("/panel/users", "👥 المستخدمون", "users"),
-        ("/panel/broadcast", "📣 الإرسال الجماعي", "broadcast"),
-    ]),
-    ("nav-content", [
-        ("/panel/texts", "📝 النصوص والرسائل", "texts"),
-        ("/panel/payments", "💰 الدفع والمحفظة", "payments"),
-        ("/panel/settings", "⚙️ الإعدادات", "settings"),
-    ]),
-]
-
-
-def panel_shell(active, content, title=""):
-    nav_parts = []
-    for group, items in PANEL_NAV:
-        parts = ['<div class="grp">%s</div>' % {
-            "nav-core": "المتجر", "nav-ops": "العمليات", "nav-content": "المحتوى"
-        }[group]]
-        for href, text, key in items:
-            cls = "active" if key == active else ""
-            parts.append('<a class="%s" href="%s">%s</a>' % (cls, href, html.escape(text)))
-        nav_parts.append("".join(parts))
-
-    stats = store.stats()
-    top = """
-<div class="topbar">
-  <div class="brand"><span class="dot">🏪</span><span>%(store)s</span></div>
-  <span class="pill">المالك</span>
-  <div class="spacer"></div>
-  <span class="pill">🟢 يعمل</span>
-  <span class="pill">👥 %(users)d</span>
-  <span class="pill">🧾 %(orders)d</span>
-  <a class="pill" href="/logout">خروج</a>
-</div>""" % {"store": html.escape(store_name()), "users": stats["users"], "orders": stats["orders"]}
-
-    body = """<div class="wrap">%s<div class="layout">
-<div class="side">%s</div>
-<div class="main"><h1 class="page">%s</h1>%s</div>
-</div></div>""" % (top, "".join(nav_parts), html.escape(title), content)
-    return html_page("%s — %s" % (store_name(), title), body)
-
-
-def field(label_text, name, value="", kind="text", placeholder="", help_text="", full=False,
-          options=None, rows=4, required=False):
-    """Render one form control."""
-    cls = "f full" if full else "f"
-    val = "" if value is None else str(value)
-    req = " required" if required else ""
-    if kind == "textarea":
-        ctrl = '<textarea name="%s" placeholder="%s"%s>%s</textarea>' % (
-            name, html.escape(placeholder), req, html.escape(val))
-    elif kind == "select":
-        opts = []
-        for opt_value, opt_label in (options or []):
-            sel = " selected" if str(opt_value) == val else ""
-            opts.append('<option value="%s"%s>%s</option>' % (
-                html.escape(str(opt_value)), sel, html.escape(str(opt_label))))
-        ctrl = '<select name="%s">%s</select>' % (name, "".join(opts))
-    else:
-        ctrl = '<input type="%s" name="%s" value="%s" placeholder="%s"%s>' % (
-            kind, name, html.escape(val), html.escape(placeholder), req)
-    help_html = '<small>%s</small>' % html.escape(help_text) if help_text else ""
-    return '<div class="%s"><label>%s</label>%s%s</div>' % (
-        cls, html.escape(label_text), ctrl, help_html)
-
-
-def color_picker(group, value):
-    """Colored segmented control matching Telegram's success/danger/primary."""
-    value = value if value in ("success", "primary", "danger", "default") else "primary"
-    parts = []
-    for code, label_text in (("success", "أخضر"), ("primary", "أزرق"),
-                             ("danger", "أحمر"), ("default", "افتراضي")):
-        cls = "on" if code == value else ""
-        parts.append('<button type="button" data-g="%s" data-c="%s" class="%s">%s</button>' % (
-            group, code, cls, label_text))
-    return ('<div class="sw">%s</div><input type="hidden" name="%s" id="%s" value="%s">'
-            % ("".join(parts), group, group, value))
-
-
-def btn_class(color):
-    return "kb-" + (color if color in ("success", "primary", "danger") else "default")
-
-
-def flash(msg, kind="ok"):
-    color = "#eef4ea" if kind == "ok" else "#fdeeeb"
-    text = "#3e7a3c" if kind == "ok" else "#b0452f"
-    return '<div class="card tight" style="background:%s;color:%s;font-weight:800">%s</div>' % (
-        color, text, html.escape(msg))
-
-
-# ============================================================================
-#  PANEL: DASHBOARD
-# ============================================================================
-
-def page_dashboard(qs, flash_msg=None):
-    s = store.stats()
-    bot_username = store.get_setting("bot_username", "")
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    if os.environ.get("RABOT_SERVERLESS") == "1":
-        content.append('''<div class="card"><form method="post" action="/panel/activate-bot">
-          <button class="btn green" type="submit">🤖 تفعيل البوت على تيليغرام</button>
-          </form></div>''')
-    content.append("""
-<div class="grid c4">
-  <div class="stat"><div class="k">المستخدمون</div><div class="v">%d</div>
-    <div class="muted">+%d اليوم</div></div>
-  <div class="stat"><div class="k">الطلبات</div><div class="v">%d</div>
-    <div class="muted">+%d اليوم</div></div>
-  <div class="stat"><div class="k">المبيعات</div><div class="v">%s</div>
-    <div class="muted">%s اليوم</div></div>
-  <div class="stat"><div class="k">بانتظار المراجعة</div><div class="v">%d</div>
-    <div class="muted">شحنات</div></div>
-</div>""" % (s["users"], s["users_today"], s["orders"], s["orders_today"],
-             price_str(s["revenue"]), price_str(s["revenue_today"]), s["pending_deposits"]))
-
-    content.append("""
-<div class="grid c4" style="margin-top:12px">
-  <div class="stat"><div class="k">المنتجات</div><div class="v">%d</div></div>
-  <div class="stat"><div class="k">مخزون متاح</div><div class="v">%d</div></div>
-  <div class="stat"><div class="k">إجمالي الشحنات المقبولة</div><div class="v">%s</div></div>
-  <div class="stat"><div class="k">طلبات معلقة</div><div class="v">%d</div></div>
-</div>""" % (s["products"], s["stock"], price_str(s["deposits_total"]), s["pending_orders"]))
-
-    recent_orders = store.orders_list(limit=6)
-    rows = "".join(
-        "<tr><td>#%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-            o["id"], html.escape(o["product_name"] or "-"),
-            html.escape(o.get("username") or o.get("first_name") or str(o["user_id"])),
-            price_str(o["total"]),
-            '<span class="badge %s">%s</span>' % (
-                "b-green" if o["status"] == "delivered" else "b-gold", o["status"]),
-        ) for o in recent_orders
-    ) or '<tr><td colspan="5" class="empty">لا توجد طلبات بعد</td></tr>'
-
-    warning = ""
-    if not store.get_setting("binance_pay_id"):
-        warning = ('<div class="err" style="margin-bottom:12px">⚠️ معرّف Binance Pay غير مُعد بعد — '
-                   'الشحن معطّل للمستخدمين. <a href="/panel/payments" style="text-decoration:underline">'
-                   'اضبطه الآن</a></div>')
-    if not store.get_setting("panel_password_hash"):
-        warning += ('<div class="err" style="margin-bottom:12px">⚠️ لم يتم تعيين كلمة مرور للوحة بعد. '
-                    '<a href="/panel/settings" style="text-decoration:underline">عيّنها الآن</a></div>')
-
-    content.append('<div class="card"><h2 class="sec">🧾 آخر الطلبات</h2>%s<table>'
-                   '<tr><th>#</th><th>المنتج</th><th>المستخدم</th><th>المبلغ</th><th>الحالة</th></tr>'
-                   '%s</table></div>' % (warning, rows))
-
-    quick = """
-<div class="card"><h2 class="sec">⚡ إجراءات سريعة</h2>
-<div class="row">
-  <a class="btn sm ghost" href="/panel/buttons">🔘 تعديل الأزرار</a>
-  <a class="btn sm ghost" href="/panel/products">📦 إضافة منتج</a>
-  <a class="btn sm ghost" href="/panel/texts">📝 تعديل نص الترحيب</a>
-  <a class="btn sm ghost" href="/panel/broadcast">📣 إرسال جماعي</a>
-  <a class="btn sm ghost" href="/bot-preview" target="_blank">📱 معاينة الأزرار</a>
-</div></div>"""
-    content.append(quick)
-
-    if bot_username:
-        token = store.get_setting("bot_username", "")
-        content.append(
-            '<div class="card"><h2 class="sec">🔗 روابط سريعة</h2>'
-            '<div class="mono">https://t.me/%s?start=panel</div>'
-            '<div class="helptext">افتح هذا الرابط من تيليغرام ليدخل المالك إلى لوحة التحكم '
-            'داخل البوت مباشرة.</div></div>' % html.escape(token))
-    return panel_shell("home", "".join(content), "لوحة المعلومات")
-
-
-# ============================================================================
-#  PANEL: BUTTONS
-# ============================================================================
-
-BUTTON_ACTIONS = [
-    ("products", "عرض المنتجات"),
-    ("search", "البحث عن منتج"),
-    ("offers", "عرض الخصومات"),
-    ("profile", "الملف الشخصي"),
-    ("wallet", "المحفظة"),
-    ("referrals", "الإحالات"),
-    ("help", "المساعدة"),
-    ("policy", "سياسة البوت"),
-    ("deposit", "شحن الرصيد"),
-    ("orders", "سجل الطلبات"),
-    ("lang", "تغيير اللغة"),
-    ("api", "خدمات API"),
-    ("support", "الدعم الفني"),
-    ("admin", "لوحة التحكم (للمالك)"),
-    ("category", "فتح تصنيف (اكتب رقمه في الحقل)"),
-    ("text", "نص مخصص (اكتب مفتاح الإعداد)"),
-    ("url", "رابط (اكتب الرابط)"),
-    ("menu", "القائمة الرئيسية"),
-]
-
-
-def render_keyboard_preview(lang="ar"):
-    """Live preview of the reply keyboard exactly as Telegram draws it."""
-    is_owner = True
-    rows_map = {}
-    for b in store.buttons():
-        if b.get("owner_only") and not is_owner:
-            continue
-        rows_map.setdefault(to_int(b.get("row"), 0), []).append(b)
-    out = []
-    for row_index in sorted(rows_map):
-        items = sorted(rows_map[row_index], key=lambda x: (to_int(x.get("sort"), 0), x["id"]))
-        if store.get_bool("mirror_rows", False):
-            items = list(reversed(items))
-        cells = "".join(
-            '<div class="kb-b %s">%s</div>' % (
-                btn_class(b.get("color")),
-                html.escape(render_button_label(b, lang)),
-            ) for b in items
-        )
-        out.append('<div class="kb-row">%s</div>' % cells)
-    return '<div class="kb-preview">%s</div>' % "".join(out) if out else '<div class="empty">لا أزرار</div>'
-
-
-def page_buttons(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-
-    content.append("""
-<div class="card"><h2 class="sec">📱 معاينة مباشرة (كما تظهر في تيليغرام)</h2>
-%s
-<div class="helptext" style="margin-top:8px">الألوان: 🟢 success · 🔵 primary · 🔴 danger — نفس ألوان التصميم الأصلي.</div>
-</div>""" % render_keyboard_preview("ar"))
-
-    # add / edit form
-    edit_id = to_int(qs.get("edit", [0])[0], 0)
-    editing = store.get_button(edit_id) if edit_id else None
-    rows_available = sorted({to_int(b.get("row"), 0) for b in store.buttons()} | {0, 1, 2, 3, 4, 5})
-
-    form = """
-<div class="card">
-  <h2 class="sec">{heading}</h2>
-  <form method="post" action="/panel/buttons/save">
-    <input type="hidden" name="id" value="{edit_id}">
-    <div class="formgrid">
-      {label_ar}
-      {label_en}
-      {icon}
-      {emoji_id}
-      {row}
-      {sort}
-      {action}
-      {payload}
-      {visible}
-      {owner_only}
-      {custom_text_ar}
-      {custom_text_en}
-    </div>
-    <div class="f full" style="margin-top:12px"><label>اللون</label>{color}</div>
-    <div class="row end" style="margin-top:16px">
-      {cancel}
-      <button class="btn sm green" type="submit">💾 حفظ</button>
-    </div>
-  </form>
-</div>""".format(
-        heading=("✏️ تعديل الزر" if editing else "➕ إضافة زر جديد"),
-        edit_id=edit_id,
-        label_ar=field("النص بالعربية", "label_ar", (editing or {}).get("label_ar", ""),
-                       required=True, placeholder="المنتجات"),
-        label_en=field("النص بالإنجليزية", "label_en", (editing or {}).get("label_en", ""),
-                       placeholder="Products"),
-        icon=field("الأيقونة (إيموجي)", "icon", (editing or {}).get("icon", ""),
-                   placeholder="🏪",
-                   help_text="الإيموجي تظهر يمين النص في العربية (كما في التصميم)"),
-        emoji_id=field("معرّف إيموجي مخصص", "emoji_id", (editing or {}).get("emoji_id", ""),
-                       help_text="اختياري — إيموجي بريميوم"),
-        row=field("الصف", "row", (editing or {}).get("row", 0), kind="select",
-                  options=[(r, "الصف %d" % (r + 1)) for r in rows_available]),
-        sort=field("الترتيب داخل الصف", "sort", (editing or {}).get("sort", 0), kind="number",
-                   help_text="0 = يمين الصف، 1 = الذي بعده"),
-        action=field("الإجراء", "action", (editing or {}).get("action", "products"),
-                     kind="select", options=BUTTON_ACTIONS),
-        payload=field("بيانات الإجراء", "payload", (editing or {}).get("payload", ""),
-                      help_text="رقم تصنيف / مفتاح نص / رابط حسب الإجراء"),
-        visible=field("ظاهر", "visible", (editing or {}).get("visible", 1), kind="select",
-                      options=[(1, "نعم"), (0, "لا (مخفي)")]),
-        owner_only=field("للمالك فقط", "owner_only", (editing or {}).get("owner_only", 0),
-                         kind="select",
-                         options=[(0, "لا — للجميع"), (1, "نعم — للمالك فقط")]),
-        custom_text_ar=field("نص مخصص بالعربية (لإجراء نص مخصص)", "custom_text_ar",
-            store.get_setting(((editing or {}).get("payload") or "") + "_ar", "") if editing and editing.get("action") == "text" else "", kind="textarea"),
-        custom_text_en=field("نص مخصص بالإنجليزية", "custom_text_en",
-            store.get_setting(((editing or {}).get("payload") or "") + "_en", "") if editing and editing.get("action") == "text" else "", kind="textarea"),
-        color=color_picker("color", (editing or {}).get("color", "primary")),
-        cancel=('<a class="btn sm ghost" href="/panel/buttons">إلغاء</a>' if editing else ""),
-    )
-
-    rows = []
-    for b in store.buttons(include_hidden=True):
-        rows.append("""
-<tr>
-  <td><span class="tag">%d</span></td>
-  <td><b>%s</b><div class="muted">%s</div></td>
-  <td>%s %s</td>
-  <td><span class="badge %s">%s</span></td>
-  <td>%d · %d</td>
-  <td>%s</td>
-  <td class="row">
-    <a class="btn sm ghost" href="/panel/buttons?edit=%d">تعديل</a>
-    <form method="post" action="/panel/buttons/delete" onsubmit="return confirmSubmit('حذف هذا الزر؟')">
-      <input type="hidden" name="id" value="%d">
-      <button class="btn sm danger-ghost" type="submit">حذف</button>
-    </form>
-  </td>
-</tr>""" % (
-            b["id"], html.escape(b.get("label_ar") or "-"), html.escape(b.get("label_en") or "-"),
-            html.escape(b.get("icon") or ""), html.escape(b.get("label_ar") or ""),
-            "b-green" if b.get("color") == "success" else ("b-red" if b.get("color") == "danger"
-                                                           else ("b-blue" if b.get("color") == "primary" else "b-gray")),
-            html.escape(b.get("color") or "default"),
-            to_int(b.get("row"), 0) + 1, to_int(b.get("sort"), 0),
-            "👁 ظاهر" if b.get("visible") else "🚫 مخفي",
-            b["id"], b["id"],
-        ))
-
-    table = """
-<div class="card"><h2 class="sec">🔘 كل الأزرار</h2>
-<table>
-<tr><th>#</th><th>النص</th><th>يظهر كـ</th><th>اللون</th><th>الصف·الترتيب</th><th>الحالة</th><th></th></tr>
-%s</table></div>""" % ("".join(rows) or '<tr><td colspan="7" class="empty">لا أزرار</td></tr>')
-
-    content += [form, table]
-    return panel_shell("buttons", "".join(content), "أزرار البوت")
-
-
-def page_buttons_save(form):
-    bid = to_int(form.get("id", [""])[0], 0)
-    data = {
-        "label_ar": (form.get("label_ar", [""])[0] or "").strip(),
-        "label_en": (form.get("label_en", [""])[0] or "").strip(),
-        "icon": (form.get("icon", [""])[0] or "").strip(),
-        "emoji_id": (form.get("emoji_id", [""])[0] or "").strip(),
-        "color": (form.get("color", ["primary"])[0] or "primary").strip(),
-        "row": (form.get("row", ["0"])[0] or "0").strip(),
-        "sort": (form.get("sort", ["0"])[0] or "0").strip(),
-        "action": (form.get("action", ["products"])[0] or "products").strip(),
-        "payload": (form.get("payload", [""])[0] or "").strip(),
-        "visible": (form.get("visible", ["1"])[0] or "1").strip(),
-        "owner_only": (form.get("owner_only", ["0"])[0] or "0").strip(),
-    }
-    if not data["label_ar"]:
-        return "/panel/buttons", "❌ النص العربي مطلوب", "err"
-    if data["color"] not in COLOR_MAP:
-        data["color"] = "primary"
-    if data["action"] not in {item[0] for item in BUTTON_ACTIONS}:
-        return "/panel/buttons", "❌ إجراء غير صالح", "err"
-    if data["action"] == "url" and not data["payload"].startswith("https://"):
-        return "/panel/buttons", "❌ يجب أن يبدأ الرابط بـ https://", "err"
-    if data["action"] == "text":
-        if not data["payload"]:
-            data["payload"] = "custom_" + secrets.token_hex(8)
-        if not re.fullmatch(r"custom_[A-Za-z0-9_]{1,80}", data["payload"]):
-            return "/panel/buttons", "❌ مفتاح النص يجب أن يبدأ بـ custom_ ويحتوي أحرفاً وأرقاماً فقط", "err"
-        store.set_settings({data["payload"] + "_ar": form.get("custom_text_ar", [""])[0],
-                            data["payload"] + "_en": form.get("custom_text_en", [""])[0]})
-    if bid:
-        store.update_button(bid, data)
-        return "/panel/buttons", "✅ تم تحديث الزر", "ok"
-    store.add_button(data)
-    return "/panel/buttons", "✅ تمت إضافة الزر", "ok"
-
-
-def page_buttons_delete(form):
-    bid = to_int(form.get("id", [""])[0], 0)
-    if bid:
-        store.delete_button(bid)
-    return "/panel/buttons", "🗑 تم حذف الزر", "ok"
-
-
-# ============================================================================
-#  PANEL: PRODUCTS
-# ============================================================================
-
-def product_color_for(p):
-    color = p.get("color") or "auto"
-    if color == "auto" or color not in COLOR_MAP:
-        stock = store.available_stock(p)
-        return "success" if stock > 0 else "danger"
-    return color
-
-
-def page_products(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-
-    edit_id = to_int(qs.get("edit", [0])[0], 0)
-    editing = store.product_by_id(edit_id) if edit_id else None
-    cats = store.categories(include_hidden=True)
-    cat_options = [(0, "بدون تصنيف")] + [(c["id"], c["name"]) for c in cats]
-
-    form = """
-<div class="card">
-  <h2 class="sec">{heading}</h2>
-  <form method="post" action="/panel/products/save">
-    <input type="hidden" name="id" value="{edit_id}">
-    <div class="formgrid">
-      {name}{name_en}{icon}{emoji_id}{price}{category}{stock_mode}{stock}{sort}{visible}
-    </div>
-    <div class="f full" style="margin-top:12px"><label>لون الزر</label>{color}
-      <small>auto = أخضر تلقائياً عند توفر المخزون وأحمر عند نفادِه.</small></div>
-    <div class="formgrid" style="margin-top:12px">
-      {desc}{desc_en}{feed}
-    </div>
-    <div class="row end" style="margin-top:16px">
-      {cancel}<button class="btn sm green" type="submit">💾 حفظ المنتج</button>
-    </div>
-  </form>
-</div>""".format(
-        heading=("✏️ تعديل المنتج: " + html.escape(editing["name"])) if editing
-                else "➕ إضافة منتج جديد",
-        edit_id=edit_id,
-        name=field("الاسم (عربي/أساسي)", "name", (editing or {}).get("name", ""), required=True),
-        name_en=field("الاسم بالإنجليزية", "name_en", (editing or {}).get("name_en", "")),
-        icon=field("الأيقونة", "icon", (editing or {}).get("icon", ""), placeholder="⭐️"),
-        emoji_id=field("معرّف إيموجي مخصص", "emoji_id", (editing or {}).get("emoji_id", "")),
-        price=field("السعر", "price", (editing or {}).get("price", ""), kind="number"),
-        category=field("التصنيف", "category_id", (editing or {}).get("category_id", 0),
-                       kind="select", options=cat_options),
-        stock_mode=field("نوع المخزون", "stock_mode", (editing or {}).get("stock_mode", "auto"),
-                         kind="select",
-                         options=[("auto", "مخزون (تسليم تلقائي)"),
-                                  ("unlimited", "غير محدود")]),
-        stock=field("كمية إضافية للمخزون", "stock", 0, kind="number",
-                    help_text="تُضاف كعناصر DEMO عند الحفظ — استخدم مدير المخزون بالأسفل "
-                              "لعناصر حقيقية"),
-        sort=field("الترتيب", "sort", (editing or {}).get("sort", 0), kind="number"),
-        visible=field("ظاهر", "visible", (editing or {}).get("visible", 1), kind="select",
-                      options=[(1, "نعم"), (0, "لا")]),
-        color=color_picker("color", (editing or {}).get("color", "auto")),
-        desc=field("الوصف (عربي)", "description", (editing or {}).get("description", ""),
-                   kind="textarea", full=True),
-        desc_en=field("الوصف بالإنجليزية", "description_en",
-                      (editing or {}).get("description_en", ""), kind="textarea", full=True),
-        feed=field("نص التسليم التلقائي (اختياري)", "feed", (editing or {}).get("feed", ""),
-                   kind="textarea", full=True,
-                   help_text="نص/كود يُسلَّم فوراً لكل عملية شراء (يدعم {order}). "
-                             "للروابط والأكواد والمنتجات غير المحدودة. اتركه فارغاً "
-                             "للتسليم من المخزون أو يدوياً."),
-        cancel=('<a class="btn sm ghost" href="/panel/products">إلغاء</a>' if editing else ""),
-    )
-
-    # stock manager for the edited product
-    stock_block = ""
-    if editing:
-        available = store.stock_list(editing["id"], used=0)
-        used = store.stock_list(editing["id"], used=1)
-        stock_block = """
-<div class="card">
-  <h2 class="sec">🗂 مخزون: %s</h2>
-  <div class="row" style="margin-bottom:12px">
-    <span class="badge b-green">متاح: %d</span>
-    <span class="badge b-gray">مُسلَّم: %d</span>
-    <span class="badge b-blue">إجمالي: %d</span>
-  </div>
-  <form method="post" action="/panel/stock/save">
-    <input type="hidden" name="product_id" value="%d">
-    <div class="f"><label>أضف عناصر (سطر لكل عنصر)</label>
-      <textarea name="lines" placeholder="user@hotmail.com:Pass123&#10;user2@hotmail.com:Pass456"></textarea>
-      <small>كل سطر = قطعة واحدة تُسلَّم تلقائياً عند البيع.</small>
-    </div>
-    <div class="row" style="margin-top:10px"><button class="btn sm green" type="submit">➕ إضافة للمخزون</button></div>
-  </form>
-  <details style="margin-top:14px"><summary>عرض العناصر المتاحة (%d)</summary>
-    <div class="mono" style="max-height:220px;overflow:auto">%s</div>
-  </details>
-  <details><summary>عرض العناصر المُسلَّمة (%d)</summary>
-    <div class="mono" style="max-height:220px;overflow:auto">%s</div>
-  </details>
-  <form method="post" action="/panel/stock/clear" onsubmit="return confirmSubmit('حذف كل المخزون المتاح لهذا المنتج؟')" style="margin-top:10px">
-    <input type="hidden" name="product_id" value="%d">
-    <button class="btn sm danger-ghost" type="submit">🗑 حذف المخزون المتاح</button>
-  </form>
-</div>""" % (
-            html.escape(editing["name"]), len(available), len(used), len(available) + len(used),
-            editing["id"], len(available),
-            html.escape("\n".join(x["content"] for x in available)) or "—",
-            len(used),
-            html.escape("\n".join(x["content"] for x in used)) or "—",
-            editing["id"],
-        )
-
-    body_rows = []
-    for p in store.products(include_hidden=True):
-        stock = store.available_stock(p)
-        stock_txt = "♾" if p.get("stock_mode") == "unlimited" else str(stock)
-        cat = store.get_category(p.get("category_id") or 0)
-        body_rows.append("""
-<tr>
-  <td><span class="tag">{id}</span></td>
-  <td><b>{icon} {name}</b><div class="muted">{name_en}</div></td>
-  <td>{cat}</td>
-  <td style="direction:ltr;text-align:right"><b>{price}</b></td>
-  <td><span class="badge {stock_cls}">{stock}</span></td>
-  <td>{vis_badge}</td>
-  <td>{sold}</td>
-  <td class="row">
-    <a class="btn sm ghost" href="/panel/products?edit={id}">تعديل</a>
-    <form method="post" action="/panel/products/delete" onsubmit="return confirmSubmit('حذف المنتج؟')">
-      <input type="hidden" name="id" value="{id}"><button class="btn sm danger-ghost">حذف</button>
-    </form>
-  </td>
-</tr>""".format(
-            id=p["id"], icon=html.escape(p.get("icon") or ""), name=html.escape(p["name"]),
-            name_en=html.escape(p.get("name_en") or ""),
-            cat=html.escape((cat or {}).get("name") or "—"),
-            price=price_str(p.get("price")),
-            stock_cls="b-red" if product_color_for(p) == "danger" else "b-green", stock=stock_txt,
-            vis_badge='<span class="badge %s">%s</span>' % (
-                "b-blue" if p.get("visible") else "b-gray",
-                "👁 ظاهر" if p.get("visible") else "🚫 مخفي"),
-            sold=to_int(p.get("sold"), 0),
-        ))
-
-    table = """
-<div class="card"><h2 class="sec">📦 كل المنتجات (%d)</h2>
-<table>
-<tr><th>#</th><th>المنتج</th><th>التصنيف</th><th>السعر</th><th>المخزون</th><th>الظهور</th><th>مبيع</th><th></th></tr>
-%s</table></div>""" % (len(body_rows), "".join(body_rows) or
-                        '<tr><td colspan="8" class="empty">لا منتجات</td></tr>')
-
-    content += [form, stock_block, table]
-    return panel_shell("products", "".join(content), "المنتجات")
-
-
-def page_products_save(form):
-    pid = to_int(form.get("id", [""])[0], 0)
-    data = {
-        "name": (form.get("name", [""])[0] or "").strip(),
-        "name_en": (form.get("name_en", [""])[0] or "").strip(),
-        "icon": (form.get("icon", [""])[0] or "").strip(),
-        "emoji_id": (form.get("emoji_id", [""])[0] or "").strip(),
-        "price": (form.get("price", ["0"])[0] or "0").strip(),
-        "category_id": (form.get("category_id", ["0"])[0] or "0").strip(),
-        "stock_mode": (form.get("stock_mode", ["auto"])[0] or "auto").strip(),
-        "stock": (form.get("stock", ["0"])[0] or "0").strip(),
-        "sort": (form.get("sort", ["0"])[0] or "0").strip(),
-        "visible": (form.get("visible", ["1"])[0] or "1").strip(),
-        "description": (form.get("description", [""])[0] or "").strip(),
-        "description_en": (form.get("description_en", [""])[0] or "").strip(),
-        "feed": (form.get("feed", [""])[0] or "").strip(),
-        "color": (form.get("color", ["auto"])[0] or "auto").strip(),
-    }
-    if not data["name"]:
-        return "/panel/products", "❌ الاسم مطلوب", "err"
-    if data["color"] not in COLOR_MAP and data["color"] != "auto":
-        data["color"] = "auto"
-    if pid:
-        store.update_product(pid, data)
-        return "/panel/products?edit=%d" % pid, "✅ تم تحديث المنتج", "ok"
-    new_id = store.add_product(data)
-    return "/panel/products?edit=%d" % new_id, "✅ تمت إضافة المنتج — أضف له مخزوناً الآن", "ok"
-
-
-def page_products_delete(form):
-    pid = to_int(form.get("id", [""])[0], 0)
-    if pid:
-        store.delete_product(pid)
-    return "/panel/products", "🗑 تم حذف المنتج", "ok"
-
-
-def page_stock_save(form):
-    pid = to_int(form.get("product_id", ["0"])[0], 0)
-    raw = (form.get("lines", [""])[0] or "").replace("\r", "")
-    lines = [ln for ln in raw.split("\n") if ln.strip()]
-    added = store.add_stock_lines(pid, lines) if pid else 0
-    return "/panel/products?edit=%d" % pid, "✅ تمت إضافة %d عنصر للمخزون" % added, "ok"
-
-
-def page_stock_clear(form):
-    pid = to_int(form.get("product_id", ["0"])[0], 0)
-    if pid:
-        store.ex("DELETE FROM stock_items WHERE product_id=? AND used=0", (pid,))
-    return "/panel/products?edit=%d" % pid, "🗑 تم حذف المخزون المتاح", "ok"
-
-
-# ============================================================================
-#  PANEL: CATEGORIES
-# ============================================================================
-
-def page_categories(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    edit_id = to_int(qs.get("edit", [0])[0], 0)
-    editing = store.get_category(edit_id) if edit_id else None
-
-    form = """
-<div class="card"><h2 class="sec">%s</h2>
-<form method="post" action="/panel/categories/save">
-  <input type="hidden" name="id" value="%d">
-  <div class="formgrid">
-    %s %s %s %s %s %s
-  </div>
-  <div class="row end" style="margin-top:14px">
-    %s<button class="btn sm green">💾 حفظ</button>
-  </div>
-</form></div>""" % (
-        ("✏️ تعديل التصنيف" if editing else "➕ إضافة تصنيف"),
-        edit_id,
-        field("الاسم", "name", (editing or {}).get("name", ""), required=True),
-        field("الاسم بالإنجليزية", "name_en", (editing or {}).get("name_en", "")),
-        field("الأيقونة", "icon", (editing or {}).get("icon", ""), placeholder="⭐️",
-              help_text="تظهر في رسالة الترحيب وقائمة المنتجات"),
-        field("معرّف إيموجي مخصص", "emoji_id", (editing or {}).get("emoji_id", "")),
-        field("الترتيب", "sort", (editing or {}).get("sort", 0), kind="number"),
-        field("ظاهر", "visible", (editing or {}).get("visible", 1), kind="select",
-              options=[(1, "نعم"), (0, "لا")]),
-        '<a class="btn sm ghost" href="/panel/categories">إلغاء</a>' if editing else "",
-    )
-
-    rows = []
-    for c in store.categories(include_hidden=True):
-        count = store.scalar("SELECT COUNT(*) FROM products WHERE category_id=?", (c["id"],))
-        rows.append("""
-<tr><td><span class="tag">%d</span></td><td><b>%s %s</b></td>
-<td>%s</td><td>%d</td>
-<td><span class="badge %s">%s</span></td>
-<td class="row">
-  <a class="btn sm ghost" href="/panel/categories?edit=%d">تعديل</a>
-  <form method="post" action="/panel/categories/delete" onsubmit="return confirmSubmit('حذف التصنيف؟')">
-    <input type="hidden" name="id" value="%d"><button class="btn sm danger-ghost">حذف</button></form>
-</td></tr>""" % (
-            c["id"], html.escape(c.get("icon") or ""), html.escape(c["name"]),
-            html.escape(c.get("name_en") or "-"), count,
-            "b-green" if c.get("visible") else "b-gray",
-            "ظاهر" if c.get("visible") else "مخفي",
-            c["id"], c["id"],
-        ))
-
-    table = """
-<div class="card"><h2 class="sec">🗂 التصنيفات</h2>
-<table><tr><th>#</th><th>الاسم</th><th>EN</th><th>منتجات</th><th>الحالة</th><th></th></tr>
-%s</table>
-<div class="helptext">التصنيفات تظهر في رسالة الترحيب تلقائياً تحت «المنتجات المتوفرة».</div></div>""" % (
-        "".join(rows) or '<tr><td colspan="6" class="empty">لا تصنيفات</td></tr>')
-
-    content += [form, table]
-    return panel_shell("categories", "".join(content), "التصنيفات")
-
-
-def page_categories_save(form):
-    cid = to_int(form.get("id", [""])[0], 0)
-    data = {
-        "name": (form.get("name", [""])[0] or "").strip(),
-        "name_en": (form.get("name_en", [""])[0] or "").strip(),
-        "icon": (form.get("icon", [""])[0] or "").strip(),
-        "emoji_id": (form.get("emoji_id", [""])[0] or "").strip(),
-        "sort": (form.get("sort", ["0"])[0] or "0").strip(),
-        "visible": (form.get("visible", ["1"])[0] or "1").strip(),
-    }
-    if not data["name"]:
-        return "/panel/categories", "❌ الاسم مطلوب", "err"
-    if cid:
-        store.update_category(cid, data)
-        return "/panel/categories", "✅ تم تحديث التصنيف", "ok"
-    store.add_category(data)
-    return "/panel/categories", "✅ تمت إضافة التصنيف", "ok"
-
-
-def page_categories_delete(form):
-    cid = to_int(form.get("id", [""])[0], 0)
-    if cid:
-        store.delete_category(cid)
-    return "/panel/categories", "🗑 تم حذف التصنيف", "ok"
-
-
-# ============================================================================
-#  PANEL: ORDERS
-# ============================================================================
-
-ORDER_STATUS = {
-    "pending": ("قيد المعالجة", "b-gold"),
-    "delivered": ("مُسلَّم", "b-green"),
-    "cancelled": ("ملغى", "b-gray"),
-    "refunded": ("مُسترجع", "b-red"),
-}
-
-
-def page_orders(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    status = (qs.get("status", [""])[0] or "").strip()
-    page_no = max(1, to_int((qs.get("p", ["1"])[0] or "1"), 1))
-    per = 25
-    orders = store.orders_list(limit=per, offset=(page_no - 1) * per, status=status or None)
-
-    tabs = ['<a class="%s" href="/panel/orders">الكل</a>' % ("active" if not status else "")]
-    for code, (txt, _) in ORDER_STATUS.items():
-        tabs.append('<a class="%s" href="/panel/orders?status=%s">%s</a>' % (
-            "active" if status == code else "", code, txt))
-
-    rows = []
-    for o in orders:
-        st_txt, st_cls = ORDER_STATUS.get(o["status"], (o["status"], "b-gray"))
-        rows.append("""
-<tr>
-  <td><b>#%d</b><div class="muted">%s</div></td>
-  <td>%s</td>
-  <td>%s</td>
-  <td>%s</td>
-  <td>%s</td>
-  <td><span class="badge %s">%s</span></td>
-  <td class="row">
-    <form method="post" action="/panel/orders/action" class="row">
-      <input type="hidden" name="id" value="%d">
-      <select name="action" style="padding:7px 10px;font-size:12px;width:auto">
-        <option value="deliver">تسليم يدوي</option>
-        <option value="cancel">إلغاء</option>
-        <option value="refund">استرجاع المبلغ</option>
-        <option value="delete">حذف</option>
-      </select>
-      <button class="btn sm ghost">تنفيذ</button>
-    </form>
-  </td>
-</tr>""" % (
-            o["id"], ts_from_iso(o.get("created_at"), "-"),
-            html.escape(o["product_name"] or "-"),
-            html.escape(o.get("username") or o.get("first_name") or str(o["user_id"])),
-            price_str(o["total"]),
-            html.escape(clip(o.get("delivery") or "-", 26)),
-            st_cls, html.escape(st_txt),
-            o["id"],
-        ))
-
-    table = """
-<div class="tabs">%s</div>
-<div class="card"><h2 class="sec">🧾 الطلبات (%d)</h2>
-<table><tr><th>#</th><th>المنتج</th><th>المستخدم</th><th>المبلغ</th><th>التسليم</th><th>الحالة</th><th>إجراء</th></tr>
-%s</table>
-<div class="row" style="margin-top:12px;justify-content:space-between">
-  <a class="btn sm ghost" href="?status=%s&p=%d">‹ السابق</a>
-  <span class="muted">صفحة %d</span>
-  <a class="btn sm ghost" href="?status=%s&p=%d">التالي ›</a>
-</div></div>""" % (
-        "".join(tabs), len(rows), "".join(rows) or '<tr><td colspan="7" class="empty">لا طلبات</td></tr>',
-        status, max(1, page_no - 1), page_no, status, page_no + 1,
-    )
-    content.append(table)
-    return panel_shell("orders", "".join(content), "الطلبات")
-
-
-def page_orders_action(form):
-    oid = to_int(form.get("id", ["0"])[0], 0)
-    action = (form.get("action", [""])[0] or "").strip()
-    order = store.get_order(oid)
-    if not order:
-        return "/panel/orders", "❌ الطلب غير موجود", "err"
-    user = store.get_user_by_id(order["user_id"])
-
-    if action == "deliver":
-        delivery = store.deliver_pending_atomic(oid)
-        if not delivery:
-            return "/panel/orders", "❌ الطلب غير معلّق أو لا يوجد مخزون كافٍ للتسليم", "err"
-        if user:
-            safe_send(user["tg_id"], "✅ <b>تم تسليم طلبك #%d</b>\n\n<pre>%s</pre>" % (
-                oid, html.escape(delivery, quote=False)), build_main_keyboard(user))
-        return "/panel/orders", "✅ تم التسليم اليدوي #%d" % oid, "ok"
-
-    if action in ("cancel", "refund"):
-        order = store.refund_order_atomic(oid, "cancelled" if action == "cancel" else "refunded")
-        if not order:
-            return "/panel/orders", "❌ تم إرجاع مبلغ هذا الطلب مسبقاً", "err"
-        user = store.get_user_by_id(order["user_id"])
-
-    if action == "cancel":
-        if user:
-            safe_send(user["tg_id"], "❌ <b>تم إلغاء طلبك #%d</b>\n\n💰 %s: %s" % (
-                oid, "تم إرجاع المبلغ للمحفظة" if lang_of(user) == "ar" else "Refunded to wallet",
-                price_str(store.get_user(user["tg_id"]).get("balance"))), build_main_keyboard(
-                store.get_user(user["tg_id"])))
-        return "/panel/orders", "❌ تم إلغاء الطلب #%d" % oid, "ok"
-
-    if action == "refund":
-        if user:
-            safe_send(user["tg_id"], "💸 <b>%s #%d</b>\n\n+%s" % (
-                "تم استرجاع مبلغ طلبك" if lang_of(user) == "ar" else "Order refunded",
-                oid, price_str(order["total"])), build_main_keyboard(store.get_user(user["tg_id"])))
-        return "/panel/orders", "💸 تم الاسترجاع #%d" % oid, "ok"
-
-    if action == "delete":
-        store.ex("DELETE FROM orders WHERE id=?", (oid,))
-        return "/panel/orders", "🗑 تم حذف الطلب #%d" % oid, "ok"
-
-    return "/panel/orders", "❌ إجراء غير معروف", "err"
-
-
-# ============================================================================
-#  PANEL: DEPOSITS
-# ============================================================================
-
-def page_deposits(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    status = (qs.get("status", [""])[0] or "").strip()
-    deps = store.deposits_list(limit=100, status=status or None)
-
-    tabs = ['<a class="%s" href="/panel/deposits">الكل</a>' % ("active" if not status else "")]
-    for code, txt in (("pending", "بانتظار المراجعة"), ("approved", "مقبولة"), ("rejected", "مرفوضة")):
-        tabs.append('<a class="%s" href="/panel/deposits?status=%s">%s</a>' % (
-            "active" if status == code else "", code, txt))
-
-    rows = []
-    for d in deps:
-        badge = {"pending": ("b-gold", "بانتظار"), "approved": ("b-green", "مقبول"),
-                 "rejected": ("b-red", "مرفوض")}.get(d["status"], ("b-gray", d["status"]))
-        actions = ""
-        if d["status"] == "pending":
-            actions = """
-<form method="post" action="/panel/deposits/action" class="row">
-  <input type="hidden" name="id" value="%d">
-  <button class="btn sm green" name="action" value="approve">موافقة</button>
-  <button class="btn sm danger-ghost" name="action" value="reject">رفض</button>
-</form>""" % d["id"]
-        rows.append("""
-<tr>
-  <td><b>#%d</b><div class="muted">%s</div></td>
-  <td>%s<div class="muted">%s</div></td>
-  <td><b>%s</b></td>
-  <td class="mono" style="max-width:220px">%s</td>
-  <td><span class="badge %s">%s</span></td>
-  <td>%s</td>
-</tr>""" % (
-            d["id"], ts_from_iso(d.get("created_at"), "-"),
-            html.escape(d.get("username") or d.get("first_name") or "-"),
-            html.escape(str(d.get("tg_id") or d.get("user_id"))),
-            price_str(d["amount"]), html.escape(d.get("txid") or "-"),
-            badge[0], badge[1], actions,
-        ))
-
-    content.append("""
-<div class="tabs">%s</div>
-<div class="card"><h2 class="sec">💳 الشحنات</h2>
-<table><tr><th>#</th><th>المستخدم</th><th>المبلغ</th><th>TxID</th><th>الحالة</th><th></th></tr>
-%s</table>
-<div class="helptext">الموافقة تضيف المبلغ لرصيد المستخدم فوراً وتُعلمه في تيليغرام.</div></div>""" % (
-        "".join(tabs), "".join(rows) or '<tr><td colspan="6" class="empty">لا شحنات</td></tr>'))
-    return panel_shell("deposits", "".join(content), "الشحنات")
-
-
-def page_deposits_action(form):
-    did = to_int(form.get("id", ["0"])[0], 0)
-    action = (form.get("action", [""])[0] or "").strip()
-    dep = store.get_deposit(did)
-    if not dep:
-        return "/panel/deposits", "❌ الشحنة غير موجودة", "err"
-    if action == "approve":
-        dep = store.review_deposit(did, "approved", "panel")
-        if not dep:
-            return "/panel/deposits", "❌ تمت مراجعة طلب الشحن مسبقاً", "err"
-        target = store.get_user_by_id(dep["user_id"])
-        if target:
-            fresh = store.get_user(target["tg_id"])
-            safe_send(target["tg_id"], "✅ <b>%s</b>\n\n+%s\n💰 %s: %s" % (
-                "تم شحن رصيدك بنجاح" if lang_of(fresh) == "ar" else "Wallet credited",
-                price_str(dep["amount"]),
-                "الرصيد الجديد" if lang_of(fresh) == "ar" else "New balance",
-                price_str(fresh.get("balance"))), build_main_keyboard(fresh))
-        return "/panel/deposits", "✅ تمت الموافقة على #%d" % did, "ok"
-    if action == "reject":
-        dep = store.review_deposit(did, "rejected", "panel")
-        if not dep:
-            return "/panel/deposits", "❌ تمت مراجعة طلب الشحن مسبقاً", "err"
-        target = store.get_user_by_id(dep["user_id"])
-        if target:
-            safe_send(target["tg_id"], "❌ <b>%s</b>\n\n%s" % (
-                "تم رفض طلب الشحن #%d" % did if lang_of(target) == "ar"
-                else "Top-up #%d rejected" % did,
-                ("تواصل مع الدعم: @%s" % support()) if lang_of(target) == "ar"
-                else ("Contact support: @%s" % support())))
-        return "/panel/deposits", "❌ تم رفض #%d" % did, "ok"
-    return "/panel/deposits", "❌ إجراء غير معروف", "err"
-
-
-# ============================================================================
-#  PANEL: USERS
-# ============================================================================
-
-def page_users(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    search = (qs.get("q", [""])[0] or "").strip()
-    users = store.users_list(search=search, limit=200)
-
-    rows = []
-    for u in users:
-        rows.append("""
-<tr>
-  <td><span class="tag">%d</span></td>
-  <td><b>%s</b><div class="muted">@%s</div></td>
-  <td class="mono">%s</td>
-  <td><b>%s</b></td>
-  <td>%s</td>
-  <td>%s</td>
-  <td><span class="badge %s">%s</span></td>
-  <td><span class="badge %s">%s</span></td>
-  <td class="row">
-    <form method="post" action="/panel/users/action" class="row">
-      <input type="hidden" name="tg_id" value="%d">
-      <select name="action" style="padding:7px 9px;font-size:12px;width:auto">
-        <option value="balance">تعديل الرصيد</option>
-        <option value="ban">حظر</option>
-        <option value="unban">إلغاء الحظر</option>
-        <option value="admin">منح إدارة</option>
-        <option value="noadmin">سحب الإدارة</option>
-        <option value="message">إرسال رسالة</option>
-      </select>
-      <input type="text" name="value" placeholder="قيمة" style="width:90px;padding:7px 9px;font-size:12px">
-      <button class="btn sm ghost">تنفيذ</button>
-    </form>
-  </td>
-</tr>""" % (
-            u["id"], html.escape(u.get("first_name") or "-"), html.escape(u.get("username") or "-"),
-            u["tg_id"], price_str(u.get("balance")), price_str(u.get("spent")),
-            html.escape(ts_from_iso(u.get("created_at"), "-")),
-            "b-blue" if u.get("lang") == "en" else "b-gray", (u.get("lang") or "ar").upper(),
-            "b-red" if u.get("banned") else ("b-green" if u.get("is_admin") else "b-gray"),
-            "محظور" if u.get("banned") else ("مالك" if u.get("is_admin") else "نشط"),
-            u["tg_id"],
-        ))
-
-    content.append("""
-<div class="card">
-  <div class="toolbar">
-    <h2 class="sec" style="margin:0">👥 المستخدمون (%d)</h2>
-    <form method="get" action="/panel/users" class="row">
-      <input type="text" name="q" value="%s" placeholder="بحث بالاسم/المعرّف" style="width:220px">
-      <button class="btn sm ghost">بحث</button>
-    </form>
-  </div>
-  <table><tr><th>#</th><th>الاسم</th><th>TG ID</th><th>الرصيد</th><th>الشراء</th><th>التسجيل</th>
-  <th>اللغة</th><th>الحالة</th><th>إجراء</th></tr>
-  %s</table>
-</div>""" % (len(rows), html.escape(search),
-             "".join(rows) or '<tr><td colspan="9" class="empty">لا مستخدمون</td></tr>'))
-    return panel_shell("users", "".join(content), "المستخدمون")
-
-
-def page_users_action(form):
-    tg_id = to_int(form.get("tg_id", ["0"])[0], 0)
-    action = (form.get("action", [""])[0] or "").strip()
-    value = (form.get("value", [""])[0] or "").strip()
-    user = store.get_user(tg_id)
-    if not user:
-        return "/panel/users", "❌ المستخدم غير موجود", "err"
-
-    if action == "balance":
-        if to_float(value, None) is None:
-            return "/panel/users", "❌ قيمة غير صالحة", "err"
-        store.adjust_balance(tg_id, to_float(value, 0))
-        fresh = store.get_user(tg_id)
-        safe_send(tg_id, "💰 <b>%s</b>\n\n%s: %s" % (
-            "تم تحديث رصيدك" if lang_of(fresh) == "ar" else "Balance updated",
-            "الرصيد الجديد" if lang_of(fresh) == "ar" else "New balance",
-            price_str(fresh.get("balance"))), build_main_keyboard(fresh))
-        return "/panel/users", "✅ تم تعديل الرصيد", "ok"
-    if action == "ban":
-        store.update_user(tg_id, banned=1)
-        return "/panel/users", "🚫 تم حظر المستخدم", "ok"
-    if action == "unban":
-        store.update_user(tg_id, banned=0)
-        return "/panel/users", "✅ تم إلغاء الحظر", "ok"
-    if action == "admin":
-        store.update_user(tg_id, is_admin=1)
-        return "/panel/users", "✅ تم منح صلاحية الإدارة", "ok"
-    if action == "noadmin":
-        store.update_user(tg_id, is_admin=0)
-        return "/panel/users", "✅ تم سحب صلاحية الإدارة", "ok"
-    if action == "message":
-        if value:
-            safe_send(tg_id, "📩 <b>%s</b>\n\n%s" % (esc(store_name()), html.escape(value)))
-            return "/panel/users", "✅ تم إرسال الرسالة", "ok"
-        return "/panel/users", "❌ اكتب نص الرسالة في الحقل", "err"
-    return "/panel/users", "❌ إجراء غير معروف", "err"
-
-
-# ============================================================================
-#  PANEL: TEXTS
-# ============================================================================
-
-TEXT_FIELDS = [
-    ("welcome", "رسالة الترحيب (/start) — تدعم {store} و{support} و{categories}", "textarea"),
-    ("welcome_ar", "رسالة الترحيب (عربي) — تُستخدم إن كانت غير فارغة", "textarea"),
-    ("help_text_ar", "المساعدة (عربي)", "textarea"),
-    ("help_text_en", "المساعدة (إنجليزي)", "textarea"),
-    ("policy_text_ar", "سياسة البوت (عربي)", "textarea"),
-    ("policy_text_en", "سياسة البوت (إنجليزي)", "textarea"),
-    ("api_text_ar", "خدمات API (عربي) — يدعم {api_key}", "textarea"),
-    ("api_text_en", "خدمات API (إنجليزي)", "textarea"),
-    ("maintenance_text_ar", "رسالة الصيانة (عربي)", "text"),
-    ("maintenance_text_en", "رسالة الصيانة (إنجليزي)", "text"),
-]
-
-
-def page_texts(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    parts = []
-    for key, desc, kind in TEXT_FIELDS:
-        parts.append('<div class="f full" style="margin-bottom:14px"><label>%s</label>%s'
-                     '<small><code>%s</code></small></div>' % (
-                         html.escape(desc),
-                         field("", key, store.get_setting(key, ""), kind=kind).replace(
-                             '<label></label>', ''),
-                         key))
-    content.append("""
-<div class="card"><h2 class="sec">📝 النصوص والرسائل</h2>
-<div class="helptext" style="margin-bottom:12px">
-  يمكن استخدام المتغيرات: <code>{store}</code> اسم المتجر، <code>{support}</code> حساب الدعم،
-  <code>{categories}</code> قائمة التصنيفات، <code>{api_key}</code> مفتاح API.
-  يدعم HTML: <code>&lt;b&gt;</code> <code>&lt;i&gt;</code> <code>&lt;code&gt;</code> <code>&lt;pre&gt;</code>.
-</div>
-<form method="post" action="/panel/texts/save">
-%s
-<div class="row end" style="margin-top:12px"><button class="btn sm green">💾 حفظ النصوص</button></div>
-</form></div>""" % "".join(parts))
-
-    labels = []
-    for key, (default_ar, default_en) in LABEL_DEFAULTS.items():
-        labels.append(field("", "lbl_ar__" + key, store.get_setting(key + "_ar", default_ar),
-                            help_text="عربي · " + key))
-        labels.append(field("", "lbl_en__" + key, store.get_setting(key + "_en", default_en),
-                            help_text="إنجليزي · " + key))
-    content.append("""
-<div class="card"><h2 class="sec">🔤 نصوص الأزرار والرسائل القصيرة</h2>
-<form method="post" action="/panel/texts/save_labels">
-<div class="formgrid">%s</div>
-<div class="row end" style="margin-top:12px"><button class="btn sm green">💾 حفظ النصوص</button></div>
-</form></div>""" % "".join(labels))
-    return panel_shell("texts", "".join(content), "النصوص والرسائل")
-
-
-def page_texts_save(form):
-    updates = {}
-    for key, _, _ in TEXT_FIELDS:
-        if key in form:
-            updates[key] = form[key][0]
-    if "welcome" in updates and "welcome_ar" in updates:
-        # keep them in sync when the owner edits only one of them
-        pass
-    store.set_settings(updates)
-    return "/panel/texts", "✅ تم حفظ النصوص", "ok"
-
-
-def page_texts_save_labels(form):
-    updates = {}
-    for key in LABEL_DEFAULTS:
-        for lang in ("ar", "en"):
-            field_name = "lbl_%s__%s" % (lang, key)
-            if field_name in form:
-                updates[key + "_" + lang] = form[field_name][0]
-    store.set_settings(updates)
-    return "/panel/texts", "✅ تم حفظ نصوص الأزرار", "ok"
-
-
-# ============================================================================
-#  PANEL: PAYMENTS
-# ============================================================================
-
-def page_payments(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    content.append("""
-<div class="card"><h2 class="sec">💰 الدفع والمحفظة</h2>
-<form method="post" action="/panel/payments/save">
-  <div class="formgrid">
-    %s
-    %s
-    %s
-  </div>
-  <div class="f full" style="margin-top:12px"><label>خطوات الدفع (عربي)</label>
-    <textarea name="binance_steps_ar">%s</textarea>
-    <small>{pay_id} يُستبدل تلقائياً بمعرّف Binance Pay إن أضفته.</small></div>
-  <div class="f full"><label>خطوات الدفع (إنجليزي)</label>
-    <textarea name="binance_steps_en">%s</textarea></div>
-  <div class="formgrid" style="margin-top:12px">
-    %s
-    %s
-  </div>
-  <div class="row end" style="margin-top:14px"><button class="btn sm green">💾 حفظ</button></div>
-</form></div>""" % (
-        field("معرّف Binance Pay", "binance_pay_id", store.get_setting("binance_pay_id", ""),
-              help_text="اتركه فارغاً لإيقاف الشحن — يظهر للمستخدم تلقائياً عند الشحن"),
-        field("الحد الأدنى للشحن", "deposit_min", store.get_setting("deposit_min", "1"),
-              kind="number"),
-        field("مدة الجلسة (دقائق)", "deposit_session_minutes",
-              store.get_setting("deposit_session_minutes", "30"), kind="number"),
-        html.escape(store.get_setting("binance_steps_ar", BINANCE_STEPS_AR)),
-        html.escape(store.get_setting("binance_steps_en", BINANCE_STEPS_EN)),
-        field("نص طلب TxID (عربي)", "binance_prompt_ar",
-              store.get_setting("binance_prompt_ar", BINANCE_TXID_PROMPT_AR), kind="textarea"),
-        field("نص طلب TxID (إنجليزي)", "binance_prompt_en",
-              store.get_setting("binance_prompt_en", BINANCE_TXID_PROMPT_EN), kind="textarea"),
-    ))
-
-    methods = store.get_setting("payment_methods", "binance")
-    content.append("""
-<div class="card"><h2 class="sec">🧾 طرق الدفع</h2>
-<form method="post" action="/panel/payments/methods">
-  <div class="grid c2">
-    <label class="row" style="gap:8px"><input type="checkbox" name="binance" value="1" style="width:auto"
-      %s> Binance Pay (USDT)</label>
-    <label class="row" style="gap:8px"><input type="checkbox" name="manual" value="1" style="width:auto"
-      %s> تحويل يدوي / دعم مباشر</label>
-  </div>
-  <div class="row end" style="margin-top:14px"><button class="btn sm green">💾 حفظ الطرق</button></div>
-</form></div>""" % ("checked" if "binance" in methods else "",
-                    "checked" if "manual" in methods else ""))
-    return panel_shell("payments", "".join(content), "الدفع والمحفظة")
-
-
-def page_payments_save(form):
-    updates = {}
-    for key in ("binance_pay_id", "deposit_min", "deposit_session_minutes",
-                "binance_steps_ar", "binance_steps_en",
-                "binance_prompt_ar", "binance_prompt_en"):
-        if key in form:
-            updates[key] = form[key][0]
-    store.set_settings(updates)
-    return "/panel/payments", "✅ تم حفظ إعدادات الدفع", "ok"
-
-
-def page_payments_methods(form):
-    chosen = [m for m in ("binance", "manual") if m in form]
-    store.set_setting("payment_methods", ",".join(chosen))
-    return "/panel/payments", "✅ تم تحديث طرق الدفع", "ok"
-
-
-# ============================================================================
-#  PANEL: SETTINGS
-# ============================================================================
-
-def page_settings(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    content.append("""
-<div class="card"><h2 class="sec">⚙️ إعدادات المتجر</h2>
-<form method="post" action="/panel/settings/save">
-  <div class="formgrid">
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-    %s
-  </div>
-  <div class="row end" style="margin-top:14px"><button class="btn sm green">💾 حفظ الإعدادات</button></div>
-</form></div>""" % (
-        field("اسم المتجر", "store_name", store.get_setting("store_name", APP_NAME), required=True),
-        field("حساب الدعم (بدون @)", "support_username",
-              store.get_setting("support_username", "")),
-        field("اللغة الافتراضية", "default_lang", store.get_setting("default_lang", "ar"),
-              kind="select", options=[("ar", "العربية"), ("en", "English")]),
-        field("العملة", "currency", store.get_setting("currency", "$")),
-        field("عدد المنتجات في الصفحة", "page_size", store.get_setting("page_size", "10"),
-              kind="number"),
-        field("نسبة أرباح الإحالة %", "referral_percent",
-              store.get_setting("referral_percent", "10"), kind="number"),
-        field("الخصم العام % (من 0 إلى 90)", "discount_percent", str(discount_percent()), kind="number"),
-        field("ألوان أزرار تيليغرام", "style_enabled",
-              store.get_setting("style_enabled", "1"), kind="select",
-              options=[("1", "مفعّلة (success/danger/primary)"), ("0", "معطّلة")],
-              help_text="اتركها مفعّلة للحصول على الألوان كما في التصميم"),
-        field("ترتيب الأزرار من اليمين", "mirror_rows",
-              store.get_setting("mirror_rows", "0"), kind="select",
-              options=[("0", "عادي (0 = يمين)"), ("1", "معكوس (0 = يسار)")]),
-        field("وضع الصيانة", "maintenance", store.get_setting("maintenance", "0"), kind="select",
-              options=[("0", "المتجر يعمل"), ("1", "صيانة")]),
-        field("إشعار المالك عند البيع", "dm_owner_on_order",
-              store.get_setting("dm_owner_on_order", "1"), kind="select",
-              options=[("1", "نعم"), ("0", "لا")]),
-        field("إشعار المالك عند الشحن", "dm_owner_on_deposit",
-              store.get_setting("dm_owner_on_deposit", "1"), kind="select",
-              options=[("1", "نعم"), ("0", "لا")]),
-        field("رابط اللوحة العام (PUBLIC_URL)", "public_url",
-              store.get_setting("public_url", ""), kind="url",
-              help_text="يُستخدم لعرض روابط سريعة داخل البوت"),
-    ))
-
-    owners = store.get_setting("owner_ids", "") or str(OWNER_ID_ENV)
-    content.append("""
-<div class="card"><h2 class="sec">👑 المالك والصلاحيات</h2>
-<form method="post" action="/panel/settings/owners">
-  <div class="f"><label>معرّفات المالك (مفصولة بفاصلة)</label>
-    <input type="text" name="owner_ids" value="%s" placeholder="123456789,987654321">
-    <small>يمكنك إضافة مالكين إضافيين. المالك يرى «لوحة التحكم» في البوت ويدخل الويب.</small>
-  </div>
-  <div class="row end" style="margin-top:12px"><button class="btn sm green">💾 حفظ المالكين</button></div>
-</form></div>""" % html.escape(owners))
-
-    content.append("""
-<div class="card"><h2 class="sec">🔐 كلمة مرور اللوحة</h2>
-<form method="post" action="/panel/settings/password">
-  <div class="formgrid">
-    %s
-    %s
-  </div>
-  <div class="row end" style="margin-top:12px"><button class="btn sm green">🔒 تحديث كلمة المرور</button></div>
-</form>
-<div class="helptext">كلمة المرور تُخزَّن مشفَّرة (PBKDF2-SHA256). تُغيَّر عبر متغيّر البيئة
-<code>PANEL_PASSWORD</code> عند أول تشغيل فقط.</div></div>""" % (
-        field("كلمة المرور الحالية", "current", "", kind="password"),
-        field("كلمة المرور الجديدة", "new", "", kind="password",
-              help_text="8 أحرف على الأقل"),
-    ))
-
-    content.append("""
-<div class="card"><h2 class="sec">🧬 النظام</h2>
-<div class="grid c2">
-  <div class="stat"><div class="k">الإصدار</div><div class="v">%s</div></div>
-  <div class="stat"><div class="k">قاعدة البيانات</div><div class="v" style="font-size:13px">%s</div></div>
-</div>
-<div class="row" style="margin-top:12px">
-  <a class="btn sm ghost" href="/panel/export">⬇️ تصدير نسخة احتياطية</a>
-  <a class="btn sm ghost" href="/bot-preview" target="_blank">📱 معاينة الأزرار</a>
-  <a class="btn sm ghost" href="/healthz" target="_blank">🩺 فحص الحالة</a>
-</div></div>""" % (APP_VERSION, html.escape(DB_PATH)))
-    return panel_shell("settings", "".join(content), "الإعدادات")
-
-
-def page_settings_save(form):
-    keys = ["store_name", "support_username", "default_lang", "currency", "page_size",
-            "referral_percent", "discount_percent", "style_enabled", "mirror_rows", "maintenance",
-            "dm_owner_on_order", "dm_owner_on_deposit", "public_url"]
-    updates = {k: form[k][0] for k in keys if k in form}
-    if "discount_percent" in updates:
-        value = updates["discount_percent"].strip()
-        if not value.isdigit() or not 0 <= int(value) <= 90:
-            return "/panel/settings", "❌ نسبة الخصم يجب أن تكون بين 0 و90", "err"
-        updates["discount_percent"] = str(int(value))
-    if updates.get("support_username"):
-        updates["support_username"] = updates["support_username"].strip().lstrip("@")
-    store.set_settings(updates)
-    return "/panel/settings", "✅ تم حفظ الإعدادات", "ok"
-
-
-def page_settings_owners(form):
-    store.set_setting("owner_ids", (form.get("owner_ids", [""])[0] or "").strip())
-    return "/panel/settings", "✅ تم تحديث قائمة المالكين", "ok"
-
-
-def page_settings_password(form):
-    current = form.get("current", [""])[0] or ""
-    new = form.get("new", [""])[0] or ""
-    if not check_panel_password(current):
-        return "/panel/settings", "❌ كلمة المرور الحالية غير صحيحة", "err"
-    if len(new) < 8:
-        return "/panel/settings", "❌ كلمة المرور الجديدة قصيرة (8 أحرف على الأقل)", "err"
-    store.set_setting("panel_password_hash", hash_password(new))
-    return "/panel/settings", "✅ تم تحديث كلمة المرور", "ok"
-
-
-def page_export():
-    """Download a JSON snapshot of the whole store."""
-    data = {
-        "exported_at": now_iso(),
-        "settings": store.q("SELECT key, value FROM settings"),
-        "categories": store.q("SELECT * FROM categories"),
-        "products": store.q("SELECT * FROM products"),
-        "buttons": store.q("SELECT * FROM buttons"),
-        "users": store.q("SELECT tg_id,username,first_name,lang,balance,spent,banned,created_at FROM users"),
-        "orders": store.q("SELECT * FROM orders ORDER BY id DESC LIMIT 2000"),
-        "deposits": store.q("SELECT * FROM deposits ORDER BY id DESC LIMIT 2000"),
-    }
-    for row in data["settings"]:
-        if row["key"] == "panel_password_hash":
-            row["value"] = "***"
-    return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-
-
-# ============================================================================
-#  PANEL: BROADCAST
-# ============================================================================
-
-def page_broadcast(qs, flash_msg=None):
-    content = []
-    if flash_msg:
-        content.append(flash(flash_msg))
-    history = store.q("SELECT * FROM broadcasts ORDER BY id DESC LIMIT 12")
-    rows = "".join(
-        "<tr><td>#%d</td><td>%s</td><td><span class='badge b-green'>%d</span></td>"
-        "<td><span class='badge b-red'>%d</span></td><td>%s</td></tr>" % (
-            b["id"], html.escape(clip(b["text"], 60)), b["sent"], b["failed"],
-            ts_from_iso(b.get("created_at"), "-")
-        ) for b in history
-    ) or '<tr><td colspan="5" class="empty">لا عمليات سابقة</td></tr>'
-
-    content.append("""
-<div class="card"><h2 class="sec">📣 إرسال جماعي لكل المستخدمين</h2>
-<form method="post" action="/panel/broadcast/send" onsubmit="return confirmSubmit('هل تريد إرسال الرسالة لكل المستخدمين؟')">
-  <div class="f"><label>نص الرسالة</label>
-    <textarea name="text" placeholder="🔥 عروض جديدة اليوم!" required></textarea>
-    <small>يدعم HTML. سيتم الإرسال لكل المستخدمين غير المحظورين (%d مستخدم).</small>
-  </div>
-  <div class="row end" style="margin-top:12px">
-    <button class="btn sm green" type="submit">🚀 إرسال الآن</button>
-  </div>
-</form></div>""" % store.users_count())
-
-    content.append("""
-<div class="card"><h2 class="sec">🗂 آخر عمليات الإرسال</h2>
-<table><tr><th>#</th><th>النص</th><th>نجح</th><th>فشل</th><th>التاريخ</th></tr>%s</table></div>""" % rows)
-    return panel_shell("broadcast", "".join(content), "الإرسال الجماعي")
-
-
-def page_broadcast_send(form):
-    text = (form.get("text", [""])[0] or "").strip()
-    if not text or len(text) > 4000:
-        return "/panel/broadcast", "❌ أدخل نصاً بين 1 و4000 حرف", "err"
-    ids = store.all_user_ids()
-    if len(ids) > 20:
-        return "/panel/broadcast", "⚠️ للإذاعات الكبيرة استخدم /admin في البوت لإرسال دفعات متتابعة", "err"
-    sent = sum(1 for uid in ids if _broadcast_one(uid, text))
-    failed = len(ids) - sent
-    store.ex("INSERT INTO broadcasts(text,sent,failed,created_at) VALUES(?,?,?,?)", (text, sent, failed, now_iso()))
-    return "/panel/broadcast", "📣 تم الإرسال: ✅ %d · ❌ %d" % (sent, failed), "ok"
-
-
-# ============================================================================
-#  BOT PREVIEW  (approximates the Telegram chat with the real keyboard)
-# ============================================================================
-
-def page_bot_preview(qs):
-    """Render the welcome message + reply keyboard as it looks in Telegram."""
-    lang = (qs.get("lang", ["ar"])[0] or "ar")
-    if lang not in ("ar", "en"):
-        lang = "ar"
-    text = welcome_text(lang)
-
-    kb_rows = []
-    rows_map = {}
-    for b in store.buttons():
-        rows_map.setdefault(to_int(b.get("row"), 0), []).append(b)
-    for row_index in sorted(rows_map):
-        items = sorted(rows_map[row_index], key=lambda x: (to_int(x.get("sort"), 0), x["id"]))
-        if store.get_bool("mirror_rows", False):
-            items = list(reversed(items))
-        kb_rows.append('<div class="kb-row">' + "".join(
-            '<div class="kb-b ' + btn_class(b.get("color")) + '">' +
-            html.escape(render_button_label(b, lang)) + '</div>'
-            for b in items) + '</div>')
-
-    msg_html = html.escape(text).replace("\n", "<br>")
-    initials = html.escape("".join(w[:1] for w in store_name().split())[:3] or "SH")
-
-    css = (
-        "<style>"
-        ".tg{width:100%;max-width:432px;margin:0 auto;background:#c9dcc4;border-radius:24px;"
-        "overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.3)}"
-        ".tg-top{background:#8fae8b;padding:12px 14px;display:flex;align-items:center;gap:10px}"
-        ".tg-title{background:rgba(255,255,255,.78);border-radius:16px;padding:6px 16px;flex:1;"
-        "text-align:center;line-height:1.25}"
-        ".tg-title b{color:#22302a;font-size:14px}"
-        ".tg-title span{font-size:10px;color:#5d6b60}"
-        ".tg-ava{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#7ab8e8,#a58ae0);"
-        "display:grid;place-items:center;font-size:10px;color:#fff;font-weight:900}"
-        ".tg-body{padding:14px}"
-        ".tg-msg{background:#fff;border-radius:16px;padding:15px 17px;font-size:14px;line-height:1.8;"
-        "color:#1b2b20;box-shadow:0 1px 3px rgba(0,0,0,.09);word-wrap:break-word}"
-        ".tg-kb{padding:0 10px 14px;display:grid;gap:7px}"
-        "</style>"
-    )
-
-    page = (
-        '<div class="login-shell" style="align-items:flex-start">'
-        '<div style="width:100%;max-width:470px">'
-        '<div class="tg">'
-        '<div class="tg-top"><span style="font-size:19px;color:#31432f">&#8249;</span>'
-        '<div class="tg-title"><b>' + html.escape(store_name()) + '</b><br><span>bot</span></div>'
-        '<div class="tg-ava">' + initials + '</div></div>'
-        '<div class="tg-body"><div class="tg-msg">' + msg_html + '</div></div>'
-        '<div class="tg-kb">' + "".join(kb_rows) + '</div>'
-        '</div>'
-        '<div class="row" style="justify-content:center;margin-top:14px">'
-        '<a class="btn sm ghost" href="/bot-preview?lang=ar">🇩🇿 عربي</a>'
-        '<a class="btn sm ghost" href="/bot-preview?lang=en">🇬🇧 English</a>'
-        '<a class="btn sm ghost" href="/panel/buttons">✏️ تعديل الأزرار</a>'
-        '<a class="btn sm ghost" href="/panel">↩ رجوع</a>'
-        '</div></div></div>'
-    )
-    return html_page("معاينة — " + store_name(), page, extra_head=css)
-
-
-# ============================================================================
-#  SESSIONS  (server-side, HttpOnly cookie)
-# ============================================================================
-
-SESSIONS = {}
-SESSION_LOCK = threading.RLock()
-SESSION_TTL = 60 * 60 * 12  # 12h
-
-
-def session_create():
-    token = rand_token(32)
-    with SESSION_LOCK:
-        SESSIONS[token] = {"created": time.time(), "last": time.time()}
-    return token
-
-
-def session_valid(token):
-    if not token:
-        return False
-    with SESSION_LOCK:
-        info = SESSIONS.get(token)
-        if not info:
-            return False
-        if time.time() - info["last"] > SESSION_TTL:
-            SESSIONS.pop(token, None)
-            return False
-        info["last"] = time.time()
-        return True
-
-
-def session_destroy(token):
-    with SESSION_LOCK:
-        SESSIONS.pop(token, None)
-
-
-def check_panel_password(password):
-    stored = store.get_setting("panel_password_hash", "")
-    if not stored:
-        # fall back to the env password until one is set from the panel
-        return bool(PANEL_PASSWORD_ENV) and hmac.compare_digest(password or "", PANEL_PASSWORD_ENV)
-    return verify_password(password or "", stored)
-
-
-# ============================================================================
-#  HTTP HANDLER
-# ============================================================================
-
-GET_ROUTES = {
-    "/panel": page_dashboard,
-    "/panel/buttons": page_buttons,
-    "/panel/products": page_products,
-    "/panel/categories": page_categories,
-    "/panel/orders": page_orders,
-    "/panel/deposits": page_deposits,
-    "/panel/users": page_users,
-    "/panel/texts": page_texts,
-    "/panel/payments": page_payments,
-    "/panel/settings": page_settings,
-    "/panel/broadcast": page_broadcast,
-}
-
-POST_ROUTES = {
-    "/panel/buttons/save": page_buttons_save,
-    "/panel/buttons/delete": page_buttons_delete,
-    "/panel/products/save": page_products_save,
-    "/panel/products/delete": page_products_delete,
-    "/panel/stock/save": page_stock_save,
-    "/panel/stock/clear": page_stock_clear,
-    "/panel/categories/save": page_categories_save,
-    "/panel/categories/delete": page_categories_delete,
-    "/panel/orders/action": page_orders_action,
-    "/panel/deposits/action": page_deposits_action,
-    "/panel/users/action": page_users_action,
-    "/panel/texts/save": page_texts_save,
-    "/panel/texts/save_labels": page_texts_save_labels,
-    "/panel/payments/save": page_payments_save,
-    "/panel/payments/methods": page_payments_methods,
-    "/panel/settings/save": page_settings_save,
-    "/panel/settings/owners": page_settings_owners,
-    "/panel/settings/password": page_settings_password,
-    "/panel/broadcast/send": page_broadcast_send,
-}
-
-LOGIN_ATTEMPTS = {}          # ip -> [timestamps]
-LOGIN_LOCK = threading.RLock()
-LOGIN_MAX_ATTEMPTS = 8
-LOGIN_WINDOW = 600           # 10 minutes
-
-
-def login_throttled(ip):
-    now = time.time()
-    with LOGIN_LOCK:
-        hits = [t for t in LOGIN_ATTEMPTS.get(ip, []) if now - t < LOGIN_WINDOW]
-        LOGIN_ATTEMPTS[ip] = hits
-        return len(hits) >= LOGIN_MAX_ATTEMPTS
-
-
-def login_failed(ip):
-    with LOGIN_LOCK:
-        LOGIN_ATTEMPTS.setdefault(ip, []).append(time.time())
-
-
-def login_ok(ip):
-    with LOGIN_LOCK:
-        LOGIN_ATTEMPTS.pop(ip, None)
-
-
-FLASHES = {}
-FLASH_LOCK = threading.RLock()
-
-
-def flash_push(token, msg, kind="ok"):
-    with FLASH_LOCK:
-        FLASHES.setdefault(token, []).append((msg, kind))
-
-
-def flash_pop(token):
-    with FLASH_LOCK:
-        items = FLASHES.pop(token, [])
-    return items
-
-
-class Handler(BaseHTTPRequestHandler):
-    server_version = "R1HimoShop/" + APP_VERSION
-    protocol_version = "HTTP/1.1"
-
-    # ---------- plumbing ----------
-    def log_message(self, fmt, *args):
-        log.debug("%s - %s", self.address_string(), fmt % args)
-
-    def _cookie(self, name):
-        raw = self.headers.get("Cookie") or ""
-        for part in raw.split(";"):
-            if "=" in part:
-                key, _, value = part.partition("=")
-                if key.strip() == name:
-                    return value.strip()
-        return ""
-
-    def _send(self, code, body, ctype="text/html; charset=utf-8", extra_headers=None):
-        if isinstance(body, str):
-            body = body.encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Referrer-Policy", "same-origin")
-        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
-        for key, value in (extra_headers or []):
-            self.send_header(key, value)
-        self.end_headers()
-        try:
-            self.wfile.write(body)
-        except Exception:
-            pass
-
-    def _redirect(self, location, cookie=None, flash=None):
-        headers = [("Location", location)]
-        if cookie:
-            headers.append(("Set-Cookie", cookie))
-        token = self._cookie("rs_session")
-        if flash and token:
-            flash_push(token, flash[0], flash[1] if len(flash) > 1 else "ok")
-        self.send_response(302)
-        for key, value in headers:
-            self.send_header(key, value)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-
-    def _is_https(self):
-        """True when the request arrived over HTTPS (direct or via proxy)."""
-        proto = (self.headers.get("X-Forwarded-Proto") or "").split(",")[0].strip().lower()
-        if proto:
-            return proto == "https"
-        return False
-
-    def _cookie_flags(self):
-        return "; Secure" if self._is_https() else ""
-
-    def _authed(self):
-        return session_valid(self._cookie("rs_session"))
-
-    def _read_form(self):
-        length = to_int(self.headers.get("Content-Length"), 0)
-        if length <= 0:
-            return {}
-        if length > 4 * 1024 * 1024:
-            return {}
-        raw = self.rfile.read(length).decode("utf-8", "replace")
-        return urllib.parse.parse_qs(raw, keep_blank_values=True)
-
-    # ---------- routes ----------
-    def do_GET(self):
-        try:
-            self._do_get()
-        except Exception:
-            log.error("GET %s failed:\n%s", self.path, traceback.format_exc())
-            self._safe_error_page()
-
-    def do_POST(self):
-        try:
-            self._do_post()
-        except Exception:
-            log.error("POST %s failed:\n%s", self.path, traceback.format_exc())
-            self._safe_error_page()
-
-    def _safe_error_page(self):
-        try:
-            self._send(500, html_page("خطأ", '<div class="login-shell"><div class="card">'
-                                             '<h1 class="login-title">حدث خطأ</h1>'
-                                             '<p class="login-sub">أعد المحاولة.</p>'
-                                             '<a class="btn" href="/panel">رجوع</a></div></div>'))
-        except Exception:
-            pass
-
-    def _do_get(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
-        qs = urllib.parse.parse_qs(parsed.query)
-
-        if path in ("/", "/login"):
-            if self._authed():
-                return self._redirect("/panel")
-            notice = ""
-            if path == "/" and not store.get_setting("panel_password_hash") and not PANEL_PASSWORD_ENV:
-                notice = "لم تُضبط كلمة مرور بعد. عيّن متغيّر البيئة PANEL_PASSWORD ثم أعد التشغيل."
-            return self._send(200, login_html(notice=notice))
-
-        if path in ("/healthz", "/health"):
-            return self._send(200, json.dumps({
-                "ok": True, "app": APP_NAME, "version": APP_VERSION,
-                "bot": store.get_setting("bot_username", ""),
-                "users": store.users_count(), "time": now_iso(),
-            }, ensure_ascii=False), "application/json; charset=utf-8")
-
-        if path == "/bot-preview":
-            if not self._authed():
-                return self._redirect("/")
-            return self._send(200, page_bot_preview(qs))
-
-        if path == "/api/v1/products":
-            items = []
-            for p in store.products():
-                items.append({"id": p["id"], "name": p["name"],
-                              "price": to_float(p.get("price"), 0),
-                              "stock": ("unlimited" if p.get("stock_mode") == "unlimited"
-                                        else store.available_stock(p))})
-            return self._send(200, json.dumps({"ok": True, "products": items},
-                                              ensure_ascii=False),
-                              "application/json; charset=utf-8")
-
-        if path == "/panel/export":
-            if not self._authed():
-                return self._redirect("/")
-            return self._send(200, page_export(), "application/json; charset=utf-8",
-                              [("Content-Disposition", "attachment; filename=rabot-backup.json")])
-
-        if path in GET_ROUTES:
-            if not self._authed():
-                return self._redirect("/")
-            token = self._cookie("rs_session")
-            flashes = flash_pop(token)
-            msg = flashes[0][0] if flashes else None
-            if path == "/panel" and flashes and flashes[0][1] == "err":
-                msg = None
-            try:
-                html_out = GET_ROUTES[path](qs, flash_msg=msg)
-            except Exception:
-                log.error("panel render error:\n%s", traceback.format_exc())
-                html_out = panel_shell("home", flash("❌ حدث خطأ أثناء عرض الصفحة"), "خطأ")
-            return self._send(200, html_out)
-
-        return self._send(404, html_page("404", '<div class="login-shell"><div class="card">'
-                                                '<h1 class="login-title">404</h1>'
-                                                '<p class="login-sub">الصفحة غير موجودة</p>'
-                                                '<a class="btn" href="/">رجوع</a></div></div>'))
-
-    def _do_post(self):
-        parsed = urllib.parse.urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
-        form = self._read_form()
-
-        if path == "/login":
-            client_ip = self.client_address[0] if self.client_address else "?"
-            if login_throttled(client_ip):
-                return self._send(429, login_html(error="محاولات كثيرة. انتظر 10 دقائق ثم أعد المحاولة."))
-            password = (form.get("password", [""])[0] or "")
-            if check_panel_password(password):
-                login_ok(client_ip)
-                token = session_create()
-                return self._redirect(
-                    "/panel",
-                    cookie="rs_session=%s; Path=/; HttpOnly; SameSite=Lax; Max-Age=%d%s"
-                           % (token, SESSION_TTL, self._cookie_flags()))
-            login_failed(client_ip)
-            return self._send(200, login_html(error=store.get_setting(
-                "panel_login_error", "تعذر تسجيل الدخول.")))
-        if path == "/logout":
-            session_destroy(self._cookie("rs_session"))
-            return self._redirect("/", cookie="rs_session=; Path=/; Max-Age=0" + self._cookie_flags())
-
-        if path not in POST_ROUTES:
-            return self._send(404, "not found")
-        if not self._authed():
-            return self._redirect("/")
-
-        try:
-            result = POST_ROUTES[path](form)
-        except Exception:
-            log.error("panel action error:\n%s", traceback.format_exc())
-            return self._redirect("/panel")
-
-        if isinstance(result, tuple):
-            location = result[0]
-            if len(result) == 2:
-                msg, kind = result[1], "ok"
             else:
-                msg, kind = result[1], result[2]
-            return self._redirect(location, flash=(msg, kind))
-        return self._redirect("/panel")
+                time.sleep(1)
 
 
 # ============================================================================
-#  BOOTSTRAP
+# لوحة الإدارة الكاملة داخل تيليغرام — بدون موقع أو خادم ويب
 # ============================================================================
+ADMIN_FIELDS = {
+    'p': [('name','الاسم العربي'),('name_en','الاسم الإنجليزي'),('price','السعر'),
+          ('description','الوصف العربي'),('description_en','الوصف الإنجليزي'),('icon','الأيقونة'),
+          ('emoji_id','معرّف الإيموجي المخصص'),('category_id','رقم التصنيف'),('stock_mode','نوع المخزون'),
+          ('feed','قالب التسليم اللامحدود'),('color','لون الزر'),('sort','ترتيب المنتج')],
+    'c': [('name','الاسم العربي'),('name_en','الاسم الإنجليزي'),('icon','الأيقونة'),
+          ('emoji_id','معرّف الإيموجي المخصص'),('sort','الترتيب')],
+    'b': [('label_ar','النص العربي'),('label_en','النص الإنجليزي'),('icon','الأيقونة'),
+          ('emoji_id','معرّف الإيموجي المخصص'),('color','اللون'),('row','رقم الصف'),
+          ('sort','الترتيب'),('action','الوظيفة'),('payload','قيمة الوظيفة')],
+}
+ADMIN_SETTINGS = [
+    ('store_name','اسم المتجر'),('support_username','حساب الدعم'),('default_lang','اللغة الافتراضية'),
+    ('currency','العملة'),('page_size','عدد المنتجات بالصفحة'),('referral_percent','نسبة الإحالة %'),
+    ('discount_percent','الخصم العام %'),('binance_pay_id','معرّف Binance Pay'),
+    ('deposit_min','أقل شحن'),('deposit_session_minutes','مهلة الشحن بالدقائق'),
+    ('style_enabled','ألوان الأزرار'),('mirror_rows','عكس ترتيب الصفوف'),
+    ('maintenance','وضع الصيانة'),('dm_owner_on_order','إشعار الطلب'),('dm_owner_on_deposit','إشعار الشحن'),
+    ('owner_ids','معرّفات المالكين'),
+]
+ADMIN_TEXTS = [
+    ('welcome_ar','الترحيب بالعربية'),('welcome','الترحيب الأساسي'),
+    ('help_text_ar','المساعدة بالعربية'),('help_text_en','المساعدة بالإنجليزية'),
+    ('policy_text_ar','السياسة بالعربية'),('policy_text_en','السياسة بالإنجليزية'),
+    ('api_text_ar','نص API عربي'),('api_text_en','نص API إنجليزي'),
+    ('maintenance_text_ar','الصيانة بالعربية'),('maintenance_text_en','الصيانة بالإنجليزية'),
+    ('binance_steps_ar','شرح الشحن عربي'),('binance_steps_en','شرح الشحن إنجليزي'),
+    ('binance_prompt_ar','طلب رقم العملية عربي'),('binance_prompt_en','طلب رقم العملية إنجليزي'),
+]
+ACTIONS = ('products','search','offers','profile','wallet','referrals','help','policy','deposit',
+           'orders','lang','api','support','admin','category','text','url','menu','buy')
 
-def panel_token():
-    """Deterministic short token used in the owner's quick-login link."""
-    secret = store.get_setting("panel_password_hash", "") or BOT_TOKEN or "rabot"
-    return hmac.new(secret.encode(), b"panel", hashlib.sha256).hexdigest()[:10]
+def admin_show(user, body, rows, edit=None):
+    markup = inline_keyboard(rows + [[_btn('🏠 لوحة الإدارة', 'primary', None, cb='a:home')]])
+    if edit:
+        return safe_edit(user['tg_id'], edit, body, markup)
+    return safe_send(user['tg_id'], body, markup)
 
 
-def banner():
-    line = "=" * 62
-    log.info(line)
-    log.info(" %s v%s", APP_NAME, APP_VERSION)
-    log.info(" Telegram bot + owner control panel (single-file Python)")
-    log.info(line)
-    log.info(" DB            : %s", DB_PATH)
-    log.info(" Panel         : http://%s:%d/panel", HOST, PORT)
-    if not BOT_TOKEN:
-        log.warning(" BOT_TOKEN غير مضبوط — البوت لن يعمل (اللوحة تعمل).")
-    if not store.get_setting("panel_password_hash") and not PANEL_PASSWORD_ENV:
-        log.warning(" PANEL_PASSWORD غير مضبوط — لن يمكن الدخول للوحة.")
-    if not store.get_setting("owner_ids") and not OWNER_ID_ENV:
-        log.warning(" OWNER_ID غير مضبوط — لن يظهر زر لوحة التحكم لأي مستخدم.")
-    log.info(line)
+def admin_home(user, edit=None):
+    if not is_owner_user(user):
+        return
+    s = store.stats()
+    body = ('⚙️ <b>لوحة التحكم داخل البوت</b>\n\n👥 %d مستخدم · 📦 %d منتج\n'
+            '🧾 %d طلب · 💳 %d شحنة معلقة\n💰 المبيعات: %s\n\nاختر القسم:') % (
+                s['users'], s['products'], s['orders'], s['pending_deposits'], price_str(s['revenue']))
+    rows = [[_btn('📦 المنتجات والمخزون','success',None,cb='a:ls:p:0'), _btn('🗂 التصنيفات','primary',None,cb='a:ls:c:0')],
+            [_btn('🔘 أزرار القائمة','primary',None,cb='a:ls:b:0'), _btn('👥 المستخدمون','primary',None,cb='a:ls:u:0')],
+            [_btn('🧾 الطلبات','primary',None,cb='a:ls:o:0'), _btn('💳 الشحنات','success',None,cb='a:ls:d:0')],
+            [_btn('📝 النصوص والرسائل','primary',None,cb='a:ls:t:0'), _btn('🔤 تسميات الأزرار','primary',None,cb='a:ls:l:0')],
+            [_btn('⚙️ الإعدادات والدفع','primary',None,cb='a:ls:s:0'), _btn('🏷 ضبط الخصم','success',None,cb='adm:discount')],
+            [_btn('📣 الإذاعة','primary',None,cb='adm:broadcast'), _btn('💾 نسخة احتياطية','primary',None,cb='a:confirm:backup:0')],
+            [_btn('🔄 تحديث','default',None,cb='a:home')],
+            [_btn('🏪 المتجر','default',None,cb='menu')]]
+    markup = inline_keyboard(rows)
+    return safe_edit(user['tg_id'], edit, body, markup) if edit else safe_send(user['tg_id'], body, markup)
+
+
+def admin_list(user, kind, page=0, edit=None):
+    page = max(0, min(page, 100000))
+    size = 8
+    if kind == 'p':
+        items = store.products(include_hidden=True)
+        title = '📦 المنتجات والمخزون'
+        label_fn = lambda x: '#%s %s · %s · مخزون %s' % (x['id'], x['name'], price_str(x['price']), store.available_stock(x))
+    elif kind == 'c':
+        items = store.categories(include_hidden=True); title = '🗂 التصنيفات'
+        label_fn = lambda x: '#%s %s' % (x['id'], x['name'])
+    elif kind == 'b':
+        items = store.buttons(include_hidden=True); title = '🔘 أزرار القائمة'
+        label_fn = lambda x: '#%s %s · %s' % (x['id'], render_button_label(x, 'ar'), x['action'])
+    elif kind == 'u':
+        items = store.users_list(limit=size+1, offset=page*size); title = '👥 المستخدمون'
+        label_fn = lambda x: '%s · %s · %s' % (x['tg_id'], x['first_name'] or x['username'] or '—', price_str(x['balance']))
+    elif kind == 'o':
+        items = store.orders_list(limit=size+1, offset=page*size); title = '🧾 الطلبات'
+        label_fn = lambda x: '#%s · %s · %s' % (x['id'], x['product_name'], x['status'])
+    elif kind == 'd':
+        items = store.deposits_list(limit=size+1, offset=page*size); title = '💳 الشحنات'
+        label_fn = lambda x: '#%s · %s · %s' % (x['id'], price_str(x['amount']), x['status'])
+    elif kind in ('s','t','l'):
+        pairs = ADMIN_SETTINGS if kind == 's' else ADMIN_TEXTS if kind == 't' else [(k+'_'+lang, k+' · '+lang) for k in LABEL_DEFAULTS for lang in ('ar','en')]
+        items = [{'id': i, 'title': v[1]} for i,v in enumerate(pairs)]
+        title = {'s':'⚙️ الإعدادات والدفع','t':'📝 النصوص والرسائل','l':'🔤 التسميات'}[kind]
+        label_fn = lambda x: x['title']
+    else:
+        return admin_home(user, edit)
+    db_paged = kind in ('u','o','d')
+    more = len(items) > size if db_paged else len(items) > (page+1)*size
+    subset = items[:size] if db_paged else items[page*size:(page+1)*size]
+    rows = []
+    if kind in ('p','c','b'):
+        rows.append([_btn('➕ إضافة جديد','success',None,cb='a:new:'+kind)])
+    if kind == 'u':
+        rows.append([_btn('🔎 فتح مستخدم بالـ ID','primary',None,cb='a:finduser')])
+    for x in subset:
+        ident = x['tg_id'] if kind == 'u' else x['id']
+        rows.append([_btn(label_fn(x)[:80], 'default', None, cb='a:item:%s:%s' % (kind, ident))])
+    nav = []
+    if page: nav.append(_btn('⬅️ السابق','default',None,cb='a:ls:%s:%d' % (kind,page-1)))
+    if more: nav.append(_btn('التالي ➡️','default',None,cb='a:ls:%s:%d' % (kind,page+1)))
+    if nav: rows.append(nav)
+    return admin_show(user, '<b>%s</b> · صفحة %d\nاختر عنصراً:' % (title,page+1), rows, edit)
+
+
+def admin_item(user, kind, ident, edit=None):
+    if kind in ('p','c','b'):
+        obj = {'p':store.product_by_id,'c':store.get_category,'b':store.get_button}[kind](ident)
+        if not obj: return admin_list(user, kind, 0, edit)
+        name = obj.get('name') or obj.get('label_ar') or '—'
+        lines = ['<b>%s #%d</b>' % (esc(name),ident)]
+        for key, title in ADMIN_FIELDS[kind]:
+            val = str(obj.get(key) if obj.get(key) is not None else '')
+            if key == 'feed' and len(val)>100: val = val[:100]+'…'
+            lines.append('%s: <code>%s</code>' % (title,esc(val[:150])))
+        lines.append('الظهور: %s' % ('ظاهر' if obj.get('visible') else 'مخفي'))
+        rows = []
+        fields = ADMIN_FIELDS[kind]
+        for i in range(0,len(fields),2):
+            rows.append([_btn('✏️ '+v, 'primary', None, cb='a:edit:%s:%d:%s' % (kind,ident,k)) for k,v in fields[i:i+2]])
+        rows.append([_btn('👁 تبديل الظهور','primary',None,cb='a:toggle:%s:%d:visible' % (kind,ident))])
+        if kind == 'p':
+            lines.append('المخزون المتاح: %d' % store.product_stock(ident))
+            rows.extend([[_btn('➕ إضافة مخزون','success',None,cb='a:stock:add:%d' % ident),
+                          _btn('📋 عرض المخزون','primary',None,cb='a:stock:view:%d' % ident)],
+                         [_btn('🗑 مسح المخزون المتاح','danger',None,cb='a:confirm:stock:%d' % ident)]])
+        if kind == 'b':
+            rows.append([_btn('🔒 للمالك فقط: %s' % ('نعم' if obj.get('owner_only') else 'لا'),'primary',None,cb='a:toggle:b:%d:owner_only' % ident)])
+            rows.append([_btn('📝 نص الزر عربي','primary',None,cb='a:custom:%d:ar' % ident),
+                         _btn('📝 نص الزر إنجليزي','primary',None,cb='a:custom:%d:en' % ident)])
+        rows.append([_btn('🗑 حذف','danger',None,cb='a:confirm:%s:%d' % (kind,ident)),
+                     _btn('⬅️ القائمة','default',None,cb='a:ls:%s:0' % kind)])
+        return admin_show(user, '\n'.join(lines), rows, edit)
+    if kind in ('s','t','l'):
+        pairs = ADMIN_SETTINGS if kind == 's' else ADMIN_TEXTS if kind == 't' else [(k+'_'+lang, k+' · '+lang) for k in LABEL_DEFAULTS for lang in ('ar','en')]
+        if ident < 0 or ident >= len(pairs): return admin_home(user,edit)
+        key,title = pairs[ident]
+        value = store.get_setting(key, '')
+        rows = [[_btn('✏️ تعديل','primary',None,cb='a:set:%s:%d' % (kind,ident)),
+                 _btn('⬅️ رجوع','default',None,cb='a:ls:%s:%d' % (kind, ident//8))]]
+        return admin_show(user, '<b>%s</b>\n\n<code>%s</code>' % (esc(title),esc(value[:1000]) or '—'), rows, edit)
+    if kind == 'u':
+        target = store.get_user(ident)
+        if not target: return admin_show(user,'❌ المستخدم غير موجود.',[],edit)
+        body = '👤 <b>%s</b>\nID: <code>%s</code>\nالرصيد: %s\nالحظر: %s\nمشرف: %s' % (esc(target['first_name'] or '—'),ident,price_str(target['balance']), 'نعم' if target['banned'] else 'لا','نعم' if target['is_admin'] else 'لا')
+        rows = [[_btn('➕ إضافة رصيد','success',None,cb='a:wallet:add:%d' % ident),_btn('➖ خصم رصيد','danger',None,cb='a:wallet:sub:%d' % ident)],
+                [_btn('🚫 تبديل الحظر','danger',None,cb='a:user:ban:%d' % ident),_btn('💬 رسالة خاصة','primary',None,cb='a:user:msg:%d' % ident)],
+                [_btn('🔐 تبديل صلاحية مشرف','primary',None,cb='a:confirm:admin:%d' % ident),_btn('⬅️ المستخدمون','default',None,cb='a:ls:u:0')]]
+        return admin_show(user,body,rows,edit)
+    if kind == 'o':
+        order = store.get_order(ident)
+        if not order: return admin_list(user,'o',0,edit)
+        target = store.get_user_by_id(order['user_id'])
+        body = '🧾 <b>طلب #%d</b>\nالمنتج: %s\nالمستخدم: <code>%s</code>\nالكمية: %s · المبلغ: %s\nالحالة: %s' % (ident,esc(order['product_name']),esc((target or {}).get('tg_id','—')),order['qty'],price_str(order['total']),esc(order['status']))
+        rows = [[_btn('✅ تسليم المعلق','success',None,cb='a:confirm:deliver:%d' % ident)],
+                [_btn('💸 استرجاع المبلغ','danger',None,cb='a:confirm:refund:%d' % ident),_btn('❌ إلغاء وإرجاع','danger',None,cb='a:confirm:cancel:%d' % ident)],
+                [_btn('⬅️ الطلبات','default',None,cb='a:ls:o:0')]]
+        return admin_show(user,body,rows,edit)
+    if kind == 'd':
+        dep = store.get_deposit(ident)
+        if not dep: return admin_list(user,'d',0,edit)
+        target = store.get_user_by_id(dep['user_id'])
+        body = '💳 <b>شحنة #%d</b>\nالمستخدم: <code>%s</code>\nالمبلغ: %s\nالمعاملة: <code>%s</code>\nالحالة: %s' % (ident,esc((target or {}).get('tg_id','—')),price_str(dep['amount']),esc(dep['txid']),esc(dep['status']))
+        rows = [[_btn('✅ قبول','success',None,cb='dep:ok:%d' % ident),_btn('❌ رفض','danger',None,cb='dep:no:%d' % ident)],
+                [_btn('⬅️ الشحنات','default',None,cb='a:ls:d:0')]]
+        return admin_show(user,body,rows,edit)
+
+
+def admin_prompt(user, **data):
+    state_set(user['tg_id'], 'admin_input', expires=time.time()+1800, **data)
+    return safe_send(user['tg_id'], data['prompt']+'\n\nللإلغاء: /cancel', reply_keyboard([[_rbtn('❌ إلغاء','danger')]]))
+
+
+def admin_dispatch(user, parts, edit=None):
+    action = parts[0] if parts else 'home'
+    if action in ('home', 'ls', 'item'):
+        state_clear(user['tg_id'])
+        PENDING_BROADCAST.pop(user['tg_id'], None)
+    if action == 'home': return admin_home(user,edit)
+    if action == 'ls' and len(parts)==3: return admin_list(user,parts[1],to_int(parts[2]),edit)
+    if action == 'item' and len(parts)==3: return admin_item(user,parts[1],to_int(parts[2],-1),edit)
+    if action == 'finduser': return admin_prompt(user, mode='finduser',prompt='🔎 أرسل رقم Telegram ID للمستخدم.')
+    if action == 'new' and len(parts)==2 and parts[1] in ('p','c','b'):
+        return admin_prompt(user, mode='new',entity=parts[1],prompt='➕ أرسل اسم العنصر الجديد. بعد إنشائه عدّل تفاصيله من أزراره.')
+    if action == 'edit' and len(parts)==4:
+        kind, ident, key = parts[1],to_int(parts[2]),parts[3]
+        fields = dict(ADMIN_FIELDS.get(kind,[]))
+        if key not in fields: return
+        hint = {'price':'رقم غير سالب مثل 2.50','stock_mode':'auto أو unlimited؛ اللامحدود يحتاج قالب التسليم',
+                'category_id':'رقم تصنيف موجود أو 0','color':'auto أو success أو danger أو primary أو default',
+                'action':'الوظائف: '+', '.join(ACTIONS),'payload':'للرابط اكتب https://...، وللتصنيف أو المنتج اكتب الرقم',
+                'feed':'نص التسليم؛ يدعم {order} و{user} و{index}','row':'عدد صحيح من 0 إلى 100','sort':'عدد صحيح من 0 إلى 10000'}.get(key,'أرسل القيمة الجديدة. أرسل - لمسح الحقل.')
+        return admin_prompt(user,mode='edit',entity=kind,ident=ident,key=key,prompt='✏️ %s\n%s' % (fields[key],hint))
+    if action == 'set' and len(parts)==3 and parts[1] in ('s','t','l'):
+        kind, ident = parts[1],to_int(parts[2],-1)
+        pairs = ADMIN_SETTINGS if kind=='s' else ADMIN_TEXTS if kind=='t' else [(k+'_'+lang,k+' · '+lang) for k in LABEL_DEFAULTS for lang in ('ar','en')]
+        if not 0<=ident<len(pairs): return
+        key, title = pairs[ident]
+        hint = {'referral_percent':'نسبة بين 0 و100.', 'discount_percent':'نسبة بين 0 و90.',
+                'page_size':'عدد من 1 إلى 30.', 'deposit_session_minutes':'عدد دقائق من 1 إلى 1440.',
+                'style_enabled':'1 للتفعيل و0 للإيقاف.', 'mirror_rows':'1 للعكس و0 للعادي.',
+                'maintenance':'1 لتفعيل الصيانة و0 لإيقافها.', 'dm_owner_on_order':'1 للتفعيل و0 للإيقاف.',
+                'dm_owner_on_deposit':'1 للتفعيل و0 للإيقاف.', 'default_lang':'ar أو en.',
+                'owner_ids':'أرقام Telegram مفصولة بفواصل. يبقى OWNER_ID الأساسي مفعلاً.'}.get(key,'أرسل - لمسح القيمة.')
+        return admin_prompt(user,mode='setting',key=key,prompt='✏️ أرسل القيمة الجديدة لـ %s.\n%s' % (title,hint))
+    if action == 'custom' and len(parts)==3 and parts[2] in ('ar','en'):
+        bid = to_int(parts[1]); obj = store.get_button(bid)
+        if not obj: return
+        if obj['action'] != 'text':
+            store.update_button(bid, {'action':'text','payload':'custom_btn_%d' % bid})
+        key = store.get_button(bid)['payload'] or ('custom_btn_%d' % bid)
+        store.update_button(bid, {'payload':key})
+        return admin_prompt(user, mode='setting',key=key+'_'+parts[2],prompt='📝 أرسل نص الزر المخصص (%s).' % parts[2])
+    if action == 'toggle' and len(parts)==4:
+        kind, ident, key = parts[1],to_int(parts[2]),parts[3]
+        if kind not in ('p','c','b') or key not in ('visible','owner_only') or (key=='owner_only' and kind!='b'): return
+        get = {'p':store.product_by_id,'c':store.get_category,'b':store.get_button}[kind]
+        obj = get(ident)
+        if obj:
+            {'p':store.update_product,'c':store.update_category,'b':store.update_button}[kind](ident,{key:0 if obj.get(key) else 1})
+        return admin_item(user,kind,ident,edit)
+    if action == 'stock' and len(parts)==3:
+        mode, pid = parts[1],to_int(parts[2]); product=store.product_by_id(pid)
+        if not product: return admin_home(user,edit)
+        if mode == 'add': return admin_prompt(user,mode='stock',ident=pid,prompt='📦 أرسل المخزون: كل عنصر في سطر مستقل.')
+        if mode == 'view':
+            stock=store.stock_list(pid,used=False)
+            text='📦 المخزون المتاح: %d\n\n%s' % (len(stock),esc('\n'.join(x['content'] for x in stock[:20])) or '—')
+            return admin_show(user,text,[[_btn('⬅️ المنتج','default',None,cb='a:item:p:%d' % pid)]],edit)
+    if action == 'wallet' and len(parts)==3 and parts[1] in ('add','sub'):
+        return admin_prompt(user,mode='wallet',op=parts[1],ident=to_int(parts[2]),prompt='💰 أرسل مبلغاً موجباً بالعملة المحددة.')
+    if action == 'user' and len(parts)==3:
+        op, uid = parts[1],to_int(parts[2]); target=store.get_user(uid)
+        if not target: return admin_home(user,edit)
+        if op == 'msg': return admin_prompt(user,mode='message',ident=uid,prompt='💬 أرسل نص الرسالة للمستخدم.')
+        if op == 'ban' and uid not in owner_ids() and not target.get('is_admin'):
+            store.update_user(uid,banned=0 if target['banned'] else 1)
+        return admin_item(user,'u',uid,edit)
+    if action == 'confirm' and len(parts)==3:
+        kind, ident = parts[1],to_int(parts[2])
+        if kind not in ('p','c','b','stock','refund','cancel','deliver','admin','backup'): return
+        if kind == 'backup' and user['tg_id'] not in owner_ids(): return admin_show(user,'⛔ النسخة الاحتياطية للمالك فقط.',[],edit)
+        nonce=secrets.token_hex(5)
+        state_set(user['tg_id'],'admin_confirm',nonce=nonce,op=kind,ident=ident,expires=time.time()+600)
+        question = '⚠️ النسخة تحتوي بيانات المستخدمين والمخزون؛ ستُرسل إلى حسابك. هل تؤكد؟' if kind=='backup' else '⚠️ هل تؤكد هذا الإجراء على #%d؟' % ident
+        return admin_show(user,question,
+            [[_btn('✅ تأكيد','danger',None,cb='a:do:%s:%d:%s' % (kind,ident,nonce)),_btn('❌ تراجع','default',None,cb='a:home')]],edit)
+    if action == 'do' and len(parts)==4:
+        kind, ident=parts[1],to_int(parts[2])
+        confirmation=state_get(user['tg_id'])
+        if not confirmation or confirmation.get('kind')!='admin_confirm' or confirmation.get('op')!=kind or confirmation.get('ident')!=ident or not hmac.compare_digest(confirmation.get('nonce',''),parts[3]):
+            return admin_show(user,'⚠️ التأكيد منتهي أو تم استخدامه.',[],edit)
+        state_clear(user['tg_id'])
+        if kind=='backup':
+            if user['tg_id'] not in owner_ids(): return
+            ok=admin_send_backup(user['tg_id'])
+            return admin_show(user,'✅ أُرسلت النسخة الاحتياطية.' if ok else '❌ تعذر إرسال النسخة الاحتياطية.',[],edit)
+        if kind in ('p','c','b'):
+            {'p':store.delete_product,'c':store.delete_category,'b':store.delete_button}[kind](ident)
+            return admin_list(user,kind,0,edit)
+        if kind == 'stock':
+            store.ex('DELETE FROM stock_items WHERE product_id=? AND used=0',(ident,))
+            return admin_item(user,'p',ident,edit)
+        if kind == 'admin':
+            if user['tg_id'] not in owner_ids(): return admin_show(user,'⛔ الإجراء للمالك الأساسي فقط.',[],edit)
+            target=store.get_user(ident)
+            if target and ident not in owner_ids(): store.update_user(ident,is_admin=0 if target['is_admin'] else 1)
+            return admin_item(user,'u',ident,edit)
+        if kind in ('refund','cancel'):
+            order=store.refund_order_atomic(ident,'refunded' if kind=='refund' else 'cancelled')
+            if order:
+                target=store.get_user_by_id(order['user_id'])
+                if target: safe_send(target['tg_id'],'💸 أُرجع مبلغ الطلب #%d إلى محفظتك.' % ident)
+            return admin_show(user,'✅ تم إرجاع المبلغ.' if order else '⚠️ الطلب غير موجود أو تمت معالجته مسبقاً.', [[_btn('⬅️ الطلب','default',None,cb='a:item:o:%d' % ident)]],edit)
+        if kind == 'deliver':
+            order=store.get_order(ident); delivery=store.deliver_pending_atomic(ident)
+            if order and delivery:
+                target=store.get_user_by_id(order['user_id'])
+                if target: safe_send(target['tg_id'],'✅ تم تسليم الطلب #%d\n<pre>%s</pre>' % (ident,esc(delivery)))
+            return admin_show(user,'✅ تم التسليم.' if delivery else '⚠️ الطلب غير معلق أو المخزون غير كافٍ.', [[_btn('⬅️ الطلب','default',None,cb='a:item:o:%d' % ident)]],edit)
+    return admin_home(user,edit)
+
+
+def admin_send_backup(owner_id):
+    # Snapshot SQLite locally, or export JSON through the PostgreSQL adapter.
+    path = None
+    try:
+        if hasattr(store, 'export_backup'):
+            data = store.export_backup()
+            filename = 'r1himo-backup.json'
+        else:
+            fd,path=tempfile.mkstemp(prefix='r1_backup_', suffix='.db')
+            os.close(fd)
+            dest=sqlite3.connect(path)
+            try:
+                with store.lock:
+                    store.conn.backup(dest)
+            finally:
+                dest.close()
+            if os.path.getsize(path)>45*1024*1024:
+                return False
+            with open(path,'rb') as fh: data=fh.read()
+            filename = 'r1himo-backup.db'
+        boundary='r1'+secrets.token_hex(16)
+        prefix=('--'+boundary+'\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n'+str(owner_id)+'\r\n--'+boundary+'\r\nContent-Disposition: form-data; name="document"; filename="'+filename+'"\r\nContent-Type: application/octet-stream\r\n\r\n').encode()
+        body=prefix+data+('\r\n--'+boundary+'--\r\n').encode()
+        req=urllib.request.Request(tg.api_base+'/bot'+tg.token+'/sendDocument',data=body,headers={'Content-Type':'multipart/form-data; boundary='+boundary},method='POST')
+        with urllib.request.urlopen(req,timeout=30) as response:
+            return bool(json.loads(response.read().decode()).get('ok'))
+    except Exception:
+        log.warning('تعذر إرسال النسخة الاحتياطية.')
+        return False
+    finally:
+        if path:
+            try: os.unlink(path)
+            except OSError: pass
+
+
+def admin_apply_input(user, st, text):
+    if not is_owner_user(user):
+        state_clear(user['tg_id']); return True
+    text=text.strip(); mode=st.get('mode'); ident=st.get('ident',0)
+    try:
+        if len(text)>3500: raise ValueError('النص طويل جداً.')
+        if mode == 'finduser':
+            if not text.isdigit() or not store.get_user(int(text)): raise ValueError('المستخدم غير موجود؛ أدخل ID صحيحاً.')
+            state_clear(user['tg_id']); admin_item(user,'u',int(text)); return True
+        if mode == 'new':
+            if not text or text == '-': raise ValueError('الاسم مطلوب.')
+            kind=st['entity']
+            ident = (store.add_product({'name':text,'price':0,'visible':0}) if kind=='p' else
+                     store.add_category({'name':text}) if kind=='c' else
+                     store.add_button({'label_ar':text,'label_en':text,'action':'menu'}))
+            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ تم الإنشاء. أكمل التفاصيل من الأزرار.',build_main_keyboard(user))
+            admin_item(user,kind,ident); return True
+        if mode == 'stock':
+            if not store.product_by_id(ident): raise ValueError('المنتج غير موجود.')
+            count=store.add_stock_lines(ident,text.splitlines())
+            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ أُضيف %d عنصر.' % count,build_main_keyboard(user)); admin_item(user,'p',ident); return True
+        if mode == 'message':
+            if not text or not store.get_user(ident): raise ValueError('المستخدم أو النص غير صالح.')
+            ok=_broadcast_one(ident,text)
+            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ أُرسلت الرسالة.' if ok else '❌ تعذر الإرسال.',build_main_keyboard(user)); return True
+        if mode == 'wallet':
+            amount=float(text.replace(',','.'))
+            if not math.isfinite(amount) or amount<=0 or amount>1000000 or not store.get_user(ident): raise ValueError('أدخل مبلغاً موجباً صالحاً.')
+            amount=round(amount,2)
+            if amount<=0: raise ValueError('الحد الأدنى 0.01.')
+            if st['op']=='sub':
+                with store.lock:
+                    cur=store.conn.execute('UPDATE users SET balance=ROUND(balance-?,2) WHERE tg_id=? AND balance>=?',(amount,ident,amount)); store.conn.commit()
+                if not cur.rowcount: raise ValueError('الرصيد غير كافٍ.')
+            else: store.adjust_balance(ident,amount)
+            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ تم تحديث الرصيد.',build_main_keyboard(user)); admin_item(user,'u',ident); return True
+        if mode == 'edit':
+            kind,key=st['entity'],st['key']; value='' if text=='-' else text
+            obj={'p':store.product_by_id,'c':store.get_category,'b':store.get_button}[kind](ident)
+            if not obj or key not in dict(ADMIN_FIELDS[kind]): raise ValueError('العنصر غير موجود.')
+            if key in ('name','label_ar') and not value: raise ValueError('الاسم مطلوب.')
+            if key == 'price':
+                n=float(value.replace(',','.'))
+                if not math.isfinite(n) or n<0 or n>1000000: raise ValueError('السعر غير صالح.')
+                value=round(n,2)
+            if key in ('category_id','row','sort'):
+                if not value.isdigit() or int(value)>10000: raise ValueError('أدخل رقماً صحيحاً.')
+                value=int(value)
+                if key=='category_id' and value and not store.get_category(value): raise ValueError('التصنيف غير موجود.')
+            if key=='stock_mode' and value not in ('auto','unlimited'): raise ValueError('استعمل auto أو unlimited.')
+            if key=='color' and value not in ('auto','success','danger','primary','default'): raise ValueError('اللون غير صالح.')
+            if key=='action' and value not in ACTIONS: raise ValueError('الوظيفة غير صالحة.')
+            if key=='payload' and obj.get('action')=='url' and value and not value.startswith('https://'): raise ValueError('الرابط يجب أن يبدأ بـ https://')
+            {'p':store.update_product,'c':store.update_category,'b':store.update_button}[kind](ident,{key:value})
+            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ تم الحفظ.',build_main_keyboard(user)); admin_item(user,kind,ident); return True
+        if mode == 'setting':
+            key=st['key']; value='' if text=='-' else text
+            if key in ('store_name', 'currency') and not value:
+                raise ValueError('لا يمكن ترك هذا الحقل فارغاً.')
+            if key == 'owner_ids':
+                if user['tg_id'] not in owner_ids(): raise ValueError('المالك الأساسي فقط يغيّر المالكين.')
+                parts=[x.strip() for x in value.split(',') if x.strip()]
+                if not parts or any(not x.isdigit() for x in parts): raise ValueError('أرسل IDs مفصولة بفواصل.')
+                value=','.join(parts)
+            if key in ('referral_percent','discount_percent','page_size','deposit_session_minutes'):
+                maximum={'referral_percent':100,'discount_percent':90,'page_size':30,'deposit_session_minutes':1440}[key]
+                minimum=1 if key in ('page_size','deposit_session_minutes') else 0
+                if not value.isdigit() or not minimum<=int(value)<=maximum: raise ValueError('القيمة خارج الحدود المسموحة.')
+            if key=='deposit_min':
+                n=float(value.replace(',','.'))
+                if not math.isfinite(n) or n<=0 or n>1000000: raise ValueError('الحد الأدنى غير صالح.')
+                value=str(n)
+            if key in ('style_enabled','mirror_rows','maintenance','dm_owner_on_order','dm_owner_on_deposit') and value not in ('0','1'): raise ValueError('أرسل 1 للتفعيل أو 0 للإيقاف.')
+            if key=='default_lang' and value not in ('ar','en'): raise ValueError('أرسل ar أو en.')
+            if key=='payment_methods' and any(x not in ('manual','binance') for x in value.split(',')): raise ValueError('القيم المتاحة binance أو manual.')
+            if key=='support_username': value=value.lstrip('@')
+            store.set_setting(key,value)
+            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ تم حفظ الإعداد.',build_main_keyboard(user)); admin_home(user); return True
+    except (ValueError, TypeError, OverflowError) as exc:
+        safe_send(user['tg_id'],'⚠️ %s\nحاول مرة أخرى أو /cancel.' % esc(str(exc)))
+        return True
+    return False
 
 
 def main():
+    if not BOT_TOKEN:
+        log.error('❌ اضبط BOT_TOKEN في متغيرات البيئة قبل التشغيل.')
+        return
+    if not OWNER_ID_ENV.isdigit():
+        log.error('❌ اضبط OWNER_ID كرقم تيليغرام للمالك قبل التشغيل.')
+        return
     init_store(DB_PATH)
-
-    # import-time defaults that depend on env
-    if not store.get_setting("owner_ids") and OWNER_ID_ENV:
-        store.set_setting("owner_ids", OWNER_ID_ENV)
-    if not store.get_setting("public_url") and PUBLIC_URL:
-        store.set_setting("public_url", PUBLIC_URL)
-
-    # bootstrap the panel password from the environment once
-    if not store.get_setting("panel_password_hash") and PANEL_PASSWORD_ENV:
-        store.set_setting("panel_password_hash", hash_password(PANEL_PASSWORD_ENV))
-
-    banner()
-
-    server = None
+    init_telegram(BOT_TOKEN)
     try:
-        ThreadingHTTPServer.allow_reuse_address = True
-        server = ThreadingHTTPServer((HOST, PORT), Handler)
-        server.daemon_threads = True
-        threading.Thread(target=server.serve_forever, name="panel-http", daemon=True).start()
-        log.info("✅ لوحة التحكم تعمل على المنفذ %d", PORT)
-    except OSError as exc:
-        log.error("❌ تعذر تشغيل اللوحة على المنفذ %d: %s", PORT, exc)
-        server = None
-
-    if BOT_TOKEN:
-        global tg
-        init_telegram(BOT_TOKEN)
-        try:
-            me = tg.get_me()
-            username = me.get("username") or ""
-            store.set_setting("bot_username", username)
-            log.info("✅ البوت متصل: @%s", username)
-        except TgError as exc:
-            log.error("❌ تعذر الاتصال بتيليغرام: %s", exc.description)
-            if exc.code == 401:
-                log.error("   تحقق من BOT_TOKEN.")
-        poller = Poller()
-        poller.start()
-    else:
-        log.warning("⚠️ تم تشغيل اللوحة فقط بدون بوت (BOT_TOKEN فارغ).")
-
+        me = tg.get_me()
+        store.set_setting('bot_username',me.get('username') or '')
+        log.info('✅ البوت متصل: @%s',me.get('username') or '')
+    except TgError as exc:
+        log.warning('تعذر فحص اتصال تيليغرام: %s',exc.description)
+    log.info('لوحة الإدارة في تيليغرام: /admin. قاعدة البيانات: %s',DB_PATH)
+    poller=Poller()
+    poller.start()
     try:
-        while True:
-            time.sleep(3600)
+        while poller.is_alive(): time.sleep(1)
     except KeyboardInterrupt:
-        log.info("إيقاف...")
-        if server:
-            server.shutdown()
+        poller.stop_flag.set()
+        log.info('تم إيقاف البوت.')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
