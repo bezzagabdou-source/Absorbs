@@ -166,7 +166,7 @@ func _refresh() -> void:
 		var track: Dictionary = tracks[idx]
 		var card: Control = _cards[i]
 		var panel: PanelContainer = card.get_child(0)
-		var art: TextureRect = card.get_node("Art")
+		var art: TextureRect = card.find_child("Art", true, false)
 		var art_name = str(track.get("art", "city_night"))
 		art.texture = UIStyle.art(art_name)
 		if art.texture == null:
