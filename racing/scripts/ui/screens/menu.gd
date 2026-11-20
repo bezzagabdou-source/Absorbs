@@ -163,9 +163,11 @@ func _add_car_showcase() -> void:
 	var cam = Camera3D.new()
 	cam.fov = 32.0
 	cam.keep_aspect = Camera3D.KEEP_HEIGHT
-	cam.position = Vector3(5.6, 1.85, 6.4)
-	cam.look_at(Vector3(0, 0.25, 0))
 	root.add_child(cam)
+	# look_at() needs the node inside the tree, otherwise the camera keeps an
+	# identity basis and points away from the car.
+	cam.position = Vector3(5.6, 1.85, 6.4)
+	cam.look_at(Vector3(0, 0.25, 0), Vector3.UP)
 	cam.current = true
 	# floor glow ellipse
 	var disc = MeshInstance3D.new()
