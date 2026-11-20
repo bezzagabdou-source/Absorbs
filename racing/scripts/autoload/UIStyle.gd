@@ -531,6 +531,7 @@ func make_gradient_panel(top: Color, bottom: Color, radius: int = R, padding: in
 
 
 func make_chip(text: String, accent: Color = CYAN, size: int = 20) -> PanelContainer:
+	## Chips often carry counts, so they use the numeric face (no slashed zero).
 	var p = PanelContainer.new()
 	var sb = flat_box(Color(accent.r, accent.g, accent.b, 0.16), size, 1, Color(accent.r, accent.g, accent.b, 0.55))
 	sb.content_margin_left = 14
@@ -538,7 +539,7 @@ func make_chip(text: String, accent: Color = CYAN, size: int = 20) -> PanelConta
 	sb.content_margin_top = 4
 	sb.content_margin_bottom = 4
 	p.add_theme_stylebox_override("panel", sb)
-	p.add_child(make_label(text, "kicker", size, accent))
+	p.add_child(make_label(text, "numeric", size, accent))
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return p
 

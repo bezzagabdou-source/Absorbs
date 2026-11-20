@@ -113,7 +113,7 @@ func _build_stat_grid() -> void:
 		var v = VBoxContainer.new()
 		v.add_theme_constant_override("separation", -6)
 		h.add_child(v)
-		v.add_child(UIStyle.make_label(str(it[1]), "display", 38, Color.WHITE))
+		v.add_child(UIStyle.make_label(str(it[1]), "numeric", 40, Color.WHITE))
 		v.add_child(UIStyle.make_kicker(str(it[0]), UIStyle.TEXT_DIM, 13))
 		grid.add_child(p)
 
