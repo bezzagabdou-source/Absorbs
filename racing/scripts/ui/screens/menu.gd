@@ -7,6 +7,7 @@ var _car_view: SubViewportContainer
 var _car_vp: SubViewport
 var _car_cam: Camera3D
 var _car_pivot: Node3D
+var _turn_ring: MeshInstance3D
 var _showcase_t = 0.0
 
 
@@ -130,12 +131,23 @@ func _add_car_showcase() -> void:
 	var e = Environment.new()
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.45, 0.55, 0.75)
-	e.ambient_light_energy = 1.9
+	e.ambient_light_color = Color(0.40, 0.52, 0.76)
+	e.ambient_light_energy = 1.35
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	e.tonemap_exposure = 1.08
+	e.tonemap_white = 6.0
+	e.ssao_enabled = true
+	e.ssao_radius = 1.2
+	e.ssao_intensity = 1.6
+	e.ssil_enabled = true
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.glow_enabled = true
-	e.glow_intensity = 0.9
-	e.glow_bloom = 0.15
+	e.glow_intensity = 0.7
+	e.glow_bloom = 0.05
+	e.glow_hdr_threshold = 1.0
+	e.adjustment_enabled = true
+	e.adjustment_saturation = 1.08
+	e.adjustment_contrast = 1.04
 	env.environment = e
 	root.add_child(env)
 	var key = DirectionalLight3D.new()
@@ -173,23 +185,39 @@ func _add_car_showcase() -> void:
 	cam.position = Vector3(9.4, 3.0, 10.6)
 	cam.look_at(Vector3(0, 0.45, 0), Vector3.UP)
 	cam.current = true
-	# floor glow ellipse
-	var disc = MeshInstance3D.new()
-	var dm = CylinderMesh.new()
-	dm.top_radius = 3.2
-	dm.bottom_radius = 3.2
-	dm.height = 0.02
-	disc.mesh = dm
-	var dmat = StandardMaterial3D.new()
-	dmat.albedo_color = Color(0.05, 0.3, 0.45, 0.35)
-	dmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dmat.emission_enabled = true
-	dmat.emission = UIStyle.CYAN
-	dmat.emission_energy_multiplier = 0.55
-	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	disc.material_override = dmat
-	disc.position = Vector3(0, -0.40, 0)
-	root.add_child(disc)
+	# Mirror showroom floor: a large plane with a high metallic / low roughness
+	# material, so the paint and the rim lights reflect into the ground the way a
+	# detailing studio floor does. The turntable ring sits on top of it.
+	var floor_mi = MeshInstance3D.new()
+	var fm = PlaneMesh.new()
+	fm.size = Vector2(60, 60)
+	floor_mi.mesh = fm
+	var fmat = StandardMaterial3D.new()
+	fmat.albedo_color = Color(0.020, 0.025, 0.040)
+	fmat.metallic = 0.92
+	fmat.roughness = 0.16
+	fmat.metallic_specular = 0.9
+	floor_mi.material_override = fmat
+	floor_mi.position = Vector3(0, -0.40, 0)
+	root.add_child(floor_mi)
+	# glowing turntable ring under the car
+	var ring = MeshInstance3D.new()
+	var tm = TorusMesh.new()
+	tm.inner_radius = 3.05
+	tm.outer_radius = 3.28
+	tm.rings = 64
+	tm.ring_segments = 12
+	ring.mesh = tm
+	var rmat = StandardMaterial3D.new()
+	rmat.albedo_color = UIStyle.CYAN
+	rmat.emission_enabled = true
+	rmat.emission = UIStyle.CYAN
+	rmat.emission_energy_multiplier = 2.6
+	rmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring.material_override = rmat
+	ring.position = Vector3(0, -0.37, 0)
+	root.add_child(ring)
+	_turn_ring = ring
 	# nameplate
 	var plate = UIStyle.make_glass_panel(24, Color(0.03, 0.05, 0.1, 0.72), 22, 0.25)
 	plate.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -248,6 +276,14 @@ func _process(delta: float) -> void:
 	_showcase_t += delta
 	if _car_pivot:
 		_car_pivot.rotation.y = sin(_showcase_t * 0.32) * 0.55 + 0.35
+		# the turntable ring counter-rotates so the car always looks like it is
+		# standing on a live stage rather than a static prop
+		if _turn_ring:
+			_turn_ring.rotation.y = -_showcase_t * 0.42
+			var pulse = 2.2 + 0.7 * sin(_showcase_t * 2.1)
+			var rm: StandardMaterial3D = _turn_ring.material_override
+			if rm:
+				rm.emission_energy_multiplier = pulse
 	var credits_lbl = content.find_child("CreditsLabel", true, false)
 	if credits_lbl is Label:
 		credits_lbl.text = fmt_credits(Game.credits())

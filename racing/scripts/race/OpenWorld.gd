@@ -20,6 +20,7 @@ const ROAD_RING_RADIUS := 620.0
 const ROAD_SEGMENTS := 192
 
 var region: Dictionary = {}
+var grid: int = GRID
 var height_noise: FastNoiseLite
 var detail_noise: FastNoiseLite
 var road_points: PackedVector3Array = PackedVector3Array()
@@ -33,6 +34,13 @@ var _road_body: StaticBody3D
 
 func build(region_data: Dictionary) -> void:
 	region = region_data
+	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
+	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
+	# density there. Geometry that matters for driving is unchanged: height_at()
+	# still uses the full-resolution noise.
+	if RenderingServer.get_video_adapter_name().to_lower().contains("llvmpipe") \
+			or OS.has_feature("server"):
+		grid = 96
 	var seed_value: int = int(region_data.get("seed", 1337))
 	_rng.seed = seed_value
 	_build_noise(seed_value)
@@ -95,33 +103,33 @@ func height_at(x: float, z: float) -> float:
 func _build_terrain() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var step: float = REGION_SIZE / float(GRID)
+	var step: float = REGION_SIZE / float(grid)
 	var half: float = REGION_SIZE * 0.5
 	var heights := PackedFloat32Array()
-	heights.resize((GRID + 1) * (GRID + 1))
-	for iz in range(GRID + 1):
-		for ix in range(GRID + 1):
+	heights.resize((grid + 1) * (grid + 1))
+	for iz in range(grid + 1):
+		for ix in range(grid + 1):
 			var x: float = -half + float(ix) * step
 			var z: float = -half + float(iz) * step
-			heights[iz * (GRID + 1) + ix] = height_at(x, z)
+			heights[iz * (grid + 1) + ix] = height_at(x, z)
 
 	# normals by central difference so the lighting reads the ridges
 	var normals := PackedVector3Array()
 	normals.resize(heights.size())
-	for iz in range(GRID + 1):
-		for ix in range(GRID + 1):
-			var xl: float = heights[iz * (GRID + 1) + maxi(0, ix - 1)]
-			var xr: float = heights[iz * (GRID + 1) + mini(GRID, ix + 1)]
-			var zd: float = heights[maxi(0, iz - 1) * (GRID + 1) + ix]
-			var zu: float = heights[mini(GRID, iz + 1) * (GRID + 1) + ix]
+	for iz in range(grid + 1):
+		for ix in range(grid + 1):
+			var xl: float = heights[iz * (grid + 1) + maxi(0, ix - 1)]
+			var xr: float = heights[iz * (grid + 1) + mini(grid, ix + 1)]
+			var zd: float = heights[maxi(0, iz - 1) * (grid + 1) + ix]
+			var zu: float = heights[mini(grid, iz + 1) * (grid + 1) + ix]
 			var n := Vector3(xl - xr, 2.0 * step, zd - zu).normalized()
-			normals[iz * (GRID + 1) + ix] = n
+			normals[iz * (grid + 1) + ix] = n
 
-	for iz in range(GRID):
-		for ix in range(GRID):
-			var i0: int = iz * (GRID + 1) + ix
+	for iz in range(grid):
+		for ix in range(grid):
+			var i0: int = iz * (grid + 1) + ix
 			var i1: int = i0 + 1
-			var i2: int = i0 + (GRID + 1)
+			var i2: int = i0 + (grid + 1)
 			var i3: int = i2 + 1
 			var p0 := Vector3(-half + float(ix) * step, heights[i0], -half + float(iz) * step)
 			var p1 := Vector3(-half + float(ix + 1) * step, heights[i1], -half + float(iz) * step)
@@ -263,6 +271,13 @@ func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
 ## whole region costs a handful of draw calls.
 func _build_scatter() -> void:
 	var profile: String = str(region.get("profile", "metro"))
+	if grid < GRID:
+		# software GL: a quarter of the props is plenty to read as a populated world
+		if profile == "desert":
+			_spawn_props("rock", 110, 3.0, 9.0, Color(0.42, 0.30, 0.20))
+		else:
+			_spawn_trees(profile, 220)
+		return
 	if profile == "desert":
 		_spawn_props("rock", 420, 3.0, 9.0, Color(0.42, 0.30, 0.20))
 		_spawn_props("rock", 160, 9.0, 22.0, Color(0.50, 0.36, 0.24))
@@ -270,8 +285,8 @@ func _build_scatter() -> void:
 		_spawn_trees(profile)
 
 
-func _spawn_trees(profile: String) -> void:
-	var count := 900 if profile == "metro" else 1500
+func _spawn_trees(profile: String, override_count: int = 0) -> void:
+	var count := override_count if override_count > 0 else (900 if profile == "metro" else 1500)
 	var trunk_mesh := CylinderMesh.new()
 	trunk_mesh.top_radius = 0.16
 	trunk_mesh.bottom_radius = 0.28

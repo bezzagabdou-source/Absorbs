@@ -215,17 +215,25 @@ jobs:
         run: |
           "$GODOT_DIR/godot" --headless --path racing --import
       - name: Render each screen
-        timeout-minutes: 8
+        timeout-minutes: 14
         run: |
           mkdir -p racing/docs/screenshots
-          for screen in menu tracks garage shop achievements daily settings credits profile race; do
-            timeout 120 xvfb-run -a -s "-screen 0 1920x1080x24" \
+          # each screen gets a 75s budget; a heavy 3D scene that overruns must not
+          # swallow the whole job, so the loop keeps going and reports what it got
+          for screen in menu garage shop tracks race roam achievements daily settings credits profile; do
+            timeout -k 5 75 xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 \
-              --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 45 \
+              --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 40 \
               -- --screen=$screen >/tmp/shot_${screen}.log 2>&1 || true
-            last=$(ls /tmp/shot_${screen}*.png 2>/dev/null | tail -1)
-            if [ -n "$last" ]; then cp "$last" "racing/docs/screenshots/${screen}.png"; fi
+            last=$(ls -t /tmp/shot_${screen}*.png 2>/dev/null | head -1)
+            if [ -n "$last" ]; then
+              cp "$last" "racing/docs/screenshots/${screen}.png"
+              echo "rendered ${screen} from $(basename "$last")"
+            else
+              echo "MISSING ${screen}; tail of log:"
+              tail -20 /tmp/shot_${screen}.log || true
+            fi
           done
           ls -lh racing/docs/screenshots
       - name: Layout diagnostics
