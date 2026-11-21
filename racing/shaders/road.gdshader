@@ -4,9 +4,9 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
-uniform vec3 asphalt_color : source_color = vec3(0.085, 0.090, 0.102);
-uniform vec3 aggregate_color : source_color = vec3(0.26, 0.27, 0.30);
-uniform vec3 line_color : source_color = vec3(0.95, 0.96, 1.0);
+uniform vec3 asphalt_color : source_color = vec3(0.115, 0.122, 0.140);
+uniform vec3 aggregate_color : source_color = vec3(0.34, 0.35, 0.385);
+uniform vec3 line_color : source_color = vec3(1.0, 1.0, 1.0);
 uniform vec3 neon_a : source_color = vec3(0.13, 0.91, 1.0);
 uniform vec3 neon_b : source_color = vec3(1.0, 0.18, 0.62);
 uniform float wetness : hint_range(0.0, 1.0) = 0.35;
@@ -103,7 +103,7 @@ void fragment() {
 	lane = max(lane, edge_line * uv_ok);
 	col = mix(col, line_color, clamp(lane, 0.0, 1.0));
 	// the paint gets its own emissive so it survives the darkest part of the frame
-	vec3 paint_glow = line_color * clamp(lane, 0.0, 1.0) * 1.15;
+	vec3 paint_glow = line_color * clamp(lane, 0.0, 1.0) * 2.10;
 
 	// --- neon reflection streaks: strongest towards the road edges
 	float streak = smoothstep(0.55, 0.0, abs(lat) / (road_width * 0.5)) * puddle;
@@ -121,13 +121,13 @@ void fragment() {
 	// pale blue wash that read as water. This is tuned as a light contribution:
 	// the asphalt stays dark (0.06 albedo * lift), the white paint stays bright,
 	// and the road keeps its legibility at night.
-	EMISSION += col * vec3(2.35, 2.55, 3.00) * ambient_lift * 0.85 + paint_glow;
+	EMISSION += col * vec3(2.20, 2.40, 2.90) * ambient_lift * 1.55 + paint_glow;
 
 	// --- lit road edge: a thin cyan rim just outside the painted shoulder. This
 	// is what sells a night highway at a glance: the carriageway is defined by
 	// light rather than by being brighter than the ground.
 	float rim = smoothstep(0.55, 0.05, abs(abs(lat) - (road_width * 0.5 - 0.08)));
-	EMISSION += mix(neon_a, vec3(0.85, 0.95, 1.0), 0.35) * rim * 0.55 * uv_ok;
+	EMISSION += mix(neon_a, vec3(0.85, 0.95, 1.0), 0.35) * rim * 0.85 * uv_ok;
 
 	if (debug_flat > 0.5) {
 		ALBEDO = vec3(1.0, 0.0, 1.0);

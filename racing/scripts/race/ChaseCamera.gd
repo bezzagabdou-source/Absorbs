@@ -76,14 +76,18 @@ func physics_tick(delta: float) -> void:
 		_apply_shake(delta, 0.35)
 		return
 	if showcase:
-		# slow orbit on a high boom: reads as a cinematic establishing shot
-		var a: float = _showcase_t
+		# Establishing shot. The old version orbited on a 15 m boom at 6.2 m up,
+		# which in practice framed a wall of shadowed ground with the car in the
+		# middle and no road visible: the ring is 16 m wide, so a camera 15 m to
+		# the side is already off the tarmac. This sits low and behind on the
+		# carriageway axis and drifts in slowly, so the road reads as a road.
 		var centre: Vector3 = target.global_position
-		var cam_pos: Vector3 = centre + Vector3(sin(a) * 15.0, 6.2, cos(a) * 15.0)
-		_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 1.6, 0.0, 1.0))
+		var sway: float = sin(_showcase_t * 2.0) * 0.35
+		var cam_pos: Vector3 = centre - forward * 11.0 + Vector3.UP * 2.6 + right * sway
+		_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 2.2, 0.0, 1.0))
 		_cam.global_position = _pos_smooth
-		_cam.look_at(centre + Vector3.UP * 1.4, Vector3.UP)
-		_cam.fov = lerpf(_cam.fov, 56.0, delta * 2.0)
+		_cam.look_at(centre + forward * 16.0 + Vector3.UP * 1.1, Vector3.UP)
+		_cam.fov = lerpf(_cam.fov, 62.0, delta * 2.0)
 		return
 	var speed_norm = clampf(speed / 340.0, 0.0, 1.0)
 	var desired_boom = _boom + speed_norm * 1.6 + _nitro_boost * 1.9
