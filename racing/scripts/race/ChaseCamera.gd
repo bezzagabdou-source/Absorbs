@@ -82,17 +82,17 @@ func physics_tick(delta: float) -> void:
 		# the side is already off the tarmac. This sits low and behind on the
 		# carriageway axis and drifts in slowly, so the road reads as a road.
 		# Framing rule: the carriageway is 16 m wide and the car sits on its centre,
-	# so the camera has to stay near that centreline and look DOWN THE ROAD. The
-	# previous boom sat 15 m to the side, which put the lens over open ground with
-	# the tarmac out of frame; that is what "the road is invisible" actually was.
-	var centre: Vector3 = target.global_position
-	var sway: float = sin(_showcase_t * 2.0) * 0.30
-	var cam_pos: Vector3 = centre - forward * 9.5 + Vector3.UP * 3.4 + right * sway
-	_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 2.2, 0.0, 1.0))
-	_cam.global_position = _pos_smooth
-	_cam.look_at(centre + forward * 14.0, Vector3.UP)
-	_cam.fov = lerpf(_cam.fov, 66.0, delta * 2.0)
-	return
+		# so the camera has to stay near that centreline and look DOWN THE ROAD. The
+		# previous boom sat 15 m to the side, which put the lens over open ground with
+		# the tarmac out of frame; that is what "the road is invisible" actually was.
+		var centre: Vector3 = target.global_position
+		var sway: float = sin(_showcase_t * 2.0) * 0.30
+		var cam_pos: Vector3 = centre - forward * 9.5 + Vector3.UP * 3.4 + right * sway
+		_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 2.2, 0.0, 1.0))
+		_cam.global_position = _pos_smooth
+		_cam.look_at(centre + forward * 14.0, Vector3.UP)
+		_cam.fov = lerpf(_cam.fov, 66.0, delta * 2.0)
+		return
 	var speed_norm = clampf(speed / 340.0, 0.0, 1.0)
 	var desired_boom = _boom + speed_norm * 1.6 + _nitro_boost * 1.9
 	var desired_height = _height + speed_norm * 0.28

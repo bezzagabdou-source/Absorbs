@@ -235,6 +235,32 @@ def main() -> int:
             else:
                 seen_fn[fname] = lineno
 
+    # Indentation that contradicts the block it sits in is a parse error in Godot,
+    # but gdparse/gdlint accept a "comment dedent" where a comment line is one
+    # level shallower than the code that follows it, so a stray tab silently
+    # hoisted an entire camera branch out of its `if showcase:` block and the
+    # free-roam scene came up black. Flag any comment whose indent does not match
+    # the next non-blank, non-comment line.
+    for path, text in sorted(((p, src) for p, src in sources.items())):
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if not stripped.startswith("#"):
+                continue
+            j = i + 1
+            while j < len(lines) and (not lines[j].strip() or lines[j].strip().startswith("#")):
+                j += 1
+            if j >= len(lines):
+                continue
+            nxt = lines[j]
+            if not nxt.strip():
+                continue
+            indent = len(line) - len(line.lstrip("\t"))
+            nxt_indent = len(nxt) - len(nxt.lstrip("\t"))
+            if abs(indent - nxt_indent) == 1 and nxt_indent > 0:
+                problems.append("%s:%d comment indent %d does not match code indent %d"
+                                % (path.relative_to(ROOT), i + 1, indent, nxt_indent))
+
     if problems:
         print("undeclared identifier(s) found:")
         for msg in problems:
