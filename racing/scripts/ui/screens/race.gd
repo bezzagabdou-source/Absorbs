@@ -229,6 +229,32 @@ func _spawn_player() -> void:
 	player.gear_changed.connect(func(_g): AudioDirector.play_sfx("gear_shift", -16.0))
 	cam.bind(player)
 	player.input_enabled = true
+	if roaming and (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-probe"):
+		_qa_probe.call_deferred()
+
+
+## QA-only geometry probe: one downward ray per sample point, so a CI notice says
+## exactly what surface (if any) is under the car and under the camera.
+func _qa_probe() -> void:
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+	var car_p: Vector3 = player.global_position
+	var cam_p: Vector3 = cam.camera().global_position
+	print("[QAPROBE] car=%s cam=%s fov=%.1f far=%.0f" % [car_p, cam_p,
+		cam.camera().fov, cam.camera().far])
+	for probe in [["car", car_p], ["cam", cam_p], ["ahead", car_p - player.global_transform.basis.z * 20.0]]:
+		var q := PhysicsRayQueryParameters3D.create(Vector3(probe[1].x, probe[1].y + 60.0, probe[1].z),
+			Vector3(probe[1].x, probe[1].y - 120.0, probe[1].z))
+		var hit: Dictionary = space.intersect_ray(q)
+		if hit.is_empty():
+			print("[QAPROBE] %s: no hit" % probe[0])
+		else:
+			print("[QAPROBE] %s: y=%.2f node=%s" % [probe[0], (hit["position"] as Vector3).y,
+				str((hit["collider"] as Node).name)])
+	print("[QAPROBE] terrain_visible=%s road_visible=%s" % [
+		open_world.terrain_mesh_instance.is_visible_in_tree() if open_world.terrain_mesh_instance else false,
+		true])
 
 
 func _spawn_ai() -> void:
