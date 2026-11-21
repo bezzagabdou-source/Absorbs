@@ -353,6 +353,13 @@ func _build_road_network() -> void:
 		plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		plain.albedo_color = Color(1.0, 0.2, 1.0)
 		mi.material_override = plain
+		# Decisive burial test: if the tarmac only becomes visible once it is lifted
+		# clear of the ground, the terrain mesh — not the shader — is what hides it.
+		# height_at() is the analytic profile; the RENDERED terrain is that profile
+		# linearly interpolated across a 25 m grid, and between grid vertices the
+		# chord can sit well above the analytic height.
+		if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-lift"):
+			mi.position = Vector3(0.0, 8.0, 0.0)
 		add_child(mi)
 		_build_road_collision(width)
 		_mark_ring_centre()
