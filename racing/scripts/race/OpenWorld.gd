@@ -454,28 +454,36 @@ func _build_road_collision(width: float) -> void:
 
 ## Emit a quad as two triangles that both face up AND tile it exactly.
 ##
-## This cost several CI rounds, so the reasoning is pinned here. The caller is
-## `_quad(st, a, c, b, d)` with its own a = p0-left, b = p0+right, c = p1-left,
-## d = p1+right, so inside this function the corners are
-##     A = p0-left, B = p1-left, C = p0+right, D = p1+right
-## i.e. A->B runs along the road on the left edge and C->D on the right edge.
+## This one function cost more debugging time than the rest of the game, so the
+## reasoning is pinned here and guarded by two regression tests.
 ##
-## Facing: in a Y-up right-handed basis the Y component of (b-a)x(c-a) for a
-## horizontal triangle is  (b-a).z * (c-a).x - (b-a).x * (c-a).z  . Enumerating
-## the corners with the ring's real handedness leaves four upward windings:
-## ACB, ACD, ADB and BDC. Only two of the possible pairs actually TILE the quad —
-## diagonals A-D or B-C:
-##     ACD + ADB     (diagonal A-D)
-##     ACB + BDC     (diagonal B-C)
-## The pair this function used to emit, ACB + ACD, shares edge A-C: both triangles
-## are up-facing (so the `highway faces up` regression test passed) but they
-## overlap and leave the far half of every quad empty. The result is a road that
-## exists in the scene, reports a sane AABB and 384 triangles, and renders as a
-## thin dashed sliver — which is exactly the "invisible highway" that took days
-## to trace. Hence ACD + ADB, and hence the coverage test in TestRunner.
+## The caller is `_quad(st, a, c, b, d)` with ITS OWN a = p0-left, b = p0+right,
+## c = p1-left, d = p1+right. So inside this function the corners are
+##     A = p0-left   B = p1-left   C = p0+right   D = p1+right
+## i.e. A->B is the left edge along the road, C->D the right edge, A->C and B->D
+## the two cross-sections. Corners in *space* run A, C, B, D around the quad.
+##
+## Facing: with the mesh authored in Y-up world space the sign of a triangle's
+## normal.y is determined by the XZ winding, so only one rotational order per
+## diagonal is up-facing. The two diagonals give exactly two correct splits:
+##     (A,C,B) + (C,D,B)      diagonal C-B
+##     (A,C,D) + (A,D,B)      diagonal A-D
+##
+## The pair that was shipped for a long time, (A,C,B) + (A,C,D), takes the SAME
+## three corners twice: both triangles share edge A-C, both are up-facing (so the
+## old `highway faces up` test stayed green), and the two lobes together cover
+## only half of each 2.8 m quad — the half nearest the previous cross-section.
+## That is why the highway was invisible right in front of the car while a thin
+## sliver of it still showed up 40 m away, and why the probe measured just 6
+## vertices within 30 m of the spawn.
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	_quad_tri(st, a, c, d)
-	_quad_tri(st, a, d, b)
+	_quad_tri(st, a, c, b)
+	_quad_tri(st, c, d, b)
+
+
+func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+	_quad_tri(st, a, c, b)
+	_quad_tri(st, c, d, b)
 
 
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
