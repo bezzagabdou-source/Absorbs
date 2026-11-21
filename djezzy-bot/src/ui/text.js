@@ -89,7 +89,7 @@ export function diagText(report) {
   lines.push('', '<b>🌍 المسارات:</b>');
   if (r) {
     lines.push(`   relay: ${r.configured?.relay ? '✅ ' + escape(r.configured.relay) : '❌ غير مضبوط'}`);
-    lines.push(`   مباشر: ${r.configured?.direct ? '✅' : '❌'} · بروكسيات يدوية: ${r.configured?.envProxies ?? 0} · تلقائية: ${r.configured?.autoProxy ? '✅' : '❌'} (مكتشفة: ${r.configured?.discovered ?? 0})`);
+    lines.push(`   مباشر: ${r.configured?.direct ? '✅' : '❌'} · بروكسيات يدوية: ${r.configured?.envProxies ?? 0} · تلقائية: ❌ (معطّلة)`);
     if (r.lastSuccess) lines.push(`   آخر نجاح: ${escape(r.lastSuccess.route)} · HTTP ${r.lastSuccess.status} · ${r.lastSuccess.ms}ms`);
     const failed = (r.recent || []).filter((a) => a.error || a.status >= 400).slice(-3);
     for (const a of failed) lines.push(`   ⚠️ ${escape(a.route)}: ${a.error ? escape(a.error) : 'HTTP ' + a.status}`);
@@ -226,13 +226,19 @@ const SILENT_DETAIL = new Set(['TIMEOUT', 'NETWORK']);
 const GEO_HINT = [
   '',
   '🌍 <b>السبب:</b> خوادم جيزي تقبل الاتصال من الشبكات الجزائرية بشكل موثوق،',
-  'وقد تحجب الاستضافة الحالية (Vercel…). البوت يجرّب تلقائياً: relay ← مباشر ← بروكسيات جزائرية.',
+  'وقد تحجب الاستضافة الحالية (Vercel…). مسارات البوت: relay ← مباشر ← بروكسيات يدوية — بلا إعادة بعد أي رفض.',
   '',
   '✅ <b>الحل:</b> شغّل relay صغير داخل الجزائر واربطه:',
   '<code>cd djezzy-bot/relay && npm install && npm start</code>',
   'ثم اضبط <code>DJEZZY_RELAY_URL</code> على Vercel وأعد النشر.',
   '',
   'أو شغّل البوت كاملاً من جهازك داخل الجزائر: <code>npm run poll</code>.',
+].join('\n');
+
+/** إخلاء مسؤولية — يُعرض في /start و /help */
+export const DISCLAIMER = [
+  'ℹ️ <b>إخلاء مسؤولية:</b> هذا البوت أداة مساعدة لتفعيل العروض والهدايا الرسمية المتاحة لحسابك لدى جيزي فقط،',
+  'وفق شروط المزوّد وحدودها الطبيعية — دون ضمان توفر أو نتيجة، وبلا أي تجاوز لحدود الاستخدام.',
 ].join('\n');
 
 export function errorText(error) {

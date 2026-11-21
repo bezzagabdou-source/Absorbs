@@ -73,7 +73,7 @@ await test('تسجيل الدخول عبر OTP وتخزين الجلسة مشف�
   const user = await store.getUser(TG_ID);
   assert.equal(user.state.step, 'awaiting_otp');
 
-  const code = user.state.temp.debugCode;
+  const code = started.debugCode; // يعود في الاستجابة فقط — لا يُخزَّن مع الجلسة
   const result = await engine.confirmLogin(TG_ID, MSISDN, code);
   assert.ok(result.account.label.includes('***'));
 
@@ -143,9 +143,8 @@ await test('تجديد الجلسة عند انتهاء التوكن', async () 
 
 await test('بديل الأرقام + الحذف', async () => {
   const second = normalizeMsisdn('0781334455').msisdn;
-  await engine.startLogin(TG_ID, second);
-  const user = await store.getUser(TG_ID);
-  await engine.confirmLogin(TG_ID, second, user.state.temp.debugCode);
+  const startedSecond = await engine.startLogin(TG_ID, second);
+  await engine.confirmLogin(TG_ID, second, startedSecond.debugCode);
 
   const active = await engine.setActive(TG_ID, second);
   assert.equal(active.msisdn, second);

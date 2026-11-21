@@ -1,14 +1,14 @@
 /**
- * طبقات المسارات (Routes) — للوصول إلى خوادم جيزي مهما كان موقعك.
+ * طبقات المسارات (Routes) — مسارات اتصال معدّة وموصى بها فقط، بلا اكتشاف أو تدوير:
  *
- * خوادم apim.djezzy.dz تقبل الاتصال بشكل موثوق من الشبكات الجزائرية، وقد تحجب
- * عناوين سيرفرات السحابة. لذلك يجرّب هذا الموديل عدة مسارات بالترتيب ويعتمد
- * أول استجابة HTTP حقيقية (الأخطاء الشبكية فقط تُكيّف للمسار التالي):
- *
- *   1) relay      — خادم وسيط تشغّله أنت داخل الجزائر (DJEZZY_RELAY_URL)  [الأثبت]
+ *   1) relay      — خادم وسيط تشغّله أنت داخل الجزائر (DJEZZY_RELAY_URL)
  *   2) direct     — اتصال مباشر من الاستضافة (DJEZZY_DIRECT=1/0)
- *   3) env proxies— بروكسيات يضبطها المستخدم (DJEZZY_PROXIES)
- *   4) auto proxy — بروكسيات جزائرية عمومية تُكتشف تلقائياً (DJEZZY_AUTO_PROXY)
+ *   3) env proxies— بروكسيات يضبطها المستخدم يدوياً (DJEZZY_PROXIES)
+ *
+ * القواعد الصارمة:
+ *   - عند أول ردّ من الخادم (نجاح أو رفض أو حجب أو429) ينتهي الطلب فوراً — لا إعادة.
+ *   - الانتقال لمسار آخر يحدث عند خطأ شبكي بحت فقط (لم يصل أي رد أصلاً).
+ *   - لا بروكسيات عمومية مكتشفة تلقائياً ولا تدوير لتجاوز أي حجب.
  *
  * كل محاولة تُسجَّل في routeStats حتى تعرضها صفحة /health و /api/probe.
  */
@@ -17,10 +17,6 @@ import config from '../config.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger('djezzy/routes');
-
-const AUTO_CACHE = { list: [], fetchedAt: 0 };
-const AUTO_TTL_MS = 10 * 60 * 1000;
-const MAX_AUTO = 6;
 
 /** آخر مسار نجح + إحصاء المحاولات (للفحص والتشخيص) */
 export const routeStats = { lastSuccess: null, attempts: [] };
@@ -60,68 +56,6 @@ export function parseProxy(raw) {
   }
 }
 
-/** اكتشاف بروكسيات جزائرية من قوائم عامة (best-effort) */
-export async function discoverDzProxies() {
-  if (!config.djezzy.autoProxy) return [];
-  if (AUTO_CACHE.list.length && Date.now() - AUTO_CACHE.fetchedAt < AUTO_TTL_MS) {
-    return AUTO_CACHE.list;
-  }
-
-  const found = new Map();
-  const grab = async (url, parse) => {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { Accept: '*/*' } });
-      if (!response.ok) return;
-      const text = await response.text();
-      for (const item of parse(text)) {
-        const proxy = parseProxy(item);
-        if (proxy?.host && proxy.port) found.set(proxy.label, proxy);
-      }
-    } catch {
-      /* المصدر غير متاح — نتجاهله */
-    }
-  };
-
-  await Promise.all([
-    // GeoNode — بروكسيات مصنّفة بالبلد DZ (الأولوية القصوى)
-    grab(
-      'https://proxylist.geonode.com/api/proxy-list?limit=100&page=1&sort_by=lastChecked&sort_type=desc&country=DZ&protocols=http%2Chttps',
-      (text) => {
-        try {
-          const json = JSON.parse(text);
-          return (json.data || []).map((item) => `${item.ip}:${item.port}`);
-        } catch {
-          return [];
-        }
-      },
-    ),
-    // ProxyScrape — قائمة نصية ip:port لبلد DZ
-    grab('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=DZ&ssl=all&anonymity=all', (text) =>
-      text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^\d{1,3}(\.\d{1,3}){3}:\d{2,5}$/.test(line)),
-    ),
-    // قوائم عالمية (آخر حل): إن كان الحجب لعناوين سحابة معيّنة لا للبلد، يمرّ أحد هذه
-    grab(
-      'https://proxylist.geonode.com/api/proxy-list?limit=60&page=1&sort_by=lastChecked&sort_type=desc&protocols=http%2Chttps',
-      (text) => {
-        try {
-          const json = JSON.parse(text);
-          return (json.data || []).map((item) => `${item.ip}:${item.port}`);
-        } catch {
-          return [];
-        }
-      },
-    ),
-    grab('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=elite', (text) =>
-      text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^\d{1,3}(\.\d{1,3}){3}:\d{2,5}$/.test(line)),
-    ),
-  ]);
-
-  AUTO_CACHE.list = [...found.values()].slice(0, 14);
-  AUTO_CACHE.fetchedAt = Date.now();
-  if (AUTO_CACHE.list.length) log.info(`تم اكتشاف ${AUTO_CACHE.list.length} بروكسي عمومي.`);
-  return AUTO_CACHE.list;
-}
-
 /** بناء قائمة المسارات بالترتيب (الأثبت أولاً) */
 export async function buildRoutes() {
   const routes = [];
@@ -135,11 +69,6 @@ export async function buildRoutes() {
   for (const raw of config.djezzy.proxies) {
     const proxy = parseProxy(raw);
     if (proxy) routes.push({ kind: 'proxy', name: `env:${proxy.label}`, proxy });
-  }
-  if (config.djezzy.autoProxy) {
-    for (const proxy of await discoverDzProxies()) {
-      routes.push({ kind: 'proxy', name: `auto:${proxy.label}`, proxy });
-    }
   }
   return routes;
 }
@@ -201,17 +130,8 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
   }
 
   let lastError = null;
-  let lastBlocked = null;
-  let autoTried = 0;
 
   for (const route of routes) {
-    // بعد حجب أول: البروكسيات العمومية تُجرَّب بحد أقصى 3 وبمهلة قصيرة
-    // (معظمها أجنبي محجوب أيضاً — لا نُعلّق كل طلب دقائق في قوائم ميّتة)
-    const isAuto = route.kind === 'proxy' && route.name.startsWith('auto:');
-    if (isAuto && autoTried >= 3 && (lastBlocked || lastError)) break;
-    if (isAuto) autoTried += 1;
-    const effectiveTimeout = lastBlocked && isAuto ? Math.min(timeoutMs, 5000) : timeoutMs;
-
     const started = Date.now();
     try {
       let response;
@@ -243,10 +163,10 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
       if (routeStats.attempts.length > 40) routeStats.attempts.shift();
 
       if (isBlockedStatus(response.status, response.data)) {
-        // حجب جغرافي من هذا المسار — سجّله وجرّب المسار التالي
-        lastBlocked = { status: response.status, data: response.data, headers: response.headers || {}, route: route.name };
-        log.debug(`المسار ${route.name} محجوب (HTTP ${response.status}) — تجربة المسار التالي…`);
-        continue;
+        // حجب/رفض من الخادم — إيقاف فوري: لا مسارات أخرى ولا إعادة (القواعد الصارمة)
+        const blocked = { status: response.status, data: response.data, headers: response.headers || {}, route: route.name };
+        log.warn(`المسار ${route.name} محجوب (HTTP ${response.status}) — أُوقف الطلب فوراً.`);
+        return blocked;
       }
 
       routeStats.lastSuccess = record;
@@ -266,10 +186,7 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
     }
   }
 
-  // إن وصلنا رداً محجوباً من أي مسار نُرجعه (أوضح من خطأ شبكة) — والعميل يعرض الحجب بصدق
-  if (lastBlocked) return lastBlocked;
-
-  const failure = lastError || new Error('فشلت جميع مسارات الوصول إلى جيزي.');
+  const failure = lastError || new Error('فشل الاتصال بخوادم جيزي (لم يصل أي رد).');
   failure.routeExhausted = true;
   failure.routesTried = routeStats.attempts.slice(-routes.length).map((item) => item.route);
   throw failure;
@@ -282,12 +199,10 @@ export function describeRoutes() {
       relay: config.djezzy.relayUrl || null,
       direct: config.djezzy.direct,
       envProxies: config.djezzy.proxies.length,
-      autoProxy: config.djezzy.autoProxy,
-      discovered: AUTO_CACHE.list.length,
     },
     lastSuccess: routeStats.lastSuccess,
     recent: routeStats.attempts.slice(-8),
   };
 }
 
-export default { request, buildRoutes, parseProxy, describeRoutes, routeStats, discoverDzProxies };
+export default { request, buildRoutes, parseProxy, describeRoutes, routeStats };

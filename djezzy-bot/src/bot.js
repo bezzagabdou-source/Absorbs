@@ -109,8 +109,10 @@ function helpText() {
     '',
     '🩺 <code>/diag</code> — تشخيص كامل (الرصيد/السجل/المسارات) إن فشل شيء.',
     '',
-    '🔐 تُشفَّر رموز الجلسات قبل تخزينها ولا تُعرض أبداً.',
+    '🔐 تُشفَّر رموز الجلسات قبل تخزينها ولا تُعرض أبداً، ولا تُخزَّن رموز التحقق إطلاقاً.',
     '⚠️ استخدم البوت على أرقامك فقط، وبما يتوافق مع شروط خدمة جيزي.',
+    '',
+    txt.DISCLAIMER,
   ].join('\n');
 }
 
@@ -179,7 +181,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     }
     // قائمة رد ملوّنة ثابتة (أخضر/أزرق/أحمر) أسفل الشات — مثل صورة YASSER SHOPE
     await ctx
-      .reply('🗂️ <b>القائمة الرئيسية</b> — اختر من الأزرار الملوّنة بالأسفل 👇', {
+      .reply(['🗂️ <b>القائمة الرئيسية</b> — اختر من الأزرار الملوّنة بالأسفل 👇', '', txt.DISCLAIMER].join('\n'), {
         parse_mode: 'HTML',
         reply_markup: ui.mainReplyKeyboard(),
       })
@@ -374,7 +376,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
   bot.callbackQuery('act:6gb', async (ctx) => {
     const context = await requireAccount(ctx);
     if (!context) return;
-    await answer(ctx, '🔥 جارٍ تفعيل6G بأي طريقة…');
+    await answer(ctx, '🔥 جارٍ تفعيل6G (محاولة واحدة)…');
 
     //1) أي طريقة مجانية أولاً: باركود QR ثم Walk Win20000 خطوة (الجمعة تحديداً)
     try {
@@ -458,7 +460,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
         : mode === 'promo'
           ? '⏳ <i>جارٍ استلام هدية الجمعة/المناسبة…</i>'
           : mode === 'friday'
-            ? '⏳ <i>جارٍ تفعيل6G بأي طريقة (باركود QR ← Walk Win20000 خطوة)…</i>'
+            ? '⏳ <i>جارٍ تفعيل6G (Walk Win — 20000 خطوة) — محاولة واحدة…</i>'
             : '⏳ <i>جارٍ استلام كل الهدايا المتاحة…</i>',
       ui.backHome(),
     );

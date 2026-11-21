@@ -25,6 +25,8 @@ const fill = (path, params = {}) =>
   String(path).replace(/\{(\w+)\}/g, (_, key) => encodeURIComponent(params[key] ?? ''));
 
 export class DjezzyClient {
+  static MIN_REQUEST_GAP_MS = 1200; // فاصل أدنى1.2 ثانية بين أي طلبين
+  #lastRequestAt;
   constructor(options = {}) {
     this.baseUrl = options.baseUrl ?? config.djezzy.baseUrl;
     this.paths = options.paths ?? config.djezzy.paths;
@@ -36,6 +38,7 @@ export class DjezzyClient {
     this.legacyClientId = options.legacyClientId ?? config.djezzy.legacyClientId;
     this.legacyClientSecret = options.legacyClientSecret ?? config.djezzy.legacyClientSecret;
     this.activePair = null;
+    this.#lastRequestAt = 0;
     this.giftCode = options.giftCode ?? config.djezzy.giftWalkCode;
     this.giftWalk6Code = options.giftWalk6Code ?? config.djezzy.giftWalk6Code;
     this.scanQr = options.scanQr ?? config.djezzy.scanQr;
@@ -49,10 +52,19 @@ export class DjezzyClient {
   }
 
   /* --------------------------- الطلب الأساسي --------------------------- */
-  async #send({ method = 'POST', path, query, body, form = false, token, retries = 1, ua }) {
+  /** فاصل زمني إلزامي بين الطلبات (احترام حدود السرعة — لا ضغط على السيرفر) */
+  async #pace() {
+    const now = Date.now();
+    const wait = Math.max(0, this.#lastRequestAt + DjezzyClient.MIN_REQUEST_GAP_MS - now);
+    this.#lastRequestAt = now + wait;
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+
+  async #send({ method = 'POST', path, query, body, form = false, token, ua }) {
     if (!this.baseUrl) {
       throw new DjezzyError(ERROR_CODES.CONFIG, 'DJEZZY_BASE_URL غير مضبوط');
     }
+    await this.#pace();
 
     const headers = {
       'User-Agent': ua || this.userAgent,
@@ -88,11 +100,7 @@ export class DjezzyClient {
         json = null;
       }
 
-      if (response.status >= 500 && retries > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 700));
-        return this.#send({ method, path, query, body, form, token, retries: retries - 1, ua });
-      }
-
+      // لا إعادة إرسال عند5xx أو أي رفض — يُعرض الردّ كما هو فوراً (القواعد الصارمة)
       return { status: response.status, json, text, headers: response.headers, route: response.route || 'direct' };
     } catch (error) {
       throw normalizeError(error);
@@ -140,47 +148,28 @@ export class DjezzyClient {
   }
 
   /** هل رفضت جيزي بيانات العميل؟ (وقتها نجرّب الزوج البديل) */
-  #isInvalidClient(response) {
-    if (![400, 401, 403].includes(response.status)) return false;
-    const text = `${response.text || ''}`.toLowerCase();
-    return /invalid_client|unauthorized_client|client_id|client is not|client not/.test(text);
-  }
 
-  /** ينفّذ الطلب بزوج بيانات صالح ويحفظ الزوج الناجح للطلبات اللاحقة */
-  async #withCredentials(run) {
-    const candidates = this.activePair ? [this.activePair] : this.#pairs();
-    if (candidates.length === 0) {
+  /** الزوج المعتمد الوحيد — طلب واحد فقط، بلا إعادة بزوج بديل بعد أي رفض */
+  #primaryPair() {
+    const pair = this.activePair || this.#pairs()[0] || (this.clientId ? { id: this.clientId, secret: this.clientSecret, tag: 'app' } : null);
+    if (!pair) {
       throw new DjezzyError(ERROR_CODES.CONFIG, 'بيانات تطبيق جيزي (client id/secret) غير مضبوطة.');
     }
-
-    let lastResponse = null;
-    for (let index = 0; index < candidates.length; index += 1) {
-      const pair = candidates[index];
-      const response = await run(pair);
-      lastResponse = response;
-      if (this.#isInvalidClient(response) && index < candidates.length - 1) {
-        log.warn('رفضت جيزي بيانات العميل الحالية — تجربة الزوج البديل…');
-        this.activePair = null;
-        continue;
-      }
-      this.activePair = pair;
-      return response;
-    }
-    return lastResponse;
+    this.activePair = pair;
+    return pair;
   }
 
   /* ------------------------------ OTP ------------------------------ */
   async requestOtp({ msisdn }) {
     if (this.dryRun) return simulator.requestOtp({ msisdn });
 
-    const response = await this.#withCredentials((pair) =>
-      this.#send({
-        method: 'POST',
-        path: this.paths.requestOtp,
-        form: true,
-        body: { msisdn, client_id: pair.id, scope: 'smsotp' },
-      }),
-    );
+    const pair = this.#primaryPair();
+    const response = await this.#send({
+      method: 'POST',
+      path: this.paths.requestOtp,
+      form: true,
+      body: { msisdn, client_id: pair.id, scope: 'smsotp' },
+    });
 
     if (response.status === 429) {
       throw new DjezzyError(ERROR_CODES.RATE_LIMITED, 'طلبات كثيرة على إرسال الرمز — انتظر دقائق.', { status: 429 });
@@ -204,7 +193,7 @@ export class DjezzyClient {
   async verifyOtp({ msisdn, code }) {
     if (this.dryRun) return simulator.verifyOtp({ msisdn, code, sessionId: `otp:${msisdn}` });
 
-    const pair = this.activePair ?? this.#pairs()[0] ?? { id: this.clientId, secret: this.clientSecret, tag: 'app' };
+    const pair = this.#primaryPair();
     // الزوج الحالي يستخدم scope=openid (كما في تطبيق Djezzy الحديث)؛ الزوج القديم djezzyAppV2
     const scope = pair.tag === 'legacy' ? 'djezzyAppV2' : 'openid';
     const response = await this.#send({
@@ -242,7 +231,7 @@ export class DjezzyClient {
   async refreshSession({ refreshToken }) {
     if (this.dryRun) return simulator.refresh();
 
-    const pair = this.activePair ?? this.#pairs()[0] ?? { id: this.clientId, secret: this.clientSecret, tag: 'app' };
+    const pair = this.#primaryPair();
     const response = await this.#send({
       method: 'POST',
       path: this.paths.refresh,
@@ -332,21 +321,8 @@ export class DjezzyClient {
       payload: this.#walkPayload(),
       ua: 'Djezzy/2.7.5',
     });
-    try {
-      return this.#interpretReward(response, 'هدية 2 جيجا');
-    } catch (error) {
-      // مسار بديل حديث (yacin bot): walk/activate-reward — عند404/405/خطأ غير معروف فقط
-      const retriable = error?.code === ERROR_CODES.UNKNOWN && ![401, 402, 403, 429].includes(error?.status);
-      if (!retriable) throw error;
-      const fallback = await this.#send({
-        method: 'POST',
-        path: fill(this.paths.walkReward, { msisdn }),
-        body: { packageCode: this.giftCode },
-        token,
-        ua: 'MobileApp/3.0.0',
-      });
-      return this.#interpretReward(fallback, 'هدية 2 جيجا');
-    }
+    // مسار رسمي واحد فقط — بلا إعادة أو بديل بعد الرفض
+    return this.#interpretReward(response, 'هدية 2 جيجا');
   }
 
   /**6 جيجا — مستوى20000 خطوة في Walk Win (أي طريقة: subscription-product ثم walk/activate-reward) */
@@ -360,20 +336,8 @@ export class DjezzyClient {
       },
     };
     const response = await this.#activateSubscriptionProduct({ token, msisdn, payload, ua: 'Djezzy/2.7.5' });
-    try {
-      return this.#interpretReward(response, 'هدية 6 جيجا');
-    } catch (error) {
-      const retriable = error?.code === ERROR_CODES.UNKNOWN && ![401, 402, 403, 429].includes(error?.status);
-      if (!retriable) throw error;
-      const fallback = await this.#send({
-        method: 'POST',
-        path: fill(this.paths.walkReward, { msisdn }),
-        body: { packageCode: this.giftWalk6Code },
-        token,
-        ua: 'MobileApp/3.0.0',
-      });
-      return this.#interpretReward(fallback, 'هدية 6 جيجا');
-    }
+    // مسار رسمي واحد فقط — بلا إعادة أو بديل بعد الرفض
+    return this.#interpretReward(response, 'هدية 6 جيجا');
   }
 
   async claimScanGift({ token, msisdn, qrCode = this.scanQr }) {
@@ -399,21 +363,8 @@ export class DjezzyClient {
       payload: { data: { id: packageCode, type: 'products' } },
       ua: 'Djezzy/2.7.5',
     });
-    try {
-      return this.#interpretReward(response, packageCode);
-    } catch (error) {
-      // مسار بديل (yacin bot): activate-product بـ packageCode عند404/405/خطأ غير معروف
-      const retriable = error?.code === ERROR_CODES.UNKNOWN && ![401, 402, 403, 429].includes(error?.status);
-      if (!retriable) throw error;
-      const fallback = await this.#send({
-        method: 'POST',
-        path: fill(this.paths.activateProduct, { msisdn }),
-        body: { packageCode },
-        token,
-        ua: 'MobileApp/3.0.0',
-      });
-      return this.#interpretReward(fallback, packageCode);
-    }
+    // مسار رسمي واحد فقط — بلا إعادة أو بديل بعد الرفض
+    return this.#interpretReward(response, packageCode);
   }
 
   /** بونص الدعوة (Member-Get-Member) */

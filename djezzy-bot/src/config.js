@@ -114,7 +114,7 @@ export const config = {
       .map((item) => item.trim())
       .filter(Boolean),
     // اكتشاف بروكسيات جزائرية عمومية تلقائياً عند فشل الاتصال المباشر
-    autoProxy: bool(process.env.DJEZZY_AUTO_PROXY, true),
+    autoProxy: false, // ميزة الإلغاء: لا اكتشاف بروكسيات عمومية ولا تدوير (قواعد صارمة)
     // خادم وسيط (relay) تشغّله أنت داخل الجزائر — أنجح حل عند الحجب
     relayUrl: stripSlash(process.env.DJEZZY_RELAY_URL || ''),
     relayToken: (process.env.DJEZZY_RELAY_TOKEN || '').trim(),
@@ -163,7 +163,7 @@ export function validateConfig() {
   if (config.djezzy.dryRun) {
     warnings.push('محرّك جيزي في وضع المحاكاة (DJEZZY_DRY_RUN) — لن تُنفَّذ طلبات حقيقية.');
   }
-  if (!config.djezzy.direct && config.djezzy.proxies.length === 0 && !config.djezzy.relayUrl && !config.djezzy.autoProxy) {
+  if (!config.djezzy.direct && config.djezzy.proxies.length === 0 && !config.djezzy.relayUrl) {
     warnings.push('لا يوجد أي مسار لاتصال جيزي (المباشر معطّل ولا بروكسيات ولا relay).');
   }
 

@@ -316,15 +316,17 @@ await step('بونص الدعوة (MGM) يُرسل برقم الصديق', async
   assert.ok(calls.some((call) => call.path.endsWith('/member-get-member')));
 });
 
-await step('هدية6G بأي طريقة (claimFridayGift): باركود QR أولاً ثم Walk6G', async () => {
+await step('هدية6G (claimFridayGift): محاولة واحدة Walk6G رسمية بلا إعادة', async () => {
+  const before = calls.length;
   const result = await engine.claimFridayGift(TG_ID, MSISDN);
   assert.equal(result.ok, true, 'يجب نجاح6G: ' + (result.message || ''));
-  assert.ok(result.claimed.length > 0, 'يجب أن تحتوي النتيجة على هدية مفعّلة');
-  const qr = calls.some((call) => call.path.includes('/services/scan/activate-reward/'));
-  const walk6 = calls.some(
+  assert.ok(result.claimed.some((item) => /6 جيجا/.test(item.name)));
+  const newCalls = calls.slice(before);
+  const walk6 = newCalls.filter(
     (call) => call.path.endsWith('/subscription-product') && call.body.includes('GIFTWALKWIN6GO') && call.body.includes('20000'),
   );
-  assert.ok(qr || walk6, 'يجب محاولة الباركود QR أو Walk6G فعلياً');
+  assert.equal(walk6.length, 1, 'طلب Walk6G واحد بالضبط — بلا تكرار');
+  assert.ok(!newCalls.some((call) => call.path.includes('/services/scan/activate-reward/')), 'لا طلب QR هنا (هديته منفصلة)');
 });
 
 await step('خطأ الشبكة يُحوَّل إلى NETWORK عبر كل المسارات', async () => {
@@ -337,30 +339,24 @@ await step('خطأ الشبكة يُحوَّل إلى NETWORK عبر كل الم
 
 server.close();
 
-await step('بيانات عميل مرفوضة → تبديل تلقائي للزوج البديل', async () => {
+await step('رفض بيانات العميل → إيقاف فوري بلا إعادة (زوج واحد فقط)', async () => {
   const seen = [];
-  const fallbackServer = http.createServer((req, res) => {
+  const rejectServer = http.createServer((req, res) => {
     const body = [];
     req.on('data', (chunk) => body.push(chunk));
     req.on('end', () => {
       const form = new URLSearchParams(body.join(''));
-      const clientId = form.get('client_id');
-      seen.push(clientId);
-      if (clientId !== 'legacy-id') {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'invalid_client', error_description: 'Client authentication failed' }));
-        return;
-      }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ message: 'code sent' }));
+      seen.push(form.get('client_id'));
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'invalid_client', error_description: 'Client authentication failed' }));
     });
   });
 
-  await new Promise((resolve) => fallbackServer.listen(0, '127.0.0.1', resolve));
-  const fallbackUrl = `http://127.0.0.1:${fallbackServer.address().port}`;
+  await new Promise((resolve) => rejectServer.listen(0, '127.0.0.1', resolve));
+  const rejectUrl = `http://127.0.0.1:${rejectServer.address().port}`;
 
-  const fallbackClient = new DjezzyClient({
-    baseUrl: fallbackUrl,
+  const singleClient = new DjezzyClient({
+    baseUrl: rejectUrl,
     dryRun: false,
     timeoutMs: 5000,
     forceDirect: true,
@@ -370,15 +366,16 @@ await step('بيانات عميل مرفوضة → تبديل تلقائي لل�
     legacyClientSecret: 'legacy-secret',
   });
 
-  const started = await fallbackClient.requestOtp({ msisdn: MSISDN });
-  assert.ok(started.sessionId);
-  assert.deepEqual(seen, ['new-id', 'legacy-id'], 'يجب تجربة الزوج الثاني بعد الرفض');
+  let caught = null;
+  try {
+    await singleClient.requestOtp({ msisdn: MSISDN });
+  } catch (error) {
+    caught = error;
+  }
+  assert.ok(caught, 'يجب أن يُعرض الخطأ فوراً بلا نجاح');
+  assert.deepEqual(seen, ['new-id'], 'طلب واحد فقط — بلا إعادة بالزوج البديل بعد الرفض');
 
-  // الطلب التالي يستخدم الزوج الناجح مباشرة
-  await fallbackClient.requestOtp({ msisdn: MSISDN });
-  assert.equal(seen.at(-1), 'legacy-id');
-
-  fallbackServer.close();
+  rejectServer.close();
 });
 
 await step('طبقات المسارات تُبنى بالترتيب الصحيح', async () => {
@@ -386,6 +383,7 @@ await step('طبقات المسارات تُبنى بالترتيب الصحيح
   const routes = await buildRoutes();
   assert.ok(routes.length >= 1, 'يجب أن يوجد مسار واحد على الأقل');
   assert.equal(routes[0].kind, 'direct', 'المباشر هو الأساس عند عدم ضبط relay');
+  assert.ok(routes.every((route) => !route.name.startsWith('auto:')), 'ممنوع بروكسيات عمومية تلقائية');
 
   const proxy = parseProxy('http://user:pass@1.2.3.4:8080');
   assert.equal(proxy.host, '1.2.3.4');

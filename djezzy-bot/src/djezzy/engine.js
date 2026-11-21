@@ -105,7 +105,8 @@ export class DjezzyEngine {
     const user = await this.store.getUser(telegramId);
     user.state = {
       step: 'awaiting_otp',
-      temp: { msisdn, sessionId: result.sessionId, debugCode: result.debugCode ?? null, startedAt: Date.now() },
+      // لا نخزّن رمز التحقق (ولو محاكاة) — يُعاد في الاستجابة الحالية فقط
+      temp: { msisdn, sessionId: result.sessionId, startedAt: Date.now() },
     };
     await this.store.saveUser(user);
 
@@ -339,72 +340,45 @@ export class DjezzyEngine {
 
   /* ------------------------ الهدية الترويجية ------------------------ */
   /**
-   * هدية6G «بأي طريقة» (زر6G + الجمعة): يجرّب تسلسلياً
-   * 1) باركود/QR ترويجي (DJEZZY_SCAN_QR) — كود الباركود يفعّله الخادم
-   * 2) Walk Win مستوى6G (20000 خطوة — GIFTWALKWIN6GO) عبر مسارين
-   * الفشل يُعرض بصدق (رصيد/شرط باقة/حجب) — لا يُختلق أي كود.
+   * هدية6G (زر6G + الجمعة) — محاولة رسمية واحدة لكل ضغطة، بلا إعادة:
+   *   Walk Win مستوى6G (20000 خطوة — GIFTWALKWIN6GO) عبر subscription-product فقط.
+   *   (الباركود QR هدية ترويجية منفصلة لها زرها — لا يُكرَّر نفس الطلب هنا.)
+   * عند أي رفض/خطأ يُوقف فوراً وتُعرض رسالة واضحة محايدة — لا محاولة ثانية.
    */
   async claimFridayGift(telegramId, msisdn) {
     let user = await this.#guardQuota(await this.store.getUser(telegramId));
     await this.store.saveUser(user);
 
-    const attempts = [];
-    const isFriday = new Date().getDay() === 5;
-
-    if (config.djezzy.scanQr) {
-      try {
-        const response = await this.#withAuth(telegramId, msisdn, async ({ token, user: fresh }) => {
-          const result = await this.client.claimScanGift({ token, msisdn });
-          await this.#recordResult(fresh, msisdn, { claimed: [{ name: 'هدية الباركود (QR)' }], failed: [] });
-          return result;
-        });
-        attempts.push({ method: 'باركود QR', ok: true });
-        return {
-          ok: true,
-          status: 'claimed',
-          claimed: [{ name: '🎁 هدية الجمعة عبر الباركود (QR)', data: 'حسب الحملة' }],
-          failed: [],
-          message: response?.message || 'تم تفعيل الهدية عبر الباركود.',
-          attempts,
-        };
-      } catch (error) {
-        attempts.push({ method: 'باركود QR', ok: false, code: error?.code, status: error?.status, message: error?.message });
-      }
-    }
-
+    const method = 'Walk6G (20000 خطوة)';
     try {
       const response = await this.#withAuth(telegramId, msisdn, async ({ token, user: fresh }) => {
         const result = await this.client.claimWalk6Gift({ token, msisdn });
         await this.#recordResult(fresh, msisdn, { claimed: [{ name: 'هدية 6 جيجا' }], failed: [] });
         return result;
       });
-      attempts.push({ method: 'Walk6G (20000 خطوة)', ok: true });
       return {
         ok: true,
         status: 'claimed',
         claimed: [{ name: '🔥 هدية 6 جيجا (Walk Win)', data: '6 GB / 30 يوم' }],
         failed: [],
         message: response?.message || 'تم تفعيل6 جيجا بنجاح.',
-        attempts,
+        attempts: [{ method, ok: true }],
       };
     } catch (error) {
-      attempts.push({ method: 'Walk6G (20000 خطوة)', ok: false, code: error?.code, status: error?.status, message: error?.message });
-      const blocking = attempts.find((a) => ['BALANCE', 'BLOCKED', 'AUTH_EXPIRED', 'RATE_LIMITED'].includes(a.code));
-      if (blocking) {
-        throw new DjezzyError(blocking.code, blocking.message || null, { status: blocking.status ?? null });
+      // إيقاف فوري بعد أول رفض — بلا أي محاولة إعادة
+      const attempts = [{ method, ok: false, code: error?.code, status: error?.status, message: error?.message }];
+      if (['BALANCE', 'BLOCKED', 'AUTH_EXPIRED', 'RATE_LIMITED', 'QUOTA'].includes(error?.code)) {
+        throw error;
       }
+      return {
+        ok: false,
+        status: 'failed',
+        claimed: [],
+        failed: attempts.map((a) => ({ name: a.method, reason: a.message || a.code || 'غير متاح الآن' })),
+        message: `لم تتوفر الهدية عبر ${method} — أوقفت المحاولة. ${error?.message || ''}`.trim(),
+        attempts,
+      };
     }
-
-    return {
-      ok: false,
-      status: 'failed',
-      claimed: [],
-      failed: attempts.map((a) => ({ name: a.method, reason: a.message || a.code || 'غير متاح الآن' })),
-      message: isFriday
-        ? 'كل الطرق المجانية جُرّبت ولم تتوفر الهدية الآن (قد تكون مُستلمة أو الشريحة غير مؤهّلة).'
-        : 'هدية6G مجانية تُجرَّب في كل جمعة — اليوم ليست جمعة أو لم تتوفر بعد.',
-      attempts,
-    };
   }
 
   async claimPromoGift(telegramId, msisdn) {
