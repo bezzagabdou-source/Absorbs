@@ -218,6 +218,23 @@ def main() -> int:
             # locals declared in this file are fine even if the regex missed them
             problems.append(f"{p.relative_to(ROOT)}: '{ident}' is used but never declared")
 
+    # A function defined twice in one file is a Godot parse error, and the error
+    # message names the file rather than the function, which is how a duplicate
+    # `_quad` kept OpenWorld.gd from compiling and blacked out every capture of
+    # the free-roam screen. Catch it by name here.
+    for path, text in sorted(((p, src) for p, src in sources.items())):
+        seen_fn: dict = {}
+        for lineno, line in enumerate(text.splitlines(), 1):
+            m = re.match(r"^(?:static\s+)?func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", line)
+            if not m:
+                continue
+            fname = m.group(1)
+            if fname in seen_fn:
+                problems.append("%s:%d duplicate func %s (first at line %d)"
+                                % (path.relative_to(ROOT), lineno, fname, seen_fn[fname]))
+            else:
+                seen_fn[fname] = lineno
+
     if problems:
         print("undeclared identifier(s) found:")
         for msg in problems:

@@ -481,11 +481,6 @@ func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> v
 	_quad_tri(st, c, d, b)
 
 
-func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	_quad_tri(st, a, c, b)
-	_quad_tri(st, c, d, b)
-
-
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
 	for v in [a, b, c]:
 		st.set_normal(Vector3.UP)
