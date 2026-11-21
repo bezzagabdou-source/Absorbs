@@ -258,6 +258,17 @@ func _build_terrain() -> void:
 	mi.name = "Terrain"
 	mi.mesh = st.commit()
 	mi.layers = 1
+	# Synchronous geometry report: an AABB that does not straddle the origin while
+	# the camera sits at it is the signature of a broken vertex buffer (NaN heights
+	# poison the bounds and frustum-cull the whole mesh), which is exactly the
+	# failure being chased here.
+	var abb: AABB = mi.mesh.get_aabb()
+	var nan_count := 0
+	for h in heights:
+		if not is_finite(h):
+			nan_count += 1
+	print("[OPENWORLD] terrain aabb pos=%s size=%s nonfinite_heights=%d" % [abb.position,
+		abb.size, nan_count])
 	var mat := ShaderMaterial.new()
 	var shader_path := "res://shaders/terrain.gdshader"
 	if ResourceLoader.exists(shader_path):

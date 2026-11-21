@@ -231,6 +231,20 @@ func _spawn_player() -> void:
 	player.gear_changed.connect(func(_g): AudioDirector.play_sfx("gear_shift", -16.0))
 	cam.bind(player)
 	player.input_enabled = true
+	# QA: park the camera on a documented transform looking down at the spawn, so a
+	# capture taken with the showcase orbit in play can be told apart from one that
+	# proves the ground itself is missing.
+	if roaming and (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-fixed-cam"):
+		var qa_cam := Camera3D.new()
+		qa_cam.name = "QACam"
+		world.add_child(qa_cam)
+		var target: Vector3 = player.global_position
+		qa_cam.global_position = target + Vector3(0.0, 55.0, 95.0)
+		qa_cam.look_at(target, Vector3.UP)
+		qa_cam.far = 3000.0
+		qa_cam.fov = 60.0
+		qa_cam.current = true
+		print("[QAPROBE] fixed cam=%s target=%s" % [qa_cam.global_position, target])
 	if roaming and (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-probe"):
 		# a timer, not call_deferred: the screenshot run quits after 40 frames and
 		# deferred calls were being dropped before they could print
