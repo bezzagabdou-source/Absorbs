@@ -64,14 +64,19 @@ jobs:
           grep -iE 'SCRIPT ERROR|Parse Error' /tmp/import.log | head -30 | while read -r l; do echo "::error::$l"; done || true
           if grep -qiE 'SCRIPT ERROR|Parse Error' /tmp/import.log; then exit 1; fi
 
-      - name: Shader compile check (headless GL context)
+      - name: Shader compile check (real GL context)
         run: |
-          # A shader that fails to compile only warns at import time, so run one
-          # frame of every scene that owns a ShaderMaterial and surface the error.
-          "$GODOT_DIR/godot" --headless --path racing res://tests/ShaderProbe.tscn 2>&1 | tee /tmp/shader.log
-          if grep -qiE 'SHADER ERROR|Shader compilation failed|error\([0-9]+\)' /tmp/shader.log; then
-            grep -iE -A6 'SHADER ERROR|Shader compilation failed|error\([0-9]+\)' /tmp/shader.log \
-              | head -60 | while read -r l; do echo "::error::$l"; done
+          # The dummy/headless renderer does not compile GLSL, so a broken shader
+          # slips through --import and only surfaces as invisible geometry in the
+          # screenshots. Compile every custom shader against real OpenGL.
+          xvfb-run -a -s "-screen 0 640x480x24" \
+            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+            --rendering-driver opengl3 --resolution 640x480 --quit-after 150 \
+            res://tests/ShaderProbe.tscn > /tmp/shader_gl.log 2>&1 || true
+          grep -iE 'SHADER ERROR|Shader compilation failed|error\([0-9]+\)' /tmp/shader_gl.log \
+            | head -20 | while read -r l; do echo "::error::$l"; done || true
+          grep -E 'SHADER PROBE' /tmp/shader_gl.log || true
+          if grep -qiE 'SHADER ERROR|Shader compilation failed|error\([0-9]+\)' /tmp/shader_gl.log; then
             exit 1
           fi
 
@@ -230,6 +235,8 @@ jobs:
               --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 40 \
               -- --screen=$screen >/tmp/shot_${screen}.log 2>&1 || true
             last=$(ls -t /tmp/shot_${screen}*.png 2>/dev/null | head -1)
+            grep -iE 'SHADER ERROR|Shader compilation|error\([0-9]+\)|shader_' /tmp/shot_${screen}.log \
+              | head -12 | while read -r l; do echo "::warning file=racing/shaders::${screen}: $l"; done || true
             if [ -n "$last" ]; then
               cp "$last" "racing/docs/screenshots/${screen}.png"
               echo "rendered ${screen} from $(basename "$last")"
