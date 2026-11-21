@@ -150,6 +150,10 @@ func _foundation() -> void:
 		_check(ow.road_points.size() > 100, "road ring built " + prof)
 		var near: Vector3 = ow.nearest_road_point(Vector3(50, 0, 50))
 		_check(near.length() > 1.0, "nearest road point " + prof)
+		# The highway is a hand-wound triangle strip; if the winding flips, the
+		# whole road disappears under cull_back and the bug is invisible to every
+		# other check. Assert that the faces point up.
+		_check(_road_faces_up(ow), "highway faces up " + prof)
 		ow.queue_free()
 
 	print("[SUITE] SECTION screens (instantiate)")
@@ -157,6 +161,40 @@ func _foundation() -> void:
 			"settings", "credits", "profile", "results"]:
 		var scr = load("res://scripts/ui/screens/%s.gd" % id)
 		_check(scr != null, "screen script " + id)
+
+
+## Sum the +Y component of every road triangle normal. A correctly wound strip
+## is strongly positive; an inside-out one is strongly negative.
+func _road_faces_up(ow: Node) -> bool:
+	var mi: MeshInstance3D = null
+	for c in ow.get_children():
+		if c is MeshInstance3D and str((c as Node).name) == "Highway":
+			mi = c
+			break
+	if mi == null or mi.mesh == null:
+		return false
+	var arrays: Array = mi.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var order: Array = []
+	if idx.size() > 0:
+		for k in range(idx.size()):
+			order.append(verts[idx[k]])
+	else:
+		for k in range(verts.size()):
+			order.append(verts[k])
+	var total := 0.0
+	var tris := 0
+	var i := 0
+	while i + 2 < order.size():
+		var a: Vector3 = order[i]
+		var b: Vector3 = order[i + 1]
+		var c: Vector3 = order[i + 2]
+		total += (b - a).cross(c - a).normalized().y
+		tris += 1
+		i += 3
+	print("[TEST]   ", tris, " highway triangles, normal.y sum ", snappedf(total, 0.01))
+	return total > 0.0
 
 
 func _runtime() -> void:

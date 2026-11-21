@@ -185,6 +185,29 @@ that all uniforms declared are non-empty, and attaches each `ShaderMaterial` to
 a live `ColorRect` so the render server actually compiles it. Before this, a
 broken shader only produced a warning and shipped.
 
+## Round 13 — v2.0 visual QA on real captures (9 iterations)
+
+Every entry below was *seen* in a committed screenshot, diagnosed, fixed and
+re-captured. This is the loop that turned the first v2 build from "renders" into
+"looks like a game".
+
+| # | Symptom in the capture | Root cause | Fix |
+|---|---|---|---|
+| 19 | Car body shattered into white triangle noise | loft stitching used `(v0,v2,v1)` for every cell, so each quad emitted one inward and one outward triangle; `cull_back` deleted half the shell | `_add_quad(v0,v1,v3,v2)` — verified numerically before committing |
+| 20 | Car paint blown out to pure white | `METALLIC = 1.0` + 3.4-energy key light + ACES = a mirror of the sun | metallic halved, key lowered to 1.5, three-point rig |
+| 21 | `roam.png` byte-identical to `boot.png` | the CLI screen whitelist had no `"roam"`, so the flag was silently rejected; every capture was the boot screen | added `roam` + explicit race-in-roam routing |
+| 22 | Boot screen showed a doubled wordmark | the hero art already contains VELOCITY, and a second one was drawn on top | art scaled 2.05x and offset so its wordmark leaves frame; type drawn once |
+| 23 | `VELOCITY` clipped at the title edge | 108 px display face needs ~690 px, block was 640 px | 92 px + 760 px block |
+| 24 | Whole open world pitch black | metro terrain albedo was 0.07 and the only light was a 0.28-energy moon | albedo 0.19-0.27, sky-driven bounce uniform, moon to 0.62 energy |
+| 25 | Black wedge cutting across the highway | `OpenWorld._quad()` emitted `(a,b,c)+(a,c,d)`; the first triangle faced **down** | `(a,c,b)+(b,c,d)`; TrackBuilder already had the right pairing |
+| 26 | Terrain and road both crushed to black | ACES applied twice — once by `Environment`, again at the end of `post_fx` | post shader only clamps |
+| 27 | Long hard shadow bands over the map | night `sun_dir` had y=0.28 (16 deg above horizon) so 20 m hills threw 90 m shadows | moon raised to y=0.92 |
+
+New static gate: `tools/check_undeclared.py`. `gdparse` accepts
+`marker.position = centre` after `var centre` is deleted; the gate resolves
+declarations per file plus its `extends "res://..."` chain and fails CI on
+exactly that bug, which it was validated against by re-injecting it.
+
 ## Not verified (honest limitations)
 
 * **On-device performance** (60 fps / 120 Hz) — no Android device or emulator
