@@ -567,4 +567,6 @@ func spawn_transform(index: int = 0) -> Transform3D:
 	var p: Vector3 = road_points[i]
 	var q: Vector3 = road_points[(i + 3) % road_points.size()]
 	var dir: Vector3 = (q - p).normalized()
-	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 1.2)
+	# p is already the drivable road surface; a small lift avoids spawning inside
+	# the collider without starting the car in free fall
+	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.35)

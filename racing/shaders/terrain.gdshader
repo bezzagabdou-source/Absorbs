@@ -20,6 +20,7 @@ uniform float road_fade = 0.0;
 
 varying vec3 wpos;
 varying vec3 wnorm;
+varying float terrain_up;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -39,24 +40,30 @@ float vnoise(vec2 p) {
 }
 
 float fbm(vec2 p) {
-	float v = 0.0;
+	float acc = 0.0;
 	float a = 0.5;
-	for (int i = 0; i < 5; i++) {
-		v += a * vnoise(p);
+	int i = 0;
+	for (i = 0; i < 5; i++) {
+		acc += a * vnoise(p);
 		p *= 2.03;
 		a *= 0.5;
 	}
-	return v;
+	return acc;
 }
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	wnorm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	// The terrain mesh is authored in world space with the identity basis, while
+	// the node may be rotated by its parent. NORMAL is fed to the fragment stage
+	// already in world space, so transforming it again double-applies the
+	// rotation and (with a Y-flip) inverts the lighting.
+	wnorm = NORMAL;
+	terrain_up = NORMAL.y;
 }
 
 void fragment() {
 	vec3 n = normalize(wnorm);
-	float slope = 1.0 - clamp(n.y, 0.0, 1.0);
+	float slope = 1.0 - clamp(terrain_up, 0.0, 1.0);
 
 	// triplanar detail: pick the two dominant axes so no stretching appears
 	float d1 = vnoise(wpos.xz * detail_scale);
@@ -73,7 +80,7 @@ void fragment() {
 	ground *= mix(0.82, 1.12, detail * 0.6 + macro2 * 0.4);
 
 	// snow settles on flat, high ground
-	float snow = smoothstep(snow_line - 0.06, snow_line + 0.10, n.y * 0.65 + wpos.y * 0.00002);
+	float snow = smoothstep(snow_line - 0.06, snow_line + 0.10, terrain_up * 0.65 + wpos.y * 0.00002);
 	snow *= smoothstep(0.35, 0.7, macro2 + 0.25);
 	ground = mix(ground, snow_color, clamp(snow, 0.0, 1.0));
 
@@ -81,7 +88,10 @@ void fragment() {
 	float road = smoothstep(1.0, 0.0, road_fade);
 	ground = mix(ground, road_tint * (0.8 + detail * 0.5), road * 0.55);
 
+	// sky bounce: keeps valleys readable at night instead of crushing to black
+	vec3 sky_bounce = mix(vec3(0.10, 0.115, 0.155), vec3(0.16, 0.19, 0.26), terrain_up);
 	ALBEDO = ground;
+	EMISSION = ground * sky_bounce * 0.55;
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;
 	SPECULAR = mix(0.25, 0.55, wetness);

@@ -6,9 +6,11 @@ var target: Node3D
 var enabled: bool = true
 var mode: int = 0                  # 0 chase, 1 hood
 var _fov_base: float = 68.0
-var _boom: float = 6.4
-var _height: float = 2.35
-var _look_ahead: float = 8.0
+# A 4.4 m car needs ~9 m of boom to read as "behind" rather than "on top of";
+# 6.4 m at 68 deg filled a third of the frame with bodywork.
+var _boom: float = 9.6
+var _height: float = 3.15
+var _look_ahead: float = 11.0
 var _shake: float = 0.0
 var _shake_seed: float = 0.0
 var _last_speed: float = 0.0
@@ -59,7 +61,7 @@ func physics_tick(delta: float) -> void:
 	var forward = -basis.z
 	var right = basis.x
 	if mode == 1:
-		var hood = target.global_position + forward * 1.2 + Vector3.UP * 1.05
+		var hood = target.global_position + forward * 1.45 + Vector3.UP * 1.12
 		_cam.global_position = hood
 		_cam.look_at(target.global_position + forward * 30.0 + Vector3.UP * 0.7, Vector3.UP)
 		_cam.fov = _fov_base + clampf(speed / 22.0, 0.0, 12.0) + _nitro_boost * 6.0
