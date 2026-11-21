@@ -59,7 +59,7 @@ const PRESETS := {
 		"ground": Color(0.02, 0.02, 0.03), "glow": Color(1.0, 0.35, 0.55),
 		"stars": 1.0, "clouds": 0.45, "sun_dir": Vector3(0.35, 0.28, -0.9),
 		"sun_color": Color(0.78, 0.86, 1.0), "sun_energy": 0.62,
-		"ambient": Color(0.26, 0.30, 0.46), "ambient_energy": 1.9,
+		"ambient": Color(0.34, 0.38, 0.56), "ambient_energy": 2.3,
 		"fog": Color(0.12, 0.10, 0.20),
 		"fog_density": 0.0016, "glow_intensity": 1.1,
 	},

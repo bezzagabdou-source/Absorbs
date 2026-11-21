@@ -91,8 +91,10 @@ void fragment() {
 	// impact flash
 	col = mix(col, damage_color * (0.35 + luma), damage_flash * 0.55);
 
-	// filmic tonemap (ACES approximation) keeps highlights from clipping
-	col = clamp((col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14), 0.0, 1.0);
+	// The Environment already tone-maps with ACES before this pass reads the
+	// viewport, so running the same curve again double-crushes the shadows and
+	// desaturates every highlight. Only clamp here.
+	col = clamp(col, 0.0, 1.0);
 
 	// film grain
 	float g = hash(uv * vec2(1920.0, 1080.0) + fract(TIME) * 91.7) - 0.5;

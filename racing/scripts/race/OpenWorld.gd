@@ -107,7 +107,7 @@ func height_at(x: float, z: float) -> float:
 	var ang: float = atan2(z, x)
 	var ring_r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
 	var road_h: float = _ring_height(ang)
-	var corridor: float = smoothstep(46.0, 15.0, absf(Vector2(x, z).length() - ring_r))
+	var corridor: float = smoothstep(58.0, 22.0, absf(Vector2(x, z).length() - ring_r))
 	h = lerpf(h, road_h, corridor)
 	return h
 
@@ -231,8 +231,11 @@ func _build_road_network() -> void:
 		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
 		var x: float = cos(a) * r
 		var z: float = sin(a) * r
-		# sit a hair above the carved corridor so there is no z-fight with it
-		road_points.append(Vector3(x, _ring_height(a) + 0.12, z))
+		# Belts above the carved corridor: the terrain mesh is sampled on a coarse
+		# grid, so its linear interpolation can rise a few centimetres above the
+		# exact ring height between vertices. A 0.45 m lift makes that impossible
+		# to see while keeping the car visually on the tarmac.
+		road_points.append(Vector3(x, _ring_height(a) + 0.45, z))
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
