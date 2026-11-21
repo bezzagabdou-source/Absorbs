@@ -12,6 +12,7 @@ import { dirname, resolve } from 'node:path';
 import config from '../config.js';
 import { createLogger } from '../util/logger.js';
 import { createGitHubAdapter } from './github.js';
+import { createTelegramAdapter } from './telegram.js';
 
 const log = createLogger('store');
 const KEY_PREFIX = 'djezzy:user:';
@@ -64,7 +65,7 @@ function createKvAdapter({ url, token }) {
 }
 
 /* ---------------------------- محوّل الذاكرة ---------------------------- */
-function createMemoryAdapter() {
+export function createMemoryAdapter() {
   const data = new Map(); // key -> { value, expiresAt }
 
   const alive = (entry) => entry && (!entry.expiresAt || entry.expiresAt > Date.now());
@@ -220,8 +221,17 @@ function resolveAdapter() {
       memory,
     );
   } else if (config.storage.githubToken && config.storage.githubRepo) {
-    // تخزين دائم عبر فرع bot-state في مستودع GitHub — يعمل على Vercel بلا KV
+    // تخزين دائم عبر فرع bot-state في مستودع GitHub
     adapterRef = createResilientAdapter(createGitHubAdapter(), memory);
+  } else if (config.isVercel && config.bot.token) {
+    // تخزين دائم عبر رسالة مثبّتة في محادثة كل مستخدم (Bot API فقط — بلا خدمات خارجية)
+    const getApi = async () => {
+      const { getBot } = await import('../bot.js');
+      const bot = getBot();
+      if (!bot) throw new Error('bot not initialized');
+      return bot.api;
+    };
+    adapterRef = createResilientAdapter(createTelegramAdapter({ getApi, fallback: memory }), memory);
   } else if (!config.isVercel) {
     adapterRef = createFileAdapter(process.env.STORE_FILE);
   } else {
@@ -234,6 +244,8 @@ function resolveAdapter() {
     log.info(`تخزين على القرص: ${adapterRef.path} — الجلسات تبقى بعد إعادة التشغيل.`);
   } else if (adapterRef.name === 'github') {
     log.info(`تخزين عبر GitHub: ${adapterRef.repo}@${adapterRef.branch} — جلسات دائمة على Vercel.`);
+  } else if (adapterRef.name === 'telegram') {
+    log.info('تخزين عبر رسالة مثبّتة في تيليجرام — جلسات دائمة على Vercel بلا خدمات خارجية.');
   }
 
   return adapterRef;

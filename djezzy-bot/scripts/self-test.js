@@ -250,6 +250,86 @@ await test('محاكي جيزي يعيد ضبط حالته', () => {
   assert.ok(simulator.enabled);
 });
 
+await test('مخزن تيليجرام المثبّت يكتب ويقرأ ويتراجع للذاكرة', async () => {
+  const { createTelegramAdapter } = await import('../src/store/telegram.js');
+  const { createMemoryAdapter } = await import('../src/store/index.js');
+
+  const sent = [];
+  const edited = [];
+  const pinned = new Map(); // chatId → { message_id, text }
+  let messageId = 0;
+  let pinFails = false;
+
+  const api = {
+    async getMe() {
+      return { username: 'tester' };
+    },
+    async getChat(chatId) {
+      const found = pinned.get(String(chatId));
+      if (!found) return { id: chatId };
+      return { id: chatId, pinned_message: found };
+    },
+    async sendMessage(chatId, text) {
+      messageId += 1;
+      sent.push({ chatId, message_id: messageId, text });
+      return { message_id: messageId, text };
+    },
+    async editMessageText(chatId, id, text) {
+      edited.push({ chatId, id, text });
+      const existing = [...pinned.values()].find((m) => m.message_id === id);
+      if (existing) existing.text = text;
+      return { message_id: id };
+    },
+    async pinChatMessage(chatId, id) {
+      if (pinFails) throw new Error('METHOD_NOT_SUPPORTED');
+      const message = { message_id: id, text: sent.find((m) => m.message_id === id)?.text || '' };
+      pinned.set(String(chatId), message);
+      return true;
+    },
+  };
+
+  const memory = createMemoryAdapter();
+  const adapter = createTelegramAdapter({ getApi: async () => api, fallback: memory });
+
+  const key = 'djezzy:user:777';
+  await adapter.set(key, JSON.stringify({ id: '777', accounts: { '0770': {} } }), 3600);
+  assert.equal(sent.length, 1, 'أول حفظ يرسل رسالة');
+  assert.ok(pinned.has('777'), 'الرسالة تُثبَّت');
+  assert.match(sent[0].text, /DZSTATE:/);
+  assert.match(sent[0].text, /لا تحذف/, 'رسالة مفهومة للمستخدم');
+
+  const loaded = JSON.parse(await adapter.get(key));
+  assert.equal(loaded.id, '777', 'القراءة من المثبّتة');
+
+  await adapter.set(key, JSON.stringify({ id: '777', accounts: {} }), 3600);
+  assert.equal(sent.length, 1, 'الحفظ الثاني يعدّل ولا يُرسل رسالة جديدة');
+  assert.equal(edited.length, 1, 'تعديل الرسالة المثبّتة');
+
+  // بدون مثبّتة → رسالة جديدة؛ عند فشل التثبيت → تراجع للذاكرة
+  pinFails = true;
+  await adapter.set('djezzy:user:888', 'value', 3600);
+  assert.equal(adapter.disabled, true, 'تعطيل بعد فشل التثبيت');
+  await adapter.set('djezzy:user:888', 'value', 3600);
+  assert.equal(await adapter.get('djezzy:user:888'), 'value', 'الذاكرة البديلة تعمل');
+
+  // مفتاح غير مدعوم (ميتا) يذهب مباشرة للذاكرة
+  const fresh = createTelegramAdapter({ getApi: async () => api, fallback: memory });
+  await fresh.set('djezzy:meta:webhook', JSON.stringify({ hello: 1 }), 60);
+  assert.equal(JSON.parse(await memory.get('djezzy:meta:webhook')).hello, 1);
+
+  // قيمة منتهية تُقرأ كفارغة
+  const expired = createTelegramAdapter({
+    getApi: async () => ({
+      ...api,
+      async getChat() {
+        return { id: 1, pinned_message: { message_id: 9, text: 'X\nDZSTATE:' + Buffer.from(JSON.stringify({ value: 'old', expiresAt: Date.now() - 1000 })).toString('base64url') } };
+      },
+    }),
+    fallback: memory,
+  });
+  assert.equal(await expired.get('djezzy:user:1'), null, 'الانتهاء يُرجع فارغاً');
+});
+
 /* ------------------------------ النتيجة ------------------------------ */
 const failed = results.filter((item) => !item.ok);
 console.log(`\n${'-'.repeat(52)}`);
