@@ -1,4 +1,4 @@
-=== probe 2026-11-21T21:31:52
+=== probe 2026-11-21T21:41:19
 [QAPROBE] car=(651.0, 5.691842, 0.0) nearest_road=(651.0, 5.471842, 0.0) lateral=0.00m dy=0.22m
 [QAPROBE] cam=(648.3631, 8.601957, -11.64004) showcase=true dist_to_car=12.3m
 [QAPROBE] cam_fwd=(0.232051, -0.054499, 0.971176) pitch=-0.05
@@ -13,5 +13,6 @@
 [QAH] grid=96 segs=192 points=192
 [QAH] first_points=(651.0, 5.471842, 0.0) (656.3114, 6.552093, 21.48541) (660.0342, 7.762477, 43.26093)
 [QAH] road_vs_mesh: buried=0/192 worst_clearance=1.70 at=19
+[QAH] mesh_ground: vertices_above_road=0/192 worst=1.11 at=(-589.0, 2.029646, 0.0)
 [QAH] mesh verts=1152 indexed=false
 [QAH] tris up=384 down=0 verts_near_spawn=6 area=64671

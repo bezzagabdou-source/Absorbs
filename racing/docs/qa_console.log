@@ -14,9 +14,9 @@ Movie Maker mode enabled, recording movie at 30 FPS...
 [QAPROBE] cam_fwd=(0.232051, -0.054499, 0.971176) pitch=-0.05
 ----------------
 Done recording movie at path: /tmp/roam_plain.png
-110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:18.0 (2% of real-time speed).
-CPU time: 3.63 seconds (average: 33.00 ms/frame)
-GPU time: 4.84 seconds (average: 44.01 ms/frame)
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:04.0 (2% of real-time speed).
+CPU time: 3.53 seconds (average: 32.05 ms/frame)
+GPU time: 4.40 seconds (average: 40.03 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
