@@ -110,7 +110,7 @@ void fragment() {
 		EMISSION = vec3(0.0, 1.0, 0.2);
 	} else {
 		ALBEDO = ground;
-		EMISSION = ground * sky_bounce * 0.62;
+		EMISSION = ground * sky_bounce * 0.42;
 	}
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;

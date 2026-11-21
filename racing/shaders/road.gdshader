@@ -4,8 +4,8 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
-uniform vec3 asphalt_color : source_color = vec3(0.115, 0.122, 0.140);
-uniform vec3 aggregate_color : source_color = vec3(0.34, 0.35, 0.385);
+uniform vec3 asphalt_color : source_color = vec3(0.215, 0.225, 0.250);
+uniform vec3 aggregate_color : source_color = vec3(0.46, 0.47, 0.505);
 uniform vec3 line_color : source_color = vec3(1.0, 1.0, 1.0);
 uniform vec3 neon_a : source_color = vec3(0.13, 0.91, 1.0);
 uniform vec3 neon_b : source_color = vec3(1.0, 0.18, 0.62);
@@ -121,7 +121,7 @@ void fragment() {
 	// pale blue wash that read as water. This is tuned as a light contribution:
 	// the asphalt stays dark (0.06 albedo * lift), the white paint stays bright,
 	// and the road keeps its legibility at night.
-	EMISSION += col * vec3(2.20, 2.40, 2.90) * ambient_lift * 1.55 + paint_glow;
+	EMISSION += col * vec3(1.45, 1.60, 1.95) * ambient_lift * 1.20 + paint_glow;
 
 	// --- lit road edge: a thin cyan rim just outside the painted shoulder. This
 	// is what sells a night highway at a glance: the carriageway is defined by
