@@ -19,7 +19,7 @@ import store from '../src/store/index.js';
 import { statusPage } from '../src/ui/text.js';
 import { appPage, emojisPage } from '../src/ui/pages.js';
 import { PAID_OFFERS, findOffer } from '../src/djezzy/catalog.js';
-import { describeRoutes, discoverDzProxies } from '../src/djezzy/routes.js';
+import { describeRoutes, parseProxy } from '../src/djezzy/routes.js';
 import { verifyInitData } from '../src/util/telegram-auth.js';
 import { createLogger, sanitize } from '../src/util/logger.js';
 import { safeEqual } from '../src/crypto.js';
@@ -221,8 +221,9 @@ async function probeHandler(req, res) {
         }
       };
 
-      const discovered = await discoverDzProxies();
-      const tested = await Promise.all([testOne(null), ...discovered.slice(0, 8).map((proxy) => testOne(proxy))]);
+      // مسارات معدّة فقط (مباشر + بروكسيات المستخدم) — بلا اكتشاف أو تدوير
+      const envProxies = config.djezzy.proxies.map((raw) => parseProxy(raw)).filter(Boolean);
+      const tested = await Promise.all([testOne(null), ...envProxies.map((proxy) => testOne(proxy))]);
       const results = tested;
       const working = results.filter((item) => item.ok).map((item) => item.route);
 
@@ -230,7 +231,7 @@ async function probeHandler(req, res) {
         ok: true,
         mode: 'proxies',
         latencyMs: Date.now() - started,
-        discovered: discovered.length,
+        discovered: 0,
         working,
         results,
         verdict: working.length
