@@ -509,6 +509,10 @@ func _skirt_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, outward: Ve
 func _road_lateral(p: Vector3) -> float:
 	var ang: float = atan2(p.z, p.x)
 	var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
+	# The mesh is 16 m wide, so the two edges sit at r - 8 and r + 8 and dividing
+	# by the full width maps them to exactly 0 and 1. (An earlier version divided
+	# by 8, which clipped every edge vertex and collapsed the lane paint, the kerb
+	# lights and the centre line into the shoulder — the road looked untextured.)
 	return clampf(0.5 + (p.length() - r) / 16.0, 0.0, 1.0)
 
 
