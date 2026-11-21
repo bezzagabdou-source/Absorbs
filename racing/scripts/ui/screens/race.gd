@@ -234,6 +234,13 @@ func _spawn_player() -> void:
 	player.nitro_started.connect(func(): cam.set_nitro(true); AudioDirector.play_sfx("nitro", -4.0))
 	player.nitro_ended.connect(func(): cam.set_nitro(false))
 	player.gear_changed.connect(func(_g): AudioDirector.play_sfx("gear_shift", -16.0))
+	if roaming and open_world != null:
+		# hand the camera the direction of the tarmac it is standing on, so an
+		# establishing shot can look down the road instead of across it
+		var q: Vector3 = open_world.nearest_road_point(player.global_position)
+		var ahead: Vector3 = open_world.road_direction_at(player.global_position)
+		cam.road_ahead = ahead
+		cam.road_point = q
 	cam.bind(player)
 	player.input_enabled = true
 

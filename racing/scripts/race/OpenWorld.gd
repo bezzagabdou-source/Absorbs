@@ -900,6 +900,21 @@ func _landmark_lighthouse(at: Vector3, accent: Color) -> void:
 	root.add_child(lamp)
 
 
+## Unit tangent of the ring at the closest point to `p`, pointing "forwards"
+## around the ring. Used by the establishing camera.
+func road_direction_at(p: Vector3) -> Vector3:
+	var best := 0
+	var best_d := 1.0e20
+	for i in range(road_points.size()):
+		var q: Vector3 = road_points[i]
+		var d: float = Vector2(q.x - p.x, q.z - p.z).length_squared()
+		if d < best_d:
+			best_d = d
+			best = i
+	var nxt: Vector3 = road_points[(best + 1) % road_points.size()]
+	return (nxt - road_points[best]).normalized()
+
+
 ## Closest point on the highway ring — used by the minimap and AI traffic.
 func nearest_road_point(p: Vector3) -> Vector3:
 	var best := p

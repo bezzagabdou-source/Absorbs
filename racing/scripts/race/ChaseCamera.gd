@@ -21,6 +21,10 @@ var _nitro_boost: float = 0.0
 ## Cinematic establishing shot: sits high and wide so the world, the road and the
 ## skyline all read at once. Used by the screenshot rig and the roam intro.
 var showcase: bool = false
+## When set (free roam), the establishing shot looks along the highway instead of
+## along the car's heading, which is what puts the tarmac in frame.
+var road_ahead: Vector3 = Vector3.ZERO
+var road_point: Vector3 = Vector3.ZERO
 var _showcase_t: float = 0.0
 
 
@@ -86,12 +90,15 @@ func physics_tick(delta: float) -> void:
 		# previous boom sat 15 m to the side, which put the lens over open ground with
 		# the tarmac out of frame; that is what "the road is invisible" actually was.
 		var centre: Vector3 = target.global_position
+		var look_dir: Vector3 = forward
+		if road_ahead.length_squared() > 0.01:
+			look_dir = road_ahead.normalized()
 		var sway: float = sin(_showcase_t * 2.0) * 0.30
-		var cam_pos: Vector3 = centre - forward * 9.5 + Vector3.UP * 3.4 + right * sway
+		var cam_pos: Vector3 = centre - look_dir * 11.0 + Vector3.UP * 3.0 + right * sway
 		_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 2.2, 0.0, 1.0))
 		_cam.global_position = _pos_smooth
-		_cam.look_at(centre + forward * 14.0, Vector3.UP)
-		_cam.fov = lerpf(_cam.fov, 66.0, delta * 2.0)
+		_cam.look_at(centre + look_dir * 18.0 + Vector3.UP * 0.4, Vector3.UP)
+		_cam.fov = lerpf(_cam.fov, 64.0, delta * 2.0)
 		return
 	var speed_norm = clampf(speed / 340.0, 0.0, 1.0)
 	var desired_boom = _boom + speed_norm * 1.6 + _nitro_boost * 1.9
