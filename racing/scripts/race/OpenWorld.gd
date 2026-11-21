@@ -955,9 +955,6 @@ func qa_height_report() -> void:
 		var clear: float = road - terr
 		qa_log_lines.append("[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr, clear])
 	qa_log_lines.append("[QAH] grid=%d segs=%d points=%d" % [grid, ROAD_SEGMENTS, road_points.size()])
-	if mi2 != null and mi2.mesh != null:
-		qa_log_lines.append("[QAH] highway surfaces=%d aabb=%s" % [
-			mi2.mesh.get_surface_count(), mi2.mesh.get_aabb()])
 	qa_log_lines.append("[QAH] first_points=%s %s %s" % [road_points[0], road_points[1], road_points[2]])
 	# Compare every road vertex against the terrain mesh sampled at that exact XZ.
 	# height_at() is what the MESH is built from, so this is the real clearance the

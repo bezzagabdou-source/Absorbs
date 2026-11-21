@@ -62,7 +62,15 @@ jobs:
             ls -la racing/docs/qa_probe_${variant}.log 2>/dev/null || echo "NO PROBE LOG for $variant"
             grep -iE 'SCRIPT ERROR|Parse Error' "/tmp/roam_${variant}.log" | head -5 || true
           done
-          { echo "==== console ===="; tail -50 /tmp/roam_plain.log; } > racing/docs/qa_console.log || true
+          { echo "==== console ===="; tail -60 /tmp/roam_plain.log; } > racing/docs/qa_console.log || true
+          # A parse error makes the scene come up empty, and an empty scene renders
+          # as a perfectly black frame that looks exactly like a lighting bug. Fail
+          # loudly instead of handing back a black screenshot.
+          if grep -qiE 'SCRIPT ERROR|Parse Error|Compilation failed' racing/docs/qa_console.log; then
+            echo "::error::the roam scene failed to compile; the capture is not valid"
+            grep -iE 'SCRIPT ERROR|Parse Error' racing/docs/qa_console.log | head -6
+            exit 1
+          fi
 
       - name: Commit the captures
         run: |
