@@ -220,6 +220,13 @@ func _spawn_player() -> void:
 	player.attach_model(model)
 	if roaming:
 		player.global_transform = open_world.spawn_transform(0)
+		if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-probe"):
+			var t := Timer.new()
+			t.wait_time = 0.6
+			t.one_shot = true
+			t.autostart = true
+			t.timeout.connect(_qa_probe)
+			add_child(t)
 	else:
 		var st: Transform3D = builder.start_transform
 		player.global_transform = Transform3D(st.basis, st.origin + st.basis.x * 4.2 + st.basis.z * 6.0)
@@ -229,6 +236,18 @@ func _spawn_player() -> void:
 	player.gear_changed.connect(func(_g): AudioDirector.play_sfx("gear_shift", -16.0))
 	cam.bind(player)
 	player.input_enabled = true
+
+
+## QA-only: print where the car actually is relative to the highway, in metres.
+func _qa_probe() -> void:
+	var cp: Vector3 = player.global_position
+	var near: Vector3 = open_world.nearest_road_point(cp)
+	var flat: float = Vector2(cp.x - near.x, cp.z - near.z).length()
+	print("[QAPROBE] car=%s nearest_road=%s lateral=%.2fm dy=%.2fm" % [cp, near, flat, cp.y - near.y])
+	var c: Camera3D = cam.camera()
+	print("[QAPROBE] cam=%s showcase=%s dist_to_car=%.1fm" % [c.global_position, cam.showcase,
+		c.global_position.distance_to(cp)])
+
 func _spawn_ai() -> void:
 	var count = 5
 	if mode == "drag":

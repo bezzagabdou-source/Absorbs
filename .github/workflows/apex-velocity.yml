@@ -236,14 +236,14 @@ jobs:
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 \
               --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after $frames \
-              -- --screen=$screen >/tmp/shot_${screen}.log 2>&1 || true
+              -- --screen=$screen $( [ "$screen" = "roam" ] && echo --qa-probe ) >/tmp/shot_${screen}.log 2>&1 || true
             # full console capture: the annotations only keep a few greps, and the
             # reason a screen looks wrong is usually one line further down
             { echo "===== ${screen} (exit $?) ====="; tail -70 /tmp/shot_${screen}.log; } >> /tmp/console.log
             last=$(ls -t /tmp/shot_${screen}*.png 2>/dev/null | head -1)
             grep -iE 'SHADER ERROR|Shader compilation|error\([0-9]+\)|shader_' /tmp/shot_${screen}.log \
               | head -12 | while read -r l; do echo "::warning file=racing/shaders::${screen}: $l"; done || true
-            grep -E '\[OPENWORLD\]' /tmp/shot_${screen}.log | head -6 \
+            grep -E '\[OPENWORLD\]|\[QAPROBE\]' /tmp/shot_${screen}.log | head -8 \
               | while read -r l; do echo "::notice::${screen}: $l"; done || true
             if [ -n "$last" ]; then
               cp "$last" "racing/docs/screenshots/${screen}.png"
