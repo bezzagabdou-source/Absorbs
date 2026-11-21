@@ -318,13 +318,28 @@ func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> v
 
 
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
-	var n: Vector3 = (b - a).cross(c - a).normalized()
-	if n.y < 0.0:
-		n = -n
 	for v in [a, b, c]:
 		st.set_normal(Vector3.UP)
-		st.set_uv(Vector2(v.x, v.z) * 0.05)
+		# UV in road space: x = 0..1 across the carriageway, y = metres along it.
+		# The shader needs this to paint lane lines that follow the curve.
+		st.set_uv(Vector2(_road_lateral(v), _road_along(v)))
 		st.add_vertex(v)
+
+
+## Lateral position across the ring carriageway, 0..1.
+func _road_lateral(p: Vector3) -> float:
+	var ang: float = atan2(p.z, p.x)
+	var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
+	return clampf(0.5 + (p.length() - r) / 16.0, 0.0, 1.0)
+
+
+## Distance along the ring, in metres. The ring is re-parametrised by angle so
+## this is monotonic all the way around and needs no accumulated arc length.
+func _road_along(p: Vector3) -> float:
+	var ang: float = atan2(p.z, p.x)
+	if ang < 0.0:
+		ang += TAU
+	return ang / TAU * TAU * ROAD_RING_RADIUS
 
 
 ## Foliage / rocks scattered on the terrain, instanced with MultiMesh so the

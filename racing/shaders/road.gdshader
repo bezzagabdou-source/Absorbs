@@ -54,7 +54,10 @@ void vertex() {
 }
 
 void fragment() {
+	// grain stays in world space so tarmac does not swim as the car moves,
+	// but lane paint / streaks need road-relative coordinates
 	vec2 uv = wpos.xz;
+	vec2 ruv = vec2(UV.x, UV.y / 8.0);
 
 	// --- aggregate grain: two octaves so it reads both up close and at speed
 	float g1 = vnoise(uv * grain_scale);
@@ -79,15 +82,18 @@ void fragment() {
 	SPECULAR = mix(0.32, 0.72, damp);
 
 	// --- painted lane lines
-	float half_w = road_width * 0.5;
-	float edge = smoothstep(0.16, 0.0, abs(abs(wpos.x) - 0.0) * 0.0);
-	float lane_dist = abs(fract(uv.x / 3.4) - 0.5) * 3.4;
-	float dash = step(0.45, fract(uv.y * 0.18));
+	// --- painted lane lines, in road space so they follow curves
+	// ruv.x = lateral position across the road, ruv.y = distance along it
+	float lane_dist = abs(fract(ruv.x * 0.294) - 0.5) * 3.4;
+	float dash = step(0.45, fract(ruv.y * 1.44));
 	float lane = smoothstep(0.10, 0.045, lane_dist) * dash * 0.75;
+	// solid outer edge lines so the road reads as a road at any speed
+	float edge_line = smoothstep(0.03, 0.0, abs(abs(ruv.x * 0.5 - 0.5) - 0.47));
+	lane = clamp(lane + edge_line * 0.9, 0.0, 1.0);
 	col = mix(col, line_color * (0.55 + 0.45 * wetness), lane);
 
-	// --- neon reflection streaks in the wet surface (vertical smear of light)
-	float streak = smoothstep(0.35, 0.0, abs(uv.x)) * puddle;
+	// --- neon reflection streaks: strongest towards the road edges
+	float streak = smoothstep(0.55, 0.0, abs(ruv.x * 0.5 - 0.5) * 2.0) * puddle;
 	float neon_mix = 0.5 + 0.5 * sin(uv.y * 0.05 + wpos.z * 0.01);
 	vec3 neon = mix(neon_a, neon_b, neon_mix);
 	float shimmer = 0.6 + 0.4 * vnoise(uv * 3.0);
