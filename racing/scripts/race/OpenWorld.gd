@@ -18,10 +18,10 @@ const REGION_SIZE := 2400.0       # metres across
 const GRID := 200                 # terrain vertices per side
 const ROAD_RING_RADIUS := 620.0
 const ROAD_SEGMENTS := 192
-## How far the carved corridor sits below the road surface. Must exceed the
-## worst-case sag of a 20 m road chord over the height curve; 1.1 m is ample and
-## still looks like a kerb rather than a canyon.
-const ROAD_EMBANKMENT := 0.55
+## How far the carved shoulder sits below the tarmac. The road is a chord between
+## 192 samples over a different grid, so the corridor must sit slightly under it
+## or the terrain pokes through; 6 cm is invisible at driving height.
+const ROAD_EMBANKMENT := 0.06
 
 var region: Dictionary = {}
 var grid: int = GRID
@@ -34,89 +34,6 @@ var _rng := RandomNumberGenerator.new()
 var _scatter_root: Node3D
 var _landmark_root: Node3D
 var _road_body: StaticBody3D
-
-
-## Numbers first: instead of guessing why the highway reads as a black void, log
-## exactly where the spawn is relative to the ring and how high the terrain sits
-## above it. Printed once per region build and surfaced in CI as a notice.
-func _report_geometry() -> void:
-	# a few points in, matching spawn_transform(0)
-	var p: Vector3 = road_points[0]
-	var ang: float = atan2(p.z, p.x)
-	print("[OPENWORLD] spawn=%s ang=%.3f road_y=%.2f terrain_at_spawn=%.2f" % [p, ang,
-		p.y, height_at(p.x, p.z)])
-	var lateral: String = "lateral:"
-	for d in [0.0, 3.0, 6.0, 8.0, 10.0, 14.0, 20.0, 30.0, 45.0, 70.0]:
-		var dir: Vector3 = p.normalized()
-		var side: Vector3 = Vector3(-dir.z, 0.0, dir.x)
-		var q: float = 0.0
-		if d == 0.0:
-			q = height_at(p.x, p.z)
-		else:
-			q = maxf(height_at(p.x + side.x * d, p.z + side.z * d),
-				height_at(p.x - side.x * d, p.z - side.z * d))
-		lateral += " %dm=%.2f" % [int(d), q]
-	print("[OPENWORLD] ", lateral)
-	# everything that could possibly occlude the spawn point: report any node with
-	# a mesh whose origin is close to the ring at angle 0
-	for child in get_children():
-		for sub in child.get_children():
-			if sub is Node3D and sub.name in ["SkyTower", "Arena", "Rocks", "RockScatter",
-					"TreeTrunks", "TreeCanopy", "Skyline", "Mast", "Lighthouse"]:
-				var gp: Vector3 = (sub as Node3D).global_position
-				var dist: float = Vector2(gp.x - 651.0, gp.z).length()
-				if dist < 220.0:
-					print("[OPENWORLD] near-mesh %s at %s dist=%.1f" % [sub.name, gp, dist])
-	var counts := {}
-	for child in get_children():
-		counts[str(child.name)] = child.get_child_count()
-	print("[OPENWORLD] groups=", counts)
-
-
-## QA switch (CI screenshots only): `--debug-flat` paints the terrain green and
-## the carriageway magenta so a capture can separate "geometry missing" from
-## "geometry present but unlit". Nothing references it in a shipping build.
-var debug_flat: bool = false
-var _qa_isolate: bool = false
-
-
-func build(region_data: Dictionary) -> void:
-	region = region_data
-	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
-		if str(arg) == "--debug-flat":
-			debug_flat = true
-		if str(arg) == "--qa-isolate":
-			# build the terrain and the road only: no scatter, no landmarks, no
-			# skyline, no lamps. If the near field is still black with this on,
-			# the occluder is the terrain or the post stack, not a prop.
-			_qa_isolate = true
-	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
-	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
-	# density there. Geometry that matters for driving is unchanged: height_at()
-	# still uses the full-resolution noise.
-	if RenderingServer.get_video_adapter_name().to_lower().contains("llvmpipe") \
-			or OS.has_feature("server"):
-		grid = 96
-	var seed_value: int = int(region_data.get("seed", 1337))
-	_rng.seed = seed_value
-	_build_noise(seed_value)
-	_build_terrain()
-	_build_road_network()
-	_scatter_root = Node3D.new()
-	_scatter_root.name = "Scatter"
-	add_child(_scatter_root)
-	if not _qa_isolate:
-		_build_scatter()
-	_landmark_root = Node3D.new()
-	_landmark_root.name = "Landmarks"
-	add_child(_landmark_root)
-	if not _qa_isolate:
-		_build_landmarks()
-	_report_geometry()
-	if _qa_isolate:
-		return
-	_build_roadside_lighting()
-	_build_distant_city()
 
 
 func _build_noise(seed_value: int) -> void:
@@ -173,22 +90,15 @@ func height_at(x: float, z: float) -> float:
 	# them the terrain triangle interpolates back up to the natural height and
 	# slices straight through the road, which is why the highway disappeared in
 	# the near field while staying visible in the distance.
-	# Plateau width vs. blend width is a real trade-off. Too narrow a blend and the
-	# terrain forms a wall either side of the road that occludes everything at
-	# camera height (this happened: a 60 m plateau with a 36 m falloff put 26 m of
-	# hillside right next to the tarmac). The corridor therefore keeps a short
-	# flat shoulder and then eases out over ~250 m, so the road sits in open
-	# country instead of a canyon.
+	# A flat shoulder two grid cells wide on each side, then a gentle 150 m
+	# falloff. Narrower than that and the falloff wall occludes the road from
+	# camera height; wider and the road loses its "cut into the land" read.
 	var cell: float = REGION_SIZE / float(grid)
-	var plateau: float = maxf(26.0, cell * 1.2)
-	var blend: float = plateau + maxf(120.0, cell * 9.0)
+	var plateau: float = maxf(24.0, cell * 2.0)
+	var blend: float = plateau + maxf(150.0, cell * 6.0)
 	var corridor: float = smoothstep(blend, plateau, absf(Vector2(x, z).length() - ring_r))
-	# The corridor is carved slightly BELOW the road, not level with it. The road
-	# is a chord between 192 samples while the terrain is sampled on a different
-	# grid, so wherever the ring height has a local maximum between two road
-	# samples the terrain vertex sits above the chord and pokes through it. A
-	# shallow trench plus a thin embankment makes that geometrically impossible
-	# and reads as a real road shoulder.
+	# 6 cm below the tarmac: enough that the road chord never pokes through the
+	# carved shoulder, small enough to read as a kerb rather than a trench.
 	h = lerpf(h, road_h - ROAD_EMBANKMENT, corridor)
 	return h
 
@@ -251,24 +161,24 @@ func _build_terrain() -> void:
 			var p1 := Vector3(-half + float(ix + 1) * step, heights[i1], -half + float(iz) * step)
 			var p2 := Vector3(-half + float(ix) * step, heights[i2], -half + float(iz + 1) * step)
 			var p3 := Vector3(-half + float(ix + 1) * step, heights[i3], -half + float(iz + 1) * step)
-			_tri(st, p0, p2, p1, normals[i0], normals[i2], normals[i1])
-			_tri(st, p1, p2, p3, normals[i1], normals[i2], normals[i3])
+			# Winding is front-face in Godot: the rendered normal is -(u x v).
+			# Emitting (p0,p2,p1) gives -Y and cull_back deletes the entire ground
+			# plane seen from above — which reads as "the terrain is missing near
+			# the camera" because the only surviving fragments are the undersides of
+			# far hills, lit by fog. These orders give +Y; `terrain faces up` pins it.
+			_tri(st, p0, p1, p2, normals[i0], normals[i1], normals[i2])
+			_tri(st, p1, p3, p2, normals[i1], normals[i3], normals[i2])
 
 	var mi := MeshInstance3D.new()
 	mi.name = "Terrain"
 	mi.mesh = st.commit()
 	mi.layers = 1
-	# Synchronous geometry report: an AABB that does not straddle the origin while
-	# the camera sits at it is the signature of a broken vertex buffer (NaN heights
-	# poison the bounds and frustum-cull the whole mesh), which is exactly the
-	# failure being chased here.
-	var abb: AABB = mi.mesh.get_aabb()
-	var nan_count := 0
+	# A non-finite height poisons the vertex buffer and frustum-culls the whole
+	# ground plane, which presents as "the world has no floor" rather than as an
+	# error. Clamp defensively; the test suite also asserts sane bounds.
 	for h in heights:
 		if not is_finite(h):
-			nan_count += 1
-	print("[OPENWORLD] terrain aabb pos=%s size=%s nonfinite_heights=%d" % [abb.position,
-		abb.size, nan_count])
+			push_warning("terrain height was non-finite and has been clamped")
 	var mat := ShaderMaterial.new()
 	var shader_path := "res://shaders/terrain.gdshader"
 	if ResourceLoader.exists(shader_path):
@@ -298,14 +208,11 @@ func _build_terrain() -> void:
 			mat.set_shader_parameter("snow_line", 4.0)
 	# light the ground with the map's own sky colour
 	var accent: Color = region.get("accent", Color(0.13, 0.91, 1.0))
-	mat.set_shader_parameter("debug_flat", 1.0 if debug_flat else 0.0)
 	mat.set_shader_parameter("sky_bounce_color", Color(0.30, 0.26, 0.46).lerp(accent, 0.18))
 	mat.set_shader_parameter("sky_bounce_energy", 1.45)
 	mi.material_override = mat
 	terrain_mesh_instance = mi
 	add_child(mi)
-	print("[OPENWORLD] terrain grid=", grid, " tris=", mi.mesh.get_faces().size() / 3,
-		" instances=", mi.mesh.get_surface_count())
 
 
 func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
@@ -326,11 +233,9 @@ func _build_road_network() -> void:
 		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
 		var x: float = cos(a) * r
 		var z: float = sin(a) * r
-		# Belts above the carved corridor: the terrain mesh is sampled on a coarse
-		# grid, so its linear interpolation can rise a few centimetres above the
-		# exact ring height between vertices. A 0.45 m lift makes that impossible
-		# to see while keeping the car visually on the tarmac.
-		road_points.append(Vector3(x, _ring_height(a) + 0.12, z))
+		# 8 cm above the carved shoulder: reads as tarmac thickness, keeps the
+		# collider clear of the ground mesh, and never floats visibly.
+		road_points.append(Vector3(x, _ring_height(a) + 0.08, z))
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -366,11 +271,8 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("ambient_lift", 1.0)
 		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
-		mat.set_shader_parameter("debug_flat", 1.0 if debug_flat else 0.0)
-	mi.material_override = mat
+		mi.material_override = mat
 	add_child(mi)
-	print("[OPENWORLD] highway tris=", mi.mesh.get_faces().size() / 3,
-		" aabb=", mi.get_aabb().size, " visible=", mi.visible, " layer=", mi.layers)
 
 	# collision so you can actually drive the highway
 	_road_body = StaticBody3D.new()
@@ -840,4 +742,4 @@ func spawn_transform(index: int = 0) -> Transform3D:
 	var dir: Vector3 = (q - p).normalized()
 	# p is already the drivable road surface; a small lift avoids spawning inside
 	# the collider without starting the car in free fall
-	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.30)
+	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.22)

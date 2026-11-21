@@ -253,55 +253,6 @@ jobs:
               tail -20 /tmp/shot_${screen}.log || true
             fi
           done
-          # QA-only pseudo-colour capture: terrain green, carriageway magenta.
-          # Purely diagnostic, never shipped, and it is what finally distinguishes
-          # "the road is not drawn here" from "the road is drawn but unlit".
-          timeout -k 5 75 xvfb-run -a -s "-screen 0 1920x1080x24" \
-            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
-            --rendering-driver opengl3 --resolution 1920x1080 \
-            --write-movie /tmp/shot_roam_debug.png --fixed-fps 30 --quit-after 40 \
-            -- --screen=roam --debug-flat >/tmp/shot_roam_debug.log 2>&1 || true
-          last=$(ls -t /tmp/shot_roam_debug*.png 2>/dev/null | head -1)
-          [ -n "$last" ] && cp "$last" racing/docs/screenshots/roam_debug.png && echo "rendered roam_debug"
-          grep -E '\[OPENWORLD\]' /tmp/shot_roam_debug.log | head -8 \
-            | while read -r l; do echo "::notice::roam_debug: $l"; done || true
-          grep -iE 'SHADER ERROR|Shader compilation|error\([0-9]+\)' /tmp/shot_roam_debug.log \
-            | head -8 | while read -r l; do echo "::warning file=racing/shaders::roam_debug: $l"; done || true
-          # second QA capture: same pseudo-colours with only terrain + road built,
-          # no scatter/landmarks/skyline/lamps, to pin the occluder
-          timeout -k 5 75 xvfb-run -a -s "-screen 0 1920x1080x24" \
-            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
-            --rendering-driver opengl3 --resolution 1920x1080 \
-            --write-movie /tmp/shot_roam_iso.png --fixed-fps 30 --quit-after 40 \
-            -- --screen=roam --debug-flat --qa-isolate --qa-probe >/tmp/shot_roam_iso.log 2>&1 || true
-          last=$(ls -t /tmp/shot_roam_iso*.png 2>/dev/null | head -1)
-          [ -n "$last" ] && cp "$last" racing/docs/screenshots/roam_iso.png && echo "rendered roam_iso"
-          grep -E '\[OPENWORLD\] (near-mesh|groups)' /tmp/shot_roam_iso.log \
-            | head -20 | while read -r l; do echo "::notice::roam_iso: $l"; done || true
-          # third QA capture: everything built normally, post-processing bypassed
-          timeout -k 5 75 xvfb-run -a -s "-screen 0 1920x1080x24" \
-            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
-            --rendering-driver opengl3 --resolution 1920x1080 \
-            --write-movie /tmp/shot_roam_nopost.png --fixed-fps 30 --quit-after 40 \
-            -- --screen=roam --debug-flat --qa-no-post --qa-probe >/tmp/shot_roam_nopost.log 2>&1 || true
-          last=$(ls -t /tmp/shot_roam_nopost*.png 2>/dev/null | head -1)
-          [ -n "$last" ] && cp "$last" racing/docs/screenshots/roam_nopost.png && echo "rendered roam_nopost"
-          # fourth QA capture: documented fixed camera, no post, full world
-          timeout -k 5 75 xvfb-run -a -s "-screen 0 1920x1080x24" \
-            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
-            --rendering-driver opengl3 --resolution 1920x1080 \
-            --write-movie /tmp/shot_roam_fixedcam.png --fixed-fps 30 --quit-after 40 \
-            -- --screen=roam --qa-fixed-cam --qa-no-post >/tmp/shot_roam_fixedcam.log 2>&1 || true
-          last=$(ls -t /tmp/shot_roam_fixedcam*.png 2>/dev/null | head -1)
-          [ -n "$last" ] && cp "$last" racing/docs/screenshots/roam_fixedcam.png && echo "rendered roam_fixedcam"
-          grep -E 'terrain aabb|fixed cam' /tmp/shot_roam_fixedcam.log | head -6 \
-            | while read -r l; do echo "::notice::fixedcam: $l"; done || true
-          for f in /tmp/shot_roam_iso.log /tmp/shot_roam_nopost.log; do
-            grep -E '\[QAPROBE\]' "$f" | head -12 \
-              | while read -r l; do echo "::notice::probe: $l"; done || true
-            grep -iE 'SCRIPT ERROR|Invalid (get|set|call)|Cannot (get|call)' "$f" | head -6 \
-              | while read -r l; do echo "::warning::$l"; done || true
-          done
           ls -lh racing/docs/screenshots
       - name: Layout diagnostics
         run: |

@@ -154,6 +154,9 @@ func _foundation() -> void:
 		# whole road disappears under cull_back and the bug is invisible to every
 		# other check. Assert that the faces point up.
 		_check(_road_faces_up(ow), "highway faces up " + prof)
+		# Same class of bug for the ground: an inside-out terrain mesh is culled
+		# away from above and the world looks like it has no floor at all.
+		_check(_terrain_faces_up(ow), "terrain faces up " + prof)
 		ow.queue_free()
 
 	print("[SUITE] SECTION screens (instantiate)")
@@ -161,6 +164,41 @@ func _foundation() -> void:
 			"settings", "credits", "profile", "results"]:
 		var scr = load("res://scripts/ui/screens/%s.gd" % id)
 		_check(scr != null, "screen script " + id)
+
+
+## The ground must face up too: sample the terrain triangles and require the
+## rendered normal (which is -(u x v) in Godot) to point skyward.
+func _terrain_faces_up(ow: Node) -> bool:
+	var mi: MeshInstance3D = null
+	for c in ow.get_children():
+		if c is MeshInstance3D and str((c as Node).name) == "Terrain":
+			mi = c
+			break
+	if mi == null or mi.mesh == null:
+		return false
+	var arrays: Array = mi.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var raw_idx = arrays[Mesh.ARRAY_INDEX]
+	var order: Array = []
+	if raw_idx is PackedInt32Array and (raw_idx as PackedInt32Array).size() > 0:
+		var idx: PackedInt32Array = raw_idx
+		for k in range(idx.size()):
+			order.append(verts[idx[k]])
+	else:
+		for k in range(verts.size()):
+			order.append(verts[k])
+	var total := 0.0
+	var tris := 0
+	var i := 0
+	while i + 2 < order.size():
+		var a: Vector3 = order[i]
+		var b: Vector3 = order[i + 1]
+		var c: Vector3 = order[i + 2]
+		total += -(b - a).cross(c - a).normalized().y
+		tris += 1
+		i += 3
+	print("[TEST]   ", tris, " terrain triangles, front-normal.y sum ", snappedf(total, 0.01))
+	return total > 0.0
 
 
 ## Sum the +Y component of every road triangle normal. A correctly wound strip
