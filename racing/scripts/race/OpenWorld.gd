@@ -47,6 +47,8 @@ var _road_body: StaticBody3D
 var debug_flat: bool = false
 var _qa_no_terrain: bool = false
 var _qa_std_road: bool = false
+## Shared QA scratch buffer; the race screen writes it to disk after the probe.
+static var qa_log_lines: PackedStringArray = PackedStringArray()
 
 
 func build(region_data: Dictionary) -> void:
@@ -887,10 +889,7 @@ func spawn_transform(index: int = 0) -> Transform3D:
 ## so a capture can never be blamed on the wrong node again.
 ## QA-only: compare the road surface against the ground that should sit under it.
 func qa_height_report() -> void:
-	var f := FileAccess.open("res://docs/qa_probe.log", FileAccess.READ_WRITE)
-	if f == null:
-		return
-	f.seek_end()
+	qa_log_lines.clear()
 	for k in [0, 48, 96, 144]:
 		var a: float = float(k) / 192.0 * TAU
 		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
@@ -898,8 +897,10 @@ func qa_height_report() -> void:
 		var z: float = sin(a) * r
 		var road: float = _road_surface_height(a)
 		var terr: float = height_at(x, z)
-		f.store_string("\n[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr,
-			road - terr])
+		var clear: float = road - terr
+		qa_log_lines.append("[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr, clear])
+	qa_log_lines.append("[QAH] grid=%d segs=%d points=%d" % [grid, ROAD_SEGMENTS, road_points.size()])
+	qa_log_lines.append("[QAH] first_points=%s %s %s" % [road_points[0], road_points[1], road_points[2]])
 	f.close()
 
 
@@ -912,15 +913,17 @@ func _qa_dump(node: Node, centre: Vector3, radius: float) -> void:
 		if child is Node3D:
 			var n3 := child as Node3D
 			var d: float = n3.global_position.distance_to(centre)
+			if str(n3.name) == "Highway" and n3 is MeshInstance3D:
+				var hm := n3 as MeshInstance3D
+				var line2 := "[QADUMP] Highway aabb=%s mat=%s layers=%d" % [
+					hm.get_aabb(), hm.material_override, hm.layers]
+				print(line2)
+				qa_log_lines.append(line2)
 			if d <= radius and n3 is VisualInstance3D:
 				var vi := n3 as VisualInstance3D
 				var line := "[QADUMP] %-14s pos=%s dist=%.1f aabb_size=%s visible=%s" % [
 					str(n3.name), n3.global_position, d, vi.get_aabb().size,
 					vi.is_visible_in_tree()]
 				print(line)
-				var f := FileAccess.open("res://docs/qa_probe.log", FileAccess.READ_WRITE)
-				if f:
-					f.seek_end()
-					f.store_string("\n" + line)
-					f.close()
+				qa_log_lines.append(line)
 		_qa_dump(child, centre, radius)

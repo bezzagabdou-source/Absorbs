@@ -247,10 +247,15 @@ func _qa_log(t: String) -> void:
 
 
 func _qa_flush() -> void:
-	var f := FileAccess.open("res://docs/qa_probe.log", FileAccess.WRITE)
+	var f := FileAccess.open("user://qa_probe.log", FileAccess.WRITE)
 	if f:
-		f.store_string("\n".join(_qa_lines))
+		f.store_string("\n".join(_qa_lines) + "\n" + "\n".join(open_world.QA_LOG))
 		f.close()
+		# also drop it next to the captures, which the workflow commits back
+		var g := FileAccess.open("res://docs/qa_probe.log", FileAccess.WRITE)
+		if g:
+			g.store_string("\n".join(_qa_lines) + "\n" + "\n".join(open_world.QA_LOG))
+			g.close()
 
 
 ## QA-only: print where the car actually is relative to the highway, in metres.
