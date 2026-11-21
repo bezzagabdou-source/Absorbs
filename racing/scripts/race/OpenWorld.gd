@@ -107,7 +107,15 @@ func height_at(x: float, z: float) -> float:
 	var ang: float = atan2(z, x)
 	var ring_r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
 	var road_h: float = _ring_height(ang)
-	var corridor: float = smoothstep(58.0, 22.0, absf(Vector2(x, z).length() - ring_r))
+	# The corridor must be a flat plateau at least two grid cells wide on each
+	# side of the road. A narrower carve is exact only at grid vertices; between
+	# them the terrain triangle interpolates back up to the natural height and
+	# slices straight through the road, which is why the highway disappeared in
+	# the near field while staying visible in the distance.
+	var cell: float = REGION_SIZE / float(grid)
+	var plateau: float = maxf(42.0, cell * 2.4)
+	var blend: float = plateau + maxf(36.0, cell * 3.0)
+	var corridor: float = smoothstep(blend, plateau, absf(Vector2(x, z).length() - ring_r))
 	h = lerpf(h, road_h, corridor)
 	return h
 
