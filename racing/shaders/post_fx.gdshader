@@ -1,12 +1,14 @@
 // APEX VELOCITY — cinematic post stack.
-// Runs on a full-screen ColorRect over the 3D SubViewport texture.
+// Runs on a full-screen ColorRect that sits ON TOP of the 3D SubViewport, and
+// samples that viewport's own texture. (Sampling hint_screen_texture would read
+// the 2D canvas underneath the car, i.e. an empty frame.)
 // Adds: filmic grade, vignette, chromatic aberration, subtle bloom bleed,
 // film grain and a lens flare streak that fires when looking at the sun.
 // Every term is tunable so the same shader covers night city, desert noon,
 // rain and snow.
 shader_type canvas_item;
 
-uniform sampler2D scene_tex : hint_screen_texture, filter_linear_mipmap;
+uniform sampler2D scene_tex : filter_linear_mipmap, repeat_disable;
 uniform float exposure : hint_range(0.2, 3.0) = 1.0;
 uniform float contrast : hint_range(0.5, 2.0) = 1.08;
 uniform float saturation : hint_range(0.0, 2.5) = 1.12;
@@ -30,7 +32,7 @@ float hash(vec2 p) {
 }
 
 void fragment() {
-	vec2 uv = SCREEN_UV;
+	vec2 uv = UV;
 	// radial speed zoom: the frame pushes outward with velocity
 	if (speed_zoom > 0.0) {
 		vec2 c = uv - vec2(0.5);

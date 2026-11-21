@@ -61,6 +61,17 @@ jobs:
           grep -iE 'SCRIPT ERROR|Parse Error' /tmp/import.log | head -30 | while read -r l; do echo "::error::$l"; done || true
           if grep -qiE 'SCRIPT ERROR|Parse Error' /tmp/import.log; then exit 1; fi
 
+      - name: Shader compile check (headless GL context)
+        run: |
+          # A shader that fails to compile only warns at import time, so run one
+          # frame of every scene that owns a ShaderMaterial and surface the error.
+          "$GODOT_DIR/godot" --headless --path racing res://tests/ShaderProbe.tscn 2>&1 | tee /tmp/shader.log
+          if grep -qiE 'SHADER ERROR|Shader compilation failed|error\([0-9]+\)' /tmp/shader.log; then
+            grep -iE -A6 'SHADER ERROR|Shader compilation failed|error\([0-9]+\)' /tmp/shader.log \
+              | head -60 | while read -r l; do echo "::error::$l"; done
+            exit 1
+          fi
+
       - name: Test suite — scripts, data, physics, tracks, models, screens, races
         run: |
           set +e
@@ -68,6 +79,8 @@ jobs:
           code=${PIPESTATUS[0]}
           grep -E '^\[TEST\] FAIL' /tmp/tests.log | head -40 | while read -r l; do echo "::error::$l"; done || true
           grep -B2 -A12 'SCRIPT ERROR' /tmp/tests.log | head -80 | while read -r l; do echo "::error::$l"; done || true
+          grep -iE -A8 'SHADER ERROR|Shader compilation failed|error\([0-9]+\)' /tmp/tests.log \
+            | head -60 | while read -r l; do echo "::error::$l"; done || true
           grep -E '^\[SUITE\] RESULT' /tmp/tests.log | tail -1
           if grep -q 'SCRIPT ERROR' /tmp/tests.log; then exit 1; fi
           exit $code

@@ -117,6 +117,10 @@ func _build_post() -> void:
 	post.color = Color(1, 1, 1, 1)
 	post.material = post_mat
 	add_child(post)
+	# the post pass reads the 3D viewport texture directly and must draw last
+	if viewport != null:
+		post_mat.set_shader_parameter("scene_tex", viewport.get_texture())
+		move_child(post, get_child_count() - 1)
 	update_post()
 
 

@@ -21,14 +21,14 @@ const SEGMENTS := 14
 
 func build() -> void:
 	AudioDirector.play_music("menu_theme", 0.8, -14.0)
-	_build_backdrop()
+	_build_intro_backdrop()
 	_build_streaks()
 	_build_logo()
 	_build_progress()
 	_run_sequence()
 
 
-func _build_backdrop() -> void:
+func _build_intro_backdrop() -> void:
 	var bg = UIStyle.make_art_background("menu_hero")
 	bg.modulate = Color(0.55, 0.60, 0.75, 1.0)
 	content.add_child(bg)
