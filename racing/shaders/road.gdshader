@@ -91,16 +91,16 @@ void fragment() {
 	// dashes every 3.2 m laterally, 4.5 m on / 4.5 m off longitudinally
 	float lane_d = abs(fract(lat / 3.2) - 0.5) * 3.2;
 	float dash = step(0.42, fract(along / 9.0));
-	float lane = smoothstep(0.21, 0.10, lane_d) * dash * uv_ok;
+	float lane = smoothstep(0.34, 0.20, lane_d) * dash * uv_ok;
 	// centre line: solid double
-	float centre = smoothstep(0.24, 0.12, abs(abs(lat) - 0.30));
+	float centre = smoothstep(0.30, 0.17, abs(abs(lat) - 0.34));
 	lane = max(lane, centre * uv_ok);
 	// solid edge lines so the road reads as a road at any speed
-	float edge_line = smoothstep(0.22, 0.11, abs(abs(lat) - (road_width * 0.5 - 0.62)));
+	float edge_line = smoothstep(0.40, 0.24, abs(abs(lat) - (road_width * 0.5 - 0.70)));
 	lane = max(lane, edge_line * uv_ok);
 	col = mix(col, line_color, clamp(lane, 0.0, 1.0));
 	// the paint gets its own emissive so it survives the darkest part of the frame
-	vec3 paint_glow = line_color * clamp(lane, 0.0, 1.0) * 0.55;
+	vec3 paint_glow = line_color * clamp(lane, 0.0, 1.0) * 1.15;
 
 	// --- neon reflection streaks: strongest towards the road edges
 	float streak = smoothstep(0.55, 0.0, abs(lat) / (road_width * 0.5)) * puddle;
@@ -118,7 +118,7 @@ void fragment() {
 	// pale blue wash that read as water. This is tuned as a light contribution:
 	// the asphalt stays dark (0.06 albedo * lift), the white paint stays bright,
 	// and the road keeps its legibility at night.
-	EMISSION += col * vec3(2.35, 2.55, 3.00) * ambient_lift * 0.55 + paint_glow;
+	EMISSION += col * vec3(2.35, 2.55, 3.00) * ambient_lift * 0.30 + paint_glow;
 
 	ALBEDO = col;
 	// perturb the normal with the grain so highlights break up like real asphalt
