@@ -46,7 +46,44 @@ racing/
   tools/                   # asset generators (python), CI helpers, license audit
 ```
 
-## Rendering / performance
+## Rendering / performance (v2.0 overhaul)
+
+### Custom shader stack
+
+Four hand-written shaders carry the whole look. All are `gl_compatibility`-safe
+because that is what the shipping APK uses (Vulkan `mobile` is available on
+desktop builds only).
+
+| File | Stage | What it does | Gotchas encoded in it |
+|---|---|---|---|
+| `shaders/car_paint.gdshader` | spatial | multilayer paint: base coat, lacquer Fresnel, panel AO, rim light | **no `CLEARCOAT`/`CLEARCOAT_GLOSS`** (spatial-only, fails to compile on compatibility); no per-pixel flake hash (one hash cell changes every pixel on a curved body => white noise) |
+| `shaders/road.gdshader` | spatial | triplanar asphalt, lane paint, puddles, animated neon streaks | has a moonlit ambient term so the road is not a black void between the lines |
+| `shaders/terrain.gdshader` | spatial | slope/height blend of grass/rock/sand/snow, macro biome patches | `NORMAL` arrives **already in world space** — transforming it by `MODEL_MATRIX` again double-applies rotation and flattens the lighting |
+| `shaders/post_fx.gdshader` | canvas_item | ACES, grade, vignette, aberration, bloom bleed, anamorphic flare, speed zoom, damage flash, grain | takes the 3D viewport as a plain `sampler2D`, **not** `hint_screen_texture` (the canvas under the car is empty) |
+
+### World + vehicle
+
+* `race/OpenWorld.gd` — 2.4 km × 2.4 km region, ring highway, landmarks,
+  instanced scatter, roadside lamp posts and a horizon skyline. Grid and prop
+  counts drop automatically on software rasterisers.
+* `vehicle/CarModel.gd` — one lofted shell per body shape (26 stations × 28
+  segment superellipse), glasshouse, arches, aero, forged rims, layered lights.
+  The loft is authored counter-clockwise in XY with stations advancing along +Z;
+  the quad winding must be `(v0, v1, v3, v2)` or the shell faces inward and
+  `cull_back` deletes it.
+
+### Frame-rate design
+
+* Race 3D goes through a `SubViewport` at 0.6–1.0 render scale, UI is drawn on
+  the canvas.
+* No SSAO / SSIL / SSR / SDFGI / volumetric fog: none are available on the
+  compatibility backend anyway.
+* One shadow-casting directional light (2 splits, 160 m); lamps and neon are
+  unshadowed emissive geometry.
+* `Engine.max_fps` follows the panel refresh rate (120 on a 120 Hz device, with
+  physics raised to 120 Hz to match).
+* Quality tiers drive render scale, shadow atlas, MSAA, screen-space AA and
+  anisotropic filtering (`SettingsStore._apply_quality`).
 
 * Mobile renderer (Vulkan) with `gl_compatibility` fallback configured.
 * One directional light + emissive road strips + up to 8 omni lights (Interior of city).

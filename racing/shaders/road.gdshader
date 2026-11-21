@@ -15,6 +15,7 @@ uniform float puddle_scale = 0.06;
 uniform float neon_energy = 1.0;
 uniform float road_width = 14.0;
 uniform float track_scroll = 0.0;
+uniform float ambient_lift : hint_range(0.0, 1.5) = 0.30;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -94,8 +95,10 @@ void fragment() {
 
 	// --- puddles reflect the sky a little through emission tint
 	EMISSION += mix(neon_a, vec3(1.0), 0.35) * puddle * 0.05;
-	// --- moon/sky bounce so the asphalt is not a black void between the lines
-	EMISSION += col * vec3(0.26, 0.30, 0.40);
+	// --- moon/sky bounce so the asphalt is not a black void between the lines.
+	// Multiplied by the asphalt albedo (not a flat colour) so dark tarmac stays
+	// dark and the aggregate speckle still shows through.
+	EMISSION += col * vec3(0.62, 0.70, 0.92) * ambient_lift * 2.2;
 
 	ALBEDO = col;
 	// perturb the normal with the grain so highlights break up like real asphalt

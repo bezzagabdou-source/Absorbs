@@ -157,15 +157,19 @@ func _build_terrain() -> void:
 		elif profile == "alpine":
 			mat.set_shader_parameter("snow_line", 0.42)
 			mat.set_shader_parameter("rock_color", Color(0.30, 0.31, 0.33))
-			mat.set_shader_parameter("grass_color", Color(0.14, 0.20, 0.16))
+			mat.set_shader_parameter("grass_color", Color(0.20, 0.27, 0.22))
 		elif profile == "coast":
 			mat.set_shader_parameter("sand_color", Color(0.70, 0.64, 0.48))
 			mat.set_shader_parameter("grass_color", Color(0.16, 0.26, 0.19))
 			mat.set_shader_parameter("snow_line", 4.0)
 		else:
-			mat.set_shader_parameter("grass_color", Color(0.07, 0.09, 0.075))
-			mat.set_shader_parameter("rock_color", Color(0.075, 0.08, 0.095))
-			mat.set_shader_parameter("sand_color", Color(0.10, 0.105, 0.13))
+			# Night city outskirts. These were near-black (0.07) which, combined
+			# with a 0.6-energy moon, rendered the whole plain as void. A cold
+			# desaturated green/blue-grey reads as unlit countryside and still
+			# keeps the neon road the brightest thing in frame.
+			mat.set_shader_parameter("grass_color", Color(0.19, 0.24, 0.21))
+			mat.set_shader_parameter("rock_color", Color(0.22, 0.23, 0.27))
+			mat.set_shader_parameter("sand_color", Color(0.27, 0.26, 0.29))
 			mat.set_shader_parameter("snow_line", 4.0)
 	mi.material_override = mat
 	terrain_mesh_instance = mi

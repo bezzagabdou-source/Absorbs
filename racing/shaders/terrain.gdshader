@@ -92,7 +92,7 @@ void fragment() {
 	// compatibility backend's sky ambient does not reach large flat surfaces.
 	// Values are tuned against the night capture: grass/rock stay readable as
 	// shapes while the neon road remains the brightest thing in frame.
-	vec3 sky_bounce = mix(vec3(0.30, 0.34, 0.46), vec3(0.42, 0.48, 0.62), terrain_up);
+	vec3 sky_bounce = mix(vec3(0.55, 0.60, 0.80), vec3(0.78, 0.86, 1.05), terrain_up);
 	ALBEDO = ground;
 	EMISSION = ground * sky_bounce;
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
