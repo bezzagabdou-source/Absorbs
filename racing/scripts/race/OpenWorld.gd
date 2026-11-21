@@ -21,7 +21,7 @@ const ROAD_SEGMENTS := 192
 ## How far the carved corridor sits below the road surface. Must exceed the
 ## worst-case sag of a 20 m road chord over the height curve; 1.1 m is ample and
 ## still looks like a kerb rather than a canyon.
-const ROAD_EMBANKMENT := 1.1
+const ROAD_EMBANKMENT := 0.55
 
 var region: Dictionary = {}
 var grid: int = GRID
@@ -116,9 +116,15 @@ func height_at(x: float, z: float) -> float:
 	# them the terrain triangle interpolates back up to the natural height and
 	# slices straight through the road, which is why the highway disappeared in
 	# the near field while staying visible in the distance.
+	# Plateau width vs. blend width is a real trade-off. Too narrow a blend and the
+	# terrain forms a wall either side of the road that occludes everything at
+	# camera height (this happened: a 60 m plateau with a 36 m falloff put 26 m of
+	# hillside right next to the tarmac). The corridor therefore keeps a short
+	# flat shoulder and then eases out over ~250 m, so the road sits in open
+	# country instead of a canyon.
 	var cell: float = REGION_SIZE / float(grid)
-	var plateau: float = maxf(42.0, cell * 2.4)
-	var blend: float = plateau + maxf(36.0, cell * 3.0)
+	var plateau: float = maxf(26.0, cell * 1.2)
+	var blend: float = plateau + maxf(120.0, cell * 9.0)
 	var corridor: float = smoothstep(blend, plateau, absf(Vector2(x, z).length() - ring_r))
 	# The corridor is carved slightly BELOW the road, not level with it. The road
 	# is a chord between 192 samples while the terrain is sampled on a different
