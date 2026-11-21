@@ -278,7 +278,7 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("neon_energy", 0.55)
 		# the region is a night drive: lift the asphalt far enough that the lane
 		# paint and the aggregate texture read at speed
-		mat.set_shader_parameter("ambient_lift", 0.85)
+		mat.set_shader_parameter("ambient_lift", 1.0)
 		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
 	mi.material_override = mat

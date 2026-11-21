@@ -105,10 +105,13 @@ void fragment() {
 
 	// --- puddles reflect the sky a little through emission tint
 	EMISSION += mix(neon_a, vec3(1.0), 0.35) * puddle * 0.05;
-	// --- moon/sky bounce so the asphalt is not a black void between the lines.
-	// Multiplied by the asphalt albedo (not a flat colour) so dark tarmac stays
-	// dark and the aggregate speckle still shows through.
-	EMISSION += col * vec3(0.62, 0.70, 0.92) * ambient_lift * 2.2;
+	// --- ambient floor: the road must never render as a black void.
+	// Lambert on a flat plane under a high moon plus a dim sky is close to zero,
+	// and tinting the bounce by the (very dark) albedo keeps it at zero. A flat
+	// blue-grey lift independent of albedo guarantees legibility at night, which
+	// is what the reference captures were missing.
+	vec3 amb = vec3(0.30, 0.36, 0.50) * ambient_lift;
+	EMISSION += amb + col * vec3(0.40, 0.46, 0.62) * ambient_lift;
 
 	ALBEDO = col;
 	// perturb the normal with the grain so highlights break up like real asphalt
