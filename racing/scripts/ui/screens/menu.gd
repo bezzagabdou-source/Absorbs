@@ -26,15 +26,15 @@ func _add_hero() -> void:
 	title_block.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	title_block.offset_left = 84
 	title_block.offset_top = 84
-	title_block.offset_right = 640
+	title_block.offset_right = 760
 	title_block.add_theme_constant_override("separation", -14)
 	content.add_child(title_block)
 	var kicker = UIStyle.make_kicker("SEASON 1  ·  NEON DISTRICT", UIStyle.CYAN, 22)
 	title_block.add_child(kicker)
-	var t1 = UIStyle.make_title("APEX", 108, UIStyle.CYAN)
+	var t1 = UIStyle.make_title("APEX", 92, UIStyle.CYAN)
 	t1.add_theme_constant_override("outline_size", 0)
 	title_block.add_child(t1)
-	var t2 = UIStyle.make_title("VELOCITY", 108, UIStyle.MAGENTA)
+	var t2 = UIStyle.make_title("VELOCITY", 92, UIStyle.MAGENTA)
 	title_block.add_child(t2)
 	var sub = UIStyle.make_label(Localization.t("menu.tagline"), "body", 26, UIStyle.TEXT_DIM)
 	title_block.add_child(sub)
@@ -106,14 +106,14 @@ func _add_quick_actions() -> void:
 func _add_car_showcase() -> void:
 	_car_view = SubViewportContainer.new()
 	_car_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_car_view.anchor_left = 0.36
+	_car_view.anchor_left = 0.46
 	_car_view.anchor_right = 1.0
 	_car_view.anchor_top = 0.11
 	_car_view.anchor_bottom = 1.0
 	_car_view.offset_left = 0
 	_car_view.offset_right = -36
 	_car_view.offset_top = 0
-	_car_view.offset_bottom = -268
+	_car_view.offset_bottom = -252
 	_car_view.stretch = true
 	_car_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_car_view)
@@ -132,14 +132,12 @@ func _add_car_showcase() -> void:
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.40, 0.52, 0.76)
-	e.ambient_light_energy = 1.35
+	e.ambient_light_energy = 0.85
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_exposure = 1.08
 	e.tonemap_white = 6.0
-	e.ssao_enabled = true
-	e.ssao_radius = 1.2
-	e.ssao_intensity = 1.6
-	e.ssil_enabled = true
+	# SSAO/SSIL are Forward+ only; on the compatibility backend they only emit
+	# warnings, and the paint shader already fakes contact shading.
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	e.glow_enabled = true
 	e.glow_intensity = 0.7
@@ -150,21 +148,29 @@ func _add_car_showcase() -> void:
 	e.adjustment_contrast = 1.04
 	env.environment = e
 	root.add_child(env)
+	# Three-point studio rig. Energies are low on purpose: ACES tone mapping plus
+	# a reflective floor means a 3.4-energy key clips every top-facing panel.
 	var key = DirectionalLight3D.new()
-	key.light_color = Color(0.85, 0.93, 1.0)
-	key.light_energy = 3.4
-	key.rotation_degrees = Vector3(-28, -135, 0)
+	key.light_color = Color(0.88, 0.94, 1.0)
+	key.light_energy = 1.5
+	key.rotation_degrees = Vector3(-34, -132, 0)
 	root.add_child(key)
 	var rim = DirectionalLight3D.new()
-	rim.light_color = UIStyle.MAGENTA
-	rim.light_energy = 3.2
-	rim.rotation_degrees = Vector3(-10, 55, 0)
+	rim.light_color = Color(1.0, 0.25, 0.66)
+	rim.light_energy = 2.0
+	rim.rotation_degrees = Vector3(-8, 58, 0)
 	root.add_child(rim)
 	var fill = DirectionalLight3D.new()
-	fill.light_color = UIStyle.CYAN
-	fill.light_energy = 1.6
-	fill.rotation_degrees = Vector3(-40, 150, 0)
+	fill.light_color = Color(0.16, 0.85, 1.0)
+	fill.light_energy = 0.9
+	fill.rotation_degrees = Vector3(-44, 148, 0)
 	root.add_child(fill)
+	# soft top light so the roof and wing never go to pure black
+	var top = DirectionalLight3D.new()
+	top.light_color = Color(0.75, 0.85, 1.0)
+	top.light_energy = 0.7
+	top.rotation_degrees = Vector3(-90, 0, 0)
+	root.add_child(top)
 	_car_pivot = Node3D.new()
 	root.add_child(_car_pivot)
 	var car = Game.selected_car()
@@ -191,12 +197,16 @@ func _add_car_showcase() -> void:
 	var floor_mi = MeshInstance3D.new()
 	var fm = PlaneMesh.new()
 	fm.size = Vector2(60, 60)
+	fm.subdivide_width = 2
+	fm.subdivide_depth = 2
 	floor_mi.mesh = fm
+	# A radial-falloff material would need a texture; instead keep the floor very
+	# dark and non-metallic so it reads as a black studio floor and the glow ring
+	# + reflections do the work without a visible grey rectangle edge.
 	var fmat = StandardMaterial3D.new()
-	fmat.albedo_color = Color(0.020, 0.025, 0.040)
-	fmat.metallic = 0.92
-	fmat.roughness = 0.16
-	fmat.metallic_specular = 0.9
+	fmat.albedo_color = Color(0.012, 0.014, 0.022)
+	fmat.metallic = 0.55
+	fmat.roughness = 0.28
 	floor_mi.material_override = fmat
 	floor_mi.position = Vector3(0, -0.40, 0)
 	root.add_child(floor_mi)

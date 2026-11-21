@@ -34,7 +34,7 @@ func _build_intro_backdrop() -> void:
 	# darken the top and bottom so the wordmark always has contrast
 	var top = ColorRect.new()
 	top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	top.offset_bottom = 300
+	top.offset_bottom = 150
 	top.color = Color(0.01, 0.015, 0.03, 0.82)
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(top)
@@ -95,8 +95,8 @@ func _build_logo() -> void:
 	block.anchor_bottom = 0.5
 	block.offset_left = -620
 	block.offset_right = 620
-	block.offset_top = -230
-	block.offset_bottom = 120
+	block.offset_top = 118
+	block.offset_bottom = 470
 	block.alignment = BoxContainer.ALIGNMENT_CENTER
 	block.add_theme_constant_override("separation", -22)
 	content.add_child(block)
@@ -106,12 +106,12 @@ func _build_logo() -> void:
 	kicker.modulate.a = 0.0
 	block.add_child(kicker)
 
-	var logo = UIStyle.make_title("APEX", 190, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
+	var logo = UIStyle.make_title("APEX", 150, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	logo.modulate.a = 0.0
 	logo.position.y += 26.0
 	block.add_child(logo)
 
-	var logo2 = UIStyle.make_title("VELOCITY", 190, UIStyle.MAGENTA, HORIZONTAL_ALIGNMENT_CENTER)
+	var logo2 = UIStyle.make_title("VELOCITY", 150, UIStyle.MAGENTA, HORIZONTAL_ALIGNMENT_CENTER)
 	logo2.modulate.a = 0.0
 	logo2.position.y += 26.0
 	block.add_child(logo2)

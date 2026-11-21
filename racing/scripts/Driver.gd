@@ -4,8 +4,8 @@ extends Control
 ## boot screen. Also exposes a `--screen=<id>` CLI switch used by CI to boot
 ## every screen headlessly and by the screenshot rig.
 
-const SCREENS := ["boot", "menu", "tracks", "race", "garage", "shop", "results",
-	"achievements", "daily", "settings", "credits", "profile"]
+const SCREENS := ["boot", "menu", "tracks", "race", "roam", "garage", "shop",
+	"results", "achievements", "daily", "settings", "credits", "profile"]
 
 var _fps_accum = 0.0
 var _fps_frames = 0
@@ -17,7 +17,9 @@ func _ready() -> void:
 	_apply_window()
 	SceneRouter.setup(self)
 	var forced = _forced_screen()
-	if forced != "":
+	if forced == "roam":
+		SceneRouter.goto_instant("race", {"track": GameData.TRACKS[0], "mode": "roam"})
+	elif forced != "":
 		SceneRouter.goto_instant(forced)
 	else:
 		SceneRouter.goto_instant("boot")

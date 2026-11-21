@@ -46,9 +46,11 @@ void fragment() {
 	vec3 base = paint_color * lower_ao * panel_light;
 
 	ALBEDO = base;
-	METALLIC = clamp(metallic, 0.0, 1.0);
+	// Base coat stays mostly dielectric: metallic=1.0 turns the whole body into
+	// a mirror of the sun and blows out to white under a key light.
+	METALLIC = clamp(metallic * 0.55, 0.0, 0.85);
 	ROUGHNESS = clamp(roughness, 0.02, 1.0);
-	SPECULAR = 0.60;
+	SPECULAR = 0.50;
 
 	// Clearcoat is not available in the GL Compatibility renderer, so the lacquer
 	// layer is faked: tighten the roughness toward the clearcoat value and add a

@@ -238,11 +238,12 @@ jobs:
           ls -lh racing/docs/screenshots
       - name: Layout diagnostics
         run: |
-          for screen in menu race; do
-            timeout 120 xvfb-run -a -s "-screen 0 1920x1080x24" \
+          for screen in menu race roam; do
+            timeout 90 xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 --quit-after 60 \
               -- --screen=$screen --diag > /tmp/diag_$screen.log 2>&1 || true
+            echo "--- $screen: $(grep -c '^\[DIAG\]' /tmp/diag_$screen.log || echo 0) diag lines"
             grep '^\[DIAG\]' /tmp/diag_$screen.log | head -40 | while read -r l; do echo "::warning::$l"; done || true
           done
           { for f in /tmp/diag_*.log; do echo "### $f"; grep -E '^\[DIAG\]|ERROR|SCRIPT|WARNING' "$f" | head -60; done; } > racing/docs/diag.log
