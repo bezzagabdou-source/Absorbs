@@ -188,6 +188,63 @@ await test('نصوص الواجهة تُهرَّب بأمان', () => {
   assert.ok(txt.errorText(new DjezzyError(ERROR_CODES.NETWORK)).includes('خوادم جيزي'));
 });
 
+await test('كتالوج العروض الحقيقية ولوحاته', async () => {
+  const catalog = await import('../src/djezzy/catalog.js');
+  assert.ok(catalog.PAID_OFFERS.length >= 15, 'الكتالوج يجب أن يضم عشرات العروض');
+  assert.ok(catalog.FREE_GIFTS.length >= 3, 'ثلاث هدايا مجانية على الأقل');
+
+  const offer = catalog.findOffer('BTLINTSPEEDDAY2Go');
+  assert.ok(offer, 'عرض BTLINTSPEEDDAY2Go موجود');
+  assert.equal(offer.price, 70);
+
+  // جميع بيانات الأزرار ≤ 64 بايت
+  const paid = ui.paidOffersMenu(0);
+  for (const row of paid.inline_keyboard) {
+    for (const button of row) {
+      assert.ok(button.callback_data.length <= 64, `callback_data طويل: ${button.callback_data}`);
+    }
+  }
+  const confirm = ui.confirmOffer(offer);
+  assert.ok(confirm.inline_keyboard.flat().some((b) => b.callback_data === 'offer:go:BTLINTSPEEDDAY2Go'));
+
+  const free = ui.freeGiftsMenu();
+  const flat = free.inline_keyboard.flat();
+  assert.ok(flat.some((b) => b.callback_data === 'gift:weekly2go'));
+  assert.ok(flat.some((b) => b.callback_data === 'gift:promoqr'));
+  assert.ok(flat.some((b) => b.callback_data === 'gift:mgm'));
+
+  assert.match(txt.catalogText('free'), /مجانية/);
+  assert.match(txt.catalogText('paid'), /مدفوعة/);
+  assert.match(txt.offerConfirmText(offer), /تأكيد تفعيل/);
+});
+
+await test('توقيع والتحقق من بيانات Mini Apps (initData)', async () => {
+  const { signInitData, verifyInitData } = await import('../src/util/telegram-auth.js');
+  const token = '123456:TEST-TOKEN';
+  const init = signInitData(
+    { user: { id: 42, first_name: 'Tester' }, auth_date: Math.floor(Date.now() / 1000) },
+    token,
+  );
+  const result = verifyInitData(init, token);
+  assert.ok(result.ok, 'التوقيع يجب أن يُتحقق');
+  assert.equal(result.user.id, 42);
+  assert.ok(!verifyInitData(init, '000000:WRONG').ok, 'توكن آخر يجب أن يُرفض');
+  assert.ok(!verifyInitData('hash=bad', token).ok, 'بيانات تالفة تُرفض');
+});
+
+await test('محرّك بروكسيات جيزي يطبّع الصيغ المختلفة', async () => {
+  const { parseProxy } = await import('../src/djezzy/routes.js');
+  const standard = parseProxy('http://user:pass@10.0.0.1:8080');
+  assert.equal(standard.host, '10.0.0.1');
+  assert.equal(standard.port, 8080);
+  const bare = parseProxy('10.0.0.2:3128');
+  assert.equal(bare.host, '10.0.0.2');
+  const kookeey = parseProxy('mobile.kookeey.info:1086:abc123-DZ-1:secret-DZ-2');
+  assert.equal(kookeey.port, 1086);
+  assert.equal(kookeey.auth.username, 'abc123-DZ-1');
+  assert.equal(parseProxy(''), null);
+});
+
 await test('محاكي جيزي يعيد ضبط حالته', () => {
   simulator.reset();
   assert.ok(simulator.enabled);

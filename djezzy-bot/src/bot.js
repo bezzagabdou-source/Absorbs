@@ -1,7 +1,8 @@
 /**
  * واجهة تيليجرام (grammy):
- * تسجيل الأرقام عبر OTP، تفعيل 6 جيغا، استلام الهدايا، وإدارة الأرقام.
- * الحالة تُحفظ في التخزين (KV) لا في الذاكرة — لذلك يعمل البوت على Vercel.
+ * تسجيل الأرقام عبر OTP، كتالوج الهدايا المجانية والعروض المدفوعة،
+ * بونص الدعوة، إدارة الأرقام — بتصميم أزرار ملوّن بالفئات.
+ * الحالة تُحفظ في التخزين (KV/GitHub) لا في الذاكرة — لذلك يعمل البوت على Vercel.
  */
 import { Bot, InlineKeyboard } from 'grammy';
 import config from './config.js';
@@ -9,6 +10,7 @@ import store from './store/index.js';
 import client from './djezzy/client.js';
 import { DjezzyEngine } from './djezzy/engine.js';
 import { ERROR_CODES } from './djezzy/errors.js';
+import { findOffer, configuredPaidOffer } from './djezzy/catalog.js';
 import { isOtpCode, normalizeMsisdn } from './util/validate.js';
 import { createLogger } from './util/logger.js';
 import { escapeHtml, formatDateTime } from './util/time.js';
@@ -28,6 +30,13 @@ const accountsOf = (user) =>
 
 const displayName = (ctx) =>
   [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(' ') || ctx.from?.username || '';
+
+const menuOpts = (user = {}) => ({
+  hasAccount: Object.keys(user.accounts || {}).length > 0,
+  activeMsisdn: user.activeMsisdn,
+  mode: engine.mode,
+  publicUrl: config.bot.publicUrl || null,
+});
 
 async function loadUser(ctx) {
   return store.getUser(ctx.from.id);
@@ -55,29 +64,14 @@ async function render(ctx, text, keyboard) {
 
 async function homeView(ctx, note = null) {
   const user = await loadUser(ctx);
-  const text = note
-    ? `${note}\n\n${txt.mainMenuText({
-        name: displayName(ctx),
-        user,
-        mode: engine.mode,
-        maxNumbers: config.limits.maxNumbersPerUser,
-      })}`
-    : txt.mainMenuText({
-        name: displayName(ctx),
-        user,
-        mode: engine.mode,
-        maxNumbers: config.limits.maxNumbersPerUser,
-      });
-
-  await render(
-    ctx,
-    text,
-    ui.mainMenu({
-      hasAccount: Object.keys(user.accounts || {}).length > 0,
-      activeMsisdn: user.activeMsisdn,
-      mode: engine.mode,
-    }),
-  );
+  const main = txt.mainMenuText({
+    name: displayName(ctx),
+    user,
+    mode: engine.mode,
+    maxNumbers: config.limits.maxNumbersPerUser,
+  });
+  const text = note ? `${note}\n\n${main}` : main;
+  await render(ctx, text, ui.mainMenu(menuOpts(user)));
 }
 
 /** يرجع { user, msisdn } أو يشرح للمستخدم ما ينقص */
@@ -89,7 +83,7 @@ async function requireAccount(ctx) {
     await render(
       ctx,
       '⚠️ لا يوجد رقم مربوط بعد.\n\nابدأ بـ «📱 إضافة رقم جديد» ثم أعد المحاولة.',
-      ui.mainMenu({ hasAccount: false, mode: engine.mode }).text('📱 إضافة رقم', 'add:start'),
+      ui.mainMenu({ hasAccount: false, mode: engine.mode, publicUrl: config.bot.publicUrl || null }),
     );
     return null;
   }
@@ -158,22 +152,19 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
       [
         'ℹ️ <b>كيف يعمل البوت</b>',
         '',
-        '1️⃣ «📱 إضافة رقم جديد» → أرسل الرقم → أدخل رمز التحقق.',
-        '2️⃣ «🔥 عرض 6 جيغا» → عرض مدفوع: يطلب تأكيداً صريحاً قبل التفعيل.',
-        '3️⃣ «🎁 هدية 2 جيغا» أو «كل الهدايا» → يستلم المتاح لك فقط.',
-        '4️⃣ «⚙️ إدارة الأرقام» → تبديل/حذف الأرقام.',
+        '1️⃣ «📱 إضافة رقم جديد» → أرسل الرقم (07…) → أدخل رمز التحقق.',
+        '2️⃣ بعد التأكيد تظهر لك «🟢 الهدايا المجانية» و«🔵 العروض المدفوعة».',
+        '3️⃣ 🟢 هدية 2 جيجا كل أسبوع · هدية الجمعة/المناسبة · بونص الدعوة — مجانية 100%.',
+        '4️⃣ 🔵 عروض يومية/أسبوعية/شهرية بأسعار واضحة — تُفعَّل بتأكيدك فقط.',
+        '5️⃣ «⚙️ إدارة الأرقام» → تبديل/حذف الأرقام.',
         '',
         'الأوامر: /start · /menu · /cancel · /help',
         '',
-        '🌍 <b>لماذا لا يعمل؟ (رسالة «تعذّر الوصول»)</b>',
-        'خوادم جيزي (<code>apim.djezzy.dz</code>) لا تقبل الاتصال إلا من شبكات جزائرية.',
-        'أي استضافة خارج الجزائر (Vercel…) تفشل حتماً في إرسال الرمز وتفعيل الهدايا.',
+        '🌐 <b>لوحة أزرار ملوّنة على الويب:</b> زر «لوحة أزرار» في القائمة',
+        '(أزرار حقيقية بخلفيات زرقاء/خضراء/حمراء + إيموجيات متحركة HTML).',
         '',
-        '<b>الحل:</b> شغّل البوت على جهاز داخل الجزائر:',
-        '1. ثبّت Node.js (أو Termux على الهاتف).',
-        '2. <code>git clone</code> المشروع ثم <code>npm install</code>.',
-        '3. ضع المفاتيح في ملف <code>.env</code>.',
-        '4. <code>npm run poll</code> — يعمل بدون رابط عام ولا Webhook.',
+        '🌍 <b>اتصال جيزي:</b> البوت يجرّب تلقياً: relay ← مباشر ← بروكسيات جزائرية.',
+        'إن فشل كل شيء شغّل <code>djezzy-bot/relay</code> داخل الجزائر واضبط DJEZZY_RELAY_URL.',
         '',
         '🔐 تُشفَّر رموز الجلسات قبل تخزينها ولا تُعرض أبداً.',
         '⚠️ استخدم البوت على أرقامك فقط، وبما يتوافق مع شروط خدمة جيزي.',
@@ -197,9 +188,65 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     await answer(
       ctx,
       engine.mode === 'simulation'
-        ? '🧪 وضع المحاكاة: لا تُرسل طلبات حقيقية. اضبط DJEZZY_BASE_URL و DJEZZY_DRY_RUN=false للتشغيل المباشر.'
-        : '🟢 متصل بخوادم جيزي عبر إعداداتك.',
+        ? '🧪 وضع المحاكاة: لا تُرسل طلبات حقيقية. أزل DJEZZY_DRY_RUN للتشغيل المباشر.'
+        : '🟢 متصل بخوادم جيزي — يُجرَّب relay ثم مباشر ثم بروكسيات جزائرية تلقائياً.',
     );
+  });
+
+  /* ------------------------- كتالوج: الهدايا والعروض ------------------------- */
+  bot.callbackQuery('cat:free', async (ctx) => {
+    await answer(ctx);
+    await render(ctx, txt.catalogText('free', { mode: engine.mode }), ui.freeGiftsMenu());
+  });
+
+  bot.callbackQuery('cat:paid', async (ctx) => {
+    await answer(ctx);
+    await render(ctx, txt.catalogText('paid', { mode: engine.mode }), ui.paidOffersMenu(0));
+  });
+
+  bot.callbackQuery(/^offers:page:(\d+)$/, async (ctx) => {
+    const page = Number(ctx.match[1]) || 0;
+    await answer(ctx);
+    await render(ctx, txt.catalogText('paid', { mode: engine.mode }), ui.paidOffersMenu(page));
+  });
+
+  /* تأكيد عرض مدفوع (من الكتالوج) */
+  bot.callbackQuery(/^offer:((?!go:)[A-Za-z0-9_-]+)$/, async (ctx) => {
+    const code = ctx.match[1];
+    const offer = findOffer(code) || (configuredPaidOffer()?.code === code ? configuredPaidOffer() : null);
+    if (!offer) {
+      await answer(ctx, '⚠️ هذا العرض لم يعد متاحاً');
+      await render(ctx, '⚠️ هذا العرض غير موجود في الكتالوج.', ui.backHome());
+      return;
+    }
+    await answer(ctx);
+    await render(ctx, txt.offerConfirmText(offer, { simulated: engine.mode === 'simulation' }), ui.confirmOffer(offer));
+  });
+
+  /* تنفيذ تفعيل عرض مدفوع بعد التأكيد الصريح */
+  bot.callbackQuery(/^offer:go:([A-Za-z0-9_-]+)$/, async (ctx) => {
+    const code = ctx.match[1];
+    const context = await requireAccount(ctx);
+    if (!context) return;
+
+    const wait = await takeCooldown(context.user, `offer:${code}`);
+    if (wait) return answer(ctx, `⏳ انتظر ${wait} ثانية`);
+
+    const offer = findOffer(code) || { code, name: code, detail: '', price: null };
+    await answer(ctx, '🔵 جارٍ التفعيل…');
+    await render(ctx, `⏳ <i>جارٍ إرسال طلب تفعيل ${escapeHtml(offer.name)} إلى جيزي…</i>`, ui.backHome());
+
+    try {
+      const result = await engine.activateOffer(ctx.from.id, context.msisdn, code);
+      await render(
+        ctx,
+        txt.activationSuccess({ label: offer.name, item: result.item, simulated: engine.mode === 'simulation' }),
+        ui.afterAction(),
+      );
+    } catch (error) {
+      log.warn(`فشل تفعيل العرض ${code}: ${error.code || error.message}`);
+      await render(ctx, txt.errorText(error), ui.afterAction());
+    }
   });
 
   /* ------------------------- إضافة رقم + OTP ------------------------- */
@@ -301,14 +348,13 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
   });
 
   /* ---------------------- عرض 6 جيجا (مدفوع/باقة) ---------------------- */
-  // عروض 6 جيجا ليست هدية مجانية في جيزي، وتفعيلها قد يخصم رصيداً.
-  // لذلك نطلب تأكيداً صريحاً قبل أي طلب، ولا نفعّلها بلا رمز باقة مضبوط.
   bot.callbackQuery('act:6gb', async (ctx) => {
     const context = await requireAccount(ctx);
     if (!context) return;
     await answer(ctx);
 
-    if (!config.djezzy.paidProductCode) {
+    const offer = configuredPaidOffer();
+    if (!offer) {
       await render(
         ctx,
         [
@@ -317,30 +363,23 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
           'عروض 6 جيجا في جيزي ليست هدية مجانية — لكل عرض رمز باقة خاص به،',
           'وتفعيله قد يُخصم من رصيدك.',
           '',
-          'لهذا لم أفعّل أي شيء تلقائياً. أرسل لي رمز الباقة (packageCode)',
-          'الظاهر في تطبيق جيزي وسأضبطه لك، أو استخدم الأزرار المجانية:',
-          '🎁 هدية 2 جيجا الأسبوعية.',
+          'لهذا لم أفعّل أي شيء تلقائياً. لديك خياران:',
+          '• 🔵 تصفّح «العروض المدفوعة» واختر الباقة التي تريدها بسعرها المعلن.',
+          '• 🟢 استخدم «الهدايا المجانية» (2 جيجا أسبوعياً + هدايا الجمعة).',
+          '',
+          'أو أرسل لي رمز الباقة (packageCode) من تطبيق جيزي واضبطه لزر 6 جيغا.',
         ].join('\n'),
-        ui.afterAction(),
+        new InlineKeyboard()
+          .text('🔵 العروض المدفوعة', 'cat:paid')
+          .row()
+          .text('🟢 الهدايا المجانية', 'cat:free')
+          .row()
+          .text('🏠 القائمة الرئيسية', 'menu:home'),
       );
       return;
     }
 
-    await render(
-      ctx,
-      [
-        '⚠️ <b>تأكيد عملية مدفوعة</b>',
-        '',
-        `الباقة: <code>${escapeHtml(config.djezzy.paidProductCode)}</code>`,
-        'سيُرسل طلب تفعيل حقيقي إلى جيزي وقد يُخصم من رصيدك.',
-        '',
-        'هل تريد المتابعة؟',
-      ].join('\n'),
-      new InlineKeyboard()
-        .text('✅ نعم، فعّل', 'act:6gb:confirm')
-        .row()
-        .text('✖️ إلغاء', 'menu:home'),
-    );
+    await render(ctx, txt.offerConfirmText(offer, { simulated: engine.mode === 'simulation' }), ui.confirmOffer(offer));
   });
 
   bot.callbackQuery('act:6gb:confirm', async (ctx) => {
@@ -362,7 +401,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     }
   });
 
-  /* ------------------------- هدية 2 جيغا / الهدايا ------------------------- */
+  /* ------------------------- الهدايا المجانية ------------------------- */
   const giftHandler = (mode) => async (ctx) => {
     const context = await requireAccount(ctx);
     if (!context) return;
@@ -374,8 +413,10 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     await render(
       ctx,
       mode === 'weekly'
-        ? '⏳ <i>جارٍ استلام هدية 2 جيغا الأسبوعية…</i>'
-        : '⏳ <i>جارٍ استلام كل الهدايا المتاحة…</i>',
+        ? '⏳ <i>جارٍ استلام هدية 2 جيجا الأسبوعية…</i>'
+        : mode === 'promo'
+          ? '⏳ <i>جارٍ استلام هدية الجمعة/المناسبة…</i>'
+          : '⏳ <i>جارٍ استلام كل الهدايا المتاحة…</i>',
       ui.backHome(),
     );
 
@@ -383,7 +424,9 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
       const result =
         mode === 'weekly'
           ? await engine.claimWeeklyGift(ctx.from.id, context.msisdn)
-          : await engine.claimAllGifts(ctx.from.id, context.msisdn);
+          : mode === 'promo'
+            ? await engine.claimPromoGift(ctx.from.id, context.msisdn)
+            : await engine.claimAllGifts(ctx.from.id, context.msisdn);
 
       const header = result.ok ? '✅' : '⚠️';
       await render(
@@ -399,6 +442,19 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
 
   bot.callbackQuery('act:gift:weekly', giftHandler('weekly'));
   bot.callbackQuery('act:gift:all', giftHandler('all'));
+  bot.callbackQuery('gift:weekly2go', giftHandler('weekly'));
+  bot.callbackQuery('gift:promoqr', giftHandler('promo'));
+
+  /* ------------------------- بونص الدعوة (MGM) ------------------------- */
+  bot.callbackQuery('gift:mgm', async (ctx) => {
+    const context = await requireAccount(ctx);
+    if (!context) return;
+    const user = context.user;
+    user.state = { step: 'awaiting_friend', temp: { startedAt: Date.now() } };
+    await store.saveUser(user);
+    await answer(ctx);
+    await render(ctx, txt.mgmPrompt(), ui.cancelOnly('cat:free'));
+  });
 
   /* ---------------------------- الرسائل النصية ---------------------------- */
   bot.on('message:text', async (ctx) => {
@@ -407,11 +463,42 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
 
     if (!state?.step) {
       await ctx.reply('استخدم الأزرار للتنقل 👇 أو أرسل /menu للقائمة الرئيسية.', {
-        reply_markup: ui.mainMenu({
-          hasAccount: Object.keys(user.accounts || {}).length > 0,
-          mode: engine.mode,
-        }),
+        reply_markup: ui.mainMenu(menuOpts(user)),
       });
+      return;
+    }
+
+    /* ---------- 0) استقبال رقم صديق لبونص الدعوة ---------- */
+    if (state.step === 'awaiting_friend') {
+      const parsed = normalizeMsisdn(ctx.message.text);
+      if (!parsed.valid) {
+        await ctx.reply(`⚠️ ${parsed.reason}\n\nمثال: <code>0770123456</code>`, {
+          parse_mode: 'HTML',
+          reply_markup: ui.cancelOnly('cat:free'),
+        });
+        return;
+      }
+
+      const msisdn = user.activeMsisdn || Object.keys(user.accounts || {})[0];
+      if (!msisdn) {
+        user.state = null;
+        await store.saveUser(user);
+        await ctx.reply('⚠️ لا يوجد رقم مربوط — أضف رقمك أولاً.', { reply_markup: ui.backHome() });
+        return;
+      }
+
+      user.state = null;
+      await store.saveUser(user);
+      await ctx.replyWithChatAction('typing').catch(() => {});
+      try {
+        const result = await engine.claimMgmBonus(ctx.from.id, msisdn, parsed.msisdn);
+        await ctx.reply(txt.mgmResult(result, { simulated: engine.mode === 'simulation' }), {
+          parse_mode: 'HTML',
+          reply_markup: ui.afterAction(),
+        });
+      } catch (error) {
+        await ctx.reply(txt.errorText(error), { parse_mode: 'HTML', reply_markup: ui.backHome() });
+      }
       return;
     }
 
@@ -419,7 +506,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     if (state.step === 'awaiting_phone') {
       const parsed = normalizeMsisdn(ctx.message.text);
       if (!parsed.valid) {
-        await ctx.reply(`⚠️ ${parsed.reason}\n\nمثال: <code>0551234567</code>`, {
+        await ctx.reply(`⚠️ ${parsed.reason}\n\nمثال: <code>07XXXXXXXX</code>`, {
           parse_mode: 'HTML',
           reply_markup: ui.cancelOnly(),
         });
@@ -490,22 +577,22 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
       try {
         const result = await engine.confirmLogin(ctx.from.id, msisdn, code);
         const fresh = await loadUser(ctx);
+        // بعد التأكيد: نعرض العروض والهدايا المتاحة فوراً
         await ctx.reply(
           [
-            '✅ <b>تم ربط الرقم بنجاح</b>',
+            '✅ <b>تم ربط الرقم بنجاح — تم تأكيد الحساب</b>',
             '',
             `الرقم: <code>${escapeHtml(result.account.label)}</code>`,
             `الجلسة صالحة حتى: ${escapeHtml(formatDateTime(result.expiresAt))}`,
             '',
-            'يمكنك الآن تفعيل العروض والهدايا بضغطة زر.',
+            '🟢 <b>الآن متاح لك:</b> هدية 2 جيجا أسبوعياً · هدية الجمعة/المناسبة · بونص الدعوة',
+            '🔵 وكتالوج العروض المدفوعة بأسعار واضحة.',
+            '',
+            'اختر من الأزرار بالأسفل 👇',
           ].join('\n'),
           {
             parse_mode: 'HTML',
-            reply_markup: ui.mainMenu({
-              hasAccount: true,
-              activeMsisdn: fresh.activeMsisdn,
-              mode: engine.mode,
-            }),
+            reply_markup: ui.mainMenu(menuOpts(fresh)),
           },
         );
       } catch (error) {

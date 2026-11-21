@@ -11,6 +11,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import config from '../config.js';
 import { createLogger } from '../util/logger.js';
+import { createGitHubAdapter } from './github.js';
 
 const log = createLogger('store');
 const KEY_PREFIX = 'djezzy:user:';
@@ -159,6 +160,9 @@ function resolveAdapter() {
 
   if (config.storage.kvUrl && config.storage.kvToken) {
     adapterRef = createKvAdapter({ url: config.storage.kvUrl, token: config.storage.kvToken });
+  } else if (config.storage.githubToken && config.storage.githubRepo) {
+    // تخزين دائم عبر فرع bot-state في مستودع GitHub — يعمل على Vercel بلا KV
+    adapterRef = createGitHubAdapter();
   } else if (!config.isVercel) {
     adapterRef = createFileAdapter(process.env.STORE_FILE);
   } else {
@@ -166,9 +170,11 @@ function resolveAdapter() {
   }
 
   if (adapterRef.name === 'memory') {
-    log.warn('تخزين مؤقت في الذاكرة — الجلسات ستُفقد عند إعادة تشغيل الدالة. اضبط KV_REST_API_URL/TOKEN للإنتاج.');
+    log.warn('تخزين مؤقت في الذاكرة — الجلسات ستُفقد عند إعادة تشغيل الدالة. اضبط KV_REST_API_URL/TOKEN أو STATE_GITHUB_TOKEN للإنتاج.');
   } else if (adapterRef.name === 'file') {
     log.info(`تخزين على القرص: ${adapterRef.path} — الجلسات تبقى بعد إعادة التشغيل.`);
+  } else if (adapterRef.name === 'github') {
+    log.info(`تخزين عبر GitHub: ${adapterRef.repo}@${adapterRef.branch} — جلسات دائمة على Vercel.`);
   }
 
   return adapterRef;

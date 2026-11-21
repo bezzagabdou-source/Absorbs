@@ -16,9 +16,14 @@ import config, { validateConfig } from '../src/config.js';
 import { getBot, engine } from '../src/bot.js';
 import store from '../src/store/index.js';
 import { statusPage } from '../src/ui/text.js';
+import { appPage, emojisPage } from '../src/ui/pages.js';
+import { PAID_OFFERS, findOffer } from '../src/djezzy/catalog.js';
+import { describeRoutes } from '../src/djezzy/routes.js';
+import { verifyInitData } from '../src/util/telegram-auth.js';
 import { createLogger, sanitize } from '../src/util/logger.js';
 import { safeEqual } from '../src/crypto.js';
 import { formatDateTime, withTimeout } from '../src/util/time.js';
+import * as txt from '../src/ui/text.js';
 
 const log = createLogger('http');
 const STARTED_AT = Date.now();
@@ -73,10 +78,10 @@ async function healthHandler(_req, res) {
   res.status(200).json({
     ok: Boolean(config.bot.token),
     service: 'djezzy-telegram-bot',
-    version: '1.0.0',
+    version: '2.0.0',
     uptimeSeconds: Math.round((Date.now() - STARTED_AT) / 1000),
     bot: { configured: Boolean(config.bot.token), webhookSecret: Boolean(config.bot.webhookSecret) },
-    djezzy: { mode: engine.mode, baseUrl: config.djezzy.baseUrl || null },
+    djezzy: { mode: engine.mode, baseUrl: config.djezzy.baseUrl || null, routes: describeRoutes() },
     storage: { adapter: store.adapter, reachable: storageOk },
     publicUrl: config.bot.publicUrl || null,
     webhookPath: '/api/webhook',
@@ -309,6 +314,96 @@ async function diagnoseHandler(req, res) {
   });
 }
 
+/* --------------------- لوحة الويب: أزرار عبر initData --------------------- */
+
+let cachedUsername = null;
+let cachedUsernameAt = 0;
+
+async function resolveBotUsername() {
+  if (cachedUsername && Date.now() - cachedUsernameAt < 60 * 60 * 1000) return cachedUsername;
+  const bot = getBot();
+  if (!bot) return '';
+  try {
+    if (bot.botInfo?.username) {
+      cachedUsername = bot.botInfo.username;
+    } else {
+      const info = await withTimeout(bot.api.getMe(), 8000, 'getMe');
+      cachedUsername = info.username || '';
+    }
+    cachedUsernameAt = Date.now();
+  } catch {
+    cachedUsername = cachedUsername || '';
+  }
+  return cachedUsername;
+}
+
+/** تصفية رسالة نتيجة لعرضها في الويب (HTML → نص) */
+const plain = (value) => String(value || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+
+async function appActionHandler(req, res) {
+  const auth = verifyInitData(req.headers['x-telegram-init-data'], config.bot.token);
+  if (!auth.ok) {
+    res.status(401).json({ ok: false, error: 'بيانات الدخول غير صالحة — افتح اللوحة من داخل البوت.' });
+    return;
+  }
+
+  const userId = auth.user.id;
+  const { action, code, friend } = req.body || {};
+
+  try {
+    const user = await store.getUser(userId);
+    const msisdn = user.activeMsisdn || Object.keys(user.accounts || {})[0];
+
+    const needAccount = () => {
+      if (!msisdn || !user.accounts?.[msisdn]) {
+        const error = new Error('لا يوجد رقم مربوط — اربط رقمك من البوت أولاً (📱 إضافة رقم).');
+        error.status = 400;
+        throw error;
+      }
+    };
+
+    let message = '';
+
+    if (action === 'claim-weekly') {
+      needAccount();
+      const result = await engine.claimWeeklyGift(userId, msisdn);
+      message = plain(txt.giftsResult(result));
+      if (result.ok) message = `✅ ${message}`;
+    } else if (action === 'claim-promo') {
+      needAccount();
+      const result = await engine.claimPromoGift(userId, msisdn);
+      message = result.ok ? '✅ تم استلام الهدية الترويجية بنجاح.' : `⚠️ ${result.message || 'لم تُستلم الهدية.'}`;
+    } else if (action === 'overview') {
+      needAccount();
+      const overview = await engine.getOverview(userId, msisdn);
+      message = plain(txt.overviewText({ account: engine.describeAccount(user.accounts[msisdn]), overview }));
+    } else if (action === 'activate-offer') {
+      needAccount();
+      const offer = findOffer(String(code || ''));
+      if (!offer) {
+        const error = new Error('العرض غير موجود في الكتالوج.');
+        error.status = 404;
+        throw error;
+      }
+      const result = await engine.activateOffer(userId, msisdn, offer.code);
+      message = `✅ تم تفعيل ${offer.name} بنجاح.`;
+    } else if (action === 'remove-account') {
+      needAccount();
+      await engine.removeAccount(userId, msisdn);
+      message = '🗑 تم حذف الرقم المربوط من البوت.';
+    } else {
+      const error = new Error('عملية غير معروفة.');
+      error.status = 400;
+      throw error;
+    }
+
+    res.json({ ok: true, message });
+  } catch (error) {
+    const friendly = error?.friendly || error?.message || 'حدث خطأ غير متوقع.';
+    res.status(error?.status || 400).json({ ok: false, error: plain(friendly) });
+  }
+}
+
 /* ------------------------------ التطبيق ------------------------------ */
 
 export function createApp() {
@@ -326,6 +421,29 @@ export function createApp() {
   app.get(['/api/diagnose', '/diagnose'], diagnoseHandler);
   app.get(['/api/probe', '/probe'], probeHandler);
   app.get(['/api/tcp'], tcpHandler);
+
+  /* صفحات الويب: لوحة الأزرار الملوّنة + معرض الإيموجيات المتحركة */
+  app.get('/app', async (_req, res) => {
+    res
+      .status(200)
+      .type('html')
+      .send(
+        appPage({
+          publicUrl: config.bot.publicUrl || '',
+          botUsername: await resolveBotUsername(),
+          mode: engine.mode,
+          storage: store.adapter,
+          offers: PAID_OFFERS,
+        }),
+      );
+  });
+  app.get('/emojis', (_req, res) => {
+    res.status(200).type('html').send(emojisPage({ publicUrl: config.bot.publicUrl || '' }));
+  });
+
+  /* أزرار لوحة الويب — مصادقة عبر initData الخاصة بتيليجرام */
+  app.post('/api/app/action', express.json({ limit: '32kb' }), appActionHandler);
+
   app.get(['/', '/api', '/api/index', '/status'], (_req, res) => {
     res
       .status(200)

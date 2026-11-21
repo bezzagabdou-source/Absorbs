@@ -53,6 +53,15 @@ export const simulator = {
     return { data: state.history.get(msisdn) ?? [] };
   },
 
+  profile({ msisdn }) {
+    return {
+      msisdn,
+      mainBalance: '100.00 DA',
+      package: 'SIMULATED',
+      data: { msisdn, mainBalance: '100.00 DA' },
+    };
+  },
+
   claimGift({ msisdn, giftId = config.djezzy.giftWalkCode }) {
     const list = state.history.get(msisdn) ?? [];
     if (list.some((item) => item.packageCode === giftId)) {

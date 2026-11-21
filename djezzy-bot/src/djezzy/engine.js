@@ -189,7 +189,7 @@ export class DjezzyEngine {
     await this.store.saveUser(user);
   }
 
-  /* ------------------------- سجل الاشتراكات ------------------------- */
+  /* ------------------------- سجل الاشتراكات والحساب ------------------------- */
   async #weeklyStatus(telegramId, msisdn) {
     return this.#withAuth(telegramId, msisdn, async ({ token }) => {
       const history = normalizeHistory(await this.client.getHistory({ token, msisdn }).catch(soft({})));
@@ -203,6 +203,16 @@ export class DjezzyEngine {
     const { lastAt, nextEligibleAt, history } = await this.#weeklyStatus(telegramId, msisdn);
     const now = Date.now();
 
+    // البروفايل (الرصيد/الباقة) — يُقرأ إن كان المسار متاحاً ولا يُسقط الفحص
+    let profile = null;
+    try {
+      profile = await this.#withAuth(telegramId, msisdn, async ({ token }) =>
+        this.client.getProfile({ token, msisdn }),
+      );
+    } catch {
+      profile = null;
+    }
+
     return {
       ok: true,
       mode: this.mode,
@@ -211,6 +221,7 @@ export class DjezzyEngine {
       canClaimNow: !lastAt || now >= nextEligibleAt,
       recent: history.filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 5),
       promoConfigured: Boolean(config.djezzy.scanQr),
+      profile,
     };
   }
 
@@ -303,14 +314,10 @@ export class DjezzyEngine {
     };
   }
 
-  /* --------------------- عرض مدفوع (بموافقة صريحة) --------------------- */
-  async activatePaidOffer(telegramId, msisdn) {
-    const code = config.djezzy.paidProductCode;
+  /* --------------------- تفعيل عرض/باقة بالرمز --------------------- */
+  async activateOffer(telegramId, msisdn, code) {
     if (!code) {
-      throw new DjezzyError(
-        ERROR_CODES.OFFER_NOT_FOUND,
-        'لم تُضبط أي باقة مدفوعة. عروض 6 جيجا ليست هدية مجانية — رمزها يختلف حسب عرضك (OFFER_PAID_CODE).',
-      );
+      throw new DjezzyError(ERROR_CODES.OFFER_NOT_FOUND, 'لم يُضبط رمز الباقة المطلوبة.');
     }
 
     let user = await this.#guardQuota(await this.store.getUser(telegramId));
@@ -323,6 +330,41 @@ export class DjezzyEngine {
         status: 'activated',
         message: response?.message || `تم تفعيل الباقة ${code}.`,
         item: code,
+      };
+      await this.#recordResult(freshUser, msisdn, result);
+      return result;
+    });
+  }
+
+  /** العرض المدفوع المضبوط في البيئة (زر «6 جيغا») — بموافقة صريحة */
+  async activatePaidOffer(telegramId, msisdn) {
+    const code = config.djezzy.paidProductCode;
+    if (!code) {
+      throw new DjezzyError(
+        ERROR_CODES.OFFER_NOT_FOUND,
+        'لم تُضبط أي باقة مدفوعة. عروض 6 جيجا ليست هدية مجانية — رمزها يختلف حسب عرضك (OFFER_PAID_CODE).',
+      );
+    }
+    return this.activateOffer(telegramId, msisdn, code);
+  }
+
+  /* --------------------- بونص الدعوة (MGM) --------------------- */
+  async claimMgmBonus(telegramId, msisdn, friendMsisdn) {
+    if (!friendMsisdn || friendMsisdn === msisdn) {
+      throw new DjezzyError(ERROR_CODES.OFFER_NOT_FOUND, 'أدخل رقم صديق جيزي صحيح (07…) مختلف عن رقمك.');
+    }
+
+    let user = await this.#guardQuota(await this.store.getUser(telegramId));
+    await this.store.saveUser(user);
+
+    return this.#withAuth(telegramId, msisdn, async ({ token, user: freshUser }) => {
+      const response = await this.client.memberGetMember({ token, msisdn, friendMsisdn });
+      const result = {
+        ok: true,
+        status: 'claimed',
+        claimed: [{ name: 'بونص الدعوة (MGM)', data: null }],
+        failed: [],
+        message: response?.message || 'تم إرسال بونص الدعوة بنجاح.',
       };
       await this.#recordResult(freshUser, msisdn, result);
       return result;

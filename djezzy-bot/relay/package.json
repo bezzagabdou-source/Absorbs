@@ -1,0 +1,10 @@
+{
+  "name": "djezzy-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "خادم وسيط لتمرير طلبات جيزي من داخل الجزائر (لبوت Vercel)",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "express": "^4.21.2" }
+}

@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
  * اختبار الوضع المباشر ضد سيرفر وهمي يقلّد واجهة جيزي الحقيقية (HTTP فعلي).
- * يتحقق من: شكل الطلبات (query/form/JSON)، Bearer، تفسير 402 و900901، والسجل.
+ * يتحقق من شكل الطلبات الحقيقي الجديد:
+ *   - OTP: form إلى /oauth2/registration (msisdn + client_id + scope=smsotp)
+ *   - التوكن: form إلى /oauth2/token (scope=openid + grant_type=mobile)
+ *   - التفعيل: POST subscription-product بحمولة GIFTWALKWIN / data.id
+ *   - بروفايل: GET /djezzy-api/api/v1/subscribers/{msisdn}
+ *   - تفسير 402 و900901، والسجل، وبروكسيات المسارات، وتبديل زوج العميل.
  *
  *   node scripts/live-client-test.js
  */
@@ -14,6 +19,7 @@ process.env.SESSION_ENCRYPTION_KEY = 'test-key-0123456789abcdef0123456789abcdef'
 process.env.DJEZZY_CLIENT_ID = 'test-client-id';
 process.env.DJEZZY_CLIENT_SECRET = 'test-client-secret';
 process.env.DJEZZY_DRY_RUN = 'false';
+process.env.DJEZZY_AUTO_PROXY = 'false'; // لا نبحث عن بروكسيات أثناء الاختبار
 process.env.ACTION_COOLDOWN_MS = '0';
 process.env.MAX_CLAIMS_PER_DAY = '100';
 
@@ -53,23 +59,22 @@ const server = http.createServer(async (req, res) => {
   const auth = req.headers.authorization || '';
   const okAuth = auth === `Bearer ${validToken}`;
 
-  /* 1) إرسال الرمز */
-  if (url.pathname === '/mobile-api/oauth2/registration' && req.method === 'POST') {
-    assert.equal(url.searchParams.get('scope'), 'smsotp');
-    assert.equal(url.searchParams.get('client_id'), 'test-client-id');
-    assert.match(url.searchParams.get('msisdn'), /^2137\d{8}$/);
-    const body = JSON.parse(raw);
-    assert.equal(body['is-consent'], true);
-    assert.ok(Array.isArray(body['consent-agreement']));
-    assert.match(req.headers['user-agent'], /MobileApp/);
+  /* 1) إرسال الرمز — الشكل الحقيقي: form إلى /oauth2/registration */
+  if (url.pathname === '/oauth2/registration' && req.method === 'POST') {
+    const form = new URLSearchParams(raw);
+    assert.equal(form.get('scope'), 'smsotp');
+    assert.equal(form.get('client_id'), 'test-client-id');
+    assert.match(form.get('msisdn'), /^2137\d{8}$/);
+    assert.match(req.headers['user-agent'] || '', /Djezzy/);
+    assert.match(req.headers['content-type'] || '', /x-www-form-urlencoded/);
     return send(200, { message: 'confirmation code has been sent successfully' });
   }
 
-  /* 2) التحقق واستخراج التوكن */
+  /* 2) التحقق واستخراج التوكن — الشكل الحقيقي: scope=openid */
   if (url.pathname === '/oauth2/token' && req.method === 'POST') {
     const form = new URLSearchParams(raw);
     if (form.get('grant_type') === 'mobile') {
-      assert.equal(form.get('scope'), 'djezzyAppV2');
+      assert.equal(form.get('scope'), 'openid');
       assert.equal(form.get('client_secret'), 'test-client-secret');
       assert.equal(form.get('mobileNumber'), '213770123456');
       if (form.get('otp') !== '123456') {
@@ -78,6 +83,7 @@ const server = http.createServer(async (req, res) => {
       return send(200, { access_token: validToken, refresh_token: 'refresh_abc', expires_in: 3600 });
     }
     if (form.get('grant_type') === 'refresh_token') {
+      assert.equal(form.get('scope'), 'djezzyAppV2');
       validToken = 'live_token_2';
       return send(200, { access_token: validToken, refresh_token: 'refresh_xyz', expires_in: 3600 });
     }
@@ -90,37 +96,61 @@ const server = http.createServer(async (req, res) => {
     return send(200, { status: 200, data: historyItems });
   }
 
-  /* 4) هدية 2 جيجا الأسبوعية */
-  if (url.pathname.includes('/services/walk/activate-reward/')) {
+  /* 4) البروفايل: GET /djezzy-api/api/v1/subscribers/{msisdn} */
+  if (url.pathname === '/djezzy-api/api/v1/subscribers/213770123456' && req.method === 'GET') {
+    if (!okAuth) return send(401, { fault: { code: 900901, message: 'Invalid Credentials' } });
+    return send(200, { status: 200, data: { msisdn: '213770123456', mainBalance: '250.00 DA' } });
+  }
+
+  /* 5) تفعيل المنتجات/الهدايا — الشكل الحقيقي: subscription-product */
+  if (url.pathname.endsWith('/subscription-product') && req.method === 'POST') {
     if (expireNextRewardCall) {
       expireNextRewardCall = false;
       return send(401, { fault: { code: 900901, message: 'Invalid Credentials' } });
     }
     if (!okAuth) return send(401, { fault: { code: 900901, message: 'Invalid Credentials' } });
     const body = JSON.parse(raw);
-    assert.equal(body.packageCode, 'GIFTWALKWIN2GO');
-    if (ineligible) {
-      return send(402, { status: 402, message: { en: 'You must subscribe to a plan' } });
+
+    // هدية 2 جيجا (Walk Win)
+    if (body?.data?.id === 'GIFTWALKWIN') {
+      assert.equal(body.data.type, 'products');
+      assert.equal(body.data.meta.services.code, 'GIFTWALKWIN2GO');
+      assert.equal(body.data.meta.services.id, 'WALKWIN');
+      assert.ok(Number(body.data.meta.services.steps) >= 10000);
+      if (ineligible) {
+        return send(402, { status: 402, message: { en: 'You must subscribe to a plan' } });
+      }
+      weeklyClaimed += 1;
+      historyItems = [
+        { packageCode: 'GIFTWALKWIN2GO', subscriptionDateTime: new Date().toISOString() },
+        ...historyItems,
+      ];
+      return send(200, { status: 200, message: { en: 'Your request has been processed successfully' } });
     }
-    weeklyClaimed += 1;
-    historyItems = [
-      { packageCode: 'GIFTWALKWIN2GO', subscriptionDateTime: new Date().toISOString() },
-      ...historyItems,
-    ];
-    return send(200, { status: 200, message: { en: 'Your request has been processed successfully' } });
+
+    // عروض مدفوعة ودعوات MGM
+    assert.equal(body?.data?.type, 'products');
+    assert.ok(body.data.id, 'data.id مطلوب');
+    if (ineligible) {
+      return send(402, { status: 402, message: { en: 'Your balance is not enough to subscribe to the product' } });
+    }
+    return send(200, { status: 200, message: { en: 'successfully done' } });
   }
 
-  /* 5) الهدية الترويجية */
+  /* 6) بونص الدعوة */
+  if (url.pathname.endsWith('/member-get-member') && req.method === 'POST') {
+    if (!okAuth) return send(401, { fault: { code: 900901 } });
+    const body = JSON.parse(raw);
+    assert.equal(body.data.id, 'MGM-BONUS');
+    assert.match(body.data.meta.services['b-number'], /^2137\d{8}$/);
+    return send(200, { status: 200, message: { en: 'successfully done' } });
+  }
+
+  /* 7) الهدية الترويجية (QR) */
   if (url.pathname.includes('/services/scan/activate-reward/')) {
     if (!okAuth) return send(401, { fault: { code: 900901 } });
     const body = JSON.parse(raw);
     assert.ok(body.qrCode, 'qrCode مطلوب');
-    return send(200, { status: 200, message: { en: 'successfully done' } });
-  }
-
-  /* 6) باقة مدفوعة */
-  if (url.pathname.includes('/subscribers/activate-product/')) {
-    if (!okAuth) return send(401, { fault: { code: 900901 } });
     return send(200, { status: 200, message: { en: 'successfully done' } });
   }
 
@@ -130,7 +160,7 @@ const server = http.createServer(async (req, res) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
-const client = new DjezzyClient({ baseUrl, dryRun: false, timeoutMs: 5000 });
+const client = new DjezzyClient({ baseUrl, dryRun: false, timeoutMs: 5000, forceDirect: true });
 const engine = new DjezzyEngine({ client, store });
 
 const TG_ID = 888000111;
@@ -149,12 +179,14 @@ const step = async (name, fn) => {
 
 await step('العميل يعمل في الوضع المباشر', () => assert.equal(client.mode, 'live'));
 
-await step('طلب OTP حقيقي (query + JSON body + User-Agent)', async () => {
+await step('طلب OTP بالشكل الحقيقي (form إلى /oauth2/registration)', async () => {
   const started = await engine.startLogin(TG_ID, MSISDN);
   assert.equal(started.ok, true);
   assert.equal(started.sessionId, `otp:${MSISDN}`);
-  const reg = calls.find((call) => call.path === '/mobile-api/oauth2/registration');
+  const reg = calls.find((call) => call.path === '/oauth2/registration');
   assert.ok(reg, 'يجب استدعاء مسار registration');
+  assert.ok(reg.body.includes('scope=smsotp'));
+  assert.ok(reg.body.includes('msisdn=213770123456'));
 });
 
 await step('رمز خاطئ → OTP_INVALID', async () => {
@@ -171,20 +203,22 @@ await step('رمز صحيح → توكن حقيقي محفوظ مشفّراً', 
   assert.ok(!JSON.stringify(saved).includes('live_token_1'), 'لا يجوز تخزين التوكن صريحاً');
 });
 
-await step('السجل يُقرأ بالتوكن', async () => {
+await step('السجل والبروفايل يُقرأان بالتوكن', async () => {
   const overview = await engine.getOverview(TG_ID, MSISDN);
   assert.equal(overview.lastWeeklyAt, null);
   assert.equal(overview.canClaimNow, true);
-  const call = calls.find((item) => item.path.includes('subscription-history'));
-  assert.ok(call, 'يجب استدعاء السجل');
+  assert.ok(calls.some((item) => item.path.includes('subscription-history')), 'يجب استدعاء السجل');
+  assert.ok(calls.some((item) => item.path === '/djezzy-api/api/v1/subscribers/213770123456'), 'يجب استدعاء البروفايل');
+  assert.equal(overview.profile?.mainBalance, '250.00 DA');
 });
 
-await step('استلام هدية 2 جيجا حقيقي (walk/activate-reward)', async () => {
+await step('استلام هدية 2 جيجا (subscription-product + حمولة GIFTWALKWIN)', async () => {
   const result = await engine.claimWeeklyGift(TG_ID, MSISDN);
   assert.equal(result.ok, true);
   assert.equal(weeklyClaimed, 1);
-  const call = calls.find((item) => item.path.includes('/services/walk/activate-reward/'));
+  const call = calls.find((item) => item.path.endsWith('/subscription-product'));
   assert.ok(call?.body.includes('GIFTWALKWIN2GO'));
+  assert.ok(call?.body.includes('GIFTWALKWIN'));
 });
 
 await step('السجل يمنع الاستلام الثاني (مهلة 7 أيام)', async () => {
@@ -196,7 +230,6 @@ await step('السجل يمنع الاستلام الثاني (مهلة 7 أيا
 });
 
 await step('402 من جيزي → خطأ أهلية واضح', async () => {
-  // نُفرّغ السجل ونعلن عدم الأهلية
   historyItems = [];
   ineligible = true;
   await assert.rejects(
@@ -220,14 +253,30 @@ await step('الهدية الترويجية (scan) تُستلم', async () => {
   assert.ok(calls.some((call) => call.path.includes('/services/scan/activate-reward/')));
 });
 
-await step('الباقة المدفوعة لا تُفعّل بدون رمز مضبوط', async () => {
+await step('تفعيل عرض مدفوع بالرمز عبر subscription-product', async () => {
+  const before = calls.length;
+  const result = await engine.activateOffer(TG_ID, MSISDN, 'BTLINTSPEEDDAY2Go');
+  assert.equal(result.ok, true);
+  const call = calls.slice(before).find((item) => item.path.endsWith('/subscription-product'));
+  assert.ok(call, 'يجب استدعاء subscription-product');
+  const body = JSON.parse(call.body);
+  assert.equal(body.data.id, 'BTLINTSPEEDDAY2Go');
+});
+
+await step('الباقة المدفوعة عبر البيئة لا تُفعّل بدون رمز مضبوط', async () => {
   await assert.rejects(
     () => engine.activatePaidOffer(TG_ID, MSISDN),
     (error) => error.code === ERROR_CODES.OFFER_NOT_FOUND,
   );
 });
 
-await step('خطأ الشبكة يُحوَّل إلى NETWORK', async () => {
+await step('بونص الدعوة (MGM) يُرسل برقم الصديق', async () => {
+  const result = await engine.claimMgmBonus(TG_ID, MSISDN, '213771112222');
+  assert.equal(result.ok, true);
+  assert.ok(calls.some((call) => call.path.endsWith('/member-get-member')));
+});
+
+await step('خطأ الشبكة يُحوَّل إلى NETWORK عبر كل المسارات', async () => {
   const deadClient = new DjezzyClient({ baseUrl: 'http://127.0.0.1:1', dryRun: false, timeoutMs: 1200 });
   await assert.rejects(
     () => deadClient.requestOtp({ msisdn: MSISDN }),
@@ -243,8 +292,8 @@ await step('بيانات عميل مرفوضة → تبديل تلقائي لل�
     const body = [];
     req.on('data', (chunk) => body.push(chunk));
     req.on('end', () => {
-      const url = new URL(req.url, 'http://localhost');
-      const clientId = url.searchParams.get('client_id');
+      const form = new URLSearchParams(body.join(''));
+      const clientId = form.get('client_id');
       seen.push(clientId);
       if (clientId !== 'legacy-id') {
         res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -263,6 +312,7 @@ await step('بيانات عميل مرفوضة → تبديل تلقائي لل�
     baseUrl: fallbackUrl,
     dryRun: false,
     timeoutMs: 5000,
+    forceDirect: true,
     clientId: 'new-id',
     clientSecret: 'new-secret',
     legacyClientId: 'legacy-id',
@@ -278,6 +328,23 @@ await step('بيانات عميل مرفوضة → تبديل تلقائي لل�
   assert.equal(seen.at(-1), 'legacy-id');
 
   fallbackServer.close();
+});
+
+await step('طبقات المسارات تُبنى بالترتيب الصحيح', async () => {
+  const { buildRoutes, parseProxy } = await import('../src/djezzy/routes.js');
+  const routes = await buildRoutes();
+  assert.ok(routes.length >= 1, 'يجب أن يوجد مسار واحد على الأقل');
+  assert.equal(routes[0].kind, 'direct', 'المباشر هو الأساس عند عدم ضبط relay');
+
+  const proxy = parseProxy('http://user:pass@1.2.3.4:8080');
+  assert.equal(proxy.host, '1.2.3.4');
+  assert.equal(proxy.port, 8080);
+  assert.equal(proxy.auth.username, 'user');
+
+  const kookeey = parseProxy('mobile.kookeey.info:1086:123-abc:DZ-99');
+  assert.equal(kookeey.host, 'mobile.kookeey.info');
+  assert.equal(kookeey.port, 1086);
+  assert.equal(kookeey.auth.username, '123-abc');
 });
 
 rmSync(process.env.STORE_FILE, { force: true });
