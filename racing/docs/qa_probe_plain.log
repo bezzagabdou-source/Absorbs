@@ -1,17 +1,17 @@
-=== probe 2026-11-21T21:19:39
-[QAPROBE] car=(651.0, 0.788358, 0.0) nearest_road=(651.0, 0.568358, 0.0) lateral=0.00m dy=0.22m
-[QAPROBE] cam=(648.3593, 4.486124, -11.65792) showcase=true dist_to_car=12.5m
-[QAPROBE] cam_fwd=(0.23076, -0.118197, 0.965805) pitch=-0.12
-[QADUMP] Highway aabb=[P: (-646.0241, -2.641821, -698.6008), S: (1316.625, 7.097498, 1292.051)] mat=<ShaderMaterial#-9223371986070141477> layers=1
-[QADUMP] @MeshInstance3D@132 pos=(642.5816, 4.068358, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
-[QADUMP] @MeshInstance3D@133 pos=(642.5816, 7.568358, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
-[QADUMP] @OmniLight3D@134 pos=(642.5816, 7.468358, 1.758025) dist=10.9 aabb_size=(52.0, 52.0, 52.0) visible=true
-[QAH] ang=0.00 road=0.57 terrain=-1.13 clearance=1.70
-[QAH] ang=1.57 road=0.62 terrain=-1.08 clearance=1.70
-[QAH] ang=3.14 road=1.64 terrain=-0.06 clearance=1.70
-[QAH] ang=4.71 road=-2.53 terrain=-4.23 clearance=1.70
+=== probe 2026-11-21T21:29:44
+[QAPROBE] car=(651.0, 5.691842, 0.0) nearest_road=(651.0, 5.471842, 0.0) lateral=0.00m dy=0.22m
+[QAPROBE] cam=(648.3631, 8.601957, -11.64004) showcase=true dist_to_car=12.3m
+[QAPROBE] cam_fwd=(0.232051, -0.054499, 0.971176) pitch=-0.05
+[QADUMP] Highway aabb=[P: (-646.0241, -1.512679, -698.6008), S: (1316.625, 13.04292, 1292.051)] mat=<ShaderMaterial#-9223371986070141477> layers=1
+[QADUMP] @MeshInstance3D@132 pos=(642.5816, 8.971842, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
+[QADUMP] @MeshInstance3D@133 pos=(642.5816, 12.47184, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
+[QADUMP] @OmniLight3D@134 pos=(642.5816, 12.37184, 1.758025) dist=10.9 aabb_size=(52.0, 52.0, 52.0) visible=true
+[QAH] ang=0.00 road=5.47 terrain=-1.13 clearance=6.60
+[QAH] ang=1.57 road=2.27 terrain=-1.08 clearance=3.35
+[QAH] ang=3.14 road=2.03 terrain=-0.06 clearance=2.09
+[QAH] ang=4.71 road=4.67 terrain=-4.23 clearance=8.90
 [QAH] grid=96 segs=192 points=192
-[QAH] first_points=(651.0, 0.568358, 0.0) (656.3114, 0.239771, 21.48541) (660.0342, 0.071889, 43.26093)
-[QAH] road_vs_mesh: buried=0/192 worst_clearance=1.70 at=27
+[QAH] first_points=(651.0, 5.471842, 0.0) (656.3114, 6.552093, 21.48541) (660.0342, 7.762477, 43.26093)
+[QAH] road_vs_mesh: buried=0/192 worst_clearance=1.70 at=19
 [QAH] mesh verts=1152 indexed=false
-[QAH] tris up=384 down=0 verts_near_spawn=6 area=64633
+[QAH] tris up=384 down=0 verts_near_spawn=6 area=64671
