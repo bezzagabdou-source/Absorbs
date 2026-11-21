@@ -452,21 +452,30 @@ func _build_road_collision(width: float) -> void:
 		_road_body.add_child(cs)
 
 
-## Emit a quad as two triangles that BOTH face up.
+## Emit a quad as two triangles that both face up AND tile it exactly.
 ##
-## Orientation here is genuinely counter-intuitive and cost three CI rounds to
-## settle, so it is pinned by a regression test (`highway faces up`). The caller
-## passes vertices as _quad(st, a, c, b, d) where a = p0-left, b = p0+right,
-## c = p1-left, d = p1+right and `right = dir.cross(UP)` points to the *outside*
-## of the ring. Solving every three-vertex permutation of the four corners
-## against the real travel direction gives exactly two upward pairings:
-##   (A,C,B) + (A,C,D)   <- this one
-##   (A,C,B) + (C,D,A)   <- equivalent split
-## Anything that consumes the diagonal the other way (`A,B,D` style) faces down
-## and `cull_back` deletes the whole highway.
+## This cost several CI rounds, so the reasoning is pinned here. The caller is
+## `_quad(st, a, c, b, d)` with its own a = p0-left, b = p0+right, c = p1-left,
+## d = p1+right, so inside this function the corners are
+##     A = p0-left, B = p1-left, C = p0+right, D = p1+right
+## i.e. A->B runs along the road on the left edge and C->D on the right edge.
+##
+## Facing: in a Y-up right-handed basis the Y component of (b-a)x(c-a) for a
+## horizontal triangle is  (b-a).z * (c-a).x - (b-a).x * (c-a).z  . Enumerating
+## the corners with the ring's real handedness leaves four upward windings:
+## ACB, ACD, ADB and BDC. Only two of the possible pairs actually TILE the quad —
+## diagonals A-D or B-C:
+##     ACD + ADB     (diagonal A-D)
+##     ACB + BDC     (diagonal B-C)
+## The pair this function used to emit, ACB + ACD, shares edge A-C: both triangles
+## are up-facing (so the `highway faces up` regression test passed) but they
+## overlap and leave the far half of every quad empty. The result is a road that
+## exists in the scene, reports a sane AABB and 384 triangles, and renders as a
+## thin dashed sliver — which is exactly the "invisible highway" that took days
+## to trace. Hence ACD + ADB, and hence the coverage test in TestRunner.
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	_quad_tri(st, a, c, b)
 	_quad_tri(st, a, c, d)
+	_quad_tri(st, a, d, b)
 
 
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:

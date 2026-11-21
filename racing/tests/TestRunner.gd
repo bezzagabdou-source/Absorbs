@@ -154,6 +154,10 @@ func _foundation() -> void:
 		# whole road disappears under cull_back and the bug is invisible to every
 		# other check. Assert that the faces point up.
 		_check(_road_faces_up(ow), "highway faces up " + prof)
+		# ... and that the quads actually TILE. Two up-facing triangles can still
+		# share an edge and leave half of every quad empty; that variant passed the
+		# winding test for days while rendering as a dashed sliver.
+		_check(_road_covers_area(ow), "highway tiles its quads " + prof)
 		# Same class of bug for the ground: an inside-out terrain mesh is culled
 		# away from above and the world looks like it has no floor at all.
 		_check(_terrain_faces_up(ow), "terrain faces up " + prof)
@@ -266,6 +270,51 @@ func _road_faces_up(ow: Node) -> bool:
 		i += 3
 	print("[TEST]   ", tris, " highway triangles, normal.y sum ", snappedf(total, 0.01))
 	return total > 0.0
+
+
+## Every quad of the carriageway must be covered by exactly its two triangles.
+##
+## Total triangle area is compared against the area the ribbon should have:
+## 192 segments * 16 m width. Overlapping triangles (the old ACB+ACD split) cover
+## only ~half the quad, so the summed area comes out far below the expected value
+## even though every face points up.
+func _road_covers_area(ow: Node) -> bool:
+	var mi: MeshInstance3D = null
+	for c in ow.get_children():
+		if c is MeshInstance3D and str((c as Node).name) == "Highway":
+			mi = c
+			break
+	if mi == null or mi.mesh == null:
+		return false
+	var arrays: Array = mi.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var order: Array = []
+	var raw_idx = arrays[Mesh.ARRAY_INDEX]
+	if raw_idx is PackedInt32Array and (raw_idx as PackedInt32Array).size() > 0:
+		var idx: PackedInt32Array = raw_idx
+		for k in range(idx.size()):
+			order.append(verts[idx[k]])
+	else:
+		for k in range(verts.size()):
+			order.append(verts[k])
+	var area := 0.0
+	var i := 0
+	while i + 2 < order.size():
+		var a: Vector3 = order[i]
+		var b: Vector3 = order[i + 1]
+		var c: Vector3 = order[i + 2]
+		area += (b - a).cross(c - a).length() * 0.5
+		i += 3
+	# the ring is longer than a circle of the same mean radius: 620 * (1 + wobble)
+	var expected: float = 0.0
+	var pts: PackedVector3Array = ow.get("road_points")
+	for k in range(pts.size()):
+		var p0: Vector3 = pts[k]
+		var p1: Vector3 = pts[(k + 1) % pts.size()]
+		expected += Vector2(p1.x - p0.x, p1.z - p0.z).length() * 16.0
+	var ratio := area / maxf(expected, 1.0)
+	print("[TEST]   highway area %.0f vs expected %.0f (ratio %.2f)" % [area, expected, ratio])
+	return ratio > 0.92 and ratio < 1.08
 
 
 func _runtime() -> void:
