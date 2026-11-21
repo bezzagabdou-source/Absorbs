@@ -84,10 +84,10 @@ void fragment() {
 	SPECULAR = mix(0.32, 0.72, damp);
 
 	// --- painted lane markings, in road space so they follow the curve
-	// UV.y is metres along the ring and grows without bound, so the fract() calls
-	// below are only stable while it is finite. It is also 0 on any mesh that has
-	// no UVs, which would paint a single enormous stripe; gate on both.
-	float uv_ok = step(0.0001, abs(along)) * step(abs(along), 1.0e7);
+	// Only guard against non-finite UVs. Do NOT gate on along > 0: UV.y is metres
+	// from the start of the ring, so it is exactly zero at the spawn angle and any
+	// such gate erases the paint precisely where the camera sits.
+	float uv_ok = step(abs(along), 1.0e7);
 	// dashes every 3.2 m laterally, 4.5 m on / 4.5 m off longitudinally
 	float lane_d = abs(fract(lat / 3.2) - 0.5) * 3.2;
 	float dash = step(0.42, fract(along / 9.0));
