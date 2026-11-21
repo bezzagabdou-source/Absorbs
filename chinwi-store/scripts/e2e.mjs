@@ -411,6 +411,31 @@ await check("usd: اختيار السعر → الكمية → الدفع → ا
   assert.ok(ownerMsg);
 });
 
+/* 6b. شراء شحن بالحساب — بلا كلمة سر فالبوت */
+await check("buy: شحن بالحساب → يرسله للمالك عبر بوت تواصل + المالك توصله طلبية", async () => {
+  await resetSent();
+  const pes = await db.query(
+    "select p.id, p.name from products p join categories c on c.id = p.category_id where c.slug = 'efootball' and p.active = true order by p.id limit 1",
+  );
+  assert.ok(pes.rowCount > 0, "منتجات pes/efootball موجودة");
+  const pesProduct = pes.rows[0];
+  await sendUpdate(cb(users.buyer, `buy:${pesProduct.id}`));
+  // 1) لا يسأل البوت على كلمة السر — مباشرة «إتمام الدفع»
+  const pay = await waitForMessage(555, (m) => (m.text ?? "").includes("إتمام الدفع"));
+  assert.ok(!((pay.text ?? "").includes("الخطوة")), "ما يسألش على كلمة السر");
+  // 2) الزبون يوصله إرشاد يرسله للمالك عبر بوت تواصل مع كود الطلب
+  const dash = await waitForMessage(555, (m) => (m.text ?? "").includes("بوت تواصل"));
+  assert.ok(hasButton(dash, "بوت تواصل"), "زر بوت تواصل ظاهر");
+  assert.ok(!((dash.text ?? "").includes("الخطوة")), "لا أسئلة كلمة سر");
+  // 3) الطلب انخلق بدون أي بيانات حساب
+  const order = (await db.query("select * from orders where product_id = $1 order by id desc limit 1", [pesProduct.id])).rows[0];
+  assert.ok(order, "انخلق طلب");
+  assert.deepEqual(order.details ?? {}, {}, "الطلب بدون كلمة السر/اسم الحساب");
+  // 4) المالك توصله طلبية فوراً بها كود الطلب
+  const ownerMsg = await waitForMessage(777, (m) => (m.text ?? "").includes(order.code));
+  assert.ok((ownerMsg.text ?? "").includes("طلب جديد"), "المالك توصله طلبية");
+});
+
 /* 7. الدعم والرسائل */
 await check("support: رسالة الزبون تصل للمالك مع /reply", async () => {
   await resetSent();

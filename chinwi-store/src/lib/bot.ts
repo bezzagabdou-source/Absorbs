@@ -611,12 +611,12 @@ async function sendProduct(chatId: number, productId: number, s: SettingsMap): P
   rows.push([b(`🧾 طلباتي`, "orders")]);
   rows.push([b(`🔙 رجوع للقسم`, `cat:${p.category_id}`)]);
 
-  const details = (p.fields ?? []).map((f) => `• ${escapeHtml(f.label)}`).join("\n");
-  // 🔐 الألعاب التي لا تدعم الشحن بالآي دي (مثل Konami) → شحن بالحساب + تواصل مع المالك
+  // 🔐 الألعاب التي لا تدعم الشحن بالآي دي (مثل Konami) → شحن بالحساب: الزبون يرسل معلومات حسابه بنفسه للمالك — البوت لا يطلب كلمة السر أبداً
   const needsAccount = (p.fields ?? []).some((f) => f.key === "password" || f.key === "account");
   const accountNote = needsAccount
-    ? "🔐 <b>شحن بالحساب</b> — تواصل مع المالك."
+    ? "🔐 <b>شحن بالحساب</b> — ما تعطيش كلمة السر فالبوت، بعد الطلب أرسل معلومات حسابك مباشرة للمالك عبر <b>بوت تواصل</b>: https://t.me/chinwicontactbot"
     : "";
+  const details = needsAccount ? "" : (p.fields ?? []).map((f) => `• ${escapeHtml(f.label)}`).join("\n");
   const caption = [
     `🎁 <b>${escapeHtml(p.name)}</b>`,
     p.badge ? `<i>${escapeHtml(p.badge)}</i>` : "",
@@ -720,6 +720,27 @@ async function startPurchase(chatId: number, productId: number, userId: number, 
   }
   const fields = p.fields ?? [];
   const byAccount = fields.some((f) => f.key === "password" || f.key === "account");
+  if (byAccount) {
+    // 🔐 شحن بالحساب: ما نسقسيوش على كلمة السر ولا اسم الحساب فالبوت — الطلب يتخلق بلا بيانات حساب،
+    // والزبون يرسل معلومات حسابه بنفسه للمالك عبر بوت تواصل، والمالك توصله طلبية فوراً مع رابط محادثته.
+    const order = await createOrderAndShowPayment(chatId, userId, p, {}, s);
+    if (order) {
+      await sendMessage(
+        chatId,
+        [
+          "🔐 <b>شحن بالحساب — خطوة أخيرة!</b>",
+          "",
+          "ما تعطيش كلمة السر ولا اسم الحساب هنا فالبوت.",
+          `أرسلهم <b>مباشرة للمالك عبر بوت تواصل</b> واذكر رقم طلبك <code>${order.code}</code>:`,
+        ].join("\n"),
+        kb([
+          [link(`🔗 بوت تواصل`, `https://t.me/chinwicontactbot`)],
+          [b(`🧾 طلباتي`, "orders")],
+        ]),
+      );
+    }
+    return;
+  }
   if (fields.length) {
     await setUserState(userId, `field:${p.id}`, {
       productId: p.id,
@@ -731,7 +752,6 @@ async function startPurchase(chatId: number, productId: number, userId: number, 
       chatId,
       [
         `🛒 <b>${escapeHtml(p.name)}</b> — ${money(p.price, s.currency as string)}`,
-        byAccount ? "🔐 <b>شحن بالحساب</b> — تواصل مع المالك." : "",
         "",
         `الخطوة <b>1/${fields.length}</b>`,
         f.label,
@@ -752,7 +772,7 @@ async function createOrderAndShowPayment(
   p: ProductRow,
   values: Record<string, string>,
   s: SettingsMap,
-): Promise<void> {
+): Promise<OrderRow | null> {
   const cur = settingString(s, "currency", "دج");
   // 🎟 تطبيق كود الخصم المفعّل (إن وُجد) مرة واحدة
   const user = await getUser(userId);
@@ -787,6 +807,7 @@ async function createOrderAndShowPayment(
     status: "pending_payment",
   });
   if (couponNote) await sendMessage(chatId, `✅ طُبّق الخصم على طلبك ${order.code}${couponNote}`);
+  const byAccount = (p.fields ?? []).some((f) => f.key === "password" || f.key === "account");
   await notifyOwner(
     [
       "🆕 <b>طلب جديد بانتظار الدفع</b>",
@@ -795,10 +816,14 @@ async function createOrderAndShowPayment(
       `💰 ${money(amount, cur)}`,
       `👤 ${user ? mentions(user as unknown as TgUser) : "زبون"} — <code>${userId}</code>`,
       `🧾 <code>${order.code}</code>`,
-    ].join("\n"),
+      byAccount ? "🔐 «شحن بالحساب» — معلومات الحساب يوصلوه عبر بوت تواصل (ماشي فالبوت)" : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
     kb([[link(`💬 مراسلة الزبون`, `tg://user?id=${userId}`)]]),
   ).catch(() => null);
   await showPaymentOptions(chatId, order, s);
+  return order;
 }
 
 async function walletsRows(orderId: number, wallets: WalletRow[]): Promise<InlineButton[][]> {
