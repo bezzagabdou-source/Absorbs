@@ -378,4 +378,41 @@ class WebhookTests(unittest.TestCase):
 
 
 
+    def test_11_discovery_and_share_across_membership_gate(self):
+        buyer=989898989
+        self.message(1600,'/start',user=buyer)
+        with index._request_context() as st:
+            st.set_setting('bot_username','TestStoreBot')
+            recent=st.add_product({'name':'new-pg-item','price':6,'description':'UniquePGQuery','visible':1})
+            empty=st.add_product({'name':'out-pg-item','price':7,'visible':1})
+            hidden=st.add_product({'name':'hidden-pg-item','description':'UniquePGQuery','visible':0})
+            st.add_stock_lines(recent,['private-pg-stock'])
+            st.ex('UPDATE products SET created_at=? WHERE id=?',('2099-01-01T00:00:00Z',recent))
+            st.ex('UPDATE products SET sold=? WHERE id=?',(999999,recent))
+        self.callback(1601,'browse:new:0',user=buyer)
+        items=[b.get('callback_data','') for b in self.buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertTrue(items[0].startswith('view:%d:' % recent))
+        self.callback(1602,'browse:best:0',user=buyer)
+        items=[b.get('callback_data','') for b in self.buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertTrue(items[0].startswith('view:%d:' % recent))
+        self.callback(1603,'browse:stock:0',user=buyer)
+        items=[b.get('callback_data','') for b in self.buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertFalse(any(x.startswith('view:%d:' % empty) for x in items))
+        self.callback(1604,'search',user=buyer); self.message(1605,'UniquePGQuery',user=buyer)
+        buttons=[b.get('callback_data') for b in self.buttons()]
+        self.assertIn('view:%d' % recent,buttons); self.assertNotIn('view:%d' % hidden,buttons)
+        self.callback(1606,'view:%d' % recent,user=buyer)
+        link=next(b['url'] for b in self.buttons() if 'share/url?' in b.get('url',''))
+        self.assertIn('product_%d' % recent,link); self.assertNotIn('private-pg-stock',link)
+        newcomer=979797979
+        self.member_status[(newcomer,'@rahimo_store')]={'status':'left'}
+        self.message(1607,'/start product_%d' % recent,user=newcomer)
+        self.assertIn('joincheck',[b.get('callback_data') for b in self.buttons()])
+        self.member_status.pop((newcomer,'@rahimo_store'))
+        self.calls.clear(); self.callback(1608,'joincheck',user=newcomer)
+        self.assertIn('qty:%d' % recent,[b.get('callback_data') for b in self.buttons()])
+        self.assertNotIn('private-pg-stock',str(self.calls))
+
+
+
 if __name__ == '__main__': unittest.main()

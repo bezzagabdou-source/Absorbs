@@ -48,3 +48,12 @@ BINANCE_PAY_API_SECRET=
 - من قائمة المنتجات اختر «ترتيب حسب السعر» للترتيب تصاعدياً أو تنازلياً بسعر القطعة الحالي (وسعر الجملة يظهر عند اختيار كميته).
 - سجل الطلبات مقسم إلى صفحات، ومن تفاصيل طلبك «شراء مرة أخرى» يفتح اختيار الكمية ثم تأكيد السعر والمخزون الحاليين؛ لا يتم الخصم بمجرد الضغط على الزر. لا يمكن عرض طلب شخص آخر أو إعادة شرائه من حسابه.
 - ميزتا إعادة الطلب وترتيب السعر مستوحاتان من وظائف متجر Amazon وحسابات Shopify: https://www.amazon.com/alexa-shopping-hub/b?ie=UTF8&node=21467932011 و https://help.shopify.com/en/manual/b2b/getting-started/features و https://shopbuywithprime.amazon.com/
+
+## خمس إضافات لاكتشاف المنتجات
+
+- قائمة «الأحدث» مرتبة حسب تاريخ إضافة المنتج، و«الأكثر مبيعاً» حسب عدد الوحدات المسجلة في عداد المنتج؛ هذا العداد تراكمي ولا يخصم المرتجعات.
+- «المتوفر فقط» يعرض المنتجات الظاهرة التي لديها مخزون، بما فيها المنتج غير المحدود عند إعداد محتوى التسليم.
+- البحث يشمل الاسم والوصف العام بالعربية والإنجليزية فقط، وليس محتوى المخزون أو التسليم؛ يظهر حتى 20 نتيجة.
+- زر مشاركة المنتج يرسل رابطاً لصفحة المنتج داخل البوت. يعمل عند ضبط اسم مستخدم البوت؛ بعد الرابط يلزم تحقق الاشتراك المعتاد، والمنتجات المخفية لا تُعرض.
+
+المزايا من وظائف متاجر معروفة: ترتيب الأحدث والأكثر مبيعاً https://help.shopify.com/en/manual/products/collections/collection-layout ، فلتر التوفر https://help.shopify.com/en/manual/online-store/themes/customizing-themes/common-customizations/storefront-filters ، البحث في الوصف https://help.shopify.com/en/manual/online-store/storefront-search/search-behavior ، ومشاركة المنتج https://help.shopify.com/en/manual/promoting-marketing/create-marketing/social-media-marketing .

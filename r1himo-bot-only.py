@@ -343,7 +343,7 @@ LABEL_DEFAULTS = {
     "lbl_cancelled": ("❌ تم الإلغاء.", "❌ Cancelled."),
     "lbl_main_menu": ("🏠 القائمة الرئيسية", "🏠 Main menu"),
     "lbl_search": ("🔎 البحث", "🔎 Search"),
-    "lbl_search_prompt": ("🔎 أرسل اسم المنتج للبحث.", "🔎 Send a product name to search."),
+    "lbl_search_prompt": ("🔎 أرسل اسم المنتج أو كلمة من وصفه للبحث.", "🔎 Send a product name or a word from its description."),
     "lbl_search_title": ("نتائج البحث", "Search results"),
     "lbl_search_done": ("✅ تم البحث.", "✅ Search complete."),
     "lbl_search_empty": ("لا توجد نتائج.", "No results found."),
@@ -1730,7 +1730,10 @@ def build_products_keyboard(page, products, total_pages, lang, page_size):
         nav.append(_btn(label("lbl_next", lang), "default", None, cb="pg:%d" % (page + 1)))
     if nav:
         rows.append(nav)
-    rows.append([_btn("↕️ ترتيب حسب السعر" if lang == "ar" else "↕️ Sort by price", "primary", None, cb="browse:low:0")])
+    rows.append([_btn("↕️ ترتيب حسب السعر" if lang == "ar" else "↕️ Sort by price", "primary", None, cb="browse:low:0"),
+                 _btn("✅ المتوفر فقط" if lang == "ar" else "✅ In stock", "primary", None, cb="browse:stock:0")])
+    rows.append([_btn("🆕 الأحدث" if lang == "ar" else "🆕 Newest", "primary", None, cb="browse:new:0"),
+                 _btn("🔥 الأكثر مبيعاً" if lang == "ar" else "🔥 Best selling", "primary", None, cb="browse:best:0")])
     rows.append([_btn("🏷 الخصومات" if lang == "ar" else "🏷 Discounts", "success", None, cb="offers"),
                  _btn(label("lbl_search", lang), "primary", None, cb="search")])
     rows.append([_btn(label("lbl_close", lang), "default", None, cb="close")])
@@ -1747,6 +1750,11 @@ def build_product_keyboard(product, lang, back="pg:0"):
         rows.append([_btn(label("lbl_out", lang) + " ❌", "danger", None,
                           cb="topup")])
     rows.append([_btn('⭐ إضافة / إزالة من المفضلة' if lang == 'ar' else '⭐ Toggle favorite', 'primary', None, cb='favorite:%d' % product['id'])])
+    username=store.get_setting('bot_username','').strip().lstrip('@')
+    if re.fullmatch(r'[A-Za-z0-9_]{5,32}',username):
+        link='https://t.me/%s?start=product_%d' % (username,product['id'])
+        share='https://t.me/share/url?' + urllib.parse.urlencode({'url':link})
+        rows.append([_btn('📤 مشاركة المنتج' if lang=='ar' else '📤 Share product','primary',None,url=share)])
     rows.append([_btn(label("lbl_back", lang), "default", None, cb=back),
                  _btn(label("lbl_close", lang), "default", None, cb="close")])
     return inline_keyboard(rows)
@@ -2085,9 +2093,17 @@ def products_page(user, page=0, edit=None):
 
 def sorted_products_page(user, mode, page=0, edit=None):
     lang=lang_of(user)
-    if mode not in ('low','high'): mode='low'
+    if mode not in ('low','high','stock','new','best'): mode='low'
     items=store.products()
-    items.sort(key=lambda p: (unit_price(p,user),p['id']),reverse=(mode=='high'))
+    if mode == 'stock':
+        items=[p for p in items if store.available_stock(p)>0]
+    elif mode == 'new':
+        items.sort(key=lambda p: (p.get('created_at') or '',p['id']),reverse=True)
+    elif mode == 'best':
+        # sold is recorded cumulative units; refunds do not reverse this counter.
+        items.sort(key=lambda p: (to_int(p.get('sold'),0),p['id']),reverse=True)
+    else:
+        items.sort(key=lambda p: (unit_price(p,user),p['id']),reverse=(mode=='high'))
     per_page=max(3,min(50,store.get_int('page_size',10)))
     pages=max(1,(len(items)+per_page-1)//per_page)
     page=max(0,min(page,pages-1))
@@ -2102,8 +2118,14 @@ def sorted_products_page(user, mode, page=0, edit=None):
     if nav: rows.append(nav)
     rows.append([_btn('⬆️ الأقل سعراً' if lang=='ar' else '⬆️ Lowest price','primary',None,cb='browse:low:0'),
                  _btn('⬇️ الأعلى سعراً' if lang=='ar' else '⬇️ Highest price','primary',None,cb='browse:high:0')])
+    rows.append([_btn('✅ المتوفر فقط' if lang=='ar' else '✅ In stock','primary',None,cb='browse:stock:0'),
+                 _btn('🆕 الأحدث' if lang=='ar' else '🆕 Newest','primary',None,cb='browse:new:0'),
+                 _btn('🔥 الأكثر مبيعاً' if lang=='ar' else '🔥 Best selling','primary',None,cb='browse:best:0')])
     rows.append([_btn(t('lbl_back',lang),'default',None,cb='pg:0')])
-    direction=('الأقل سعراً أولاً' if mode=='low' else 'الأعلى سعراً أولاً') if lang=='ar' else ('Lowest price first' if mode=='low' else 'Highest price first')
+    labels={'low':('الأقل سعراً أولاً','Lowest price first'), 'high':('الأعلى سعراً أولاً','Highest price first'),
+            'stock':('المتوفر فقط','In stock only'), 'new':('الأحدث إضافةً','Newest added'),
+            'best':('الأكثر مبيعاً حسب الوحدات المسجلة','Best selling by recorded units')}
+    direction=labels[mode][0 if lang=='ar' else 1]
     title=('🏪 <b>المنتجات</b>\n%s · الصفحة %d/%d\nأسعار القطعة الواحدة؛ سعر الجملة يظهر عند اختيار الكمية.' if lang=='ar' else
            '🏪 <b>Products</b>\n%s · Page %d/%d\nSingle-item prices; bulk pricing appears when choosing quantity.') % (direction,page+1,pages)
     if not items: title+='\n'+('لا توجد منتجات.' if lang=='ar' else 'No products available.')
@@ -2567,8 +2589,12 @@ def handle_message(msg):
     joined, check_error = membership_check(tg_id)
     if not joined:
         parts = text.split(maxsplit=1)
-        if len(parts) > 1 and parts[0].split('@')[0] == '/start' and re.fullmatch(r'ref_[0-9]+', parts[1].strip()):
-            state_set(tg_id, "join_referral", ref_tg=int(parts[1].strip()[4:]), expires=time.time()+86400)
+        if len(parts) > 1 and parts[0].split('@')[0] == '/start':
+            payload=parts[1].strip()
+            if re.fullmatch(r'ref_[0-9]{1,18}',payload):
+                state_set(tg_id, "join_referral", ref_tg=int(payload[4:]), expires=time.time()+86400)
+            elif re.fullmatch(r'product_[0-9]{1,18}',payload):
+                state_set(tg_id, "join_product", product_id=int(payload[8:]), expires=time.time()+86400)
         return show_join_required(user, check_error)
     user = finish_join_referral(user)
 
@@ -2580,6 +2606,11 @@ def handle_message(msg):
     if text.startswith("/start"):
         parts = text.split(maxsplit=1)
         payload = parts[1].strip() if len(parts) > 1 else ""
+        if re.fullmatch(r'product_[0-9]{1,18}',payload):
+            state_clear(tg_id)
+            PENDING_BROADCAST.pop(tg_id, None)
+            send_main_menu(user)
+            return product_view(user,int(payload[8:]))
         if payload == "panel":
             state_clear(tg_id)
             PENDING_BROADCAST.pop(tg_id, None)
@@ -2856,8 +2887,9 @@ def show_offers(user, edit=None):
 def show_search_results(user, query):
     lang = lang_of(user)
     wanted = query.strip().casefold()[:100]
+    # Only public catalog text is searchable; never index feed or stock content.
     items = [p for p in store.products() if wanted and
-             wanted in ((p.get("name") or "") + " " + (p.get("name_en") or "")).casefold()][:20]
+             wanted in ' '.join(str(p.get(k) or '') for k in ('name','name_en','description','description_en')).casefold()][:20]
     rows = [[_btn("%s %s · %s" % (p.get("icon") or "", p.get("name") or "", price_str(discounted_price(p.get("price")))),
                   "success" if store.available_stock(p) > 0 else "danger", None,
                   cb="view:%d" % p["id"])] for p in items]
@@ -2930,9 +2962,17 @@ def handle_callback(cb):
         return show_join_required(user, check_error, edit=message_id)
     user = finish_join_referral(user)
     if data == "joincheck":
+        if store.get_bool("maintenance") and not is_owner_user(user):
+            return safe_send(chat_id,store.get_setting("maintenance_text_ar" if lang == "ar" else "maintenance_text_en", "") or "🛠")
+        pending=state_get(user['tg_id'])
         if message_id:
             safe_edit(chat_id, message_id, "✅ تم التحقق من الاشتراك." if lang == "ar" else "✅ Membership verified.")
-        return send_main_menu(user)
+        send_main_menu(user)
+        if pending and pending.get('kind')=='join_product':
+            pid=to_int(pending.get('product_id'),0)
+            state_clear(user['tg_id'])
+            return product_view(user,pid)
+        return None
     if store.get_bool("maintenance") and not is_owner_user(user):
         return
 
@@ -2968,7 +3008,7 @@ def handle_callback(cb):
         back = "pg:0"
         if len(parts) > 3 and parts[2] in ("p", "c"):
             back = ("pg:" if parts[2] == "p" else "cat:") + str(max(0, to_int(parts[3], 0)))
-        elif len(parts)>4 and parts[2]=='b' and parts[4] in ('low','high'):
+        elif len(parts)>4 and parts[2]=='b' and parts[4] in ('low','high','stock','new','best'):
             back='browse:%s:%d' % (parts[4],max(0,to_int(parts[3],0)))
         return product_view(user, to_int(parts[1] if len(parts) > 1 else 0, 0), edit=message_id, back=back)
 

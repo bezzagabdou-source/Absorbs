@@ -415,6 +415,65 @@ class BotAdminTests(unittest.TestCase):
         bot.tg.calls.clear(); self.callback(self.buyer,'reorder:%d' % oid)
         self.assertIn('غير متاح',str(bot.tg.calls))
 
+    def test_five_store_discovery_features(self):
+        bot.store.set_setting('bot_username','TestShopBot')
+        first=bot.store.add_product({'name':'Older','description':'blue velvet','price':4,'visible':1})
+        empty=bot.store.add_product({'name':'Empty','description_en':'scarlet cloth','visible':1})
+        newest=bot.store.add_product({'name':'Newest','stock_mode':'unlimited','feed':'TOPSECRET','visible':1})
+        hidden=bot.store.add_product({'name':'Hidden','description':'blue velvet','visible':0})
+        bot.store.add_stock_lines(first,['STOCKSECRET','other'])
+        bot.store.ex('UPDATE products SET sold=? WHERE id=?',(5,first))
+        bot.store.ex('UPDATE products SET created_at=? WHERE id=?',('2020-01-01T00:00:00Z',first))
+        bot.store.ex('UPDATE products SET created_at=? WHERE id=?',('2024-01-01T00:00:00Z',empty))
+        bot.store.ex('UPDATE products SET created_at=? WHERE id=?',('2025-01-01T00:00:00Z',newest))
+        self.callback(self.buyer,'pg:0')
+        data=[b.get('callback_data') for b in self.last_buttons()]
+        for d in ('browse:stock:0','browse:new:0','browse:best:0'): self.assertIn(d,data)
+        self.callback(self.buyer,'browse:new:0')
+        views=[int(b['callback_data'].split(':')[1]) for b in self.last_buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertEqual(views,[newest,empty,first])
+        self.callback(self.buyer,'view:%d:b:0:new' % newest)
+        self.assertIn('browse:new:0',[b.get('callback_data') for b in self.last_buttons()])
+        share=next(b['url'] for b in self.last_buttons() if 'share/url?' in b.get('url',''))
+        self.assertIn('product_%d' % newest,share); self.assertNotIn('TOPSECRET',share)
+        self.callback(self.buyer,'browse:best:0')
+        views=[int(b['callback_data'].split(':')[1]) for b in self.last_buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertEqual(views[0],first); self.assertNotIn(hidden,views)
+        self.callback(self.buyer,'browse:stock:0')
+        views=[int(b['callback_data'].split(':')[1]) for b in self.last_buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertEqual(set(views),{first,newest})
+        bot.tg.calls.clear(); bot.show_search_results(bot.store.get_user(222),'velvet')
+        data=[b.get('callback_data') for b in self.last_buttons()]
+        self.assertIn('view:%d' % first,data); self.assertNotIn('view:%d' % hidden,data)
+        bot.show_search_results(bot.store.get_user(222),'SCARLET')
+        self.assertIn('view:%d' % empty,[b.get('callback_data') for b in self.last_buttons()])
+        for secret in ('TOPSECRET','STOCKSECRET'):
+            bot.show_search_results(bot.store.get_user(222),secret)
+            self.assertFalse(any(b.get('callback_data','').startswith('view:') for b in self.last_buttons()))
+        bot.tg.calls.clear(); self.message(self.buyer,'/start product_%d' % newest)
+        self.assertIn('qty:%d' % newest,[b.get('callback_data') for b in self.last_buttons()])
+        self.assertNotIn('TOPSECRET',str(bot.tg.calls))
+        bot.tg.calls.clear(); self.message(self.buyer,'/start product_%d' % hidden)
+        self.assertNotIn('Hidden',str(bot.tg.calls))
+        original=bot.tg.call
+        def not_joined(method,timeout=30,**params):
+            if method=='getChatMember': return {'status':'left'}
+            return original(method,timeout=timeout,**params)
+        bot.tg.call=not_joined
+        newcomer={'id':333,'first_name':'New'}
+        self.message(newcomer,'/start product_%d' % first)
+        self.assertEqual(bot.state_get(333)['kind'],'join_product')
+        bot.tg.call=original; bot.tg.calls.clear(); self.callback(newcomer,'joincheck')
+        self.assertIn('qty:%d' % first,[b.get('callback_data') for b in self.last_buttons()])
+        self.assertIsNone(bot.state_get(333))
+        bot.tg.call=not_joined; self.message(newcomer,'/start product_%d' % first)
+        bot.store.update_product(first,{'visible':0})
+        bot.tg.call=original; bot.tg.calls.clear(); self.callback(newcomer,'joincheck')
+        self.assertNotIn('Older',str(bot.tg.calls))
+        bot.store.set_setting('bot_username','invalid@evil.com')
+        self.callback(self.buyer,'view:%d' % newest)
+        self.assertFalse(any('share/url?' in b.get('url','') for b in self.last_buttons()))
+
     def test_backup_contains_sqlite_snapshot(self):
         original = bot.urllib.request.urlopen
         payloads=[]

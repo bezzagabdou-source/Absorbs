@@ -65,3 +65,12 @@ python3 test_webhook.py
 ## مزايا التسوق
 
 من قائمة المنتجات «ترتيب حسب السعر» يعرض سعر القطعة الحالي تصاعدياً أو تنازلياً (ويظهر سعر الجملة عند اختيار الكمية). سجل الطلبات مقسم إلى صفحات. في تفاصيل الطلب زر «شراء مرة أخرى» يفتح اختيار الكمية ويطلب تأكيد السعر الحالي قبل الخصم؛ لا يمكن الوصول لطلبات الآخرين. إذا تغير السعر أو نفد المخزون يجب بدء التأكيد من جديد. تستند الميزتان إلى وظائف متاجر معروفة: https://www.amazon.com/alexa-shopping-hub/b?ie=UTF8&node=21467932011 و https://help.shopify.com/en/manual/b2b/getting-started/features و https://shopbuywithprime.amazon.com/ .
+
+## خمس إضافات لاكتشاف المنتجات
+
+- قائمة «الأحدث» مرتبة حسب تاريخ إضافة المنتج، و«الأكثر مبيعاً» حسب عدد الوحدات المسجلة في عداد المنتج؛ هذا العداد تراكمي ولا يخصم المرتجعات.
+- «المتوفر فقط» يعرض المنتجات الظاهرة التي لديها مخزون، بما فيها المنتج غير المحدود عند إعداد محتوى التسليم.
+- البحث يشمل الاسم والوصف العام بالعربية والإنجليزية فقط، وليس محتوى المخزون أو التسليم؛ يظهر حتى 20 نتيجة.
+- زر مشاركة المنتج يرسل رابطاً لصفحة المنتج داخل البوت. يعمل عند ضبط اسم مستخدم البوت؛ بعد الرابط يلزم تحقق الاشتراك المعتاد، والمنتجات المخفية لا تُعرض.
+
+المزايا من وظائف متاجر معروفة: ترتيب الأحدث والأكثر مبيعاً https://help.shopify.com/en/manual/products/collections/collection-layout ، فلتر التوفر https://help.shopify.com/en/manual/online-store/themes/customizing-themes/common-customizations/storefront-filters ، البحث في الوصف https://help.shopify.com/en/manual/online-store/storefront-search/search-behavior ، ومشاركة المنتج https://help.shopify.com/en/manual/promoting-marketing/create-marketing/social-media-marketing .
