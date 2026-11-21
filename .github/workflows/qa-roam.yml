@@ -70,4 +70,8 @@ jobs:
           git config user.email "agent@arena.ai"
           git add -f racing/docs/screenshots/qa_roam_*.png racing/docs/qa_probe*.log racing/docs/qa_console.log 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore(qa): roam capture [skip ci]"
-          git push origin HEAD:arena/cf18c72b-absorbs || true
+          # the branch moves while this job runs (other commits land), so a plain
+          # push is rejected; rebase onto whatever is there and retry
+          git fetch origin arena/cf18c72b-absorbs
+          git rebase origin/arena/cf18c72b-absorbs || git rebase --abort || true
+          git push origin HEAD:arena/cf18c72b-absorbs || (sleep 5 && git push origin HEAD:arena/cf18c72b-absorbs) || true
