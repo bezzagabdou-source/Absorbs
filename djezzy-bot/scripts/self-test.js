@@ -73,7 +73,7 @@ await test('تسجيل الدخول عبر OTP وتخزين الجلسة مشف�
   const user = await store.getUser(TG_ID);
   assert.equal(user.state.step, 'awaiting_otp');
 
-  const code = user.state.temp.debugCode;
+  const code = started.debugCode; // يعود في الاستجابة فقط — لا يُخزَّن مع الجلسة
   const result = await engine.confirmLogin(TG_ID, MSISDN, code);
   assert.ok(result.account.label.includes('***'));
 
@@ -143,9 +143,8 @@ await test('تجديد الجلسة عند انتهاء التوكن', async () 
 
 await test('بديل الأرقام + الحذف', async () => {
   const second = normalizeMsisdn('0781334455').msisdn;
-  await engine.startLogin(TG_ID, second);
-  const user = await store.getUser(TG_ID);
-  await engine.confirmLogin(TG_ID, second, user.state.temp.debugCode);
+  const startedSecond = await engine.startLogin(TG_ID, second);
+  await engine.confirmLogin(TG_ID, second, startedSecond.debugCode);
 
   const active = await engine.setActive(TG_ID, second);
   assert.equal(active.msisdn, second);
@@ -188,9 +187,146 @@ await test('نصوص الواجهة تُهرَّب بأمان', () => {
   assert.ok(txt.errorText(new DjezzyError(ERROR_CODES.NETWORK)).includes('خوادم جيزي'));
 });
 
+await test('كتالوج العروض الحقيقية ولوحاته', async () => {
+  const catalog = await import('../src/djezzy/catalog.js');
+  assert.ok(catalog.PAID_OFFERS.length >= 15, 'الكتالوج يجب أن يضم عشرات العروض');
+  assert.ok(catalog.FREE_GIFTS.length >= 3, 'ثلاث هدايا مجانية على الأقل');
+
+  const offer = catalog.findOffer('BTLINTSPEEDDAY2Go');
+  assert.ok(offer, 'عرض BTLINTSPEEDDAY2Go موجود');
+  assert.equal(offer.price, 70);
+
+  // جميع بيانات الأزرار ≤ 64 بايت
+  const paid = ui.paidOffersMenu(0);
+  for (const row of paid.inline_keyboard) {
+    for (const button of row) {
+      assert.ok(button.callback_data.length <= 64, `callback_data طويل: ${button.callback_data}`);
+    }
+  }
+  const confirm = ui.confirmOffer(offer);
+  assert.ok(confirm.inline_keyboard.flat().some((b) => b.callback_data === 'offer:go:BTLINTSPEEDDAY2Go'));
+
+  const free = ui.freeGiftsMenu();
+  const flat = free.inline_keyboard.flat();
+  assert.ok(flat.some((b) => b.callback_data === 'gift:weekly2go'));
+  assert.ok(flat.some((b) => b.callback_data === 'gift:promoqr'));
+  assert.ok(flat.some((b) => b.callback_data === 'gift:mgm'));
+
+  assert.match(txt.catalogText('free'), /مجانية/);
+  assert.match(txt.catalogText('paid'), /مدفوعة/);
+  assert.match(txt.offerConfirmText(offer), /تأكيد تفعيل/);
+});
+
+await test('توقيع والتحقق من بيانات Mini Apps (initData)', async () => {
+  const { signInitData, verifyInitData } = await import('../src/util/telegram-auth.js');
+  const token = '123456:TEST-TOKEN';
+  const init = signInitData(
+    { user: { id: 42, first_name: 'Tester' }, auth_date: Math.floor(Date.now() / 1000) },
+    token,
+  );
+  const result = verifyInitData(init, token);
+  assert.ok(result.ok, 'التوقيع يجب أن يُتحقق');
+  assert.equal(result.user.id, 42);
+  assert.ok(!verifyInitData(init, '000000:WRONG').ok, 'توكن آخر يجب أن يُرفض');
+  assert.ok(!verifyInitData('hash=bad', token).ok, 'بيانات تالفة تُرفض');
+});
+
+await test('محرّك بروكسيات جيزي يطبّع الصيغ المختلفة', async () => {
+  const { parseProxy } = await import('../src/djezzy/routes.js');
+  const standard = parseProxy('http://user:pass@10.0.0.1:8080');
+  assert.equal(standard.host, '10.0.0.1');
+  assert.equal(standard.port, 8080);
+  const bare = parseProxy('10.0.0.2:3128');
+  assert.equal(bare.host, '10.0.0.2');
+  const kookeey = parseProxy('mobile.kookeey.info:1086:abc123-DZ-1:secret-DZ-2');
+  assert.equal(kookeey.port, 1086);
+  assert.equal(kookeey.auth.username, 'abc123-DZ-1');
+  assert.equal(parseProxy(''), null);
+});
+
 await test('محاكي جيزي يعيد ضبط حالته', () => {
   simulator.reset();
   assert.ok(simulator.enabled);
+});
+
+await test('مخزن تيليجرام المثبّت يكتب ويقرأ ويتراجع للذاكرة', async () => {
+  const { createTelegramAdapter } = await import('../src/store/telegram.js');
+  const { createMemoryAdapter } = await import('../src/store/index.js');
+
+  const sent = [];
+  const edited = [];
+  const pinned = new Map(); // chatId → { message_id, text }
+  let messageId = 0;
+  let pinFails = false;
+
+  const api = {
+    async getMe() {
+      return { username: 'tester' };
+    },
+    async getChat(chatId) {
+      const found = pinned.get(String(chatId));
+      if (!found) return { id: chatId };
+      return { id: chatId, pinned_message: found };
+    },
+    async sendMessage(chatId, text) {
+      messageId += 1;
+      sent.push({ chatId, message_id: messageId, text });
+      return { message_id: messageId, text };
+    },
+    async editMessageText(chatId, id, text) {
+      edited.push({ chatId, id, text });
+      const existing = [...pinned.values()].find((m) => m.message_id === id);
+      if (existing) existing.text = text;
+      return { message_id: id };
+    },
+    async pinChatMessage(chatId, id) {
+      if (pinFails) throw new Error('METHOD_NOT_SUPPORTED');
+      const message = { message_id: id, text: sent.find((m) => m.message_id === id)?.text || '' };
+      pinned.set(String(chatId), message);
+      return true;
+    },
+  };
+
+  const memory = createMemoryAdapter();
+  const adapter = createTelegramAdapter({ getApi: async () => api, fallback: memory });
+
+  const key = 'djezzy:user:777';
+  await adapter.set(key, JSON.stringify({ id: '777', accounts: { '0770': {} } }), 3600);
+  assert.equal(sent.length, 1, 'أول حفظ يرسل رسالة');
+  assert.ok(pinned.has('777'), 'الرسالة تُثبَّت');
+  assert.match(sent[0].text, /DZSTATE:/);
+  assert.match(sent[0].text, /لا تحذف/, 'رسالة مفهومة للمستخدم');
+
+  const loaded = JSON.parse(await adapter.get(key));
+  assert.equal(loaded.id, '777', 'القراءة من المثبّتة');
+
+  await adapter.set(key, JSON.stringify({ id: '777', accounts: {} }), 3600);
+  assert.equal(sent.length, 1, 'الحفظ الثاني يعدّل ولا يُرسل رسالة جديدة');
+  assert.equal(edited.length, 1, 'تعديل الرسالة المثبّتة');
+
+  // بدون مثبّتة → رسالة جديدة؛ عند فشل التثبيت → تراجع للذاكرة
+  pinFails = true;
+  await adapter.set('djezzy:user:888', 'value', 3600);
+  assert.equal(adapter.disabled, true, 'تعطيل بعد فشل التثبيت');
+  await adapter.set('djezzy:user:888', 'value', 3600);
+  assert.equal(await adapter.get('djezzy:user:888'), 'value', 'الذاكرة البديلة تعمل');
+
+  // مفتاح غير مدعوم (ميتا) يذهب مباشرة للذاكرة
+  const fresh = createTelegramAdapter({ getApi: async () => api, fallback: memory });
+  await fresh.set('djezzy:meta:webhook', JSON.stringify({ hello: 1 }), 60);
+  assert.equal(JSON.parse(await memory.get('djezzy:meta:webhook')).hello, 1);
+
+  // قيمة منتهية تُقرأ كفارغة
+  const expired = createTelegramAdapter({
+    getApi: async () => ({
+      ...api,
+      async getChat() {
+        return { id: 1, pinned_message: { message_id: 9, text: 'X\nDZSTATE:' + Buffer.from(JSON.stringify({ value: 'old', expiresAt: Date.now() - 1000 })).toString('base64url') } };
+      },
+    }),
+    fallback: memory,
+  });
+  assert.equal(await expired.get('djezzy:user:1'), null, 'الانتهاء يُرجع فارغاً');
 });
 
 /* ------------------------------ النتيجة ------------------------------ */

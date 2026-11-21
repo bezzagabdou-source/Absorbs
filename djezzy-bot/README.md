@@ -1,13 +1,12 @@
-# 🔥 بوت جيزي — Telegram Bot + Djezzy Automation Engine
+# 🔥 بوت جيزي v2 — Telegram Bot + Djezzy Real Engine
 
-بوت تيليجرام متكامل لإدارة أرقام جيزي وتفعيل العروض والهدايا آلياً،
-مبني على **Node.js + grammy + Express**، ومهيّأ للنشر المباشر على **Vercel**
-كـ Serverless Function واحدة تعمل عبر **Webhook** (بدون Polling وبدون سيرفر دائم).
+بوت تيليجرام متكامل لأرقام جيزي: تسجيل OTP حقيقي، كتالوج هدايا مجانية
+(2 جيغا أسبوعياً، هدية الجمعة/المناسبة، بونص الدعوة) وعروض مدفوعة بأسعار
+واضحة — بتصميم أزرار ملوّن + لوحة ويب بأزرار حقيقية (أزرق/أخضر/أحمر)
++ إيموجيات متحركة مصنوعة HTML/CSS خالص.
 
-> ⚠️ **اقرأ هذا أولاً:** بوت يعمل افتراضياً في **وضع المحاكاة** (Simulation).
-> لا يوجد واجهة API عامة وموثّقة لتطبيق جيزي، لذا مسارات الطلبات في هذا المشروع
-> **قابلة للضبط بالكامل من متغيّرات البيئة** وتضع فيها ما تستخرجه من حسابك الخاص.
-> راجع قسم [محرّك جيزي](#-محرّك-جيزي-djezzy-engine) قبل التشغيل المباشر.
+مبني على **Node.js + grammy + Express**، ومهيّأ للنشر على **Vercel**
+كـ Serverless Function عبر **Webhook**.
 
 ---
 
@@ -15,16 +14,14 @@
 
 | الميزة | التفاصيل |
 |---|---|
-| 📱 تسجيل رقم عبر OTP | إدخال الرقم → طلب رمز → تأكيد → استخراج `Bearer Token` تلقائياً |
-| 🔐 تشفير الجلسات | كل `Access/Refresh Token` يُخزَّن مشفّراً بـ AES‑256‑GCM |
-| ♻️ تجديد تلقائي | عند انتهاء التوكن يُجدَّد عبر `refresh_token` دون إعادة إدخال الرمز |
-| 🔥 تفعيل 6 جيغا | بحث ذكي عن العرض في قائمة العروض/الهدايا ثم إرسال طلب التفعيل |
-| 🎁 هدية 2 جيغا الأسبوعية | مطابقة الهدية (2GB + أسبوعي) واستلامها، أو استلام كل الهدايا المتاحة |
-| 🧩 دعم خطوات التحقق | إذا طلبت جيزي `challenge` إضافياً، يطلب البوت الرمز ويكمل العملية |
-| ⚙️ إدارة الأرقام | حتى 3 أرقام لكل مستخدم — تبديل الرقم النشط وحذفه بجلسته |
-| 🚦 حماية من الحجب | Cooldown لكل عملية + حد يومي للعمليات + معرّف طلب لكل نداء |
-| 🧪 وضع محاكاة كامل | تشغيل وتجربة كل الواجهة بدون أي طلب حقيقي |
-| 🩺 مراقبة | `/health` (JSON) وصفحة حالة على `/` وتحقّق سرّي للـ Webhook |
+| 📱 OTP حقيقي | إدخال الرقم (07…) → إرسال رمز فعلي → تحقق تلقائي → حفظ الجلسة مشفّرة |
+| 🟢 هدايا مجانية | 2 جيجا أسبوعية (Walk Win) · هدية QR (جمعة/مناسبة/مباراة) · بونص دعوة MGM |
+| 🔵 عروض مدفوعة | كتالوج 18 باقة بأسعارها (30–1500 دج) — تُفعَّل بتأكيد صريح فقط |
+| 🎨 تصميم ملوّن | أزرارINLINE بالفئات (🟢 مجاني/🔵 مدفوع/🔴 حذف) + صفحة ويب `/app` بخلفيات CSS حقيقية |
+| 🖼 إيموجيات متحركة | معرض `/emojis` — 9 إيموجيات HTML/CSS/SVG بدون أي custom_emoji_id |
+| 🌍 تجاوز الحجب | مسارات متعددة: relay ← مباشر ← بروكسيات يدوية ← بروكسيات جزائرية تلقائية |
+| 💾 تخزين دائم | KV أو **فرع bot-state في مستودع GitHub** (يعمل على Vercel بلا Upstash) |
+| 🔐 أمان | AES-256-GCM للجلسات · webhook بـ secret_token · initData HMAC للويب |
 
 ---
 
@@ -33,30 +30,26 @@
 ```
 djezzy-bot/
 ├── api/
-│   ├── index.js            # نقطة الدخول الوحيدة على Vercel (default export)
-│   └── app.js              # تطبيق Express المشترك (webhook / health / setup)
+│   ├── index.js            # نقطة الدخول الوحيدة على Vercel
+│   └── app.js              # Express: webhook / health / setup / /app / /emojis /api/app/action
+├── relay/
+│   └── server.js           # خادم وسيط تشغّله داخل الجزائر (يتجاوز الحجب)
 ├── src/
-│   ├── bot.js              # واجهة تيليجرام: الأوامر، الأزرار، آلة الحالات
-│   ├── config.js           # كل الإعدادات من متغيّرات البيئة + فحصها
-│   ├── crypto.js           # AES-256-GCM لتشفير رموز الجلسات
+│   ├── bot.js              # الأوامر، الأزرار، آلة الحالات، الكتالوج
+│   ├── config.js           # الإعدادات + بيانات تطبيق جيزي المضمّنة
+│   ├── crypto.js           # AES-256-GCM
 │   ├── djezzy/
-│   │   ├── client.js       # عميل HTTP يحاكي تطبيق جيزي (axios)
-│   │   ├── engine.js       # منطق الأعمال: OTP، التوكن، 6GB، الهدايا
-│   │   ├── errors.js       # رموز أخطاء + رسائل عربية جاهزة
-│   │   └── simulator.js    # محاكي كامل للـ API (للتطوير والاختبار)
-│   ├── store/index.js      # تخزين: Upstash/Vercel KV (REST) أو ذاكرة مؤقتة
-│   ├── ui/
-│   │   ├── keyboards.js    # لوحات أزرار Inline
-│   │   └── text.js         # نصوص عربية + صفحة الحالة
-│   └── util/               # سجلات، تحقّق أرقام جزائرية، أدوات وقت
-├── scripts/
-│   ├── set-webhook.js      # ضبط/حذف/فحص الـ Webhook
-│   ├── dev-server.js       # سيرفر محلي (webhook أو polling)
-│   ├── self-test.js        # 14 اختباراً للمحرّك والتشفير والتخزين
-│   └── ux-test.js          # 15 خطوة اختبار لتدفّق الواجهة كاملاً
-├── vercel.json             # Rewrites + maxDuration + ترويسات
-├── package.json
-└── .env.example
+│   │   ├── client.js       # عميل الواجهة الحقيقية (OTP/توكن/تفعيل/MGM)
+│   │   ├── routes.js       # طبقات المسارات (relay/direct/proxies)
+│   │   ├── catalog.js      # كتالوج الهدايا والعروض الحقيقية
+│   │   ├── engine.js       # منطق الأعمال
+│   │   ├── errors.js       # رموز أخطاء + رسائل عربية
+│   │   └── simulator.js    # محاكي كامل (DJEZZY_DRY_RUN=true)
+│   ├── store/              # kv | github | file | memory
+│   ├── ui/                 # keyboards (ملوّن) + text + pages (HTML/CSS)
+│   └── util/               # logger, validate, time, telegram-auth (HMAC)
+├── scripts/                # set-webhook, dev-server, 3 حزم اختبارات
+└── vercel.json
 ```
 
 ---
@@ -66,255 +59,171 @@ djezzy-bot/
 ```bash
 cd djezzy-bot
 npm install
-cp .env.example .env          # ثم ضع BOT_TOKEN و WEBHOOK_SECRET و SESSION_ENCRYPTION_KEY
-npm test                      # 38 اختباراً — يجب أن تنجح كلها
-npm run dev                   # http://localhost:8080
+cp .env.example .env        # ضع BOT_TOKEN + WEBHOOK_SECRET + SESSION_ENCRYPTION_KEY
+npm test                    # 56 اختباراً — يجب أن تنجح كلها
+npm run dev                 # http://localhost:8080
 ```
 
-لتجربة البوت فعلياً من تيليجرام وأنت على جهازك، استخدم polling مباشرة:
+للتجربة من تيليجرام مباشرة (بدون Webhook):
 
 ```bash
 USE_POLLING=1 BOT_TOKEN=xxxx npm run dev
 ```
 
-ثم أرسل `/start` إلى البوت. في وضع المحاكاة ستجد رمز الـ OTP مكتوباً في الرسالة
-(🧪 رمز المحاكاة) لتتمكن من تجربة المسار كاملاً.
+في وضع المحاكاة (`DJEZZY_DRY_RUN=true`) يظهر رمز OTP في الرسالة
+(🧪 رمز المحاكاة) لتجربة المسار كاملاً.
 
 ---
 
 ## ☁️ النشر على Vercel
 
-### الطريقة أ — مستودع مستقل (الأسهل، موصى بها)
-
-```bash
-cd djezzy-bot
-git init -b main
-git add . && git commit -m "Djezzy Telegram bot"
-gh repo create djezzy-bot --private --source=. --push   # أو ارفعه يدوياً
-npx vercel --prod
-```
-
-### الطريقة ب — نفس هذا المستودع (Monorepo)
-
-هذا المستودع يحتوي مشروع Next.js في الجذر، لذلك **يجب** ضبط مجلد الجذر:
-
-1. Vercel → **Add New Project** → اختر المستودع.
-2. في **Root Directory** اختر `djezzy-bot` (زر *Edit* بجانبها).
-3. Framework Preset: **Other** (لا تختر Next.js).
-4. Build Command: اتركه فارغاً — لا يحتاج المشروع بناءً.
-5. اضبط متغيّرات البيئة (أدناه) ثم **Deploy**.
-
-### متغيّرات البيئة على Vercel
-
-| المتغيّر | إلزامي | الوصف |
-|---|---|---|
-| `BOT_TOKEN` | ✅ | توكن البوت من @BotFather — **استخدم توكنًا جديدًا بعد `/revoke`** |
-| `WEBHOOK_SECRET` | ✅ | 16–256 حرفاً (`A-Za-z0-9_-`) يتحقّق به تيليجرام في كل طلب |
-| `SESSION_ENCRYPTION_KEY` | ✅ | ≥ 32 حرفاً لتشفير رموز الجلسات |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | ✅ للإنتاج | Upstash Redis أو Vercel KV — لحفظ الجلسات بين عمليات التشغيل |
-| `PUBLIC_URL` | ⬜ | يُستنتج تلقائياً على Vercel، ضعه يدوياً إن استخدمت نطاقاً خاصاً |
-| `ALLOWED_TELEGRAM_IDS` | ⬜ | قصر الاستخدام عليك: `123456789,987654321` |
-| `DJEZZY_DRY_RUN` | ⬜ | `true` محاكاة (افتراضي) / `false` مباشر |
-| `DJEZZY_BASE_URL` + `DJEZZY_PATH_*` | ⬜ | مسارات الـ API الحقيقية (انظر القسم التالي) |
-| `MAX_NUMBERS_PER_USER` | ⬜ | افتراضي `3` |
-| `ACTION_COOLDOWN_MS` | ⬜ | افتراضي `15000` |
-| `MAX_CLAIMS_PER_DAY` | ⬜ | افتراضي `6` عملية/24 ساعة |
-
-> **إنشاء مفاتيح:**
-> ```bash
-> node -e "console.log('WEBHOOK_SECRET='+require('crypto').randomBytes(24).toString('base64url'))"
-> node -e "console.log('SESSION_ENCRYPTION_KEY='+require('crypto').randomBytes(32).toString('hex'))"
-> ```
->
-> **التخزين:** Vercel → Storage → *Upstash Redis* → أنشئ قاعدة → سيضيف
-> `KV_REST_API_URL` و `KV_REST_API_TOKEN` تلقائياً. بدونها يعمل البوت لكن
-> تُفقد الجلسات عند كل إعادة تشغيل باردة (cold start).
-
----
-
-## 🔗 ضبط الـ Webhook (اختر واحدة)
-
-بعد نجاح النشر يصبح عنوان الخدمة: `https://<project>.vercel.app`
-
-**1) من متصفحك (أسرع طريقة — بضغطة واحدة):**
+1. ارفع مجلد `djezzy-bot` كمشروع مستقل (أو اضبط **Root Directory** عليه).
+2. أضف متغيّرات البيئة (أدناه) ثم **Deploy**.
+3. اضبط الويبهوك بضغطة واحدة:
 
 ```
 https://<project>.vercel.app/api/setup?key=<WEBHOOK_SECRET>
 ```
 
-سيرد بـ JSON فيه `url` و `getWebhookInfo`. للحذف أضف `&delete=1`.
+4. تحقّق: `https://<project>.vercel.app/health` (يعرض المسارات والتخزين).
 
-**2) من سطر الأوامر:**
+### متغيّرات البيئة
 
-```bash
-PUBLIC_URL=https://<project>.vercel.app WEBHOOK_SECRET=... BOT_TOKEN=... npm run set-webhook
-npm run webhook-info      # للتحقق
-npm run delete-webhook    # للعودة إلى polling
-```
-
-**3) يدوياً عبر Telegram API:**
-
-```bash
-curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://<project>.vercel.app/api/webhook",
-    "secret_token": "<WEBHOOK_SECRET>",
-    "allowed_updates": ["message","callback_query"],
-    "drop_pending_updates": true
-  }'
-```
-
-بعد الضبط أرسل `/start` للبوت. تحقّق أيضاً من:
-`https://<project>.vercel.app/health` (يجب أن يظهر `"ok":true`).
-
----
-
-## 🧠 محرّك جيزي (Djezzy Engine)
-
-### الطبقات
-
-```
-bot.js  →  engine.js  →  client.js  →  axios  →  (API جيزي أو simulator)
-              ↕
-           store (KV) + crypto (AES-GCM)
-```
-
-### دوال العميل (`src/djezzy/client.js`)
-
-| الدالة | الطلب | الغرض |
+| المتغيّر | إلزامي | الوصف |
 |---|---|---|
-| `requestOtp({ msisdn })` | `POST /request-otp` | إرسال رمز التحقق |
-| `verifyOtp({ msisdn, code, sessionId })` | `POST /verify-otp` | تأكيد الرمز واستخراج `access_token` |
-| `refreshSession({ refreshToken })` | `POST /refresh-token` | تجديد الجلسة دون رمز |
-| `getProfile({ token })` | `GET /me` | الرصيد والباقة |
-| `listOffers({ token })` | `GET /offers` | قائمة العروض |
-| `claimOffer({ token, offerId })` | `POST /offers/{id}/claim` | تفعيل العرض (6GB) |
-| `listGifts({ token })` | `GET /gifts` | قائمة الهدايا |
-| `claimGift({ token, giftId })` | `POST /gifts/{id}/claim` | استلام الهدية (2GB الأسبوعية) |
-| `verifyChallenge({ token, challengeId, code })` | `POST /challenges/{id}/verify` | إتمام خطوة تحقّق إضافية |
+| `BOT_TOKEN` | ✅ | توكن @BotFather (في البيئة فقط، لا يُرفع للـ Git) |
+| `WEBHOOK_SECRET` | ✅ | سرّ Webhook — يُولَّد بـ `randomBytes(24).toString("base64url")` |
+| `SESSION_ENCRYPTION_KEY` | ✅ | ≥32 حرفاً لتشفير جلسات الأرقام |
+| `STATE_GITHUB_TOKEN` + `STATE_GITHUB_REPO` | ✅* | تخزين دائم عبر فرع `bot-state` (*أو `KV_REST_API_URL/TOKEN`) |
+| `DJEZZY_RELAY_URL` + `DJEZZY_RELAY_TOKEN` | ⬜ | relay داخل الجزائر (أنجح حل للحجب) |
+| `DJEZZY_PROXIES` | ⬜ | بروكسيات جزائرية يدوية |
+| `DJEZZY_DRY_RUN` | ⬜ | `true` محاكاة — الافتراضي `false` (مباشر) |
 
-كل المسارات والأسماء وشكل الحمولة **قابلة للتعديل** في `client.js`، والترويسات تأتي من البيئة:
-
-```
-User-Agent: Djezzy/7.2.1 (Android 13; SM-A525F) okhttp/4.9.3
-Accept: application/json, text/plain, */*
-Content-Type: application/json;charset=UTF-8
-Accept-Language: fr-DZ
-X-Client-Id / X-App-Version / X-Platform   ← اختيارية
-Authorization: Bearer <token>
-```
-
-### دوال المحرّك (`src/djezzy/engine.js`)
-
-```js
-await engine.startLogin(telegramId, msisdn);            // إرسال OTP + تخزين جلسة التحقق
-await engine.confirmLogin(telegramId, msisdn, code, sessionId); // حفظ التوكن مشفّراً
-await engine.ensureToken(user, msisdn);                 // توكن صالح (يجدّد إن لزم)
-await engine.getOverview(telegramId, msisdn);           // بروفايل + عروض + هدايا
-await engine.activateSixGb(telegramId, msisdn);         // 🔥 تفعيل 6 جيغا
-await engine.claimWeeklyGift(telegramId, msisdn);       // 🎁 هدية 2 جيغا
-await engine.claimAllGifts(telegramId, msisdn);         // 🎁 كل الهدايا المتاحة
-await engine.submitChallenge(telegramId, msisdn, challengeId, code);
-await engine.setActive / removeAccount
-```
-
-نتائج التفعيل موحّدة:
-
-```js
-{ ok: true,  status: 'activated', item, data, validity, message }
-{ ok: false, status: 'pending_challenge', challengeId, message }   // يطلب البوت الرمز منك
-DjezzyError { code: 'OFFER_ALREADY_ACTIVE' | 'OFFER_NOT_FOUND' | 'AUTH_EXPIRED' | 'QUOTA' … }
-```
-
-### الانتقال إلى الوضع المباشر
-
-1. التقط حركة تطبيق جيزي على جهازك مع حسابك الخاص (مثال: mitmproxy / HTTP Toolkit).
-2. استخرج: عنوان الـ API، مسارات OTP/العروض/الهدايا، وأسماء الحقول الحقيقية.
-3. عدّل المسارات في البيئة (`DJEZZY_PATH_*`) وشكل الحمولة في `client.js` إن اختلف.
-4. اضبط `DJEZZY_BASE_URL` و `DJEZZY_DRY_RUN=false` ثم أعد النشر.
-5. شغّل `/health` وتأكد من ظهور `"mode":"live"`، ثم جرّب على رقم واحد أولاً.
-
-> 🧪 **نصيحة:** أبقِ `DJEZZY_DRY_RUN=true` على نسخة مستقلة (Preview Deployment)
-> لتجربة الواجهة، وفعّل المباشر على Production فقط.
+> بيانات تطبيق جيزي (`DJEZZY_CLIENT_ID/SECRET`) **مضمّنة افتراضياً** في
+> `src/config.js` (معرّفات عمومية موجودة في كل نسخ التطبيق المنشورة) ويمكن
+> تجاوزها من البيئة.
 
 ---
 
-## 🔒 الأمان
+## 🧠 محرّك جيزي — المسارات الحقيقية
 
-- **التوكن الذي أُرسل في المحادثة يُعتبر مكشوفاً** — افتح @BotFather → `/mybots` → بوتك →
-  **API Token → Revoke**، ثم ضع التوكن الجديد في متغيّرات البيئة فقط. لا تكتبه في الكود ولا ترفعه إلى Git (`.env` مستثنى).
-- رموز الجلسات مشفّرة قبل التخزين، ولا تُطبع في السجلات (`logger.sanitize` يحجبها).
-- الـ Webhook محميّ بـ `secret_token` ويُرفض أي طلب بترويسة ناقصة/خاطئة.
-- `ALLOWED_TELEGRAM_IDS` يقيّد البوت عليك — مُستحسن جداً في الاستخدام الشخصي.
-- الأرقام تُعرَّض مُقنّعة (`055 *** ** 67`) في الرسائل والسجلات.
+الكل من `apim.djezzy.dz` (مؤكَّد من سكربتات عاملة متعددة):
+
+| العملية | الطلب |
+|---|---|
+| إرسال OTP | `POST /oauth2/registration` form: `msisdn&client_id&scope=smsotp` |
+| التحقق + التوكن | `POST /oauth2/token` form: `otp&mobileNumber&grant_type=mobile&scope=openid` |
+| تجديد الجلسة | `POST /oauth2/token` form: `grant_type=refresh_token&scope=djezzyAppV2` |
+| 🎁 هدية 2 جيجا | `POST /djezzy-api/api/v1/subscribers/{msisdn}/subscription-product` بحمولة `GIFTWALKWIN` + `GIFTWALKWIN2GO` (steps=10000) |
+| 🔵 عرض مدفوع | نفس المسار بحمولة `{"data":{"id":"<CODE>","type":"products"}}` |
+| 🎀 هدية QR | `POST /mobile-api/api/v1/services/scan/activate-reward/{msisdn}` `{qrCode}` |
+| 👥 بونص الدعوة | `POST /djezzy-api/api/v1/subscribers/{msisdn}/member-get-member` بحمولة `MGM-BONUS` |
+| 📊 البروفايل | `GET /djezzy-api/api/v1/subscribers/{msisdn}` |
+| 📜 السجل | `GET /mobile-api/api/v1/subscribers/subscription-history/{msisdn}` |
+
+### تجاوز الحجب الجغرافي (طبقات المسارات)
+
+**مُختبَر عملياً (2026):** بوابة `apim.djezzy.dz` تعيد `403 Forbidden` (nginx) لكل
+العناوين الأجنبية — من Vercel ومن بروكسيات عالمية متعدّدة — بينما جذر النطاق
+يعمل عادياً. أي: الحجب **على مستوى البلد** (الجزائر فقط)، وليس على Vercel تحديداً.
+لذلك ترتيب المحاولة في `routes.js`:
+
+1. **relay** — `DJEZZY_RELAY_URL`: خادم وسيط تشغّله داخل الجزائر (`relay/`). ✅ **الحل الوحيد المضمون**
+2. **مباشر** — من الاستضافة (`DJEZZY_DIRECT=1`) — يفشل بـ403 خارج الجزائر ثم يُجتاز.
+3. **بروكسياتك** — `DJEZZY_PROXIES` (صيغ: `http://user:pass@host:port` أو `host:port:user:pass`).
+4. **بروكسيات عمومية** — اكتشاف تلقائي من قوائم عالمية (`DJEZZY_AUTO_PROXY=1`).
+
+الأخطاء الشبكية **و403/451 (الحجب الجغرافي)** تُكيَّف للمسار التالي؛ أي استجابة
+HTTP أخرى تُعتبر نهائية. الحالة تُعرض في `/health` (`djezzy.routes`) و
+`/api/probe?key=…&mode=otp` (اختبار POST حقيقي) و `mode=proxies` (اختبار البروكسيات).
+
+### تشغيل relay داخل الجزائر (خطوات كاملة)
+
+تحتاج جهازاً داخل الجزائر (حاسب/هاتف) ونفقاً مجانياً لأن عنوانك خلف NAT:
+
+```bash
+# 1) المصدر + التوكن
+git clone https://github.com/bezzagabdou-source/Absorbs && cd Absorbs/djezzy-bot/relay
+npm install
+export RELAY_TOKEN=$(node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))")
+echo "احتفظ بهذا الرمز — ستحتاجه على Vercel: $RELAY_TOKEN"
+
+# 2) التشغيل
+npm start        # 🟢 يعمل على المنفذ 8787
+
+# 3) نفق عام مجاني (اختر واحداً — أيٌّ منها يعطيك https://…)
+cloudflared tunnel --url http://localhost:8787   # ← بدون حساب، يعطي https://xxx.trycloudflare.com
+# أو:  bore local 8787 --to bore.pub             # ← بدون حساب
+# أو:  ngrok http 8787                           # ← يحتاج حساب مجاني
+```
+
+**بلا حاسوب؟ على الهاتف (Termux) — سطر واحد:** ثبّت Termux من F-Droid ثم:
+
+```bash
+pkg install -y nodejs-lts curl git
+git clone https://github.com/bezzagabdou-source/Absorbs
+cd Absorbs/djezzy-bot/relay
+bash termux.sh
+```
+
+السكربت يثبّت كل شيء، يشغّل الـrelay، يفتح نفق `*.trycloudflare.com` مجاناً
+بدون حساب، ثم يطبع `RELAY_TOKEN` و`DJEZZY_RELAY_URL` جاهزين للنسخ.
+أرسل القيمتين لإعداد Vercel (أو ضعهما يدوياً في Environment Variables ثم Redeploy).
+
+ثم على Vercel (أو اطلب مني أنا):
+
+```
+DJEZZY_RELAY_URL=https://<عنوان-النفق-الخاص-بك>
+DJEZZY_RELAY_TOKEN=<نفس RELAY_TOKEN أعلاه>
+```
+
+وأعد النشر، ثم تحقّق: `/api/probe?key=<WEBHOOK_SECRET>&mode=otp` يجب أن يعود
+بـ `"route":"relay"` وحالة ليست 403.
+
+---
+
+## 🎨 التصميم الملوّن والإيموجيات
+
+- **داخل الشات**: أزرار INLINE مصنّفة — 🟢 «الهدايا المجانية» · 🔵 «العروض
+  المدفوعة» · 🔴 «حذف/تأكيد» (تيليجرام لا يسمح بخلفيات ملوّنة للأزرار داخل
+  الشات، فاللون عبر الفئة والإيموجي).
+- **صفحة الويب `/app`**: أزرار حقيقية بخلفيات **زرقاء/خضراء/حمراء** تتصل
+  بالمحرّك مباشرة عبر `initData` (تحقق HMAC) — تعمل داخل تيليجرام Mini App.
+- **`/emojis`**: 9 إيموجيات متحركة (هدية، نار، صاروخ، إشارة، عملة، صح،
+  ساعة، احتفال، نجمة) مبنية HTML/CSS/SVG خالص — بدون IDs وبدون ملفات خارجية.
 
 ---
 
 ## 🧪 الاختبارات
 
 ```bash
-npm test                # كل الاختبارات: 38 اختباراً
-npm run test:engine     # 14 اختباراً للمحرّك (بدون شبكة)
-npm run test:ux         # 15 خطوة لواجهة تيليجرام كاملة
-npm run test:live       # 9 اختبارات لعميل HTTP ضد سيرفر وهمي (axios حقيقي)
-npm run check           # فحص الصياغة
+npm test          # 56 اختباراً (محرّك + واجهة + عميل مباشر + كتالوج + initData)
+npm run test:engine
+npm run test:ux
+npm run test:live # الشكل الحقيقي للطلبات ضد سيرفر وهمي
+npm run check
 ```
 
-`ux-test` يبني البوت بمعرّف وهمي ويعترض كل نداءات Telegram API، ثم يمشي في السيناريو
-الكامل (start → إضافة رقم → OTP → تفعيل → هدايا → حذف رقم) بدون أي اتصال بالشبكة.
-
 ---
 
-## 🩺 استكشاف الأخطاء
+## 🩺 تشخيص سريع
 
-| العرض | السبب المحتمل | الحل |
-|---|---|---|
-| `/health` يعيد `"ok":false` | `BOT_TOKEN` غير مضبوط | أضفه في Vercel → Settings → Environment Variables ثم Redeploy |
-| البوت لا يستجيب بعد `/start` | Webhook غير مضبوط أو خاطئ | `npm run webhook-info` وتحقّق من `url` و `last_error_message` |
-| `401 Unauthorized` في `getWebhookInfo` | `secret_token` مختلف عن `WEBHOOK_SECRET` | أعد الضبط عبر `/api/setup?key=...` |
-| فقدان الأرقام بعد فترة | لا يوجد KV (تخزين مؤقت) | أنشئ Upstash Redis واضبط `KV_REST_API_URL/TOKEN` |
-| «انتهت صلاحية الجلسة» دائماً | `SESSION_ENCRYPTION_KEY` تغيّر أو مفقود | ثبّت المفتاح نفسه لكل عمليات النشر |
-| `429 من جيزي` | طلبات كثيرة | ارفع `ACTION_COOLDOWN_MS` واخفض `MAX_CLAIMS_PER_DAY` |
-| `FUNCTION_INVOCATION_TIMEOUT` | تعليق طلب خارجي | المهلة مضبوطة على 15s؛ تحقّق من `DJEZZY_TIMEOUT_MS` |
-
----
-
-## 🌍 لماذا لا يصل Vercel إلى جيزي؟ (حجب جغرافي)
-
-| الاختبار | النتيجة |
+| الرابط | ماذا يخبرك |
 |---|---|
-| `/api/probe` من Vercel | `timeout` |
-| DNS عام لـ `apim.djezzy.dz` | يعمل → `41.220.159.56` (نطاق جزائري) |
-| 12 عقدة عالمية (DE, FR, TR, PL, US, VN…) | كلها Down |
+| `/health` | التوكن، وضع جيزي، **المسارات المتاحة وآخر مسار نجح**، التخزين |
+| `/api/setup?key=` | ضبط/حذف الويبهوك |
+| `/api/diagnose?key=` | فحص شامل بخطوات إصلاح لكل بند |
+| `/api/probe?key=` | هل يصل هذا النشر إلى `apim.djezzy.dz` فعلاً؟ |
+| `/api/tcp?key=&host=` | فحص TCP مباشر (تشخيص حجب) |
 
-خوادم جيزي ترفض أي اتصال من خارج الجزائر. لذلك **أي استضافة سحابية** (Vercel, Railway,
-Render, Fly) ستفشل في إرسال رمز التحقق وفي تفعيل الهدايا — وليس العيب في الكود.
-
-### الحل: التشغيل من داخل الجزائر
-
-```bash
-git clone https://github.com/bezzagabdou-source/Absorbs
-cd Absorbs/djezzy-bot
-npm install
-cp .env.example .env     # ضع BOT_TOKEN + DJEZZY_CLIENT_ID/SECRET
-npm run poll             # polling بلا Webhook، مع تخزين دائم في .data/store.json
-```
-
-- `npm run poll` يقرأ `.env` تلقائياً ويحفظ الجلسات على القرص (لا تعيد الرمز عند كل تشغيل).
-- `npm run poll:dry` للتجربة بلا شبكة.
-- على الهاتف: Termux → `pkg install nodejs-lts git` ثم نفس الأوامر.
+---
 
 ## ⚖️ تنبيه مهم
 
-هذا المشروع أداة **أتمتة شخصية** لإدارة أرقام تملكها أنت.
-استخدام البوت في تفعيل عروض على أرقام لا تملكها، أو إنشاء حسابات متعددة لاستغلال
-العروض الترويجية، أو مخالفة شروط خدمة جيزي، قد يؤدي إلى إيقاف الشريحة أو الحساب
-وقد يكون مخالفاً للقانون. المسؤولية الكاملة على المستخدم.
-إن لم يكن لديك وصول مشروع إلى واجهة جيزي، فاعتبر هذا المشروع هيكلاً هندسياً كاملاً
-(بوت + تخزين + تشفير + واجهة) يُوصَل بواجهتك أو بواجهة رسمية تصرّح لك باستخدامها.
-
----
+هذا المشروع أداة أتمتة شخصية لإدارة أرقام تملكها أنت. استخدامه على أرقام لا
+تملكها أو لاستغلال عروض ترويجية قد يخالف شروط خدمة جيزي والقانون —
+المسؤولية على المستخدم. الرموز المشفّرة لا تُعرض، ولا يُفعَّل أي عرض مدفوع
+إلا بتأكيد صريح.
 
 ## 📄 الترخيص
 

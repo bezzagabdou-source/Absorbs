@@ -11,14 +11,20 @@
  */
 import net from 'node:net';
 import express from 'express';
+import axios from 'axios';
 import { GrammyError, webhookCallback } from 'grammy';
 import config, { validateConfig } from '../src/config.js';
 import { getBot, engine } from '../src/bot.js';
 import store from '../src/store/index.js';
 import { statusPage } from '../src/ui/text.js';
+import { appPage, emojisPage } from '../src/ui/pages.js';
+import { PAID_OFFERS, findOffer } from '../src/djezzy/catalog.js';
+import { describeRoutes, parseProxy } from '../src/djezzy/routes.js';
+import { verifyInitData } from '../src/util/telegram-auth.js';
 import { createLogger, sanitize } from '../src/util/logger.js';
 import { safeEqual } from '../src/crypto.js';
 import { formatDateTime, withTimeout } from '../src/util/time.js';
+import * as txt from '../src/ui/text.js';
 
 const log = createLogger('http');
 const STARTED_AT = Date.now();
@@ -73,10 +79,10 @@ async function healthHandler(_req, res) {
   res.status(200).json({
     ok: Boolean(config.bot.token),
     service: 'djezzy-telegram-bot',
-    version: '1.0.0',
+    version: '2.0.0',
     uptimeSeconds: Math.round((Date.now() - STARTED_AT) / 1000),
     bot: { configured: Boolean(config.bot.token), webhookSecret: Boolean(config.bot.webhookSecret) },
-    djezzy: { mode: engine.mode, baseUrl: config.djezzy.baseUrl || null },
+    djezzy: { mode: engine.mode, baseUrl: config.djezzy.baseUrl || null, routes: describeRoutes() },
     storage: { adapter: store.adapter, reachable: storageOk },
     publicUrl: config.bot.publicUrl || null,
     webhookPath: '/api/webhook',
@@ -184,6 +190,82 @@ async function probeHandler(req, res) {
   const target = `${config.djezzy.baseUrl}${config.djezzy.paths.requestOtp}`;
 
   try {
+    if (req.query.mode === 'proxies') {
+      /* اكتشاف بروكسيات جزائرية واختبارها فعلياً ضد بوابة جيزي من هنا */
+      const testOne = async (proxy) => {
+        try {
+          const response = await axios({
+            method: 'POST',
+            url: target,
+            headers: { ...config.djezzy.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+            data: new URLSearchParams({ msisdn: '213000000000', client_id: config.djezzy.clientId, scope: 'smsotp' }),
+            timeout: 9000,
+            validateStatus: () => true,
+            responseType: 'text',
+            transformResponse: [(d) => d],
+            proxy: proxy
+              ? { protocol: 'http', host: proxy.host, port: proxy.port, ...(proxy.auth ? { auth: proxy.auth } : {}) }
+              : false,
+          });
+          const blocked = response.status === 403 || response.status === 451;
+          // 5xx هنا غالباً خطأ من البروكسي نفسه (مثل 502 عند فشل CONNECT) — ليس نجاحاً
+          const ok = !blocked && response.status < 500;
+          return {
+            route: proxy ? proxy.label : 'direct',
+            status: response.status,
+            ok,
+            sample: String(response.data || '').slice(0, 100),
+          };
+        } catch (error) {
+          return { route: proxy ? proxy.label : 'direct', error: error.code || error.message, ok: false };
+        }
+      };
+
+      // مسارات معدّة فقط (مباشر + بروكسيات المستخدم) — بلا اكتشاف أو تدوير
+      const envProxies = config.djezzy.proxies.map((raw) => parseProxy(raw)).filter(Boolean);
+      const tested = await Promise.all([testOne(null), ...envProxies.map((proxy) => testOne(proxy))]);
+      const results = tested;
+      const working = results.filter((item) => item.ok).map((item) => item.route);
+
+      res.status(200).json({
+        ok: true,
+        mode: 'proxies',
+        latencyMs: Date.now() - started,
+        discovered: 0,
+        working,
+        results,
+        verdict: working.length
+          ? `مسار يعمل: ${working.join(' , ')} — البوت سيستخدمه تلقائياً.`
+          : 'لا يوجد مسار عامل حالياً — شغّل الـ relay داخل الجزائر (relay/server.js) واضبط DJEZZY_RELAY_URL.',
+      });
+      return;
+    }
+
+    if (req.query.mode === 'otp') {
+      /* اختبار POST حقيقي بنفس شكل إرسال رمز التحقق (بلا إرسال SMS لرقم حقيقي:
+         msisdn غير صالح يرفضه الباك-إند بعد عبور البوابة/WAF) */
+      const msisdn = String(req.query.msisdn || '213000000000');
+      const response = await fetch(target, {
+        method: 'POST',
+        headers: { ...config.djezzy.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ msisdn, client_id: config.djezzy.clientId, scope: 'smsotp' }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await response.text().catch(() => '');
+      const blocked = response.status === 403 || response.status === 451;
+      res.status(200).json({
+        ok: !blocked,
+        mode: 'otp-post',
+        status: response.status,
+        latencyMs: Date.now() - started,
+        sample: text.slice(0, 300),
+        verdict: blocked
+          ? '403/451 — البوابة ترفض من منطقة Vercel (حجب جغرافي محتمل). جرّب مسار relay.'
+          : 'POST عبَر البوابة ووصل لتطبيق جيزي — المسار مباشر ويعمل من Vercel.',
+      });
+      return;
+    }
+
     // GET بدون أي معاملات: لا يُرسل رمزاً ولا يمسّ أي حساب — فحص اتصال فقط
     const response = await fetch(target, {
       method: 'GET',
@@ -231,8 +313,10 @@ async function diagnoseHandler(req, res) {
   add('PUBLIC_URL', Boolean(config.bot.publicUrl), config.bot.publicUrl || 'غير معروف', 'اضبطه على https://<project>.vercel.app');
   add(
     'تخزين دائم (KV)',
-    store.adapter === 'kv',
-    store.adapter === 'kv' ? 'Upstash/Vercel KV' : 'ذاكرة مؤقتة — الجلسات تُفقد',
+    ['kv', 'github', 'telegram', 'file'].includes(store.adapter),
+    { kv: 'Upstash/Vercel KV', github: 'GitHub bot-state', telegram: 'رسالة مثبّتة بتيليجرام', file: 'قرص محلي' }[
+      store.adapter
+    ] || 'ذاكرة مؤقتة — الجلسات تُفقد',
     'أنشئ Upstash Redis وأضف KV_REST_API_URL/TOKEN',
   );
 
@@ -309,6 +393,96 @@ async function diagnoseHandler(req, res) {
   });
 }
 
+/* --------------------- لوحة الويب: أزرار عبر initData --------------------- */
+
+let cachedUsername = null;
+let cachedUsernameAt = 0;
+
+async function resolveBotUsername() {
+  if (cachedUsername && Date.now() - cachedUsernameAt < 60 * 60 * 1000) return cachedUsername;
+  const bot = getBot();
+  if (!bot) return '';
+  try {
+    if (bot.botInfo?.username) {
+      cachedUsername = bot.botInfo.username;
+    } else {
+      const info = await withTimeout(bot.api.getMe(), 8000, 'getMe');
+      cachedUsername = info.username || '';
+    }
+    cachedUsernameAt = Date.now();
+  } catch {
+    cachedUsername = cachedUsername || '';
+  }
+  return cachedUsername;
+}
+
+/** تصفية رسالة نتيجة لعرضها في الويب (HTML → نص) */
+const plain = (value) => String(value || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
+
+async function appActionHandler(req, res) {
+  const auth = verifyInitData(req.headers['x-telegram-init-data'], config.bot.token);
+  if (!auth.ok) {
+    res.status(401).json({ ok: false, error: 'بيانات الدخول غير صالحة — افتح اللوحة من داخل البوت.' });
+    return;
+  }
+
+  const userId = auth.user.id;
+  const { action, code, friend } = req.body || {};
+
+  try {
+    const user = await store.getUser(userId);
+    const msisdn = user.activeMsisdn || Object.keys(user.accounts || {})[0];
+
+    const needAccount = () => {
+      if (!msisdn || !user.accounts?.[msisdn]) {
+        const error = new Error('لا يوجد رقم مربوط — اربط رقمك من البوت أولاً (📱 إضافة رقم).');
+        error.status = 400;
+        throw error;
+      }
+    };
+
+    let message = '';
+
+    if (action === 'claim-weekly') {
+      needAccount();
+      const result = await engine.claimWeeklyGift(userId, msisdn);
+      message = plain(txt.giftsResult(result));
+      if (result.ok) message = `✅ ${message}`;
+    } else if (action === 'claim-promo') {
+      needAccount();
+      const result = await engine.claimPromoGift(userId, msisdn);
+      message = result.ok ? '✅ تم استلام الهدية الترويجية بنجاح.' : `⚠️ ${result.message || 'لم تُستلم الهدية.'}`;
+    } else if (action === 'overview') {
+      needAccount();
+      const overview = await engine.getOverview(userId, msisdn);
+      message = plain(txt.overviewText({ account: engine.describeAccount(user.accounts[msisdn]), overview }));
+    } else if (action === 'activate-offer') {
+      needAccount();
+      const offer = findOffer(String(code || ''));
+      if (!offer) {
+        const error = new Error('العرض غير موجود في الكتالوج.');
+        error.status = 404;
+        throw error;
+      }
+      const result = await engine.activateOffer(userId, msisdn, offer.code);
+      message = `✅ تم تفعيل ${offer.name} بنجاح.`;
+    } else if (action === 'remove-account') {
+      needAccount();
+      await engine.removeAccount(userId, msisdn);
+      message = '🗑 تم حذف الرقم المربوط من البوت.';
+    } else {
+      const error = new Error('عملية غير معروفة.');
+      error.status = 400;
+      throw error;
+    }
+
+    res.json({ ok: true, message });
+  } catch (error) {
+    const friendly = error?.friendly || error?.message || 'حدث خطأ غير متوقع.';
+    res.status(error?.status || 400).json({ ok: false, error: plain(friendly) });
+  }
+}
+
 /* ------------------------------ التطبيق ------------------------------ */
 
 export function createApp() {
@@ -326,6 +500,29 @@ export function createApp() {
   app.get(['/api/diagnose', '/diagnose'], diagnoseHandler);
   app.get(['/api/probe', '/probe'], probeHandler);
   app.get(['/api/tcp'], tcpHandler);
+
+  /* صفحات الويب: لوحة الأزرار الملوّنة + معرض الإيموجيات المتحركة */
+  app.get('/app', async (_req, res) => {
+    res
+      .status(200)
+      .type('html')
+      .send(
+        appPage({
+          publicUrl: config.bot.publicUrl || '',
+          botUsername: await resolveBotUsername(),
+          mode: engine.mode,
+          storage: store.adapter,
+          offers: PAID_OFFERS,
+        }),
+      );
+  });
+  app.get('/emojis', (_req, res) => {
+    res.status(200).type('html').send(emojisPage({ publicUrl: config.bot.publicUrl || '' }));
+  });
+
+  /* أزرار لوحة الويب — مصادقة عبر initData الخاصة بتيليجرام */
+  app.post('/api/app/action', express.json({ limit: '32kb' }), appActionHandler);
+
   app.get(['/', '/api', '/api/index', '/status'], (_req, res) => {
     res
       .status(200)

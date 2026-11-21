@@ -3,6 +3,7 @@ export const ERROR_CODES = {
   CONFIG: 'CONFIG',
   NETWORK: 'NETWORK',
   TIMEOUT: 'TIMEOUT',
+  BLOCKED: 'BLOCKED',
   AUTH: 'AUTH',
   AUTH_EXPIRED: 'AUTH_EXPIRED',
   OTP_INVALID: 'OTP_INVALID',
@@ -22,11 +23,13 @@ const FRIENDLY = {
     'تعذّر الوصول إلى خوادم جيزي: جيزي لا تسمح بالاتصال إلا من شبكات داخل الجزائر، والاستضافة الحالية خارجها.',
   [ERROR_CODES.TIMEOUT]:
     'تعذّر الوصول إلى خوادم جيزي (حجب جغرافي): الطلبات القادمة من خارج الجزائر لا تصل أبداً.',
+  [ERROR_CODES.BLOCKED]:
+    'رفض الخادم هذا الطلب (قد يكون حجبًا مؤقتًا أو جغرافيًا). أوقفت المحاولة فوراً — أعد المحاولة لاحقاً.',
   [ERROR_CODES.AUTH]: 'بيانات الجلسة غير صالحة — أعد إضافة الرقم.',
   [ERROR_CODES.AUTH_EXPIRED]: 'انتهت صلاحية الجلسة — أعد تسجيل الدخول برمز تحقق جديد.',
   [ERROR_CODES.OTP_INVALID]: 'رمز التحقق غير صحيح.',
   [ERROR_CODES.OTP_EXPIRED]: 'انتهت صلاحية رمز التحقق — اطلب رمزاً جديداً.',
-  [ERROR_CODES.RATE_LIMITED]: 'طلبات كثيرة جداً على حساب جيزي. انتظر قليلاً ثم أعد المحاولة.',
+  [ERROR_CODES.RATE_LIMITED]: 'طلبات كثيرة جداً على حساب جيزي. توقفت فوراً — انتظر قليلاً ثم أعد المحاولة لاحقاً.',
   [ERROR_CODES.OFFER_NOT_FOUND]: 'لم يُعثر على هذا العرض في حسابك (قد يكون غير متاح لشريحتك).',
   [ERROR_CODES.OFFER_ALREADY_ACTIVE]: 'هذا العرض مُفعّل بالفعل على رقمك.',
   [ERROR_CODES.CHALLENGE_REQUIRED]: 'جيزي تطلب خطوة تحقّق إضافية لإتمام التفعيل.',
@@ -78,6 +81,12 @@ export function normalizeError(error, context = {}) {
   }
   if (!error?.response) {
     return new DjezzyError(ERROR_CODES.NETWORK, `تعذّر الاتصال: ${detail}`, { status, retryable: true });
+  }
+
+  /* حجب جغرافي: nginx يعيد 403/451 نصّياً (ليس JSON تطبيق) — نميّزه عن أخطاء التطبيق */
+  const rawText = `${typeof payload === 'string' ? payload : JSON.stringify(payload ?? '')}${detail}`;
+  if ((status === 403 || status === 451) && /forbidden|nginx/i.test(rawText)) {
+    return new DjezzyError(ERROR_CODES.BLOCKED, null, { status, payload, retryable: false });
   }
 
   const text = String(typeof payload === 'string' ? payload : JSON.stringify(payload ?? '') + detail).toLowerCase();

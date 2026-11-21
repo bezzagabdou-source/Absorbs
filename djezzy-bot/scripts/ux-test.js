@@ -159,10 +159,14 @@ await step('رمز صحيح يربط الرقم ويحفظ الجلسة', async 
   assert.ok(account.tokenEnc.startsWith('v1:'), 'التوكن يجب أن يُخزَّن مشفّراً');
 });
 
-await step('زر 6 جيغا لا يفعّل شيئاً مدفوعاً بدون رمز باقة', async () => {
+await step('زر 6 جيغا: محاولة مجانية أولاً ولا تفعيل مدفوع بدون رمز باقة', async () => {
   const text = await click('act:6gb');
-  assert.match(text, /ليست هدية مجانية/);
-  assert.match(text, /packageCode|رمز الباقة/);
+  // إما نتيجة المحاولة المجانية (QR/Walk6G) أو شاشة المدفوع المُعلنة — لا تفعيل مدفوع صامت أبداً
+  const freeOk = /نتيجة استلام الهدايا|هدية 6 جيجا|6 جيجا \(Walk/.test(text);
+  const paidScreen = /ليست هدية مجانية/.test(text);
+  assert.ok(freeOk || paidScreen, 'نتيجة مجانية أو شاشة مدفوعة صريحة مطلوبة: ' + String(text).slice(0, 160));
+  if (paidScreen) assert.match(text, /packageCode|رمز الباقة/);
+  assert.ok(!/تأكيد تفعيل <b>|offerConfirm/.test(text), 'لا يُفعَّل أي عرض مدفوع تلقائياً');
 });
 
 await step('هدية 2 جيغا تُستلم (لا محاكاة صريحة في الوضع الحقيقي)', async () => {
@@ -179,6 +183,47 @@ await step('فحص الحساب يعرض سجل الهدايا', async () => {
   const text = await click('act:overview');
   assert.match(text, /حالة الحساب/);
   assert.match(text, /هدية 2 جيجا|آخر هدية/);
+});
+
+await step('كتالوج الهدايا المجانية يُفتح باللون الأخضر', async () => {
+  const text = await click('cat:free');
+  assert.match(text, /الهدايا المجانية/);
+  assert.ok(hasButton('gift:weekly2go'), 'زر هدية 2 جيجا مفقود');
+  assert.ok(hasButton('gift:promoqr'), 'زر هدية الجمعة مفقود');
+  assert.ok(hasButton('gift:mgm'), 'زر بونص الدعوة مفقود');
+});
+
+await step('هدية الجمعة/المناسبة (QR) تُستلم', async () => {
+  const text = await click('gift:promoqr');
+  assert.match(text, /هدية|ترويجية/);
+});
+
+await step('كتالوج العروض المدفوعة يعرض الأسعار (أزرق)', async () => {
+  const text = await click('cat:paid');
+  assert.match(text, /العروض المدفوعة/);
+  assert.match(text, /دج/);
+  assert.ok(hasButton('offer:BTLINTSPEEDDAY2Go'), 'زر عرض 70دج مفقود');
+});
+
+await step('عرض مدفوع → شاشة تأكيد قبل أي تفعيل', async () => {
+  const text = await click('offer:BTLINTSPEEDDAY2Go');
+  assert.match(text, /تأكيد تفعيل/);
+  assert.match(text, /70/);
+  assert.match(text, /خصم|رصيد/);
+  assert.ok(hasButton('offer:go:BTLINTSPEEDDAY2Go'), 'زر التأكيد مفقود');
+});
+
+await step('تفعيل العرض المدفوع بعد التأكيد الصريح', async () => {
+  const text = await click('offer:go:BTLINTSPEEDDAY2Go');
+  assert.match(text, /تم التفعيل|ناجح/);
+});
+
+await step('بونص الدعوة: يطلب رقم الصديق ثم ينفذ', async () => {
+  const prompt = await click('gift:mgm');
+  assert.match(prompt, /رقم صديق/);
+  const result = await sendText('0771234567');
+  assert.match(result, /دعوة/);
+  assert.match(result, /تم|✅/);
 });
 
 await step('إدارة الأرقام تعرض الرقم المربوط', async () => {

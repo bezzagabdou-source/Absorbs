@@ -10,10 +10,50 @@ import { createLogger } from '../util/logger.js';
 import { decrypt, encrypt } from '../crypto.js';
 import { isExpired } from '../util/time.js';
 import { DjezzyError, ERROR_CODES } from './errors.js';
+import { describeRoutes } from './routes.js';
 import store from '../store/index.js';
 
 const log = createLogger('djezzy/engine');
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** تطبيع بروكسي جيزي (JSON:API): الرصيد/التفيد/العروض المفعّلة */
+function normalizeProfile(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw.data && typeof raw.data === 'object' ? raw.data : raw;
+  const attrs = data.attributes && typeof data.attributes === 'object' ? data.attributes : data;
+  const included = Array.isArray(raw.included) ? raw.included : [];
+
+  let simType = null;
+  for (const item of included) {
+    if (item?.type === 'subscription-types') {
+      const text = item.attributes?.name?.text || {};
+      simType = text.ar || text.fr || text.en || null;
+      break;
+    }
+  }
+
+  const activeOffers = [];
+  for (const item of included) {
+    if (item?.type !== 'connected-products') continue;
+    for (const product of item.attributes?.products || []) {
+      const dataBal = (product.balances || []).find((b) => b?.['bundle-type'] === 'data');
+      activeOffers.push({
+        name: product.name?.text?.ar || product.name?.text?.en || product.name?.text?.fr || 'عرض',
+        remaining: dataBal?.['remaining-amount'] ?? null,
+        total: dataBal?.['total-amount'] ?? null,
+        expiry: product['expiry-at'] || null,
+      });
+    }
+  }
+
+  return {
+    balance: attrs?.balance ?? data?.mainBalance ?? attrs?.mainBalance ?? null,
+    activationAt: attrs?.['activation-time'] ?? null,
+    simType,
+    activeOffers,
+    raw,
+  };
+}
 
 const pick = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
 
@@ -65,7 +105,8 @@ export class DjezzyEngine {
     const user = await this.store.getUser(telegramId);
     user.state = {
       step: 'awaiting_otp',
-      temp: { msisdn, sessionId: result.sessionId, debugCode: result.debugCode ?? null, startedAt: Date.now() },
+      // لا نخزّن رمز التحقق (ولو محاكاة) — يُعاد في الاستجابة الحالية فقط
+      temp: { msisdn, sessionId: result.sessionId, startedAt: Date.now() },
     };
     await this.store.saveUser(user);
 
@@ -189,7 +230,7 @@ export class DjezzyEngine {
     await this.store.saveUser(user);
   }
 
-  /* ------------------------- سجل الاشتراكات ------------------------- */
+  /* ------------------------- سجل الاشتراكات والحساب ------------------------- */
   async #weeklyStatus(telegramId, msisdn) {
     return this.#withAuth(telegramId, msisdn, async ({ token }) => {
       const history = normalizeHistory(await this.client.getHistory({ token, msisdn }).catch(soft({})));
@@ -203,6 +244,18 @@ export class DjezzyEngine {
     const { lastAt, nextEligibleAt, history } = await this.#weeklyStatus(telegramId, msisdn);
     const now = Date.now();
 
+    // البروفايل (الرصيد/الباقة/العروض) — الشكل الحقيقي: data.attributes.balance + included
+    let profile = null;
+    let profileError = null;
+    try {
+      profile = normalizeProfile(
+        await this.#withAuth(telegramId, msisdn, async ({ token }) => this.client.getProfile({ token, msisdn })),
+      );
+    } catch (error) {
+      profile = null;
+      profileError = { code: error?.code || 'UNKNOWN', status: error?.status ?? null, message: error?.message };
+    }
+
     return {
       ok: true,
       mode: this.mode,
@@ -211,10 +264,49 @@ export class DjezzyEngine {
       canClaimNow: !lastAt || now >= nextEligibleAt,
       recent: history.filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 5),
       promoConfigured: Boolean(config.djezzy.scanQr),
+      balance: profile?.balance ?? null,
+      simType: profile?.simType ?? null,
+      activationAt: profile?.activationAt ?? null,
+      activeOffers: profile?.activeOffers ?? [],
+      profile,
+      profileError,
     };
   }
 
   /* -------------------------- هدية 2 جيجا -------------------------- */
+  /** تشخيص شامل (أمر /diag): البروفايل + السجل + المسارات — دون تفعيل أي هدية */
+  async runDiag(telegramId, msisdn) {
+    const report = { at: Date.now(), msisdn, profile: null, history: null, routes: null };
+
+    try {
+      report.routes = describeRoutes();
+    } catch {
+      report.routes = null;
+    }
+
+    try {
+      const raw = await this.#withAuth(telegramId, msisdn, async ({ token }) => this.client.getProfile({ token, msisdn }));
+      const normalized = normalizeProfile(raw);
+      report.profile = {
+        ok: true,
+        balance: normalized?.balance ?? null,
+        simType: normalized?.simType ?? null,
+        offers: normalized?.activeOffers?.length ?? 0,
+      };
+    } catch (error) {
+      report.profile = { ok: false, code: error?.code || 'UNKNOWN', status: error?.status ?? null, message: error?.message };
+    }
+
+    try {
+      const history = await this.#withAuth(telegramId, msisdn, async ({ token }) => this.client.getHistory({ token, msisdn }));
+      report.history = { ok: true, count: normalizeHistory(history).length };
+    } catch (error) {
+      report.history = { ok: false, code: error?.code || 'UNKNOWN', status: error?.status ?? null, message: error?.message };
+    }
+
+    return report;
+  }
+
   async claimWeeklyGift(telegramId, msisdn) {
     let user = await this.#guardQuota(await this.store.getUser(telegramId));
     await this.store.saveUser(user);
@@ -247,6 +339,48 @@ export class DjezzyEngine {
   }
 
   /* ------------------------ الهدية الترويجية ------------------------ */
+  /**
+   * هدية6G (زر6G + الجمعة) — محاولة رسمية واحدة لكل ضغطة، بلا إعادة:
+   *   Walk Win مستوى6G (20000 خطوة — GIFTWALKWIN6GO) عبر subscription-product فقط.
+   *   (الباركود QR هدية ترويجية منفصلة لها زرها — لا يُكرَّر نفس الطلب هنا.)
+   * عند أي رفض/خطأ يُوقف فوراً وتُعرض رسالة واضحة محايدة — لا محاولة ثانية.
+   */
+  async claimFridayGift(telegramId, msisdn) {
+    let user = await this.#guardQuota(await this.store.getUser(telegramId));
+    await this.store.saveUser(user);
+
+    const method = 'Walk6G (20000 خطوة)';
+    try {
+      const response = await this.#withAuth(telegramId, msisdn, async ({ token, user: fresh }) => {
+        const result = await this.client.claimWalk6Gift({ token, msisdn });
+        await this.#recordResult(fresh, msisdn, { claimed: [{ name: 'هدية 6 جيجا' }], failed: [] });
+        return result;
+      });
+      return {
+        ok: true,
+        status: 'claimed',
+        claimed: [{ name: '🔥 هدية 6 جيجا (Walk Win)', data: '6 GB / 30 يوم' }],
+        failed: [],
+        message: response?.message || 'تم تفعيل6 جيجا بنجاح.',
+        attempts: [{ method, ok: true }],
+      };
+    } catch (error) {
+      // إيقاف فوري بعد أول رفض — بلا أي محاولة إعادة
+      const attempts = [{ method, ok: false, code: error?.code, status: error?.status, message: error?.message }];
+      if (['BALANCE', 'BLOCKED', 'AUTH_EXPIRED', 'RATE_LIMITED', 'QUOTA'].includes(error?.code)) {
+        throw error;
+      }
+      return {
+        ok: false,
+        status: 'failed',
+        claimed: [],
+        failed: attempts.map((a) => ({ name: a.method, reason: a.message || a.code || 'غير متاح الآن' })),
+        message: `لم تتوفر الهدية عبر ${method} — أوقفت المحاولة. ${error?.message || ''}`.trim(),
+        attempts,
+      };
+    }
+  }
+
   async claimPromoGift(telegramId, msisdn) {
     let user = await this.#guardQuota(await this.store.getUser(telegramId));
     await this.store.saveUser(user);
@@ -293,6 +427,17 @@ export class DjezzyEngine {
       }
     }
 
+    //6G بأي طريقة (باركود QR ← Walk6G) — جزء من «كل الهدايا»
+    try {
+      const six = await this.claimFridayGift(telegramId, msisdn);
+      if (six.status === 'claimed') claimed.push(...six.claimed);
+      else failed.push({ name: 'هدية6 جيجا', reason: six.message });
+    } catch (error) {
+      if (error?.code !== ERROR_CODES.OFFER_ALREADY_ACTIVE) {
+        failed.push({ name: 'هدية6 جيجا', reason: error?.friendly || error?.message });
+      }
+    }
+
     return {
       ok: claimed.length > 0,
       status: claimed.length > 0 ? 'claimed' : 'failed',
@@ -303,14 +448,10 @@ export class DjezzyEngine {
     };
   }
 
-  /* --------------------- عرض مدفوع (بموافقة صريحة) --------------------- */
-  async activatePaidOffer(telegramId, msisdn) {
-    const code = config.djezzy.paidProductCode;
+  /* --------------------- تفعيل عرض/باقة بالرمز --------------------- */
+  async activateOffer(telegramId, msisdn, code) {
     if (!code) {
-      throw new DjezzyError(
-        ERROR_CODES.OFFER_NOT_FOUND,
-        'لم تُضبط أي باقة مدفوعة. عروض 6 جيجا ليست هدية مجانية — رمزها يختلف حسب عرضك (OFFER_PAID_CODE).',
-      );
+      throw new DjezzyError(ERROR_CODES.OFFER_NOT_FOUND, 'لم يُضبط رمز الباقة المطلوبة.');
     }
 
     let user = await this.#guardQuota(await this.store.getUser(telegramId));
@@ -323,6 +464,41 @@ export class DjezzyEngine {
         status: 'activated',
         message: response?.message || `تم تفعيل الباقة ${code}.`,
         item: code,
+      };
+      await this.#recordResult(freshUser, msisdn, result);
+      return result;
+    });
+  }
+
+  /** العرض المدفوع المضبوط في البيئة (زر «6 جيغا») — بموافقة صريحة */
+  async activatePaidOffer(telegramId, msisdn) {
+    const code = config.djezzy.paidProductCode;
+    if (!code) {
+      throw new DjezzyError(
+        ERROR_CODES.OFFER_NOT_FOUND,
+        'لم تُضبط أي باقة مدفوعة. عروض 6 جيجا ليست هدية مجانية — رمزها يختلف حسب عرضك (OFFER_PAID_CODE).',
+      );
+    }
+    return this.activateOffer(telegramId, msisdn, code);
+  }
+
+  /* --------------------- بونص الدعوة (MGM) --------------------- */
+  async claimMgmBonus(telegramId, msisdn, friendMsisdn) {
+    if (!friendMsisdn || friendMsisdn === msisdn) {
+      throw new DjezzyError(ERROR_CODES.OFFER_NOT_FOUND, 'أدخل رقم صديق جيزي صحيح (07…) مختلف عن رقمك.');
+    }
+
+    let user = await this.#guardQuota(await this.store.getUser(telegramId));
+    await this.store.saveUser(user);
+
+    return this.#withAuth(telegramId, msisdn, async ({ token, user: freshUser }) => {
+      const response = await this.client.memberGetMember({ token, msisdn, friendMsisdn });
+      const result = {
+        ok: true,
+        status: 'claimed',
+        claimed: [{ name: 'بونص الدعوة (MGM)', data: null }],
+        failed: [],
+        message: response?.message || 'تم إرسال بونص الدعوة بنجاح.',
       };
       await this.#recordResult(freshUser, msisdn, result);
       return result;

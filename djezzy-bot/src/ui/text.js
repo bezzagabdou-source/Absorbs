@@ -1,5 +1,6 @@
 /** نصوص البوت بالعربية (HTML — مع هروب آمن للمدخلات) */
 import { escapeHtml as escape, formatDateTime, formatRelative } from '../util/time.js';
+import { PAID_OFFERS } from '../djezzy/catalog.js';
 
 const MODE_LABEL = { simulation: '🧪 محاكاة (بدون طلبات حقيقية)', live: '🟢 مباشر' };
 
@@ -70,17 +71,75 @@ export function accountsText(accounts, activeMsisdn) {
   return lines.join('\n');
 }
 
+export function diagText(report) {
+  const ok = (v) => (v ? '✅' : '❌');
+  const lines = ['🩺 <b>تشخيص الاتصال بجيزي</b>', '', `الرقم: <code>${escape(report.msisdn)}</code>`, ''];
+
+  const p = report.profile;
+  lines.push(`${ok(p?.ok)} <b>البروفايل/الرصيد:</b>`);
+  if (p?.ok) lines.push(`   💰 الرصيد: ${escape(String(p.balance ?? 'غير متوفر'))} دج · الشريحة: ${escape(p.simType ?? '—')} · عروض مفعّلة: ${p.offers}`);
+  else lines.push(`   خطأ: ${escape(p?.code || '?')} ${p?.status ? `(HTTP ${p.status})` : ''} — ${escape((p?.message || '').slice(0, 120))}`);
+
+  const h = report.history;
+  lines.push(`${ok(h?.ok)} <b>السجل:</b>`);
+  if (h?.ok) lines.push(`   📜 ${h.count} اشتراك مسجّل`);
+  else lines.push(`   خطأ: ${escape(h?.code || '?')} ${h?.status ? `(HTTP ${h.status})` : ''}`);
+
+  const r = report.routes;
+  lines.push('', '<b>🌍 المسارات:</b>');
+  if (r) {
+    lines.push(`   relay: ${r.configured?.relay ? '✅ ' + escape(r.configured.relay) : '❌ غير مضبوط'}`);
+    lines.push(`   مباشر: ${r.configured?.direct ? '✅' : '❌'} · بروكسيات يدوية: ${r.configured?.envProxies ?? 0} · تلقائية: ❌ (معطّلة)`);
+    if (r.lastSuccess) lines.push(`   آخر نجاح: ${escape(r.lastSuccess.route)} · HTTP ${r.lastSuccess.status} · ${r.lastSuccess.ms}ms`);
+    const failed = (r.recent || []).filter((a) => a.error || a.status >= 400).slice(-3);
+    for (const a of failed) lines.push(`   ⚠️ ${escape(a.route)}: ${a.error ? escape(a.error) : 'HTTP ' + a.status}`);
+  }
+
+  lines.push('', '💡 إن فشل البروفايل/السجل: أعد المحاولة، وإن تكرر شغّل relay داخل الجزائر.');
+  return lines.join('\n');
+}
+
+const fmtData = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 1024) return `${(n / 1024).toFixed(n >= 10240 ? 0 : 1)} غ`;
+  return `${n} م.ب`;
+};
+
 export function overviewText({ account, overview }) {
   const lines = [
     '📊 <b>حالة الحساب</b>',
     '',
     `الرقم: <code>${escape(account.label)}</code>`,
     `حالة الجلسة: ${account.sessionValid ? '✅ صالحة' : '⚠️ تحتاج تجديداً'}`,
+  ];
+
+  if (overview.balance != null && overview.balance !== '') {
+    lines.push(`💰 الرصيد: <b>${escape(String(overview.balance))}</b> دج`);
+  } else if (overview.profileError) {
+    lines.push(`💰 الرصيد: ⚠️ تعذّر الجلب (${escape(overview.profileError.code)})`);
+  }
+  if (overview.simType) lines.push(`💳 الشريحة: ${escape(overview.simType)}`);
+  if (overview.activationAt) lines.push(`📅 تفعيل الخط: ${escape(formatDateTime(Date.parse(overview.activationAt) || overview.activationAt))}`);
+
+  if (overview.activeOffers?.length) {
+    lines.push('', '<b>📦 العروض المفعّلة:</b>');
+    for (const offer of overview.activeOffers.slice(0, 6)) {
+      const amount =
+        offer.remaining != null && offer.total != null
+          ? ` — المتبقي ${fmtData(offer.remaining) ?? offer.remaining}/${fmtData(offer.total) ?? offer.total}`
+          : '';
+      const expiry = offer.expiry ? ` · ينتهي ${escape(formatDateTime(Date.parse(offer.expiry) || offer.expiry))}` : '';
+      lines.push(`• ${escape(offer.name)}${amount}${expiry}`);
+    }
+  }
+
+  lines.push(
     '',
     overview.lastWeeklyAt
       ? `🎁 آخر هدية 2 جيجا: ${escape(formatDateTime(overview.lastWeeklyAt))}`
       : '🎁 لم تستلم هدية 2 جيجا من هذا البوت بعد',
-  ];
+  );
 
   if (overview.nextEligibleAt) {
     lines.push(
@@ -166,15 +225,20 @@ const SILENT_DETAIL = new Set(['TIMEOUT', 'NETWORK']);
 
 const GEO_HINT = [
   '',
-  '🌍 <b>السبب:</b> خوادم جيزي محجوبة على كل شبكات خارج الجزائر',
-  '(Vercel، Railway، أي سيرفر أوروبي/أمريكي).',
+  '🌍 <b>السبب:</b> خوادم جيزي تقبل الاتصال من الشبكات الجزائرية بشكل موثوق،',
+  'وقد تحجب الاستضافة الحالية (Vercel…). مسارات البوت: relay ← مباشر ← بروكسيات يدوية — بلا إعادة بعد أي رفض.',
   '',
-  '✅ <b>الحل:</b> شغّل البوت من جهازك داخل الجزائر:',
-  '<code>cd djezzy-bot</code>',
-  '<code>npm install</code>',
-  '<code>npm run poll</code>',
+  '✅ <b>الحل:</b> شغّل relay صغير داخل الجزائر واربطه:',
+  '<code>cd djezzy-bot/relay && npm install && npm start</code>',
+  'ثم اضبط <code>DJEZZY_RELAY_URL</code> على Vercel وأعد النشر.',
   '',
-  'التفاصيل الكاملة: /help ← قسم «لماذا لا يعمل؟».',
+  'أو شغّل البوت كاملاً من جهازك داخل الجزائر: <code>npm run poll</code>.',
+].join('\n');
+
+/** إخلاء مسؤولية — يُعرض في /start و /help */
+export const DISCLAIMER = [
+  'ℹ️ <b>إخلاء مسؤولية:</b> هذا البوت أداة مساعدة لتفعيل العروض والهدايا الرسمية المتاحة لحسابك لدى جيزي فقط،',
+  'وفق شروط المزوّد وحدودها الطبيعية — دون ضمان توفر أو نتيجة، وبلا أي تجاوز لحدود الاستخدام.',
 ].join('\n');
 
 export function errorText(error) {
@@ -186,7 +250,92 @@ export function errorText(error) {
   return `⚠️ ${escape(friendly)}${detail}${hint}`;
 }
 
+/* ------------------------- نصوص الكتالوج والتحقق ------------------------- */
+
+export function verifiedWelcome({ label }) {
+  return [
+    '✅ <b>تم تأكيد الحساب — العروض متاحة الآن</b>',
+    '',
+    `الرقم: <code>${escape(label)}</code>`,
+    '',
+    '🟢 <b>هدايا مجانية:</b> 2 جيغا أسبوعياً · هدية الجمعة/المناسبة · بونص الدعوة',
+    '🔵 <b>عروض مدفوعة:</b> باقات يومية/أسبوعية/شهرية بأسعار واضحة',
+    '',
+    'اختر من الأزرار بالأسفل 👇',
+  ].join('\n');
+}
+
+export function catalogText(kind, { mode } = {}) {
+  if (kind === 'free') {
+    return [
+      '🟢 <b>الهدايا المجانية من جيزي</b>',
+      '',
+      '🎁 <b>هدية 2 جيجا الأسبوعية</b> — كل أسبوع بضغطة واحدة (Walk Win).',
+      '🎀 <b>هدية الجمعة/المناسبة</b> — هدايا QR التي تُطلقها جيزي في الحملات والمباريات.',
+      '👥 <b>بونص الدعوة</b> — أدخل رقم صديق جيزي واحصلا معاً على البونص.',
+      '',
+      'كل ما سبق مجاني 100% ولا يخصم من رصيدك.',
+      mode === 'simulation' ? '\n🧪 وضع المحاكاة مفعّل — لا تُرسل طلبات حقيقية.' : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const preview = PAID_OFFERS.slice(0, 5)
+    .map((offer) => `• ${escape(offer.name)}`)
+    .join('\n');
+  const lines = [
+    '🔵 <b>العروض المدفوعة</b>',
+    '',
+    'هذه عروض تُخصم قيمتها من رصيد جيزي — السعر موضح أمام كل عرض.',
+    'لن يُفعَّل أي عرض إلا بعد تأكيدك الصريح في الخطوة التالية.',
+    '',
+    '<b>أبرز العروض:</b>',
+    preview,
+    '',
+  ];
+  if (mode === 'simulation') lines.push('🧪 وضع المحاكاة مفعّل — لا تُرسل طلبات حقيقية.\n');
+  lines.push('اضغط على العرض الذي تريده 👇');
+  return lines.join('\n');
+}
+
+export function offerConfirmText(offer, { simulated = false } = {}) {
+  return [
+    `🔵 <b>تأكيد تفعيل العرض</b>`,
+    '',
+    `العرض: <b>${escape(offer.name)}</b>`,
+    offer.detail ? `التفاصيل: ${escape(offer.detail)}` : '',
+    `السعر: <b>${offer.price != null ? `${escape(String(offer.price))} دج` : 'حسب الباقة'}</b>`,
+    '',
+    '⚠️ سيُرسل طلب حقيقي إلى جيزي وقد يُخصم المبلغ من رصيدك.',
+    simulated ? '\n🧪 وضع المحاكاة: لن يُخصم شيء فعلياً.' : '',
+    '',
+    'هل تريد المتابعة؟',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+export const mgmPrompt = () =>
+  [
+    '👥 <b>بونص الدعوة (MGM)</b>',
+    '',
+    'أرسل رقم صديق جيزي الآن (07XXXXXXXX):',
+    '<code>07XXXXXXXX</code>',
+    '',
+    'سيُرسل الطلب إلى جيزي لربط الدعوة بحسابك.',
+  ].join('\n');
+
+export function mgmResult(result, { simulated = false } = {}) {
+  const header = result.ok ? '✅' : '⚠️';
+  const lines = [`${header} <b>نتيجة بونص الدعوة</b>`, ''];
+  lines.push(result.ok ? 'تم إرسال طلب الدعوة إلى جيزي بنجاح.' : escape(result.message || 'فشل إرسال الدعوة.'));
+  if (simulated) lines.push('', '🧪 وضع المحاكاة: لم يُرسل طلب حقيقي.');
+  return lines.join('\n');
+}
+
 export function statusPage({ botConfigured, mode, storage, publicUrl, warnings }) {
+  const storageLabel = { kv: 'KV دائم ✅', github: 'GitHub دائم ✅', file: 'ملف محلي ✅', memory: 'ذاكرة مؤقتة ⚠️' }[storage] || storage;
   const items = warnings.map((warning) => `<li>${escape(warning)}</li>`).join('');
   return `<!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8">
@@ -205,7 +354,7 @@ export function statusPage({ botConfigured, mode, storage, publicUrl, warnings }
 <p class="muted">خدمة Webhook — Node.js / grammy / Vercel</p>
 <div class="row"><span>حالة البوت</span><span class="${botConfigured ? 'ok' : 'warn'}">${botConfigured ? 'مُهيّأ ✅' : 'BOT_TOKEN مفقود ⚠️'}</span></div>
 <div class="row"><span>محرّك جيزي</span><span class="${mode === 'live' ? 'ok' : 'warn'}">${mode === 'live' ? 'مباشر 🟢' : 'محاكاة 🧪'}</span></div>
-<div class="row"><span>التخزين</span><span class="${storage === 'kv' ? 'ok' : 'warn'}">${storage === 'kv' ? 'KV دائم ✅' : 'ذاكرة مؤقتة ⚠️'}</span></div>
+<div class="row"><span>التخزين</span><span class="${storage === 'kv' || storage === 'github' || storage === 'file' ? 'ok' : 'warn'}">${storageLabel}</span></div>
 <div class="row"><span>عنوان الخدمة</span><span><code>${escape(publicUrl || '—')}</code></span></div>
 ${items ? `<p class="muted">ملاحظات الإعداد:</p><ul>${items}</ul>` : ''}
 <p class="muted">Webhook: <code>POST ${escape(publicUrl || '')}/api/webhook</code></p>
@@ -222,5 +371,10 @@ export default {
   giftsResult,
   errorText,
   statusPage,
+  verifiedWelcome,
+  catalogText,
+  offerConfirmText,
+  mgmPrompt,
+  mgmResult,
   formatDateTime,
 };

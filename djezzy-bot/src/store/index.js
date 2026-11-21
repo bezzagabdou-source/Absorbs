@@ -11,6 +11,8 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import config from '../config.js';
 import { createLogger } from '../util/logger.js';
+import { createGitHubAdapter } from './github.js';
+import { createTelegramAdapter } from './telegram.js';
 
 const log = createLogger('store');
 const KEY_PREFIX = 'djezzy:user:';
@@ -63,7 +65,7 @@ function createKvAdapter({ url, token }) {
 }
 
 /* ---------------------------- محوّل الذاكرة ---------------------------- */
-function createMemoryAdapter() {
+export function createMemoryAdapter() {
   const data = new Map(); // key -> { value, expiresAt }
 
   const alive = (entry) => entry && (!entry.expiresAt || entry.expiresAt > Date.now());
@@ -154,21 +156,96 @@ function createFileAdapter(filePath = resolve(process.cwd(), '.data', 'store.jso
  */
 let adapterRef = null;
 
+/**
+ * محوّل مرن: يجرّب المحوّل الأساسي وعند أي فشل ينتقل إلى الاحتياطي (ذاكرة)
+ * حتى لا يتعطّل البوت أبداً بسبب تخزين خارجي.
+ */
+function createResilientAdapter(primary, fallback) {
+  let warned = false;
+  const warnOnce = (error) => {
+    if (!warned) {
+      warned = true;
+      log.warn(`فشل المحوّل ${primary.name} (${error.message}) — التحوّل إلى ${fallback.name} مؤقتاً.`);
+    }
+  };
+
+  return {
+    name: primary.name,
+    repo: primary.repo,
+    branch: primary.branch,
+    path: primary.path,
+    primary,
+    fallback,
+    async get(key) {
+      try {
+        return await primary.get(key);
+      } catch (error) {
+        warnOnce(error);
+        return fallback.get(key);
+      }
+    },
+    async set(key, value, ttlSeconds) {
+      try {
+        await primary.set(key, value, ttlSeconds);
+      } catch (error) {
+        warnOnce(error);
+        await fallback.set(key, value, ttlSeconds);
+      }
+    },
+    async del(key) {
+      try {
+        await primary.del(key);
+      } catch (error) {
+        warnOnce(error);
+        await fallback.del(key);
+      }
+    },
+    async ping() {
+      try {
+        return await primary.ping();
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
 function resolveAdapter() {
   if (adapterRef) return adapterRef;
 
+  const memory = createMemoryAdapter();
+
   if (config.storage.kvUrl && config.storage.kvToken) {
-    adapterRef = createKvAdapter({ url: config.storage.kvUrl, token: config.storage.kvToken });
+    adapterRef = createResilientAdapter(
+      createKvAdapter({ url: config.storage.kvUrl, token: config.storage.kvToken }),
+      memory,
+    );
+  } else if (config.storage.githubToken && config.storage.githubRepo) {
+    // تخزين دائم عبر فرع bot-state في مستودع GitHub
+    adapterRef = createResilientAdapter(createGitHubAdapter(), memory);
+  } else if (config.isVercel && config.bot.token) {
+    // تخزين دائم عبر رسالة مثبّتة في محادثة كل مستخدم (Bot API فقط — بلا خدمات خارجية)
+    const getApi = async () => {
+      const { getBot } = await import('../bot.js');
+      const bot = getBot();
+      if (!bot) throw new Error('bot not initialized');
+      return bot.api;
+    };
+    adapterRef = createResilientAdapter(createTelegramAdapter({ getApi, fallback: memory }), memory);
   } else if (!config.isVercel) {
     adapterRef = createFileAdapter(process.env.STORE_FILE);
   } else {
-    adapterRef = createMemoryAdapter();
+    adapterRef = memory;
   }
 
   if (adapterRef.name === 'memory') {
-    log.warn('تخزين مؤقت في الذاكرة — الجلسات ستُفقد عند إعادة تشغيل الدالة. اضبط KV_REST_API_URL/TOKEN للإنتاج.');
+    log.warn('تخزين مؤقت في الذاكرة — الجلسات ستُفقد عند إعادة تشغيل الدالة. اضبط KV_REST_API_URL/TOKEN أو STATE_GITHUB_TOKEN للإنتاج.');
   } else if (adapterRef.name === 'file') {
     log.info(`تخزين على القرص: ${adapterRef.path} — الجلسات تبقى بعد إعادة التشغيل.`);
+  } else if (adapterRef.name === 'github') {
+    log.info(`تخزين عبر GitHub: ${adapterRef.repo}@${adapterRef.branch} — جلسات دائمة على Vercel.`);
+  } else if (adapterRef.name === 'telegram') {
+    log.info('تخزين عبر رسالة مثبّتة في تيليجرام — جلسات دائمة على Vercel بلا خدمات خارجية.');
   }
 
   return adapterRef;
