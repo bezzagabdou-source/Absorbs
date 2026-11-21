@@ -342,4 +342,40 @@ class WebhookTests(unittest.TestCase):
 
 
 
+    def test_10_reorder_order_pages_and_sort(self):
+        buyer=888888888
+        self.message(1500,'/start',user=buyer)
+        with index._request_context() as st:
+            cheap=st.add_product({'name':'PG inexpensive','price':3,'visible':1})
+            high=st.add_product({'name':'PG costly','price':19,'visible':1})
+            st.add_stock_lines(cheap,['pg-secret-%d' % i for i in range(13)])
+            st.add_stock_lines(high,['one'])
+            st.adjust_balance(buyer,100)
+        self.callback(1501,'browse:low:0',user=buyer)
+        names=[b.get('text','') for b in self.buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertTrue(any('PG inexpensive' in n for n in names))
+        for i in range(11):
+            self.callback(1510+i*3,'qty:%d' % cheap,user=buyer)
+            self.callback(1511+i*3,'qtypick:%d:1' % cheap,user=buyer)
+            confirm=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+            self.callback(1512+i*3,confirm,user=buyer)
+        self.callback(1550,'orders',user=buyer)
+        self.assertIn('orders:1',[b.get('callback_data') for b in self.buttons()])
+        self.callback(1551,'orders:1',user=buyer)
+        oid=int(next(b['callback_data'].split(':')[1] for b in self.buttons() if b.get('callback_data','').startswith('order:')))
+        self.calls.clear(); self.callback(1552,'order:%d' % oid,user=777777777)
+        self.assertNotIn('pg-secret-',str(self.calls))
+        self.callback(1553,'order:%d:1' % oid,user=buyer)
+        self.assertIn('reorder:%d' % oid,[b.get('callback_data') for b in self.buttons()])
+        self.callback(1554,'reorder:%d' % oid,user=buyer)
+        self.callback(1555,'qtypick:%d:1' % cheap,user=buyer)
+        confirm=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(1556,confirm,user=buyer); self.callback(1557,confirm,user=buyer)
+        with index._request_context() as st:
+            user=st.get_user(buyer)
+            self.assertEqual(len(st.user_orders(user['id'],20)),12)
+            self.assertEqual(user['balance'],64)
+
+
+
 if __name__ == '__main__': unittest.main()

@@ -1730,6 +1730,7 @@ def build_products_keyboard(page, products, total_pages, lang, page_size):
         nav.append(_btn(label("lbl_next", lang), "default", None, cb="pg:%d" % (page + 1)))
     if nav:
         rows.append(nav)
+    rows.append([_btn("↕️ ترتيب حسب السعر" if lang == "ar" else "↕️ Sort by price", "primary", None, cb="browse:low:0")])
     rows.append([_btn("🏷 الخصومات" if lang == "ar" else "🏷 Discounts", "success", None, cb="offers"),
                  _btn(label("lbl_search", lang), "primary", None, cb="search")])
     rows.append([_btn(label("lbl_close", lang), "default", None, cb="close")])
@@ -2081,6 +2082,34 @@ def products_page(user, page=0, edit=None):
     return safe_send(user["tg_id"], header, markup)
 
 
+
+def sorted_products_page(user, mode, page=0, edit=None):
+    lang=lang_of(user)
+    if mode not in ('low','high'): mode='low'
+    items=store.products()
+    items.sort(key=lambda p: (unit_price(p,user),p['id']),reverse=(mode=='high'))
+    per_page=max(3,min(50,store.get_int('page_size',10)))
+    pages=max(1,(len(items)+per_page-1)//per_page)
+    page=max(0,min(page,pages-1))
+    rows=[]
+    for p in items[page*per_page:(page+1)*per_page]:
+        name=(p.get('name') if lang=='ar' else p.get('name_en') or p.get('name')) or ''
+        text='%s %s · %s' % (p.get('icon') or '',name[:80],price_str(unit_price(p,user)))
+        rows.append([_btn(text.strip(),'success' if store.available_stock(p)>0 else 'danger',None,cb='view:%d:b:%d:%s' % (p['id'],page,mode))])
+    nav=[]
+    if page>0: nav.append(_btn(t('lbl_prev',lang),'default',None,cb='browse:%s:%d' % (mode,page-1)))
+    if page<pages-1: nav.append(_btn(t('lbl_next',lang),'default',None,cb='browse:%s:%d' % (mode,page+1)))
+    if nav: rows.append(nav)
+    rows.append([_btn('⬆️ الأقل سعراً' if lang=='ar' else '⬆️ Lowest price','primary',None,cb='browse:low:0'),
+                 _btn('⬇️ الأعلى سعراً' if lang=='ar' else '⬇️ Highest price','primary',None,cb='browse:high:0')])
+    rows.append([_btn(t('lbl_back',lang),'default',None,cb='pg:0')])
+    direction=('الأقل سعراً أولاً' if mode=='low' else 'الأعلى سعراً أولاً') if lang=='ar' else ('Lowest price first' if mode=='low' else 'Highest price first')
+    title=('🏪 <b>المنتجات</b>\n%s · الصفحة %d/%d\nأسعار القطعة الواحدة؛ سعر الجملة يظهر عند اختيار الكمية.' if lang=='ar' else
+           '🏪 <b>Products</b>\n%s · Page %d/%d\nSingle-item prices; bulk pricing appears when choosing quantity.') % (direction,page+1,pages)
+    if not items: title+='\n'+('لا توجد منتجات.' if lang=='ar' else 'No products available.')
+    return safe_edit(user['tg_id'],edit,title,inline_keyboard(rows)) if edit else safe_send(user['tg_id'],title,inline_keyboard(rows))
+
+
 def product_view(user, product_id, edit=None, back="pg:0"):
     lang = lang_of(user)
     p = store.product_by_id(product_id)
@@ -2196,19 +2225,22 @@ def referrals_text(user):
     return body, inline_keyboard(rows)
 
 
-def orders_text(user):
-    lang = lang_of(user)
-    rows = []
-    for o in store.user_orders(user["id"], 10):
-        rows.append([_btn("#%d · %s · %s" % (o["id"], o["product_name"], price_str(o["total"])),
-                          "success" if o["status"] == "delivered" else "primary", None,
-                          cb="order:%d" % o["id"])])
-    rows.append([_btn(t("lbl_back", lang), "default", None, cb="listen:0")])
-    if not store.user_orders(user["id"], 1):
-        return ("<b>%s</b>\n\n%s" % (esc(t("lbl_orders_title", lang)),
-                                     "لا توجد طلبات بعد." if lang == "ar" else "No orders yet."),
-                build_back_keyboard(lang))
-    return "<b>%s</b>" % esc(t("lbl_orders_title", lang)), inline_keyboard(rows)
+def orders_text(user, page=0):
+    lang=lang_of(user)
+    page=max(0,min(to_int(page,0),100000))
+    size=10
+    orders=store.orders_list(limit=size+1,offset=page*size,user_id=user['id'])
+    # Stale pages can result from administrator deletion; offer a way back.
+    rows=[[_btn("#%d · %s · %s" % (o['id'], (o['product_name'] or '')[:60],price_str(o['total'])),
+                'success' if o['status']=='delivered' else 'primary',None,cb='order:%d:%d' % (o['id'],page))] for o in orders[:size]]
+    nav=[]
+    if page>0: nav.append(_btn(t('lbl_prev',lang),'default',None,cb='orders:%d' % (page-1)))
+    if len(orders)>size: nav.append(_btn(t('lbl_next',lang),'default',None,cb='orders:%d' % (page+1)))
+    if nav: rows.append(nav)
+    rows.append([_btn(t('lbl_back',lang),'default',None,cb='listen:0')])
+    body='<b>%s</b> · %d' % (esc(t('lbl_orders_title',lang)),page+1)
+    if not orders: body+='\n\n'+('لا توجد طلبات في هذه الصفحة.' if lang=='ar' else 'No orders on this page.')
+    return body,inline_keyboard(rows)
 
 
 # ============================================================================
@@ -2921,6 +2953,11 @@ def handle_callback(cb):
         page = to_int(parts[1] if len(parts) > 1 else 0, 0)
         return products_page(user, page, edit=message_id)
 
+    if head == 'browse':
+        mode=parts[1] if len(parts)>1 else 'low'
+        page=to_int(parts[2],0) if len(parts)>2 else 0
+        return sorted_products_page(user,mode,page,edit=message_id)
+
     if head == "close":
         return tg.delete_message(chat_id, message_id)
 
@@ -2931,6 +2968,8 @@ def handle_callback(cb):
         back = "pg:0"
         if len(parts) > 3 and parts[2] in ("p", "c"):
             back = ("pg:" if parts[2] == "p" else "cat:") + str(max(0, to_int(parts[3], 0)))
+        elif len(parts)>4 and parts[2]=='b' and parts[4] in ('low','high'):
+            back='browse:%s:%d' % (parts[4],max(0,to_int(parts[3],0)))
         return product_view(user, to_int(parts[1] if len(parts) > 1 else 0, 0), edit=message_id, back=back)
 
     if head == "cat":
@@ -3040,8 +3079,19 @@ def handle_callback(cb):
         return safe_send(chat_id, body, markup)
 
     if head == "orders":
-        body, markup = orders_text(user)
-        return safe_send(chat_id, body, markup)
+        page=to_int(parts[1],0) if len(parts)>1 else 0
+        body, markup = orders_text(user,page)
+        return safe_edit(chat_id,message_id,body,markup) if len(parts)>1 and message_id else safe_send(chat_id,body,markup)
+
+    if head == 'reorder' and len(parts)==2:
+        o=store.get_order(to_int(parts[1],0))
+        if not o or o['user_id']!=user['id']:
+            return safe_send(chat_id,'❌ الطلب غير متاح.' if lang=='ar' else '❌ Order unavailable.')
+        p=store.product_by_id(o['product_id'])
+        if not p or not p.get('visible') or store.available_stock(p)<1:
+            return safe_send(chat_id,'❌ المنتج غير متاح حالياً.' if lang=='ar' else '❌ Product currently unavailable.')
+        # Reorder never charges here; the customer selects a quantity and confirms current prices.
+        return quantity_options(user,p,edit=message_id)
 
     if head == "lang":
         new_lang = parts[1] if len(parts) > 1 else "ar"
@@ -3116,7 +3166,13 @@ def handle_callback(cb):
             esc(status_txt), esc(ts_from_iso(o.get("created_at"), "-")))
         if o.get("delivery"):
             body += "\n\n<pre>%s</pre>" % html.escape(o["delivery"], quote=False)
-        return safe_send(chat_id, body, build_back_keyboard(lang))
+        page=max(0,to_int(parts[2],0)) if len(parts)>2 else 0
+        rows=[]
+        product=store.product_by_id(o['product_id'])
+        if product and product.get('visible') and store.available_stock(product)>0:
+            rows.append([_btn('🔁 شراء مرة أخرى' if lang=='ar' else '🔁 Buy again','success',None,cb='reorder:%d' % oid)])
+        rows.append([_btn('⬅️ طلباتي' if lang=='ar' else '⬅️ My orders','default',None,cb='orders:%d' % page)])
+        return safe_send(chat_id, body, inline_keyboard(rows))
 
     if head == "cancel":
         if message_id:

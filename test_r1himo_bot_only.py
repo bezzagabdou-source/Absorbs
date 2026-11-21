@@ -363,6 +363,58 @@ class BotAdminTests(unittest.TestCase):
             self.assertEqual(len(calls),1)
         finally: bot.tg.call=original
 
+    def test_store_reorder_pagination_and_price_sort(self):
+        ids=[]
+        for name, price in [('expensive',20),('cheap',5),('middle',10)]:
+            pid=bot.store.add_product({'name':name,'price':price,'visible':1})
+            bot.store.add_stock_lines(pid,['secret-%s-%d' % (name,i) for i in range(15)])
+            ids.append(pid)
+        bot.store.adjust_balance(222,1000)
+        self.callback(self.buyer,'pg:0')
+        self.assertIn('browse:low:0',[b.get('callback_data') for b in self.last_buttons()])
+        self.callback(self.buyer,'browse:low:0')
+        values=[b['callback_data'].split(':')[1] for b in self.last_buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertEqual(values,[str(ids[1]),str(ids[2]),str(ids[0])])
+        self.callback(self.buyer,'browse:high:0')
+        values=[b['callback_data'].split(':')[1] for b in self.last_buttons() if b.get('callback_data','').startswith('view:')]
+        self.assertEqual(values,[str(ids[0]),str(ids[2]),str(ids[1])])
+        self.callback(self.buyer,'view:%d:b:0:high' % ids[0])
+        self.assertIn('browse:high:0',[b.get('callback_data') for b in self.last_buttons()])
+        for i in range(11):
+            self.callback(self.buyer,'qty:%d' % ids[1])
+            self.callback(self.buyer,'qtypick:%d:1' % ids[1])
+            confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+            self.callback(self.buyer,confirm)
+        self.callback(self.buyer,'orders')
+        self.assertIn('orders:1',[b.get('callback_data') for b in self.last_buttons()])
+        self.callback(self.buyer,'orders:1')
+        buttons=[b.get('callback_data') for b in self.last_buttons()]
+        self.assertEqual(len([b for b in buttons if b and b.startswith('order:')]),1)
+        oid=int(next(b.split(':')[1] for b in buttons if b and b.startswith('order:')))
+        self.callback(self.buyer,'order:%d:1' % oid)
+        self.assertIn('reorder:%d' % oid,[b.get('callback_data') for b in self.last_buttons()])
+        bot.tg.calls.clear(); self.callback(self.owner,'order:%d:1' % oid)
+        self.assertNotIn('secret-cheap',str(bot.tg.calls))
+        balance=bot.store.get_user(111)['balance']
+        self.callback(self.owner,'reorder:%d' % oid)
+        self.assertEqual(bot.store.get_user(111)['balance'],balance)
+        self.callback(self.buyer,'reorder:%d' % oid)
+        self.assertIn('qtypick:%d:1' % ids[1],[b.get('callback_data') for b in self.last_buttons()])
+        self.callback(self.buyer,'qtypick:%d:1' % ids[1])
+        confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        bot.store.update_product(ids[1],{'price':7})
+        self.callback(self.buyer,confirm)
+        self.assertEqual(len(bot.store.user_orders(bot.store.get_user(222)['id'],20)),11)
+        self.callback(self.buyer,'reorder:%d' % oid)
+        self.callback(self.buyer,'qtypick:%d:1' % ids[1])
+        confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(self.buyer,confirm); self.callback(self.buyer,confirm)
+        self.assertEqual(len(bot.store.user_orders(bot.store.get_user(222)['id'],20)),12)
+        self.assertEqual(bot.store.get_user(222)['balance'],938)
+        bot.store.update_product(ids[1],{'visible':0})
+        bot.tg.calls.clear(); self.callback(self.buyer,'reorder:%d' % oid)
+        self.assertIn('غير متاح',str(bot.tg.calls))
+
     def test_backup_contains_sqlite_snapshot(self):
         original = bot.urllib.request.urlopen
         payloads=[]
