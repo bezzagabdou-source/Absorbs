@@ -477,8 +477,8 @@ func _build_road_collision(width: float) -> void:
 ## sliver of it still showed up 40 m away, and why the probe measured just 6
 ## vertices within 30 m of the spawn.
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	_quad_tri(st, a, b, c)
 	_quad_tri(st, a, c, d)
+	_quad_tri(st, a, d, b)
 
 
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
