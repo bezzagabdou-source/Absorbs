@@ -86,15 +86,17 @@ void fragment() {
 	// --- painted lane markings, in road space so they follow the curve
 	// dashes every 3.2 m laterally, 4.5 m on / 4.5 m off longitudinally
 	float lane_d = abs(fract(lat / 3.2) - 0.5) * 3.2;
-	float dash = step(0.5, fract(along / 9.0));
-	float lane = smoothstep(0.17, 0.07, lane_d) * dash * 0.8;
+	float dash = step(0.42, fract(along / 9.0));
+	float lane = smoothstep(0.21, 0.10, lane_d) * dash;
 	// centre line: solid double
-	float centre = smoothstep(0.20, 0.09, abs(abs(lat) - 0.28));
-	lane = max(lane, centre * 0.9);
+	float centre = smoothstep(0.24, 0.12, abs(abs(lat) - 0.30));
+	lane = max(lane, centre);
 	// solid edge lines so the road reads as a road at any speed
-	float edge_line = smoothstep(0.18, 0.08, abs(abs(lat) - (road_width * 0.5 - 0.55)));
+	float edge_line = smoothstep(0.22, 0.11, abs(abs(lat) - (road_width * 0.5 - 0.62)));
 	lane = max(lane, edge_line);
-	col = mix(col, line_color * (0.55 + 0.45 * wetness), clamp(lane, 0.0, 1.0));
+	col = mix(col, line_color, clamp(lane, 0.0, 1.0));
+	// the paint gets its own emissive so it survives the darkest part of the frame
+	vec3 paint_glow = line_color * clamp(lane, 0.0, 1.0) * 0.55;
 
 	// --- neon reflection streaks: strongest towards the road edges
 	float streak = smoothstep(0.55, 0.0, abs(lat) / (road_width * 0.5)) * puddle;
@@ -105,13 +107,14 @@ void fragment() {
 
 	// --- puddles reflect the sky a little through emission tint
 	EMISSION += mix(neon_a, vec3(1.0), 0.35) * puddle * 0.05;
-	// --- ambient floor: the road must never render as a black void.
-	// Lambert on a flat plane under a high moon plus a dim sky is close to zero,
-	// and tinting the bounce by the (very dark) albedo keeps it at zero. A flat
-	// blue-grey lift independent of albedo guarantees legibility at night, which
-	// is what the reference captures were missing.
-	vec3 amb = vec3(0.30, 0.36, 0.50) * ambient_lift;
-	EMISSION += amb + col * vec3(0.40, 0.46, 0.62) * ambient_lift;
+	// --- ambient floor ------------------------------------------------------
+	// Lambert under a high moon plus a dim sky is nearly zero, so without an
+	// explicit term the tarmac renders black. The previous version ADDED a flat
+	// blue-grey 0.30-0.50 on top of the albedo, which turned the asphalt into a
+	// pale blue wash that read as water. This is tuned as a light contribution:
+	// the asphalt stays dark (0.06 albedo * lift), the white paint stays bright,
+	// and the road keeps its legibility at night.
+	EMISSION += col * vec3(1.55, 1.72, 2.05) * ambient_lift * 0.55 + paint_glow;
 
 	ALBEDO = col;
 	// perturb the normal with the grain so highlights break up like real asphalt
