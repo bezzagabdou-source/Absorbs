@@ -185,7 +185,28 @@ func _smooth_ring_height(ang: float) -> float:
 
 ## Finished tarmac height: the smoothed profile plus the carriageway lift.
 func _road_surface_height(ang: float) -> float:
-	return _smooth_ring_height(ang) + ROAD_LIFT
+	# The tarmac must clear the WORST the RENDERED ground can be here, not the
+	# analytic profile. The terrain mesh is height_at() sampled on a ~25 m grid and
+	# linearly interpolated; every vertex is itself carved toward the local ring
+	# profile, so the chord between two vertices can sit well above the mean that
+	# _smooth_ring_height returns. Measured analytically the road had 1.70 m of
+	# clearance and yet the capture showed it buried — the road only appeared after
+	# being lifted 8 m in a QA test, which is what pinned this down.
+	#
+	# The carve is a blend toward `ring_h - EMBANKMENT`, and the blend increases as
+	# the point approaches the ring, so the highest the ground can be at radius r is
+	# max(natural, ring_h - EMBANKMENT). Taking that maximum over the arc covered by
+	# one grid cell is cheap and conservative.
+	var worst: float = -1.0e9
+	var arc: float = (REGION_SIZE / float(grid)) / ROAD_RING_RADIUS
+	for k in range(-2, 3):
+		var a: float = ang + float(k) * arc
+		var rr: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
+		var px: float = cos(a) * rr
+		var pz: float = sin(a) * rr
+		worst = maxf(worst, height_raw(px, pz))
+		worst = maxf(worst, _smooth_ring_height(a) - ROAD_EMBANKMENT)
+	return maxf(_smooth_ring_height(ang), worst) + ROAD_LIFT
 
 
 func _build_terrain() -> void:
