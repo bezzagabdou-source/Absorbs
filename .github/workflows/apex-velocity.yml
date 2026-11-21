@@ -237,6 +237,8 @@ jobs:
             last=$(ls -t /tmp/shot_${screen}*.png 2>/dev/null | head -1)
             grep -iE 'SHADER ERROR|Shader compilation|error\([0-9]+\)|shader_' /tmp/shot_${screen}.log \
               | head -12 | while read -r l; do echo "::warning file=racing/shaders::${screen}: $l"; done || true
+            grep -E '\[OPENWORLD\]' /tmp/shot_${screen}.log | head -6 \
+              | while read -r l; do echo "::notice::${screen}: $l"; done || true
             if [ -n "$last" ]; then
               cp "$last" "racing/docs/screenshots/${screen}.png"
               echo "rendered ${screen} from $(basename "$last")"

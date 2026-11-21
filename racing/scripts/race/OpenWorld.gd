@@ -219,6 +219,8 @@ func _build_terrain() -> void:
 	mi.material_override = mat
 	terrain_mesh_instance = mi
 	add_child(mi)
+	print("[OPENWORLD] terrain grid=", grid, " tris=", mi.mesh.get_faces().size() / 3,
+		" instances=", mi.mesh.get_surface_count())
 
 
 func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
@@ -281,6 +283,8 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
 	mi.material_override = mat
 	add_child(mi)
+	print("[OPENWORLD] highway tris=", mi.mesh.get_faces().size() / 3,
+		" aabb=", mi.get_aabb().size, " visible=", mi.visible, " layer=", mi.layers)
 
 	# collision so you can actually drive the highway
 	_road_body = StaticBody3D.new()
