@@ -23,9 +23,14 @@ class WebhookTests(unittest.TestCase):
         cls.pg = PostgresServer(Path(tempfile.mkdtemp()) / 'pg')
         os.environ['DATABASE_URL_UNPOOLED'] = cls.pg.get_uri()
         cls.calls = []
+        cls.member_status = {}
         cls.old_call = index.rabot.Telegram.call
         def fake_call(tg, method, timeout=30, **params):
             cls.calls.append((method, params))
+            if method == 'getChatMember':
+                value = cls.member_status.get((params['user_id'], params['chat_id']), {'status':'member'})
+                if isinstance(value, Exception): raise value
+                return value
             return {'message_id': 123}
         index.rabot.Telegram.call = fake_call
         cls.http = ThreadingHTTPServer(('127.0.0.1', 0), index.handler)
@@ -188,6 +193,43 @@ class WebhookTests(unittest.TestCase):
         self.message(152,'زر جديد')
         with index._request_context():
             self.assertTrue(any(b['label_ar']=='زر جديد' for b in index.rabot.store.buttons()))
+
+
+    def test_06_membership_referral_and_multiline_persist(self):
+        user = 444444444
+        self.member_status[(user, '@rahim_vrf')] = {'status':'left'}
+        self.calls.clear(); self.message(901, '/start ref_222', user=user)
+        self.assertIn('joincheck', [b.get('callback_data') for b in self.buttons()])
+        self.callback(902, 'a:new:p', user=user)
+        with index._request_context():
+            self.assertEqual(index.rabot.state_get(user)['kind'], 'join_referral')
+            self.assertFalse(index.rabot.store.get_user(user)['referrer_id'])
+        self.member_status[(user, '@rahim_vrf')] = index.rabot.TgError('error', 403)
+        self.callback(903, 'joincheck', user=user)
+        self.member_status[(user, '@rahim_vrf')] = {'status':'restricted','is_member':True}
+        self.callback(904, 'joincheck', user=user)
+        with index._request_context():
+            self.assertEqual(index.rabot.store.get_user(user)['referrer_id'], index.rabot.store.get_user(222)['id'])
+            self.assertIsNone(index.rabot.state_get(user))
+        self.callback(905, 'a:new:p'); self.message(906, 'Webhook <product>')
+        with index._request_context():
+            pid=next(p['id'] for p in index.rabot.store.products(include_hidden=True) if p['name']=='Webhook <product>')
+        self.callback(907, 'a:stock:add:%d' % pid); self.message(908, ' first\nsecret\n')
+        self.callback(909, 'a:stock:batch:%d' % pid); self.message(910, 'batch1\nbatch2')
+        self.callback(911, 'a:toggle:p:%d:visible' % pid)
+        with index._request_context(): self.assertEqual(index.rabot.store.product_stock(pid), 3)
+        self.calls.clear(); self.callback(912, 'confirm:%d' % pid, user=user)
+        with index._request_context():
+            order=index.rabot.store.user_orders(index.rabot.store.get_user(user)['id'])[0]
+            self.assertEqual(order['delivery'], ' first\nsecret\n')
+            self.assertEqual(index.rabot.store.product_stock(pid), 2)
+        events=[p for p in self.sent('sendMessage') if p.get('chat_id')==-1004365740808]
+        self.assertEqual(len(events), 1)
+        self.assertIn('Webhook &lt;product&gt;',events[0]['text'])
+        self.assertNotIn('secret',events[0]['text'])
+        self.callback(912, 'confirm:%d' % pid, user=user)
+        self.assertEqual(len([p for p in self.sent('sendMessage') if p.get('chat_id')==-1004365740808]), 1)
+
 
 
 if __name__ == '__main__': unittest.main()

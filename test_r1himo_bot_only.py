@@ -23,6 +23,8 @@ class FakeTelegram(bot.Telegram):
         self.calls = []
     def call(self, method, timeout=30, **params):
         self.calls.append((method, params))
+        if method == 'getChatMember':
+            return {'status': 'member'}
         return {'message_id': 99}
 
 
@@ -71,14 +73,14 @@ class BotAdminTests(unittest.TestCase):
         self.callback(self.owner,'a:edit:p:%d:description' % pid); self.message(self.owner,'وصف جيد')
         self.callback(self.owner,'a:stock:add:%d' % pid); self.message(self.owner,'secret-one\nsecret-two')
         self.callback(self.owner,'a:toggle:p:%d:visible' % pid)
-        self.assertEqual(bot.store.product_stock(pid),2)
+        self.assertEqual(bot.store.product_stock(pid),1)
         self.assertEqual(bot.store.product_by_id(pid)['price'],5.25)
         bot.store.adjust_balance(222,10)
         self.callback(self.buyer,'confirm:%d' % pid)
-        self.assertEqual(bot.store.product_stock(pid),1)
+        self.assertEqual(bot.store.product_stock(pid),0)
         self.assertEqual(bot.store.get_user(222)['balance'],4.75)
         order=bot.store.user_orders(bot.store.get_user(222)['id'])[0]
-        self.assertEqual(order['delivery'],'secret-one')
+        self.assertEqual(order['delivery'],'secret-one\nsecret-two')
         self.assertEqual(order['status'],'delivered')
         self.callback(self.owner,'a:confirm:refund:%d' % order['id'])
         confirm=next(b['callback_data'] for b in self.last_buttons() if b['text']=='✅ تأكيد')
@@ -123,6 +125,63 @@ class BotAdminTests(unittest.TestCase):
         self.assertTrue(all(not p.get('parse_mode') for p in sends))
         self.assertEqual(bot.store.scalar('SELECT COUNT(*) FROM broadcasts'),1)
 
+    def test_membership_gate_and_referral(self):
+        original = bot.tg.call
+        status = {'@rahimo_store': {'status': 'member'}, '@rahim_vrf': {'status': 'left'}}
+        def call(method, timeout=30, **params):
+            if method == 'getChatMember':
+                value = status[params['chat_id']]
+                if isinstance(value, Exception): raise value
+                bot.tg.calls.append((method, params))
+                return value
+            return original(method, timeout=timeout, **params)
+        bot.tg.call = call
+        newcomer = {'id': 333333333, 'first_name': 'New'}
+        self.message(newcomer, '/start ref_222')
+        self.assertFalse(bot.store.get_user(newcomer['id'])['referrer_id'])
+        self.assertIn('joincheck', [b.get('callback_data') for b in self.last_buttons()])
+        urls = [b.get('url') for b in self.last_buttons()]
+        self.assertIn('https://t.me/rahimo_store', urls)
+        self.assertIn('https://t.me/rahim_vrf', urls)
+        self.callback(newcomer, 'a:new:p')
+        self.assertEqual(bot.store.scalar('SELECT COUNT(*) FROM products'), 0)
+        status['@rahim_vrf'] = bot.TgError('unavailable', 403)
+        self.callback(newcomer, 'joincheck')
+        self.assertFalse(bot.store.get_user(newcomer['id'])['referrer_id'])
+        status['@rahim_vrf'] = {'status': 'restricted', 'is_member': False}
+        self.assertEqual(bot.membership_check(newcomer['id']), (False, False))
+        status['@rahim_vrf'] = {'status': 'restricted', 'is_member': True}
+        self.callback(newcomer, 'joincheck')
+        self.assertEqual(bot.store.get_user(newcomer['id'])['referrer_id'], bot.store.get_user(222)['id'])
+        self.assertIsNone(bot.state_get(newcomer['id']))
+
+    def test_stock_batch_single_and_public_events(self):
+        self.callback(self.owner, 'a:new:p'); self.message(self.owner, 'Product <&')
+        pid = bot.store.products(include_hidden=True)[0]['id']
+        self.callback(self.owner, 'a:edit:p:%d:price' % pid); self.message(self.owner, '1')
+        self.callback(self.owner, 'a:stock:add:%d' % pid); self.message(self.owner, ' /secret\nline 2\n')
+        self.assertEqual(bot.store.product_stock(pid), 1)
+        self.assertEqual(bot.store.stock_list(pid)[0]['content'], ' /secret\nline 2\n')
+        self.callback(self.owner, 'a:stock:batch:%d' % pid); self.message(self.owner, 'x\ny')
+        self.assertEqual(bot.store.product_stock(pid), 3)
+        self.callback(self.owner, 'a:toggle:p:%d:visible' % pid)
+        bot.store.adjust_balance(222, 1)
+        bot.tg.calls.clear(); self.callback(self.buyer, 'confirm:%d' % pid)
+        order = bot.store.user_orders(bot.store.get_user(222)['id'])[0]
+        self.assertEqual(order['delivery'], ' /secret\nline 2\n')
+        events = [p for m,p in bot.tg.calls if m == 'sendMessage' and p.get('chat_id') == -1004365740808]
+        self.assertEqual(len(events), 1)
+        self.assertIn('Product &lt;&amp;', events[0]['text'])
+        self.assertNotIn('secret', events[0]['text'])
+        self.callback(self.buyer, 'confirm:%d' % pid)  # insufficient balance
+        self.assertEqual(len([p for m,p in bot.tg.calls if m == 'sendMessage' and p.get('chat_id') == -1004365740808]), 1)
+        did = bot.store.create_deposit(bot.store.get_user(222)['id'], 7, 'custom <&', 'private-tx')
+        self.callback(self.owner, 'dep:ok:%d' % did); self.callback(self.owner, 'dep:ok:%d' % did)
+        events = [p for m,p in bot.tg.calls if m == 'sendMessage' and p.get('chat_id') == -1004365740808]
+        self.assertEqual(len(events), 2)
+        self.assertIn('custom &lt;&amp;', events[-1]['text'])
+        self.assertNotIn('private-tx', events[-1]['text'])
+
     def test_backup_contains_sqlite_snapshot(self):
         original = bot.urllib.request.urlopen
         payloads=[]
@@ -164,6 +223,7 @@ class StandaloneBootTest(unittest.TestCase):
                 body=json.loads(self.rfile.read(n))
                 method=self.path.rsplit('/',1)[-1]
                 if method=='getMe': result={'id':123,'username':'TestBot'}
+                elif method=='getChatMember': result={'status':'member'}
                 elif method=='getUpdates':
                     if not Handler.sent:
                         Handler.sent=True

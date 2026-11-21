@@ -3,7 +3,7 @@
 """R1HIMO SHOP — بوت مستقل بلوحة إدارة داخل تيليغرام فقط.
 Python 3.8+، مكتبات Python القياسية وSQLite، ولا يحتاج موقعاً أو Vercel.
 ضع BOT_TOKEN و OWNER_ID كمتغيرات بيئة ثم شغّل: python3 r1himo-bot-only.py
-OWNER_ID الافتراضي 6818164226؛ يجب تغييره عند نقل البوت لشخص آخر.
+يجب ضبط OWNER_ID الخاص بمالك البوت؛ لا توجد هوية مالك افتراضية.
 استخدم توكن بوت جديد وقاعدة بيانات منفصلة، ولا تشغل نفس التوكن في مكانين.
 البيانات محلية داخل rabot_data؛ لا تستخدم أموالاً حقيقية قبل مراجعة واختبار شاملين.
 """
@@ -57,9 +57,12 @@ def _load_dotenv():
 _load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
-OWNER_ID_ENV = os.environ.get("OWNER_ID", "6818164226").strip()
+OWNER_ID_ENV = os.environ.get("OWNER_ID", "").strip()
 DB_PATH = os.environ.get("DB_PATH", DEFAULT_DB_PATH).strip() or DEFAULT_DB_PATH
 BOT_API_BASE = os.environ.get("BOT_API_BASE", "https://api.telegram.org").strip().rstrip("/")
+REQUIRED_CHANNEL_1 = os.environ.get("REQUIRED_CHANNEL_1", "rahimo_store").strip().lstrip("@")
+REQUIRED_CHANNEL_2 = os.environ.get("REQUIRED_CHANNEL_2", "rahim_vrf").strip().lstrip("@")
+EVENT_CHAT_ID = os.environ.get("EVENT_CHAT_ID", "-1004365740808").strip()
 
 CURRENCY = "$"
 
@@ -501,6 +504,9 @@ def default_settings():
         # ---- identity ----
         "store_name": "R1HIMO SHOP",
         "support_username": "r1himo_dx",
+        "required_channel_1": REQUIRED_CHANNEL_1,
+        "required_channel_2": REQUIRED_CHANNEL_2,
+        "event_chat_id": EVENT_CHAT_ID,
         "default_lang": "ar",
         "owner_ids": OWNER_ID_ENV,
         # ---- texts ----
@@ -883,17 +889,26 @@ class Store:
         return True
 
     def add_stock_lines(self, product_id, lines):
-        added = 0
-        for line in lines:
-            line = (line or "").strip()
-            if not line:
-                continue
-            self.ex(
-                "INSERT INTO stock_items(product_id,content,used,order_id,created_at) VALUES(?,?,0,0,?)",
-                (product_id, line, now_iso()),
-            )
-            added += 1
-        return added
+        items = [(product_id, line.strip(), now_iso()) for line in lines if line and line.strip()]
+        if not items:
+            return 0
+        with self.lock:
+            try:
+                self._begin_financial()
+                self.conn.executemany(
+                    "INSERT INTO stock_items(product_id,content,used,order_id,created_at) VALUES(?,?,0,0,?)", items)
+                self.conn.commit()
+                return len(items)
+            except Exception:
+                self.conn.rollback()
+                raise
+
+    def add_stock_unit(self, product_id, content):
+        # One message is exactly one stock unit, even with multiple lines.
+        if not content or not content.strip():
+            raise ValueError("المحتوى فارغ")
+        return self.ex("INSERT INTO stock_items(product_id,content,used,order_id,created_at) VALUES(?,?,0,0,?)",
+                       (product_id, content, now_iso()))
 
     def stock_list(self, product_id, used=None):
         sql = "SELECT * FROM stock_items WHERE product_id=?"
@@ -1100,9 +1115,12 @@ class Store:
                 for i in range(len(stock), qty):
                     delivery_parts.append(fill(product["feed"], {"order": oid, "qty": qty, "index": i + 1,
                         "user": user.get("username") or tg_id, "date": now[:10], "store": self.get_setting("store_name", APP_NAME)}))
-                delivery = "\n".join(x for x in delivery_parts if x).strip()
-                if not delivery:
+                delivery = "\n".join(x for x in delivery_parts if x)
+                if not delivery.strip():
                     raise RuntimeError("empty delivery")
+                if len(html.escape(delivery, quote=False)) > 3000:
+                    self.conn.rollback()
+                    return {"error": "delivery_too_long"}
                 self.conn.execute("UPDATE products SET sold=sold+? WHERE id=?", (qty, product_id))
                 self.conn.execute("UPDATE orders SET status='delivered',delivery=?,updated_at=? WHERE id=?", (delivery, now, oid))
                 referrer_id = to_int(user.get("referrer_id"), 0)
@@ -1806,6 +1824,102 @@ def notify_owner(text, reply_markup=None):
         safe_send(oid, text, reply_markup=reply_markup)
 
 
+def required_channels():
+    # The owner can adjust these defaults through /admin; invalid configuration
+    # fails closed rather than silently bypassing mandatory membership.
+    channels = []
+    for key, default in (("required_channel_1", REQUIRED_CHANNEL_1), ("required_channel_2", REQUIRED_CHANNEL_2)):
+        value = store.get_setting(key, default).strip().lstrip("@")
+        if value.lower() == "off":
+            continue
+        if not re.fullmatch(r"[A-Za-z0-9_]{5,32}", value):
+            return None
+        if value.lower() not in [v.lower() for v in channels]:
+            channels.append(value)
+    return channels
+
+
+def membership_check(tg_id):
+    channels = required_channels()
+    if channels is None:
+        return False, True
+    for channel in channels:
+        try:
+            result = tg.call("getChatMember", timeout=6, chat_id="@" + channel, user_id=tg_id)
+            if not isinstance(result, dict):
+                return False, True
+            status = result.get("status")
+            if status not in ("creator", "administrator", "member") and not (status == "restricted" and result.get("is_member") is True):
+                return False, False
+        except TgError as exc:
+            log.warning("Membership check unavailable for @%s (code %s)", channel, exc.code)
+            return False, True
+        except Exception:
+            log.warning("Membership check unavailable for @%s", channel)
+            return False, True
+    return True, False
+
+
+def show_join_required(user, error=False, edit=None):
+    lang = lang_of(user)
+    channels = required_channels() or []
+    message = ("🔒 <b>اشترك في القناتين أولاً</b>\n\nبعد الاشتراك اضغط «تحقق» لاستعمال البوت." if lang == "ar" else
+               "🔒 <b>Join the required channels first</b>\n\nThen press Verify to use the bot.")
+    if error:
+        message += ("\n\n⚠️ تعذر التحقق الآن. يلزم إضافة البوت مشرفاً في القناتين، ثم حاول مجدداً." if lang == "ar" else
+                    "\n\n⚠️ Verification is unavailable. The bot must be an administrator in both channels; try again.")
+    rows = [[_btn("📣 الاشتراك في @" + channel, "primary", None, url="https://t.me/" + channel)] for channel in channels]
+    rows.append([_btn("✅ تحقق" if lang == "ar" else "✅ Verify", "success", None, cb="joincheck")])
+    markup = inline_keyboard(rows)
+    if edit:
+        return safe_edit(user['tg_id'], edit, message, markup)
+    return safe_send(user['tg_id'], message, markup)
+
+
+def record_referral(user, ref_tg):
+    tg_id = user["tg_id"]
+    if ref_tg and ref_tg != tg_id and not to_int(user.get("referrer_id"), 0):
+        ref_user = store.get_user(ref_tg)
+        if ref_user:
+            store.update_user(tg_id, referrer_id=ref_user["id"])
+            safe_send(ref_tg, "👥 <b>%s</b>\n\n%s @%s" % (
+                "انضم عضو جديد عبر رابطك" if lang_of(ref_user) == "ar" else "New member joined via your link",
+                "المستخدم:" if lang_of(ref_user) == "ar" else "User:",
+                esc(user.get("username") or user.get("first_name") or tg_id)))
+            return store.get_user(tg_id)
+    return user
+
+
+def finish_join_referral(user):
+    pending = state_get(user["tg_id"])
+    if pending and pending.get("kind") == "join_referral":
+        user = record_referral(user, to_int(pending.get("ref_tg"), 0))
+        state_clear(user["tg_id"])
+    return user
+
+
+def mask_user_id(tg_id):
+    value = str(tg_id)
+    return value[:3] + "***" + value[-4:] if len(value) >= 8 else "***" + value[-2:]
+
+
+def notify_public_event(kind, user, product=None, qty=1, deposit=None):
+    chat = store.get_setting("event_chat_id", EVENT_CHAT_ID).strip()
+    if not re.fullmatch(r"-?[0-9]{1,20}", chat) or chat in ("0", "-0"):
+        return
+    if kind == "purchase":
+        body = "✨<b>New purchase</b>\n<blockquote>🆔 User: %s\n📦 Product: <b>%s</b>\n📊 Quantity: %d</blockquote>" % (esc(mask_user_id(user["tg_id"])), esc((product or {}).get("name", "—")[:150]), qty)
+    elif kind == "deposit" and deposit:
+        body = "💰<b>New deposit</b>\n<blockquote>🆔 User: %s\n💵 Amount: <b>%.3f USDT</b>\n💳 Method: %s</blockquote>" % (esc(mask_user_id(user["tg_id"])), to_float(deposit.get("amount"), 0), esc((deposit.get("method") or "Binance Pay").replace("binance", "Binance Pay")))
+    else:
+        return
+    try:
+        tg.call("sendMessage", timeout=6, chat_id=int(chat), text=body, parse_mode="HTML", disable_web_page_preview=True)
+    except Exception:
+        # A failed public notification must never undo or duplicate a payment.
+        log.warning("تعذر إرسال إشعار النشاط إلى الشات؛ تحقق من صلاحيات البوت.")
+
+
 # ============================================================================
 #  UI SCREENS
 # ============================================================================
@@ -1976,6 +2090,8 @@ def deliver_order(user, product, qty=1):
     error = result.get("error")
     if error == "invalid":
         return False, "❌ المنتج غير متاح." if lang == "ar" else "❌ Product unavailable."
+    if error == "delivery_too_long":
+        return False, "⚠️ الطلب طويل جداً للتسليم دفعة واحدة؛ اشترِ كمية أقل." if lang == "ar" else "⚠️ Delivery is too long; purchase a smaller quantity."
     if error == "stock":
         return False, ("❌ نفد المخزون." if lang == "ar" else "❌ Out of stock.",
                        inline_keyboard([[_btn(t("lbl_back", lang), "default", None, cb="pg:0")]]))
@@ -2020,6 +2136,9 @@ def deliver_order(user, product, qty=1):
                  if lang == "ar" else
                  "\n\n⏳ Your order is being processed and will be delivered here shortly.\n📩 Support: @%s" % support())
     markup = inline_keyboard([[_btn(t("lbl_orders", lang), "primary", None, cb="orders")]])
+
+    # The transaction is already committed; notifications are best-effort.
+    notify_public_event("purchase", fresh, p, qty)
 
     # owner notification
     if store.get_bool("dm_owner_on_order", True):
@@ -2164,6 +2283,14 @@ def handle_message(msg):
     if user.get("banned") and not is_owner_user(user):
         return safe_send(tg_id, "🚫 " + ("تم حظر حسابك." if lang == "ar" else "Your account is banned."))
 
+    joined, check_error = membership_check(tg_id)
+    if not joined:
+        parts = text.split(maxsplit=1)
+        if len(parts) > 1 and parts[0].split('@')[0] == '/start' and re.fullmatch(r'ref_[0-9]+', parts[1].strip()):
+            state_set(tg_id, "join_referral", ref_tg=int(parts[1].strip()[4:]), expires=time.time()+86400)
+        return show_join_required(user, check_error)
+    user = finish_join_referral(user)
+
     if store.get_bool("maintenance") and not is_owner_user(user):
         body = store.get_setting("maintenance_text_ar" if lang == "ar" else "maintenance_text_en", "")
         return safe_send(tg_id, body or "🛠 " + ("تحت الصيانة" if lang == "ar" else "Under maintenance"))
@@ -2183,16 +2310,7 @@ def handle_message(msg):
                 ref_tg = int(payload[4:])
             except Exception:
                 ref_tg = 0
-            if ref_tg and ref_tg != tg_id and not to_int(user.get("referrer_id"), 0):
-                ref_user = store.get_user(ref_tg)
-                if ref_user:
-                    store.update_user(tg_id, referrer_id=ref_user["id"])
-                    safe_send(ref_tg, "👥 <b>%s</b>\n\n%s @%s" % (
-                        "انضم عضو جديد عبر رابطك" if lang_of(ref_user) == "ar" else "New member joined via your link",
-                        "المستخدم:" if lang_of(ref_user) == "ar" else "User:",
-                        esc(user.get("username") or user.get("first_name") or tg_id),
-                    ))
-                    user = store.get_user(tg_id)
+            user = record_referral(user, ref_tg)
 
     # Cancellation is recognized for both reply keyboards and slash commands,
     # including owner-customised labels. Never broadcast the cancel button.
@@ -2203,7 +2321,8 @@ def handle_message(msg):
 
     # ---- active multi-step state ---------------------------------------
     st = state_get(tg_id)
-    if st and not text.startswith("/"):
+    stock_message = st and st.get("kind") == "admin_input" and st.get("mode") in ("stock_single", "stock_batch")
+    if st and (not text.startswith("/") or (stock_message and text.split()[0].split('@')[0] not in ("/admin", "/start", "/cancel"))):
         handled = handle_state(user, st, text, msg)
         if handled:
             return
@@ -2282,7 +2401,8 @@ def handle_state(user, st, text, msg):
     kind = st.get("kind")
 
     if kind == "admin_input":
-        return admin_apply_input(user, st, text)
+        raw_text = msg.get("text") if st.get("mode") == "stock_single" else text
+        return admin_apply_input(user, st, raw_text or "")
 
     if kind == "admin_discount":
         if not is_owner_user(user):
@@ -2512,6 +2632,16 @@ def handle_callback(cb):
 
     if user.get("banned") and not is_owner_user(user):
         return
+    if (msg.get("chat") or {}).get("type") != "private":
+        return
+    joined, check_error = membership_check(user["tg_id"])
+    if not joined:
+        return show_join_required(user, check_error, edit=message_id)
+    user = finish_join_referral(user)
+    if data == "joincheck":
+        if message_id:
+            safe_edit(chat_id, message_id, "✅ تم التحقق من الاشتراك." if lang == "ar" else "✅ Membership verified.")
+        return send_main_menu(user)
     if store.get_bool("maintenance") and not is_owner_user(user):
         return
 
@@ -2609,6 +2739,7 @@ def handle_callback(cb):
                 return safe_edit(chat_id, message_id, "⚠️ تمت مراجعة طلب الشحن مسبقاً.")
             target = store.get_user_by_id(dep["user_id"])
             if target:
+                notify_public_event("deposit", target, deposit=dep)
                 safe_send(target["tg_id"], "✅ <b>%s</b>\n\n+%s\n💰 %s: %s" % (
                     "تم شحن رصيدك" if lang_of(target) == "ar" else "Your balance was credited",
                     price_str(dep["amount"]),
@@ -2829,6 +2960,8 @@ ADMIN_SETTINGS = [
     ('style_enabled','ألوان الأزرار'),('mirror_rows','عكس ترتيب الصفوف'),
     ('maintenance','وضع الصيانة'),('dm_owner_on_order','إشعار الطلب'),('dm_owner_on_deposit','إشعار الشحن'),
     ('owner_ids','معرّفات المالكين'),
+    ('required_channel_1','قناة الاشتراك الأولى'),('required_channel_2','قناة الاشتراك الثانية'),
+    ('event_chat_id','ID شات إشعارات المبيعات والشحن'),
 ]
 ADMIN_TEXTS = [
     ('welcome_ar','الترحيب بالعربية'),('welcome','الترحيب الأساسي'),
@@ -2933,7 +3066,8 @@ def admin_item(user, kind, ident, edit=None):
         rows.append([_btn('👁 تبديل الظهور','primary',None,cb='a:toggle:%s:%d:visible' % (kind,ident))])
         if kind == 'p':
             lines.append('المخزون المتاح: %d' % store.product_stock(ident))
-            rows.extend([[_btn('➕ إضافة مخزون','success',None,cb='a:stock:add:%d' % ident),
+            rows.extend([[_btn('➕ قطعة واحدة متعددة الأسطر','success',None,cb='a:stock:add:%d' % ident)],
+                         [_btn('📚 إضافة دفعة: كل سطر قطعة','primary',None,cb='a:stock:batch:%d' % ident),
                           _btn('📋 عرض المخزون','primary',None,cb='a:stock:view:%d' % ident)],
                          [_btn('🗑 مسح المخزون المتاح','danger',None,cb='a:confirm:stock:%d' % ident)]])
         if kind == 'b':
@@ -3013,7 +3147,10 @@ def admin_dispatch(user, parts, edit=None):
                 'style_enabled':'1 للتفعيل و0 للإيقاف.', 'mirror_rows':'1 للعكس و0 للعادي.',
                 'maintenance':'1 لتفعيل الصيانة و0 لإيقافها.', 'dm_owner_on_order':'1 للتفعيل و0 للإيقاف.',
                 'dm_owner_on_deposit':'1 للتفعيل و0 للإيقاف.', 'default_lang':'ar أو en.',
-                'owner_ids':'أرقام Telegram مفصولة بفواصل. يبقى OWNER_ID الأساسي مفعلاً.'}.get(key,'أرسل - لمسح القيمة.')
+                'owner_ids':'أرقام Telegram مفصولة بفواصل. يبقى OWNER_ID الأساسي مفعلاً.',
+                'required_channel_1':'معرّف قناة عامة بدون @، أو off للإيقاف.',
+                'required_channel_2':'معرّف قناة عامة بدون @، أو off للإيقاف.',
+                'event_chat_id':'رقم الشات السالب، أو 0 للإيقاف.'}.get(key,'أرسل - لمسح القيمة.')
         return admin_prompt(user,mode='setting',key=key,prompt='✏️ أرسل القيمة الجديدة لـ %s.\n%s' % (title,hint))
     if action == 'custom' and len(parts)==3 and parts[2] in ('ar','en'):
         bid = to_int(parts[1]); obj = store.get_button(bid)
@@ -3034,7 +3171,8 @@ def admin_dispatch(user, parts, edit=None):
     if action == 'stock' and len(parts)==3:
         mode, pid = parts[1],to_int(parts[2]); product=store.product_by_id(pid)
         if not product: return admin_home(user,edit)
-        if mode == 'add': return admin_prompt(user,mode='stock',ident=pid,prompt='📦 أرسل المخزون: كل عنصر في سطر مستقل.')
+        if mode == 'add': return admin_prompt(user,mode='stock_single',ident=pid,prompt='📦 أرسل محتوى قطعة واحدة كاملاً، حتى لو يحتوي أسطراً كثيرة؛ سيُحسب قطعة واحدة.')
+        if mode == 'batch': return admin_prompt(user,mode='stock_batch',ident=pid,prompt='📚 أرسل الدفعة: كل سطر غير فارغ يُحسب قطعة مستقلة.')
         if mode == 'view':
             stock=store.stock_list(pid,used=False)
             text='📦 المخزون المتاح: %d\n\n%s' % (len(stock),esc('\n'.join(x['content'] for x in stock[:20])) or '—')
@@ -3088,7 +3226,9 @@ def admin_dispatch(user, parts, edit=None):
             order=store.get_order(ident); delivery=store.deliver_pending_atomic(ident)
             if order and delivery:
                 target=store.get_user_by_id(order['user_id'])
-                if target: safe_send(target['tg_id'],'✅ تم تسليم الطلب #%d\n<pre>%s</pre>' % (ident,esc(delivery)))
+                if target:
+                    notify_public_event('purchase', target, {'name': order['product_name']}, order['qty'])
+                    safe_send(target['tg_id'],'✅ تم تسليم الطلب #%d\n<pre>%s</pre>' % (ident,esc(delivery)))
             return admin_show(user,'✅ تم التسليم.' if delivery else '⚠️ الطلب غير معلق أو المخزون غير كافٍ.', [[_btn('⬅️ الطلب','default',None,cb='a:item:o:%d' % ident)]],edit)
     return admin_home(user,edit)
 
@@ -3131,9 +3271,10 @@ def admin_send_backup(owner_id):
 def admin_apply_input(user, st, text):
     if not is_owner_user(user):
         state_clear(user['tg_id']); return True
+    raw_text = text
     text=text.strip(); mode=st.get('mode'); ident=st.get('ident',0)
     try:
-        if len(text)>3500: raise ValueError('النص طويل جداً.')
+        if len(raw_text)>3500: raise ValueError('النص طويل جداً.')
         if mode == 'finduser':
             if not text.isdigit() or not store.get_user(int(text)): raise ValueError('المستخدم غير موجود؛ أدخل ID صحيحاً.')
             state_clear(user['tg_id']); admin_item(user,'u',int(text)); return True
@@ -3145,10 +3286,20 @@ def admin_apply_input(user, st, text):
                      store.add_button({'label_ar':text,'label_en':text,'action':'menu'}))
             state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ تم الإنشاء. أكمل التفاصيل من الأزرار.',build_main_keyboard(user))
             admin_item(user,kind,ident); return True
-        if mode == 'stock':
+        if mode in ('stock_single', 'stock_batch'):
             if not store.product_by_id(ident): raise ValueError('المنتج غير موجود.')
-            count=store.add_stock_lines(ident,text.splitlines())
-            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ أُضيف %d عنصر.' % count,build_main_keyboard(user)); admin_item(user,'p',ident); return True
+            if not text: raise ValueError('المحتوى فارغ.')
+            if mode == 'stock_single':
+                if len(html.escape(raw_text, quote=False)) > 3000:
+                    raise ValueError('محتوى القطعة طويل جداً للتسليم في تيليغرام؛ اختصره وأعد المحاولة.')
+                store.add_stock_unit(ident,raw_text)
+                count = 1
+            else:
+                lines = [line.strip() for line in text.splitlines() if line.strip()]
+                if any(len(html.escape(line, quote=False)) > 3000 for line in lines):
+                    raise ValueError('أحد الأسطر طويل جداً للتسليم في تيليغرام.')
+                count=store.add_stock_lines(ident,lines)
+            state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ أُضيف %d قطعة.' % count,build_main_keyboard(user)); admin_item(user,'p',ident); return True
         if mode == 'message':
             if not text or not store.get_user(ident): raise ValueError('المستخدم أو النص غير صالح.')
             ok=_broadcast_one(ident,text)
@@ -3192,6 +3343,12 @@ def admin_apply_input(user, st, text):
                 parts=[x.strip() for x in value.split(',') if x.strip()]
                 if not parts or any(not x.isdigit() for x in parts): raise ValueError('أرسل IDs مفصولة بفواصل.')
                 value=','.join(parts)
+            if key in ('required_channel_1','required_channel_2'):
+                value = value.lstrip('@')
+                if value.lower() != 'off' and not re.fullmatch(r'[A-Za-z0-9_]{5,32}',value):
+                    raise ValueError('أرسل معرّف قناة عامة صالحاً، أو off للإيقاف.')
+            if key == 'event_chat_id' and not re.fullmatch(r'-?[0-9]{1,20}', value):
+                raise ValueError('أرسل ID رقمياً صحيحاً أو 0 للإيقاف.')
             if key in ('referral_percent','discount_percent','page_size','deposit_session_minutes'):
                 maximum={'referral_percent':100,'discount_percent':90,'page_size':30,'deposit_session_minutes':1440}[key]
                 minimum=1 if key in ('page_size','deposit_session_minutes') else 0
