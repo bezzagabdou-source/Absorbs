@@ -46,7 +46,7 @@ var _road_body: StaticBody3D
 ## camera sits. Defaults to off, so shipping builds are unaffected.
 var debug_flat: bool = false
 var _qa_no_terrain: bool = false
-var _qa_std_road: bool = false
+var _qa_marker: bool = false
 ## Shared QA scratch buffer; the race screen writes it to disk after the probe.
 static var qa_log_lines: PackedStringArray = PackedStringArray()
 
@@ -58,8 +58,8 @@ func build(region_data: Dictionary) -> void:
 			debug_flat = true
 		if str(arg) == "--qa-no-terrain":
 			_qa_no_terrain = true
-		if str(arg) == "--qa-std-road":
-			_qa_std_road = true
+		if str(arg) == "--qa-marker":
+			_qa_marker = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -342,16 +342,7 @@ func _build_road_network() -> void:
 	mi.name = "Highway"
 	mi.mesh = st.commit()
 	mi.layers = 1
-	if _qa_std_road:
-		# QA A/B: identical geometry with a plain unshaded material. If this shows
-		# and the ShaderMaterial does not, the bug is in road.gdshader, not the mesh.
-		var plain := StandardMaterial3D.new()
-		plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		plain.albedo_color = Color(1.0, 0.0, 1.0)
-		mi.material_override = plain
-		add_child(mi)
-		_build_road_collision(width)
-		return
+
 	var mat := ShaderMaterial.new()
 	var sp := "res://shaders/road.gdshader"
 	if ResourceLoader.exists(sp):
@@ -396,6 +387,24 @@ func _build_road_network() -> void:
 		cs.position = Vector3((p0.x + p1.x) * 0.5, p0.y - 0.5, (p0.z + p1.z) * 0.5)
 		cs.rotation.y = atan2(fwd.x, fwd.z)
 		_road_body.add_child(cs)
+
+	if _qa_marker:
+		# Decisive QA test: a bright unshaded box sitting exactly on the tarmac at
+		# the spawn point. If the box shows in the capture and the highway does
+		# not, the render pipeline and the camera are fine and the fault is inside
+		# the highway mesh or its material.
+		var mk := MeshInstance3D.new()
+		mk.name = "QAMarker"
+		var bm := BoxMesh.new()
+		bm.size = Vector3(6.0, 2.0, 6.0)
+		mk.mesh = bm
+		var mm := StandardMaterial3D.new()
+		mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mm.albedo_color = Color(1.0, 0.0, 1.0)
+		mk.material_override = mm
+		mk.position = road_points[0] + Vector3.UP * 1.2
+		mk.layers = 1
+		add_child(mk)
 
 	# centre line of the ring, for GPS / minimap / spawn logic
 	var marker := Node3D.new()
