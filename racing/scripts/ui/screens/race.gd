@@ -162,8 +162,9 @@ func _build_world() -> void:
 	viewport.msaa_3d = Viewport.MSAA_2X
 	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 	viewport.use_taa = false
-	var renderer := str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "mobile"))
-	if renderer != "gl_compatibility":
+	# FSR1 is a Forward+/Mobile feature; asking for it on the compatibility
+	# backend logs an error every frame the viewport updates.
+	if RenderingServer.get_rendering_device() != null:
 		viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
 	viewport.scaling_3d_scale = clampf(float(SettingsStore.get_value("render_scale", 1.0)), 0.6, 1.0)
 	viewport_container = SubViewportContainer.new()
@@ -354,7 +355,7 @@ func _read_driver_input(delta: float) -> void:
 	var brake = Input.get_action_strength("brake")
 	var nitro = Input.is_action_pressed("nitro")
 	var handbrake = Input.is_action_pressed("handbrake")
-	if Input.is_action_just_pressed("camera"):
+	if InputMap.has_action("camera") and Input.is_action_just_pressed("camera"):
 		cam.cycle_mode()
 	var mode_sel = str(SettingsStore.get_value("steer_mode", "buttons"))
 	if mode_sel == "wheel":

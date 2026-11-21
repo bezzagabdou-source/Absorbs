@@ -25,18 +25,18 @@ func _add_hero() -> void:
 	var title_block = VBoxContainer.new()
 	title_block.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	title_block.offset_left = 84
-	title_block.offset_top = 96
-	title_block.offset_right = 1000
+	title_block.offset_top = 84
+	title_block.offset_right = 640
 	title_block.add_theme_constant_override("separation", -14)
 	content.add_child(title_block)
 	var kicker = UIStyle.make_kicker("SEASON 1  ·  NEON DISTRICT", UIStyle.CYAN, 22)
 	title_block.add_child(kicker)
-	var t1 = UIStyle.make_title("APEX", 132, UIStyle.CYAN)
+	var t1 = UIStyle.make_title("APEX", 108, UIStyle.CYAN)
 	t1.add_theme_constant_override("outline_size", 0)
 	title_block.add_child(t1)
-	var t2 = UIStyle.make_title("VELOCITY", 132, UIStyle.MAGENTA)
+	var t2 = UIStyle.make_title("VELOCITY", 108, UIStyle.MAGENTA)
 	title_block.add_child(t2)
-	var sub = UIStyle.make_label(Localization.t("menu.tagline"), "body", 30, UIStyle.TEXT_DIM)
+	var sub = UIStyle.make_label(Localization.t("menu.tagline"), "body", 26, UIStyle.TEXT_DIM)
 	title_block.add_child(sub)
 	# animate the kicker
 	var tw = create_tween().set_loops()
@@ -49,20 +49,20 @@ func _add_left_column() -> void:
 	col.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	col.offset_left = 84
 	col.offset_top = 470
-	col.offset_right = 620
-	col.add_theme_constant_override("separation", 16)
+	col.offset_right = 640
+	col.add_theme_constant_override("separation", 14)
 	content.add_child(col)
-	var play = UIStyle.make_button(Localization.t("menu.race"), UIStyle.CYAN, true, 34, 96)
+	var play = UIStyle.make_button(Localization.t("menu.race"), UIStyle.CYAN, true, 32, 92)
 	play.pressed.connect(func(): go("tracks"))
 	col.add_child(play)
-	var garage = UIStyle.make_button(Localization.t("menu.garage"), UIStyle.MAGENTA, false, 30, 84)
+	var garage = UIStyle.make_button(Localization.t("menu.garage"), UIStyle.MAGENTA, false, 28, 80)
 	garage.pressed.connect(func(): go("garage"))
 	col.add_child(garage)
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 16)
 	col.add_child(row)
 	for spec in [["shop", Localization.t("menu.shop")], ["achievements", Localization.t("menu.achievements")]]:
-		var b = UIStyle.make_button(spec[1], UIStyle.VIOLET, false, 24, 76)
+		var b = UIStyle.make_button(spec[1], UIStyle.VIOLET, false, 22, 72)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(func(): go(spec[0]))
 		row.add_child(b)
@@ -70,7 +70,7 @@ func _add_left_column() -> void:
 	row2.add_theme_constant_override("separation", 16)
 	col.add_child(row2)
 	for spec in [["settings", Localization.t("menu.settings")], ["credits", Localization.t("menu.credits")]]:
-		var b = UIStyle.make_button(spec[1], UIStyle.TEXT_DIM, false, 22, 68)
+		var b = UIStyle.make_button(spec[1], UIStyle.TEXT_DIM, false, 20, 64)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(func(): go(spec[0]))
 		row2.add_child(b)
@@ -106,14 +106,14 @@ func _add_quick_actions() -> void:
 func _add_car_showcase() -> void:
 	_car_view = SubViewportContainer.new()
 	_car_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_car_view.anchor_left = 0.28
+	_car_view.anchor_left = 0.36
 	_car_view.anchor_right = 1.0
-	_car_view.anchor_top = 0.16
+	_car_view.anchor_top = 0.11
 	_car_view.anchor_bottom = 1.0
 	_car_view.offset_left = 0
-	_car_view.offset_right = -40
+	_car_view.offset_right = -36
 	_car_view.offset_top = 0
-	_car_view.offset_bottom = -250
+	_car_view.offset_bottom = -268
 	_car_view.stretch = true
 	_car_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(_car_view)
@@ -220,13 +220,14 @@ func _add_car_showcase() -> void:
 	_turn_ring = ring
 	# nameplate
 	var plate = UIStyle.make_glass_panel(24, Color(0.03, 0.05, 0.1, 0.72), 22, 0.25)
-	plate.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	plate.anchor_left = 0.62
 	plate.anchor_right = 1.0
+	plate.anchor_top = 1.0
 	plate.anchor_bottom = 1.0
-	plate.offset_left = -700
+	plate.offset_left = 0
 	plate.offset_right = -84
-	plate.offset_top = -214
-	plate.offset_bottom = -40
+	plate.offset_top = -212
+	plate.offset_bottom = -36
 	content.add_child(plate)
 	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)

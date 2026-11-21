@@ -14,7 +14,6 @@ var _status: Label
 var _bar: ProgressBar
 var _bar_pct: Label
 var _streak_root: Control
-var _vignette: ColorRect
 
 const SEGMENTS := 14
 
@@ -30,7 +29,7 @@ func build() -> void:
 
 func _build_intro_backdrop() -> void:
 	var bg = UIStyle.make_art_background("menu_hero")
-	bg.modulate = Color(0.55, 0.60, 0.75, 1.0)
+	bg.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	content.add_child(bg)
 	# darken the top and bottom so the wordmark always has contrast
 	var top = ColorRect.new()
@@ -47,11 +46,14 @@ func _build_intro_backdrop() -> void:
 	content.add_child(bottom)
 	# horizon glow line
 	var glow = ColorRect.new()
-	glow.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	glow.anchor_left = 0.5
+	glow.anchor_right = 0.5
+	glow.anchor_top = 0.5
+	glow.anchor_bottom = 0.5
 	glow.offset_left = -700
 	glow.offset_right = 700
 	glow.offset_top = 6
-	glow.offset_bottom = 8
+	glow.offset_bottom = 9
 	glow.color = Color(UIStyle.CYAN.r, UIStyle.CYAN.g, UIStyle.CYAN.b, 0.55)
 	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(glow)
@@ -87,7 +89,10 @@ func _build_streaks() -> void:
 
 func _build_logo() -> void:
 	var block = VBoxContainer.new()
-	block.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	block.anchor_left = 0.5
+	block.anchor_right = 0.5
+	block.anchor_top = 0.5
+	block.anchor_bottom = 0.5
 	block.offset_left = -620
 	block.offset_right = 620
 	block.offset_top = -230
@@ -130,13 +135,14 @@ func _build_logo() -> void:
 
 func _build_progress() -> void:
 	var v = VBoxContainer.new()
-	v.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	v.anchor_left = 0.5
 	v.anchor_right = 0.5
+	v.anchor_top = 1.0
+	v.anchor_bottom = 1.0
 	v.offset_left = -420
 	v.offset_right = 420
-	v.offset_top = -250
-	v.offset_bottom = -120
+	v.offset_top = -230
+	v.offset_bottom = -96
 	v.add_theme_constant_override("separation", 10)
 	v.alignment = BoxContainer.ALIGNMENT_END
 	content.add_child(v)

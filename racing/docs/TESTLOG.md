@@ -161,6 +161,30 @@ content they didn't have.
 **Artifact:** release `v1.0.6`, `APEX-VELOCITY.apk`, 47,391,592 bytes, signed
 and size-gated in CI (`APK_SIZE_BYTES` notice on the verifying run).
 
+## Round 12 — v2.0 graphics overhaul
+
+This round replaced the whole rendering stack, so the failure modes were new
+kinds of failure: GLSL that compiles in my head but not on the driver.
+
+| # | What CI reported | Root cause | Fix |
+|---|---|---|---|
+| 14 | `SCRIPT ERROR: Invalid assignment of property 'multimesh' … on a base object of type 'MeshInstance3D'` at `OpenWorld.gd:326/372` | trees and rocks used `MeshInstance3D` for instanced scatter | `MultiMeshInstance3D` |
+| 15 | `SCRIPT ERROR: Cannot call method 'add_child' on a null value` at `boot.gd:34` | the intro screen overrode `ScreenBase._build_backdrop()`, which runs **before** `content` exists | renamed the override to `_build_intro_backdrop()` and call it from `build()` |
+| 16 | `SHADER ERROR: Unknown identifier in expression: 'CLEARCOAT_GLOSS'` | `CLEARCOAT` / `CLEARCOAT_GLOSS` are spatial-renderer only; the project ships `gl_compatibility` | faked the lacquer layer with a Fresnel sheen + roughness blend toward `clearcoat_roughness` |
+| 17 | `NORMAL_MAP` written with no normal texture | also unsupported in the compatibility backend | removed the write; the perturbed `NORMAL` already does the work |
+| 18 | Screenshot job: `step timed out after 8 minutes` | 40k-triangle terrain + full scatter under llvmpipe | `OpenWorld` detects `llvmpipe`/server feature and drops to a 96² grid and ~220 props; per-screen 75 s budget in the loop |
+
+**Design bug caught while reading the code (not by CI):** the post-FX
+`ColorRect` sampled `hint_screen_texture`, but it was added *under* the
+`SubViewportContainer` in tree order, so it would have read an empty 2D frame.
+Rewrote it to take `scene_tex` as a plain sampler fed from
+`viewport.get_texture()`, and moved it last in the tree.
+
+New in the suite: `tests/ShaderProbe.tscn` — parses every custom shader, checks
+that all uniforms declared are non-empty, and attaches each `ShaderMaterial` to
+a live `ColorRect` so the render server actually compiles it. Before this, a
+broken shader only produced a warning and shipped.
+
 ## Not verified (honest limitations)
 
 * **On-device performance** (60 fps / 120 Hz) — no Android device or emulator
@@ -172,3 +196,10 @@ and size-gated in CI (`APK_SIZE_BYTES` notice on the verifying run).
   unit-tested; endurance is not.
 * **RTL layout polish** — Arabic strings render and `is_rtl()` flips layout
   direction, but per-widget mirroring has not been visually reviewed.
+* **120 fps** — the v2 target. The redesign cuts overdraw (no SSAO/SSIL in the
+  race, single-directional-light shadows, height fog instead of volumetric) and
+  every expensive environment feature is behind a quality tier, but the number
+  itself still needs a real device.
+* **"8K" textures** — not claimed and not shipped. Art is procedurally generated
+  at runtime plus small WebP backdrops; the fidelity work is in shaders and
+  geometry, which cost VRAM-free ALU instead of bandwidth.

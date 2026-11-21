@@ -268,7 +268,10 @@ func _build_body(shape: Dictionary) -> void:
 			var v1: Vector3 = a_ring[k2]
 			var v2: Vector3 = b_ring[k]
 			var v3: Vector3 = b_ring[k2]
-			_add_quad(st, v0, v2, v1, v3)
+			# a_ring is the front station (lower z), so the outward face is
+			# (v0, v1, v3) + (v0, v3, v2); the previous order faced inward and
+			# cull_back then dropped the entire shell.
+			_add_quad(st, v0, v1, v3, v2)
 
 	# caps
 	for endcap in [0, rings.size() - 1]:
@@ -283,9 +286,9 @@ func _build_body(shape: Dictionary) -> void:
 			var p0: Vector3 = pts[k]
 			var p1: Vector3 = pts[k2]
 			if flip:
-				_add_tri(st, center, p1, p0)
-			else:
 				_add_tri(st, center, p0, p1)
+			else:
+				_add_tri(st, center, p1, p0)
 
 	st.generate_tangents()
 	var mi = MeshInstance3D.new()
@@ -325,7 +328,7 @@ func _build_glasshouse(shape: Dictionary) -> void:
 	var z_rear: float = lerpf(-length * 0.5, length * 0.5, c1)
 	var w_base: float = width * 0.415
 	var w_top: float = width * 0.355
-	var y_base: float = height * 0.60 + 0.30
+	var y_base: float = height * 0.60 + 0.30 + 0.012
 	var y_top: float = y_base + height * 0.40 * roof
 
 	# windscreen rake: the top edge sits further back than the base
@@ -355,10 +358,11 @@ func _build_glasshouse(shape: Dictionary) -> void:
 	# --- roof: two quads so it can crown slightly ---------------------------
 	var crown: float = 0.035
 	var z_mid: float = (z_top_front + z_top_rear) * 0.5
-	_add_quad(st, Vector3(-w_top, y_top, z_top_front), Vector3(0, y_top + crown, z_mid),
-		Vector3(w_top, y_top, z_top_front), Vector3(w_top, y_top, z_top_rear))
+	# left and right roof halves, sharing the crowned centre line
 	_add_quad(st, Vector3(-w_top, y_top, z_top_front), Vector3(-w_top, y_top, z_top_rear),
-		Vector3(0, y_top + crown, z_mid), Vector3(0, y_top + crown, z_mid))
+		Vector3(0, y_top + crown, z_top_rear), Vector3(0, y_top + crown, z_top_front))
+	_add_quad(st, Vector3(0, y_top + crown, z_top_front), Vector3(0, y_top + crown, z_top_rear),
+		Vector3(w_top, y_top, z_top_rear), Vector3(w_top, y_top, z_top_front))
 
 	st.generate_tangents()
 	var mi = MeshInstance3D.new()

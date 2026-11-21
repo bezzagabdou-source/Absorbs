@@ -24,6 +24,7 @@ func _ready() -> void:
 
 
 func _apply_window() -> void:
+	_optimise_for_software_gl()
 	if not OS.has_feature("mobile"):
 		return
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
@@ -31,6 +32,25 @@ func _apply_window() -> void:
 	Engine.set_physics_ticks_per_second(60)
 	var target = int(DisplayServer.screen_get_refresh_rate())
 	Engine.max_fps = 0 if target <= 0 else maxi(60, target)
+	# 120 Hz panel => present at 120, otherwise vsync-driven
+	if target >= 120:
+		Engine.max_fps = 120
+		Engine.physics_ticks_per_second = 120
+
+
+## Software rasterisers (CI Xvfb, ancient phones) cannot sustain the mobile
+## pipeline at full quality. Halve the texture/render cost rather than letting
+## the capture time out; gameplay logic is unaffected.
+func _optimise_for_software_gl() -> void:
+	var adapter := RenderingServer.get_video_adapter_name().to_lower()
+	if not (adapter.contains("llvmpipe") or adapter.contains("softpipe")
+			or adapter.contains("swiftshader") or OS.has_feature("server")):
+		return
+	# do not persist this: it is a property of the host GPU, not a user choice
+	SettingsStore.values["render_scale"] = 0.6
+	SettingsStore.values["quality"] = "low"
+	SettingsStore.apply_all()
+	Engine.max_fps = 30
 
 
 var _diag_lines: Array[String] = []
@@ -85,9 +105,15 @@ func _write_diag() -> void:
 
 
 func _forced_screen() -> String:
-	for arg in OS.get_cmdline_user_args() + OS.get_cmdline_args():
-		if arg.begins_with("--screen="):
-			return arg.split("=", true, 1)[1]
+	# Godot stops parsing its own flags at a bare `--`, but `--screen=` has also
+	# been observed to vanish from OS.get_cmdline_user_args() when it follows one,
+	# and it can end up in the engine args instead. Check both lists.
+	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		var a: String = str(arg)
+		if a.begins_with("--screen="):
+			var id: String = a.split("=", true, 1)[1].strip_edges()
+			if SCREENS.has(id):
+				return id
 	return ""
 
 
