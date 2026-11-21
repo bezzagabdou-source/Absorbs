@@ -208,6 +208,30 @@ New static gate: `tools/check_undeclared.py`. `gdparse` accepts
 declarations per file plus its `extends "res://..."` chain and fails CI on
 exactly that bug, which it was validated against by re-injecting it.
 
+## Round 14 — the open world rendered without a floor
+
+Reported symptom: the free-roam capture showed sky under the car and no highway,
+in every configuration, while `race` and `tracks` looked correct. Four separate
+defects were stacked on top of each other; each one alone was enough to hide the
+road, and only instrumented captures separated them.
+
+| # | Defect | Evidence | Fix |
+|---|--------|----------|-----|
+| 1 | **Terrain wound inside-out** (`p0,p2,p1` ⇒ rendered normal −Y) | Pseudo-colour capture: green only appeared on far ridges, and the near half of the frame was *sky*, not ground | `p0,p1,p2` / `p1,p3,p2`; `terrain faces up` test |
+| 2 | **Carve and carriageway read different height profiles** | `road above terrain` test failed in all four regions after fix 1 made the ground visible | One `_smooth_ring_height()` source of truth; `height_at()` and the road both read it |
+| 3 | **Road aliased a 22 m noise octave** at 20 m sampling vs. a 25 m grid | Algebraic check: the two surfaces could differ by >1 m, more than the lift | 34 m box low-pass (0.20 attenuation at 22 m, 0.96 at 200 m) |
+| 4 | **Shader ambient floor washed the asphalt to water-blue** | Unshaded-magenta capture proved the geometry was drawn; the lit capture showed a pale blue surface with no markings | Albedo-scaled light term instead of a flat additive floor; paint gets its own emissive |
+
+Measured invariants from the instrumented run:
+
+* `nearest_road` and car origin differ by **0.00 m** horizontally — the spawn is on
+  the tarmac.
+* Clearance at the ring radius is **1.70 m by construction** (`ROAD_LIFT 1.15` +
+  `ROAD_EMBANKMENT 0.55`); worst-case grid interpolation adds 0.82 m, leaving
+  0.88 m of margin. Pinned by a test that samples 24 angles in four regions.
+
+Regression tests added: `terrain faces up`, `road above terrain`.
+
 ## Not verified (honest limitations)
 
 * **On-device performance** (60 fps / 120 Hz) — no Android device or emulator
