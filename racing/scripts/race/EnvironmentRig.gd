@@ -170,10 +170,17 @@ func _build_sun(p: Dictionary) -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = 160.0
-	sun.directional_shadow_split_1 = 0.1
-	sun.directional_shadow_split_2 = 0.35
+	sun.directional_shadow_split_1 = 0.06
+	sun.directional_shadow_split_2 = 0.22
 	sun.directional_shadow_blend_splits = true
-	sun.light_angular_distance = 1.2
+	# A near-vertical light on a near-flat terrain is the worst case for shadow
+	# acne: depth differences across a texel are tiny, so the comparison flips and
+	# the entire ground renders as if it were in shadow. These biases, plus a
+	# small angular diameter, are what stop the terrain going black.
+	sun.shadow_bias = 0.06
+	sun.shadow_normal_bias = 2.2
+	sun.shadow_blur = 1.4
+	sun.light_angular_distance = 0.5
 	var dir: Vector3 = p["sun_dir"]
 	add_child(sun)
 	sun.position = dir.normalized() * 100.0

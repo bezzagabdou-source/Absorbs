@@ -54,10 +54,12 @@ void vertex() {
 }
 
 void fragment() {
-	// grain stays in world space so tarmac does not swim as the car moves,
-	// but lane paint / streaks need road-relative coordinates
+	// Grain stays in world space so the tarmac does not swim as the car moves,
+	// but lane paint and streaks need road-relative coordinates.
+	//   UV.x = 0..1 across the carriageway, UV.y = metres along it.
 	vec2 uv = wpos.xz;
-	vec2 ruv = vec2(UV.x, UV.y / 8.0);
+	float lat = (UV.x - 0.5) * road_width;   // signed metres from the centre line
+	float along = UV.y;
 
 	// --- aggregate grain: two octaves so it reads both up close and at speed
 	float g1 = vnoise(uv * grain_scale);
@@ -81,19 +83,21 @@ void fragment() {
 	METALLIC = 0.0;
 	SPECULAR = mix(0.32, 0.72, damp);
 
-	// --- painted lane lines
-	// --- painted lane lines, in road space so they follow curves
-	// ruv.x = lateral position across the road, ruv.y = distance along it
-	float lane_dist = abs(fract(ruv.x * 0.294) - 0.5) * 3.4;
-	float dash = step(0.45, fract(ruv.y * 1.44));
-	float lane = smoothstep(0.10, 0.045, lane_dist) * dash * 0.75;
-	// solid outer edge lines so the road reads as a road at any speed
-	float edge_line = smoothstep(0.03, 0.0, abs(abs(ruv.x * 0.5 - 0.5) - 0.47));
-	lane = clamp(lane + edge_line * 0.9, 0.0, 1.0);
-	col = mix(col, line_color * (0.55 + 0.45 * wetness), lane);
+	// --- painted lane markings, in road space so they follow the curve
+	// dashes every 3.2 m laterally, 4.5 m on / 4.5 m off longitudinally
+	float lane_d = abs(fract(lat / 3.2) - 0.5) * 3.2;
+	float dash = step(0.5, fract(along / 9.0));
+	float lane = smoothstep(0.17, 0.07, lane_d) * dash * 0.8;
+	// centre line: solid double
+	float centre = smoothstep(0.20, 0.09, abs(abs(lat) - 0.28));
+	lane = max(lane, centre * 0.9);
+	// solid edge lines so the road reads as a road at any speed
+	float edge_line = smoothstep(0.18, 0.08, abs(abs(lat) - (road_width * 0.5 - 0.55)));
+	lane = max(lane, edge_line);
+	col = mix(col, line_color * (0.55 + 0.45 * wetness), clamp(lane, 0.0, 1.0));
 
 	// --- neon reflection streaks: strongest towards the road edges
-	float streak = smoothstep(0.55, 0.0, abs(ruv.x * 0.5 - 0.5) * 2.0) * puddle;
+	float streak = smoothstep(0.55, 0.0, abs(lat) / (road_width * 0.5)) * puddle;
 	float neon_mix = 0.5 + 0.5 * sin(uv.y * 0.05 + wpos.z * 0.01);
 	vec3 neon = mix(neon_a, neon_b, neon_mix);
 	float shimmer = 0.6 + 0.4 * vnoise(uv * 3.0);
