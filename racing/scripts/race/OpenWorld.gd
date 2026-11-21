@@ -1001,6 +1001,33 @@ func qa_height_report() -> void:
 			buried += 1
 	qa_log_lines.append("[QAH] road_vs_mesh: buried=%d/%d worst_clearance=%.2f at=%d" % [
 		buried, road_points.size(), worst, worst_at])
+	# What does the terrain MESH actually hold at the road's XZ? Sample the built
+	# geometry rather than height_at(), since only the mesh is rendered.
+	if terrain_mesh_instance != null and terrain_mesh_instance.mesh != null:
+		var tarr: Array = terrain_mesh_instance.mesh.surface_get_arrays(0)
+		var tv: PackedVector3Array = tarr[Mesh.ARRAY_VERTEX]
+		var worst_mesh: float = 1.0e9
+		var worst_mesh_at: Vector3 = Vector3.ZERO
+		var above: int = 0
+		for k in range(road_points.size()):
+			var rp: Vector3 = road_points[k]
+			# nearest terrain vertex
+			var bestd: float = 1.0e20
+			var besty: float = 0.0
+			for vk in range(0, tv.size(), 7):
+				var t: Vector3 = tv[vk]
+				var dd: float = (t.x - rp.x) * (t.x - rp.x) + (t.z - rp.z) * (t.z - rp.z)
+				if dd < bestd:
+					bestd = dd
+					besty = t.y
+			# a vertex up to half a cell away can be above the road
+			if besty > rp.y:
+				above += 1
+			if rp.y - besty < worst_mesh:
+				worst_mesh = rp.y - besty
+				worst_mesh_at = rp
+		qa_log_lines.append("[QAH] mesh_ground: vertices_above_road=%d/%d worst=%.2f at=%s" % [
+			above, road_points.size(), worst_mesh, worst_mesh_at])
 	# is the quad at the spawn actually in the mesh, and which way does it face?
 	var mi2: MeshInstance3D = null
 	for c in get_children():
