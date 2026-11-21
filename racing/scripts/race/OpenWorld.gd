@@ -54,6 +54,8 @@ func build(region_data: Dictionary) -> void:
 	_landmark_root.name = "Landmarks"
 	add_child(_landmark_root)
 	_build_landmarks()
+	_build_roadside_lighting()
+	_build_distant_city()
 
 
 func _build_noise(seed_value: int) -> void:
@@ -402,6 +404,104 @@ func _build_landmarks() -> void:
 		_landmark_arena(Vector3(0, height_at(0, 0), 0), Color(1.0, 0.62, 0.22))
 	else:
 		_landmark_lighthouse(Vector3(ROAD_RING_RADIUS * 0.8, 0, ROAD_RING_RADIUS * 0.5), accent)
+
+
+## Highway lamp posts: a warm pool of light every ~55 m along the ring, kept as
+## emissive geometry plus one OmniLight pool cap so the cost stays flat. These are
+## what make a night road read as a road instead of a grey ribbon in the dark.
+func _build_roadside_lighting() -> void:
+	if road_points.is_empty():
+		return
+	var lamps: int = 34 if grid == GRID else 14
+	var step: int = maxi(1, int(road_points.size() / lamps))
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.top_radius = 0.11
+	pole_mesh.bottom_radius = 0.16
+	pole_mesh.height = 7.0
+	pole_mesh.radial_segments = 6
+	var lamp_mesh := BoxMesh.new()
+	lamp_mesh.size = Vector3(1.1, 0.16, 0.34)
+	var pole_mat := StandardMaterial3D.new()
+	pole_mat.albedo_color = Color(0.10, 0.11, 0.14)
+	pole_mat.metallic = 0.6
+	pole_mat.roughness = 0.45
+	var lamp_mat := StandardMaterial3D.new()
+	lamp_mat.albedo_color = Color(1.0, 0.82, 0.55)
+	lamp_mat.emission_enabled = true
+	lamp_mat.emission = Color(1.0, 0.80, 0.52)
+	lamp_mat.emission_energy_multiplier = 3.4
+	lamp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var count := 0
+	for i in range(0, road_points.size(), step):
+		var p: Vector3 = road_points[i]
+		var q: Vector3 = road_points[(i + 2) % road_points.size()]
+		var dir: Vector3 = (q - p).normalized()
+		var side: Vector3 = dir.cross(Vector3.UP).normalized() * 8.6
+		# alternate sides so both directions are lit
+		if count % 2 == 1:
+			side = -side
+		var root := Node3D.new()
+		root.position = p + side
+		_landmark_root.add_child(root)
+		var pole := MeshInstance3D.new()
+		pole.mesh = pole_mesh
+		pole.material_override = pole_mat
+		pole.position = Vector3(0, 3.5, 0)
+		root.add_child(pole)
+		var arm := MeshInstance3D.new()
+		arm.mesh = lamp_mesh
+		arm.material_override = lamp_mat
+		arm.position = Vector3(0, 7.0, 0)
+		root.add_child(arm)
+		# one cheap omnidirectional pool per lamp, no shadows
+		var light := OmniLight3D.new()
+		light.light_color = Color(1.0, 0.78, 0.50)
+		light.light_energy = 2.2
+		light.omni_range = 26.0
+		light.omni_attenuation = 1.4
+		light.shadow_enabled = false
+		light.position = Vector3(0, 6.9, 0)
+		root.add_child(light)
+		count += 1
+
+
+## A skyline silhouette on the horizon: instanced boxes with emissive window
+## strips, so the edge of the map reads as a city rather than an empty plain.
+func _build_distant_city() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(region.get("seed", 1337)) + 77
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(1, 1, 1)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var bodies: int = 90 if grid == GRID else 34
+	mm.instance_count = bodies
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.04, 0.05, 0.09)
+	mat.metallic = 0.55
+	mat.roughness = 0.35
+	mat.emission_enabled = true
+	mat.emission = Color(0.22, 0.55, 0.95)
+	mat.emission_energy_multiplier = 0.55
+	var mi := MultiMeshInstance3D.new()
+	mi.name = "Skyline"
+	mi.multimesh = mm
+	mi.material_override = mat
+	mi.layers = 1
+	for i in range(bodies):
+		var a := rng.randf() * TAU
+		var r := REGION_SIZE * (0.40 + rng.randf() * 0.16)
+		var x := cos(a) * r
+		var z := sin(a) * r
+		var h := 40.0 + rng.randf() * 150.0
+		var w := 18.0 + rng.randf() * 26.0
+		var y := height_at(x, z)
+		var xf := Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)),
+			Vector3(x, y + h * 0.5, z)).scaled(Vector3(w, h, w))
+		mm.set_instance_transform(i, xf)
+		mm.set_instance_color(i, Color(0.5 + rng.randf() * 0.5, 0.6 + rng.randf() * 0.4, 1.0))
+	_landmark_root.add_child(mi)
 
 
 func _landmark_tower(base: Vector3, h: float, accent: Color) -> void:

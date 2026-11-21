@@ -87,10 +87,14 @@ void fragment() {
 	float road = smoothstep(1.0, 0.0, road_fade);
 	ground = mix(ground, road_tint * (0.8 + detail * 0.5), road * 0.55);
 
-	// sky bounce: keeps valleys readable at night instead of crushing to black
-	vec3 sky_bounce = mix(vec3(0.10, 0.115, 0.155), vec3(0.16, 0.19, 0.26), terrain_up);
+	// Sky bounce. Without this a night scene crushes the whole landscape to pure
+	// black, because the only directional light is a 0.3-energy moon and the
+	// compatibility backend's sky ambient does not reach large flat surfaces.
+	// Values are tuned against the night capture: grass/rock stay readable as
+	// shapes while the neon road remains the brightest thing in frame.
+	vec3 sky_bounce = mix(vec3(0.30, 0.34, 0.46), vec3(0.42, 0.48, 0.62), terrain_up);
 	ALBEDO = ground;
-	EMISSION = ground * sky_bounce * 0.55;
+	EMISSION = ground * sky_bounce;
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;
 	SPECULAR = mix(0.25, 0.55, wetness);

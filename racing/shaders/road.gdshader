@@ -94,6 +94,8 @@ void fragment() {
 
 	// --- puddles reflect the sky a little through emission tint
 	EMISSION += mix(neon_a, vec3(1.0), 0.35) * puddle * 0.05;
+	// --- moon/sky bounce so the asphalt is not a black void between the lines
+	EMISSION += col * vec3(0.26, 0.30, 0.40);
 
 	ALBEDO = col;
 	// perturb the normal with the grain so highlights break up like real asphalt
