@@ -477,8 +477,8 @@ func _build_road_collision(width: float) -> void:
 ## sliver of it still showed up 40 m away, and why the probe measured just 6
 ## vertices within 30 m of the spawn.
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	_quad_tri(st, a, c, b)
-	_quad_tri(st, c, d, b)
+	_quad_tri(st, a, b, c)
+	_quad_tri(st, a, c, d)
 
 
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
@@ -950,6 +950,7 @@ func qa_height_report() -> void:
 		var tri_up := 0
 		var tri_down := 0
 		var near_origin := 0
+		var area_sum := 0.0
 		var i2 := 0
 		var order: Array = []
 		if idx is PackedInt32Array:
@@ -963,6 +964,7 @@ func qa_height_report() -> void:
 			var vb: Vector3 = order[i2 + 1]
 			var vc: Vector3 = order[i2 + 2]
 			var n: Vector3 = (vb - va).cross(vc - va)
+			area_sum += n.length() * 0.5
 			if n.y > 0.0:
 				tri_up += 1
 			else:
@@ -970,7 +972,8 @@ func qa_height_report() -> void:
 			if Vector2(va.x - 651.0, va.z).length() < 30.0:
 				near_origin += 1
 			i2 += 3
-		qa_log_lines.append("[QAH] tris up=%d down=%d verts_near_spawn=%d" % [tri_up, tri_down, near_origin])
+		qa_log_lines.append("[QAH] tris up=%d down=%d verts_near_spawn=%d area=%.0f" % [
+			tri_up, tri_down, near_origin, area_sum])
 
 
 func qa_dump_near(centre: Vector3, radius: float) -> void:
