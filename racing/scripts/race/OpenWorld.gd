@@ -331,9 +331,8 @@ func _build_road_network() -> void:
 		# QA only: plain StandardMaterial3D, no custom shader. Proves whether the
 		# road geometry is fine and the shader is what makes it invisible.
 		var plain := StandardMaterial3D.new()
-		plain.albedo_color = Color(0.09, 0.10, 0.12)
-		plain.roughness = 0.55
-		plain.metallic = 0.15
+		plain.albedo_color = Color(1.0, 0.0, 1.0)
+		plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mi.material_override = plain
 	add_child(mi)
 
