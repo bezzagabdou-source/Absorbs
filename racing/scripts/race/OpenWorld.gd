@@ -925,6 +925,40 @@ func qa_height_report() -> void:
 		qa_log_lines.append("[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr, clear])
 	qa_log_lines.append("[QAH] grid=%d segs=%d points=%d" % [grid, ROAD_SEGMENTS, road_points.size()])
 	qa_log_lines.append("[QAH] first_points=%s %s %s" % [road_points[0], road_points[1], road_points[2]])
+	# is the quad at the spawn actually in the mesh, and which way does it face?
+	var mi2: MeshInstance3D = null
+	for c in get_children():
+		if c is MeshInstance3D and str(c.name) == "Highway":
+			mi2 = c
+	if mi2 != null and mi2.mesh != null:
+		var arr: Array = mi2.mesh.surface_get_arrays(0)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx = arr[Mesh.ARRAY_INDEX]
+		qa_log_lines.append("[QAH] mesh verts=%d indexed=%s" % [vs.size(), idx is PackedInt32Array])
+		var tri_up := 0
+		var tri_down := 0
+		var near_origin := 0
+		var i2 := 0
+		var order: Array = []
+		if idx is PackedInt32Array:
+			for k in range((idx as PackedInt32Array).size()):
+				order.append(vs[(idx as PackedInt32Array)[k]])
+		else:
+			for k in range(vs.size()):
+				order.append(vs[k])
+		while i2 + 2 < order.size():
+			var va: Vector3 = order[i2]
+			var vb: Vector3 = order[i2 + 1]
+			var vc: Vector3 = order[i2 + 2]
+			var n: Vector3 = (vb - va).cross(vc - va)
+			if n.y > 0.0:
+				tri_up += 1
+			else:
+				tri_down += 1
+			if Vector2(va.x - 651.0, va.z).length() < 30.0:
+				near_origin += 1
+			i2 += 3
+		qa_log_lines.append("[QAH] tris up=%d down=%d verts_near_spawn=%d" % [tri_up, tri_down, near_origin])
 
 
 func qa_dump_near(centre: Vector3, radius: float) -> void:
