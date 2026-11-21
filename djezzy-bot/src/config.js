@@ -139,9 +139,14 @@ export function validateConfig() {
   const warnings = [];
 
   if (!config.bot.token) warnings.push('BOT_TOKEN غير مضبوط — لن يعمل البوت.');
-  if (config.isVercel && !config.storage.kvUrl && !config.storage.githubToken) {
+  if (
+    config.isVercel &&
+    !config.storage.kvUrl &&
+    !config.storage.githubToken &&
+    !config.bot.token
+  ) {
     warnings.push(
-      'لا يوجد تخزين دائم (KV أو STATE_GITHUB_TOKEN) — ستُفقد الجلسات عند كل إعادة تشغيل باردة.',
+      'لا يوجد تخزين دائم (KV أو GitHub أو تيليجرام) — ستُفقد الجلسات عند كل إعادة تشغيل باردة.',
     );
   }
   if (!config.storage.encryptionKey || config.storage.encryptionKey.length < 32) {

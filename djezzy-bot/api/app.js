@@ -201,7 +201,7 @@ async function probeHandler(req, res) {
       });
       const text = await response.text().catch(() => '');
       const blocked = response.status === 403 || response.status === 451;
-      res.status(blocked ? 502 : 200).json({
+      res.status(200).json({
         ok: !blocked,
         mode: 'otp-post',
         status: response.status,
