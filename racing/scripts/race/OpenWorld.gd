@@ -937,6 +937,23 @@ func qa_height_report() -> void:
 		qa_log_lines.append("[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr, clear])
 	qa_log_lines.append("[QAH] grid=%d segs=%d points=%d" % [grid, ROAD_SEGMENTS, road_points.size()])
 	qa_log_lines.append("[QAH] first_points=%s %s %s" % [road_points[0], road_points[1], road_points[2]])
+	# Compare every road vertex against the terrain mesh sampled at that exact XZ.
+	# height_at() is what the MESH is built from, so this is the real clearance the
+	# renderer sees, not an analytic ideal.
+	var buried := 0
+	var worst := 1.0e9
+	var worst_at := 0
+	for k in range(road_points.size()):
+		var rp: Vector3 = road_points[k]
+		var gy: float = height_at(rp.x, rp.z)
+		var c: float = rp.y - gy
+		if c < worst:
+			worst = c
+			worst_at = k
+		if c < 0.0:
+			buried += 1
+	qa_log_lines.append("[QAH] road_vs_mesh: buried=%d/%d worst_clearance=%.2f at=%d" % [
+		buried, road_points.size(), worst, worst_at])
 	# is the quad at the spawn actually in the mesh, and which way does it face?
 	var mi2: MeshInstance3D = null
 	for c in get_children():
