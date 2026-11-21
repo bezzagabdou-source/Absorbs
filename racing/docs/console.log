@@ -7,9 +7,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_boot.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:20.0 (5% of real-time speed).
-CPU time: 0.02 seconds (average: 0.60 ms/frame)
-GPU time: 0.77 seconds (average: 19.25 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:26.0 (3% of real-time speed).
+CPU time: 0.03 seconds (average: 0.70 ms/frame)
+GPU time: 0.98 seconds (average: 24.48 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -24,9 +24,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_menu.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:30.0 (3% of real-time speed).
-CPU time: 2.51 seconds (average: 62.71 ms/frame)
-GPU time: 2.65 seconds (average: 66.29 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:37.0 (2% of real-time speed).
+CPU time: 3.20 seconds (average: 80.02 ms/frame)
+GPU time: 3.36 seconds (average: 84.07 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -41,9 +41,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_garage.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:25.0 (4% of real-time speed).
-CPU time: 1.81 seconds (average: 45.20 ms/frame)
-GPU time: 2.25 seconds (average: 56.33 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:31.0 (3% of real-time speed).
+CPU time: 2.34 seconds (average: 58.43 ms/frame)
+GPU time: 2.90 seconds (average: 72.51 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -58,9 +58,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_shop.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:28.0 (3% of real-time speed).
-CPU time: 0.11 seconds (average: 2.68 ms/frame)
-GPU time: 0.72 seconds (average: 17.93 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:33.0 (3% of real-time speed).
+CPU time: 0.14 seconds (average: 3.41 ms/frame)
+GPU time: 0.92 seconds (average: 22.98 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -75,9 +75,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_tracks.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:28.0 (3% of real-time speed).
-CPU time: 0.07 seconds (average: 1.84 ms/frame)
-GPU time: 0.72 seconds (average: 17.92 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:35.0 (2% of real-time speed).
+CPU time: 0.09 seconds (average: 2.32 ms/frame)
+GPU time: 0.91 seconds (average: 22.84 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -92,9 +92,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_race.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:48.0 (2% of real-time speed).
-CPU time: 1.13 seconds (average: 28.17 ms/frame)
-GPU time: 1.32 seconds (average: 32.92 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:01.0:01.0 (1% of real-time speed).
+CPU time: 1.32 seconds (average: 33.09 ms/frame)
+GPU time: 1.61 seconds (average: 40.36 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -118,9 +118,9 @@ Movie Maker mode enabled, recording movie at 30 FPS...
 [QAPROBE] cam_fwd=(0.168984, -0.076886, 0.982615) pitch=-0.08
 ----------------
 Done recording movie at path: /tmp/shot_roam.png
-110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:01.0:44.0 (2% of real-time speed).
-CPU time: 3.07 seconds (average: 27.94 ms/frame)
-GPU time: 3.92 seconds (average: 35.67 ms/frame)
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:15.0 (2% of real-time speed).
+CPU time: 3.70 seconds (average: 33.62 ms/frame)
+GPU time: 4.89 seconds (average: 44.47 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -135,9 +135,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_achievements.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:28.0 (3% of real-time speed).
-CPU time: 0.07 seconds (average: 1.73 ms/frame)
-GPU time: 0.69 seconds (average: 17.15 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:34.0 (2% of real-time speed).
+CPU time: 0.09 seconds (average: 2.33 ms/frame)
+GPU time: 0.89 seconds (average: 22.21 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -152,9 +152,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_daily.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:32.0 (3% of real-time speed).
-CPU time: 0.06 seconds (average: 1.38 ms/frame)
-GPU time: 0.85 seconds (average: 21.19 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:40.0 (2% of real-time speed).
+CPU time: 0.07 seconds (average: 1.67 ms/frame)
+GPU time: 1.09 seconds (average: 27.26 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -169,9 +169,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_settings.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:23.0 (4% of real-time speed).
-CPU time: 0.05 seconds (average: 1.16 ms/frame)
-GPU time: 0.66 seconds (average: 16.53 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:28.0 (3% of real-time speed).
+CPU time: 0.05 seconds (average: 1.35 ms/frame)
+GPU time: 0.87 seconds (average: 21.79 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -186,9 +186,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_credits.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:26.0 (3% of real-time speed).
-CPU time: 0.04 seconds (average: 1.10 ms/frame)
-GPU time: 0.69 seconds (average: 17.22 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:31.0 (3% of real-time speed).
+CPU time: 0.06 seconds (average: 1.39 ms/frame)
+GPU time: 0.89 seconds (average: 22.33 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
@@ -203,9 +203,9 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 Movie Maker mode enabled, recording movie at 30 FPS...
 ----------------
 Done recording movie at path: /tmp/shot_profile.png
-40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:27.0 (3% of real-time speed).
-CPU time: 0.07 seconds (average: 1.72 ms/frame)
-GPU time: 0.67 seconds (average: 16.66 ms/frame)
+40 frames at 30 FPS (movie length: 00.0:00.0:01.0), recorded in 00.0:00.0:33.0 (3% of real-time speed).
+CPU time: 0.08 seconds (average: 2.11 ms/frame)
+GPU time: 0.88 seconds (average: 21.89 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
