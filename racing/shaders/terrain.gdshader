@@ -42,8 +42,7 @@ float vnoise(vec2 p) {
 float fbm(vec2 p) {
 	float acc = 0.0;
 	float a = 0.5;
-	int i = 0;
-	for (i = 0; i < 5; i++) {
+	for (int i = 0; i < 5; i++) {
 		acc += a * vnoise(p);
 		p *= 2.03;
 		a *= 0.5;
