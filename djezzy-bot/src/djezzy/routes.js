@@ -83,7 +83,7 @@ export async function discoverDzProxies() {
   };
 
   await Promise.all([
-    // GeoNode — بروكسيات مصنّفة بالبلد DZ
+    // GeoNode — بروكسيات مصنّفة بالبلد DZ (الأولوية القصوى)
     grab(
       'https://proxylist.geonode.com/api/proxy-list?limit=100&page=1&sort_by=lastChecked&sort_type=desc&country=DZ&protocols=http%2Chttps',
       (text) => {
@@ -99,11 +99,26 @@ export async function discoverDzProxies() {
     grab('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=DZ&ssl=all&anonymity=all', (text) =>
       text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^\d{1,3}(\.\d{1,3}){3}:\d{2,5}$/.test(line)),
     ),
+    // قوائم عالمية (آخر حل): إن كان الحجب لعناوين سحابة معيّنة لا للبلد، يمرّ أحد هذه
+    grab(
+      'https://proxylist.geonode.com/api/proxy-list?limit=60&page=1&sort_by=lastChecked&sort_type=desc&protocols=http%2Chttps',
+      (text) => {
+        try {
+          const json = JSON.parse(text);
+          return (json.data || []).map((item) => `${item.ip}:${item.port}`);
+        } catch {
+          return [];
+        }
+      },
+    ),
+    grab('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=elite', (text) =>
+      text.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^\d{1,3}(\.\d{1,3}){3}:\d{2,5}$/.test(line)),
+    ),
   ]);
 
-  AUTO_CACHE.list = [...found.values()].slice(0, 12);
+  AUTO_CACHE.list = [...found.values()].slice(0, 14);
   AUTO_CACHE.fetchedAt = Date.now();
-  if (AUTO_CACHE.list.length) log.info(`تم اكتشاف ${AUTO_CACHE.list.length} بروكسي جزائري عمومي.`);
+  if (AUTO_CACHE.list.length) log.info(`تم اكتشاف ${AUTO_CACHE.list.length} بروكسي عمومي.`);
   return AUTO_CACHE.list;
 }
 

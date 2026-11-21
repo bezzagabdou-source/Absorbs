@@ -220,8 +220,8 @@ async function probeHandler(req, res) {
       };
 
       const discovered = await discoverDzProxies();
-      const results = [await testOne(null)];
-      for (const proxy of discovered.slice(0, 8)) results.push(await testOne(proxy));
+      const tested = await Promise.all([testOne(null), ...discovered.slice(0, 8).map((proxy) => testOne(proxy))]);
+      const results = tested;
       const working = results.filter((item) => item.ok).map((item) => item.route);
 
       res.status(200).json({
