@@ -43,20 +43,22 @@ jobs:
       - name: Capture roam
         run: |
           set -x
-          timeout -k 5 120 xvfb-run -a -s "-screen 0 1920x1080x24" \
+          mkdir -p racing/docs/screenshots
+          timeout -k 5 200 xvfb-run -a -s "-screen 0 1920x1080x24" \
             "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
             --rendering-driver opengl3 --resolution 1920x1080 \
-            --write-movie /tmp/roam.png --fixed-fps 30 --quit-after 40 \
+            --write-movie /tmp/roam.png --fixed-fps 30 --quit-after 110 \
             -- --screen=roam >/tmp/roam.log 2>&1 || true
           last=$(ls -t /tmp/roam*.png 2>/dev/null | head -1)
           echo "captured: $last"
           [ -n "$last" ] && cp "$last" racing/docs/screenshots/qa_roam_plain.png
-          tail -40 /tmp/roam.log || true
+          { echo "==== console tail ===="; tail -60 /tmp/roam.log; } > racing/docs/qa_console.log || true
+          cp "$HOME/.local/share/godot/app_userdata"/*/qa_probe.log racing/docs/qa_probe_plain.log 2>/dev/null || true
 
       - name: Commit the captures
         run: |
           git config user.name "Arena Agent"
           git config user.email "agent@arena.ai"
-          git add -f racing/docs/screenshots/qa_roam_*.png racing/docs/qa_probe*.log 2>/dev/null || true
+          git add -f racing/docs/screenshots/qa_roam_*.png racing/docs/qa_probe*.log racing/docs/qa_console.log 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore(qa): roam capture [skip ci]"
           git push origin HEAD:arena/cf18c72b-absorbs || true
