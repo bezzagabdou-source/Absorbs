@@ -105,6 +105,8 @@ func _build_open_world() -> void:
 ## through post_fx.gdshader, so the grade, vignette, aberration, grain and
 ## flare all stay inside the mobile fill budget (one full-screen pass).
 func _build_post() -> void:
+	if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-no-post"):
+		return
 	var shader_path := "res://shaders/post_fx.gdshader"
 	if not ResourceLoader.exists(shader_path):
 		return
@@ -230,31 +232,42 @@ func _spawn_player() -> void:
 	cam.bind(player)
 	player.input_enabled = true
 	if roaming and (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-probe"):
-		_qa_probe.call_deferred()
+		# a timer, not call_deferred: the screenshot run quits after 40 frames and
+		# deferred calls were being dropped before they could print
+		var t := Timer.new()
+		t.wait_time = 0.35
+		t.one_shot = true
+		t.autostart = true
+		t.timeout.connect(_qa_probe)
+		add_child(t)
 
 
-## QA-only geometry probe: one downward ray per sample point, so a CI notice says
-## exactly what surface (if any) is under the car and under the camera.
+## QA-only geometry probe. Prints what is actually in front of the camera so a CI
+## notice answers "is the ground under the car?" with numbers instead of guesses.
 func _qa_probe() -> void:
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
-	var car_p: Vector3 = player.global_position
-	var cam_p: Vector3 = cam.camera().global_position
-	print("[QAPROBE] car=%s cam=%s fov=%.1f far=%.0f" % [car_p, cam_p,
-		cam.camera().fov, cam.camera().far])
-	for probe in [["car", car_p], ["cam", cam_p], ["ahead", car_p - player.global_transform.basis.z * 20.0]]:
-		var q := PhysicsRayQueryParameters3D.create(Vector3(probe[1].x, probe[1].y + 60.0, probe[1].z),
-			Vector3(probe[1].x, probe[1].y - 120.0, probe[1].z))
+	var c: Camera3D = cam.camera()
+	var cp: Vector3 = c.global_position
+	var fwd: Vector3 = -c.global_transform.basis.z
+	var ground: float = open_world.height_at(cp.x, cp.z)
+	print("[QAPROBE] cam=%s fwd=%s ground_under_cam=%.2f car_y=%.2f" % [cp, fwd, ground,
+		player.global_position.y])
+	var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
+	for probe in [["under_cam", cp], ["under_car", player.global_position],
+			["ahead_25m", cp + fwd * 25.0]]:
+		var base: Vector3 = probe[1]
+		var q := PhysicsRayQueryParameters3D.create(Vector3(base.x, base.y + 80.0, base.z),
+			Vector3(base.x, base.y - 200.0, base.z))
 		var hit: Dictionary = space.intersect_ray(q)
 		if hit.is_empty():
-			print("[QAPROBE] %s: no hit" % probe[0])
+			print("[QAPROBE] %s: NO HIT" % probe[0])
 		else:
-			print("[QAPROBE] %s: y=%.2f node=%s" % [probe[0], (hit["position"] as Vector3).y,
-				str((hit["collider"] as Node).name)])
-	print("[QAPROBE] terrain_visible=%s road_visible=%s" % [
-		open_world.terrain_mesh_instance.is_visible_in_tree() if open_world.terrain_mesh_instance else false,
-		true])
+			print("[QAPROBE] %s: hit y=%.2f %s" % [probe[0],
+				(hit["position"] as Vector3).y, str((hit["collider"] as Node).name)])
+	var tm: MeshInstance3D = open_world.terrain_mesh_instance
+	if tm and tm.mesh:
+		print("[QAPROBE] terrain aabb=%s node_pos=%s visible=%s layers=%d" % [
+			tm.mesh.get_aabb(), tm.global_position, tm.is_visible_in_tree(), tm.layers])
+	print("[QAPROBE] post_present=%s env_fog=%.5f" % [post != null, 0.0])
 
 
 func _spawn_ai() -> void:
