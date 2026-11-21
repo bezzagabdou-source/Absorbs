@@ -175,9 +175,12 @@ func _road_faces_up(ow: Node) -> bool:
 		return false
 	var arrays: Array = mi.mesh.surface_get_arrays(0)
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
 	var order: Array = []
-	if idx.size() > 0:
+	# ARRAY_INDEX is Nil for a non-indexed SurfaceTool mesh, and assigning Nil to
+	# a typed PackedInt32Array raises. Read it untyped and branch on the result.
+	var raw_idx = arrays[Mesh.ARRAY_INDEX]
+	if raw_idx is PackedInt32Array and (raw_idx as PackedInt32Array).size() > 0:
+		var idx: PackedInt32Array = raw_idx
 		for k in range(idx.size()):
 			order.append(verts[idx[k]])
 	else:
