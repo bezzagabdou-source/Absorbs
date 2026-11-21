@@ -57,7 +57,10 @@ const PRESETS := {
 	"city_night": {
 		"top": Color(0.02, 0.03, 0.10), "horizon": Color(0.30, 0.12, 0.36),
 		"ground": Color(0.02, 0.02, 0.03), "glow": Color(1.0, 0.35, 0.55),
-		"stars": 1.0, "clouds": 0.45, "sun_dir": Vector3(0.35, 0.28, -0.9),
+		# A moon at y=0.28 sits ~16 deg above the horizon, so 20 m hills cast
+		# 90 m shadows and the whole map reads as black wedges. Overhead-ish
+		# moonlight keeps the terrain lit while still reading as night.
+		"stars": 1.0, "clouds": 0.45, "sun_dir": Vector3(0.30, 0.92, -0.42),
 		"sun_color": Color(0.78, 0.86, 1.0), "sun_energy": 0.62,
 		"ambient": Color(0.34, 0.38, 0.56), "ambient_energy": 2.3,
 		"fog": Color(0.12, 0.10, 0.20),
