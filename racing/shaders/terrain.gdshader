@@ -17,6 +17,11 @@ uniform float detail_scale = 0.9;
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
 uniform float road_blend_width = 7.0;
 uniform float road_fade = 0.0;
+// Colour of the sky above the horizon, written by the environment rig each time
+// the preset changes. Used as the ground-level bounce so a night map is lit by
+// its own sky instead of by a hard-coded guess.
+uniform vec3 sky_bounce_color : source_color = vec3(0.36, 0.31, 0.52);
+uniform float sky_bounce_energy : hint_range(0.0, 3.0) = 1.0;
 
 varying vec3 wpos;
 varying vec3 wnorm;

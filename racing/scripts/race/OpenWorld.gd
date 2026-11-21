@@ -99,6 +99,39 @@ func height_at(x: float, z: float) -> float:
 			h = base * 26.0 + detail_noise.get_noise_2d(x, z) * 1.6
 	# flatten the outer rim so the world does not end in a cliff
 	h *= 1.0 - smoothstep(0.88, 1.0, d) * 0.85
+	# --- carve the highway corridor ---------------------------------------
+	# The ring radius is a deterministic function of angle, so the terrain can be
+	# blended toward the road's own height without any lookup. Without this the
+	# road (a flat ribbon) dips under hills, and the ground reads as a black wedge
+	# cutting across the frame.
+	var ang: float = atan2(z, x)
+	var ring_r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
+	var road_h: float = _ring_height(ang)
+	var corridor: float = smoothstep(46.0, 15.0, absf(Vector2(x, z).length() - ring_r))
+	h = lerpf(h, road_h, corridor)
+	return h
+
+
+## Height of the ring highway at a given angle. Kept as one function so the road
+## mesh and the terrain carve can never drift apart.
+func _ring_height(ang: float) -> float:
+	var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
+	var x: float = cos(ang) * r
+	var z: float = sin(ang) * r
+	# base noise only: no carve, otherwise this recurses
+	var base: float = height_noise.get_noise_2d(x, z)
+	var profile: String = str(region.get("profile", "metro"))
+	var h := 0.0
+	match profile:
+		"alpine":
+			h = base * 180.0 + pow(maxf(0.0, base), 1.6) * 260.0
+		"desert":
+			h = base * 46.0 + sin(x * 0.0026) * 14.0 + cos(z * 0.0031) * 11.0
+			h += detail_noise.get_noise_2d(x * 0.6, z * 0.6) * 4.5
+		"coast":
+			h = base * 120.0
+		_:
+			h = base * 26.0 + detail_noise.get_noise_2d(x, z) * 1.6
 	return h
 
 
@@ -171,6 +204,10 @@ func _build_terrain() -> void:
 			mat.set_shader_parameter("rock_color", Color(0.22, 0.23, 0.27))
 			mat.set_shader_parameter("sand_color", Color(0.27, 0.26, 0.29))
 			mat.set_shader_parameter("snow_line", 4.0)
+	# light the ground with the map's own sky colour
+	var accent: Color = region.get("accent", Color(0.13, 0.91, 1.0))
+	mat.set_shader_parameter("sky_bounce_color", Color(0.30, 0.26, 0.46).lerp(accent, 0.18))
+	mat.set_shader_parameter("sky_bounce_energy", 1.45)
 	mi.material_override = mat
 	terrain_mesh_instance = mi
 	add_child(mi)
@@ -188,15 +225,14 @@ func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
 
 ## Main ring highway + four radial spurs, carved into the terrain.
 func _build_road_network() -> void:
-	var centre := Vector3(0, 0, 0)
 	road_points = PackedVector3Array()
 	for i in range(ROAD_SEGMENTS):
 		var a: float = float(i) / float(ROAD_SEGMENTS) * TAU
-		# radius modulated so the loop is not a perfect circle
 		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
 		var x: float = cos(a) * r
 		var z: float = sin(a) * r
-		road_points.append(Vector3(x, height_at(x, z) + 0.9, z))
+		# sit a hair above the carved corridor so there is no z-fight with it
+		road_points.append(Vector3(x, _ring_height(a) + 0.12, z))
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
