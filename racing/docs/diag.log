@@ -2,8 +2,6 @@
 WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
 ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
 WARNING: All audio drivers failed, falling back to the dummy driver.
-WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
-ERROR: 2 resources still in use at exit (run with --verbose for details).
 ### /tmp/diag_race.log
 WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
 ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN
