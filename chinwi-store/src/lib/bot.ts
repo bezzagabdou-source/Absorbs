@@ -614,7 +614,7 @@ async function sendProduct(chatId: number, productId: number, s: SettingsMap): P
   // 🔐 الألعاب التي لا تدعم الشحن بالآي دي (مثل Konami) → شحن بالحساب: الزبون يرسل معلومات حسابه بنفسه للمالك — البوت لا يطلب كلمة السر أبداً
   const needsAccount = (p.fields ?? []).some((f) => f.key === "password" || f.key === "account");
   const accountNote = needsAccount
-    ? "🔐 <b>شحن بالحساب</b> — ما تعطيش كلمة السر فالبوت، بعد الطلب أرسل معلومات حسابك مباشرة للمالك عبر <b>بوت تواصل</b>: https://t.me/chinwicontactbot"
+    ? "🔐 <b>شحن بالحساب</b> — للشحن بالحساب، تواصل مع المالك مباشرة."
     : "";
   const details = needsAccount ? "" : (p.fields ?? []).map((f) => `• ${escapeHtml(f.label)}`).join("\n");
   const caption = [
@@ -723,18 +723,19 @@ async function startPurchase(chatId: number, productId: number, userId: number, 
   if (byAccount) {
     // 🔐 شحن بالحساب: ما نسقسيوش على كلمة السر ولا اسم الحساب فالبوت — الطلب يتخلق بلا بيانات حساب،
     // والزبون يرسل معلومات حسابه بنفسه للمالك عبر بوت تواصل، والمالك توصله طلبية فوراً مع رابط محادثته.
+    const handle = settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "");
     const order = await createOrderAndShowPayment(chatId, userId, p, {}, s);
     if (order) {
       await sendMessage(
         chatId,
         [
-          "🔐 <b>شحن بالحساب — خطوة أخيرة!</b>",
+          "🔐 <b>شحن بالحساب</b>",
           "",
-          "ما تعطيش كلمة السر ولا اسم الحساب هنا فالبوت.",
-          `أرسلهم <b>مباشرة للمالك عبر بوت تواصل</b> واذكر رقم طلبك <code>${order.code}</code>:`,
+          "للشحن بالحساب، <b>تواصل مع المالك مباشرة</b> وسيتولى طلبك بنفسه.",
+          `🧾 رقم طلبك: <code>${order.code}</code>`,
         ].join("\n"),
         kb([
-          [link(`🔗 بوت تواصل`, `https://t.me/chinwicontactbot`)],
+          [link(`💬 تواصل مع المالك`, `https://t.me/${handle}`)],
           [b(`🧾 طلباتي`, "orders")],
         ]),
       );
@@ -816,7 +817,7 @@ async function createOrderAndShowPayment(
       `💰 ${money(amount, cur)}`,
       `👤 ${user ? mentions(user as unknown as TgUser) : "زبون"} — <code>${userId}</code>`,
       `🧾 <code>${order.code}</code>`,
-      byAccount ? "🔐 «شحن بالحساب» — معلومات الحساب يوصلوه عبر بوت تواصل (ماشي فالبوت)" : "",
+      byAccount ? "🔐 «شحن بالحساب» — الزبون يتواصل معك مباشرة" : "",
     ]
       .filter(Boolean)
       .join("\n"),

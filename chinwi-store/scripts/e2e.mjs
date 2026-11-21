@@ -412,7 +412,7 @@ await check("usd: اختيار السعر → الكمية → الدفع → ا
 });
 
 /* 6b. شراء شحن بالحساب — بلا كلمة سر فالبوت */
-await check("buy: شحن بالحساب → يرسله للمالك عبر بوت تواصل + المالك توصله طلبية", async () => {
+await check("buy: شحن بالحساب → تواصل مباشر مع المالك + المالك توصله طلبية", async () => {
   await resetSent();
   const pes = await db.query(
     "select p.id, p.name from products p join categories c on c.id = p.category_id where c.slug = 'efootball' and p.active = true order by p.id limit 1",
@@ -423,10 +423,11 @@ await check("buy: شحن بالحساب → يرسله للمالك عبر بو�
   // 1) لا يسأل البوت على كلمة السر — مباشرة «إتمام الدفع»
   const pay = await waitForMessage(555, (m) => (m.text ?? "").includes("إتمام الدفع"));
   assert.ok(!((pay.text ?? "").includes("الخطوة")), "ما يسألش على كلمة السر");
-  // 2) الزبون يوصله إرشاد يرسله للمالك عبر بوت تواصل مع كود الطلب
-  const dash = await waitForMessage(555, (m) => (m.text ?? "").includes("بوت تواصل"));
-  assert.ok(hasButton(dash, "بوت تواصل"), "زر بوت تواصل ظاهر");
+  // 2) الزبون يوصله «تواصل مع المالك مباشرة» فقط — بلا كلمة سر ولا اسم حساب ولا بوت تواصل
+  const dash = await waitForMessage(555, (m) => (m.text ?? "").includes("تواصل مع المالك"));
+  assert.ok(hasButton(dash, "تواصل مع المالك"), "زر تواصل مع المالك ظاهر");
   assert.ok(!((dash.text ?? "").includes("الخطوة")), "لا أسئلة كلمة سر");
+  assert.ok(!((dash.text ?? "").includes("بوت تواصل")), "ما فيش توجيه لبوت تواصل");
   // 3) الطلب انخلق بدون أي بيانات حساب
   const order = (await db.query("select * from orders where product_id = $1 order by id desc limit 1", [pesProduct.id])).rows[0];
   assert.ok(order, "انخلق طلب");
