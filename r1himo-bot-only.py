@@ -9,6 +9,8 @@ Python 3.8+، مكتبات Python القياسية وSQLite، ولا يحتاج 
 """
 
 import hmac
+import hashlib
+from decimal import Decimal, InvalidOperation
 import html
 import json
 import logging
@@ -1985,7 +1987,7 @@ def notify_public_event(kind, user, product=None, qty=1, deposit=None):
     if kind == "purchase":
         body = "✨<b>New purchase</b>\n<blockquote>🆔 User: %s\n📦 Product: <b>%s</b>\n📊 Quantity: %d</blockquote>" % (esc(mask_user_id(user["tg_id"])), esc((product or {}).get("name", "—")[:150]), qty)
     elif kind == "deposit" and deposit:
-        body = "💰<b>New deposit</b>\n<blockquote>🆔 User: %s\n💵 Amount: <b>%.3f USDT</b>\n💳 Method: %s</blockquote>" % (esc(mask_user_id(user["tg_id"])), to_float(deposit.get("amount"), 0), esc((deposit.get("method") or "Binance Pay").replace("binance", "Binance Pay")))
+        body = "💰<b>New deposit</b>\n<blockquote>🆔 User: %s\n💵 Amount: <b>%.3f USDT</b>\n💳 Method: %s</blockquote>" % (esc(mask_user_id(user["tg_id"])), to_float(deposit.get("amount"), 0), esc({'binance':'Binance Pay','binance_merchant':'Binance Pay Merchant','bep20':'BEP20','trc20':'TRC20'}.get(deposit.get('method'), deposit.get('method') or 'Binance Pay')))
     else:
         return
     try:
@@ -2237,6 +2239,101 @@ def deliver_order(user, product, qty=1, expected_total=None):
 
 
 # ============================================================================
+#  BINANCE PAY MERCHANT (credentials stay in environment, not Telegram or DB)
+# ============================================================================
+BINANCE_PAY_API_KEY = os.environ.get('BINANCE_PAY_API_KEY', '').strip()
+BINANCE_PAY_API_SECRET = os.environ.get('BINANCE_PAY_API_SECRET', '').strip()
+_BINANCE_HOST = 'https://bpay.binanceapi.com'
+
+
+class BinanceError(Exception):
+    pass
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def binance_call(path, payload):
+    if path not in ('/binancepay/openapi/certificates', '/binancepay/openapi/v3/order', '/binancepay/openapi/v2/order/query'):
+        raise BinanceError('unsupported endpoint')
+    if not BINANCE_PAY_API_KEY or not BINANCE_PAY_API_SECRET:
+        raise BinanceError('not configured')
+    body = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    timestamp = str(int(time.time()*1000)); nonce = secrets.token_hex(16)
+    signature = hmac.new(BINANCE_PAY_API_SECRET.encode(), timestamp.encode()+b'\n'+nonce.encode()+b'\n'+body+b'\n', hashlib.sha512).hexdigest().upper()
+    req = urllib.request.Request(_BINANCE_HOST+path, data=body, method='POST', headers={
+        'Content-Type':'application/json', 'BinancePay-Timestamp':timestamp,
+        'BinancePay-Nonce':nonce, 'BinancePay-Certificate-SN':BINANCE_PAY_API_KEY,
+        'BinancePay-Signature':signature})
+    try:
+        with urllib.request.build_opener(_NoRedirect()).open(req, timeout=8) as response:
+            raw=response.read(262145)
+        if len(raw)>262144: raise BinanceError('response too large')
+        result=json.loads(raw.decode('utf-8'))
+        if not isinstance(result,dict): raise BinanceError('invalid response')
+        return result
+    except BinanceError:
+        raise
+    except Exception:
+        # Never log request headers, API keys, server bodies or exception text.
+        raise BinanceError('network or invalid response') from None
+
+
+def binance_enabled():
+    return store.get_bool('binance_merchant_enabled', False) and bool(BINANCE_PAY_API_KEY and BINANCE_PAY_API_SECRET)
+
+
+def binance_check_deposit(dep):
+    if not dep or dep.get('method') != 'binance_merchant' or dep.get('status') != 'pending': return False
+    trade_no = str(dep.get('txid') or '')
+    if not re.fullmatch(r'[A-Za-z0-9]{1,32}',trade_no): return False
+    try:
+        result = binance_call('/binancepay/openapi/v2/order/query', {'merchantTradeNo': trade_no})
+        data=result.get('data') or {}
+        if not isinstance(data, dict): return False
+        amount=Decimal(str(data.get('orderAmount','')))
+        expected=Decimal(str(dep['amount']))
+        return (result.get('status')=='SUCCESS' and str(result.get('code'))=='000000' and
+                data.get('status')=='PAID' and data.get('merchantTradeNo')==trade_no and
+                data.get('currency')=='USDT' and amount.is_finite() and amount==expected and
+                bool(data.get('transactionId')))
+    except (BinanceError, InvalidOperation, TypeError, ValueError):
+        return False
+
+
+def binance_make_invoice(user, amount):
+    if not binance_enabled():
+        return safe_send(user['tg_id'], '⚠️ Binance Pay Merchant غير مفعّل حالياً.')
+    trade_no=secrets.token_hex(16)
+    did=store.create_deposit(user['id'],amount,'binance_merchant',trade_no,'invoice creation pending')
+    state_clear(user['tg_id'])
+    body={'env':{'terminalType':'WEB'},'merchantTradeNo':trade_no,'orderAmount':amount,
+          'currency':'USDT','description':'Store wallet topup',
+          'goodsDetails':[{'goodsType':'02','goodsCategory':'Z000','referenceGoodsId':'wallet', 'goodsName':'Wallet topup'}]}
+    try:
+        result=binance_call('/binancepay/openapi/v3/order',body)
+        data=result.get('data') or {}
+        if not isinstance(data,dict): raise BinanceError('invalid response')
+        url=data.get('checkoutUrl') or ''
+        if not isinstance(url,str): raise BinanceError('invalid URL')
+        parsed=urllib.parse.urlsplit(url)
+        valid=(result.get('status')=='SUCCESS' and str(result.get('code'))=='000000' and
+               data.get('currency')=='USDT' and Decimal(str(data.get('totalFee','')))==Decimal(str(amount)) and
+               str(data.get('prepayId','')).isdigit() and parsed.scheme=='https' and parsed.hostname=='pay.binance.com' and
+               parsed.username is None and parsed.password is None and parsed.port in (None,443) and len(url)<=512)
+        if not valid: raise BinanceError('invoice rejected')
+    except (BinanceError, InvalidOperation, ValueError, TypeError):
+        notify_owner('⚠️ تعذر إنشاء فاتورة Binance للشحنة #%d. لم تتم إضافة رصيد؛ راجع لوحة Binance.' % did)
+        return safe_send(user['tg_id'],'⚠️ تعذر إنشاء رابط الدفع. لم يضف أي رصيد؛ تواصل مع الدعم.')
+    store.ex('UPDATE deposits SET note=? WHERE id=? AND status=?',(url,did,'pending'))
+    notify_owner('🟡 فاتورة Binance Pay #%d · %s. بعد الدفع تحقق منها من لوحة الشحنات قبل الموافقة.' % (did,price_str(amount)))
+    return safe_send(user['tg_id'], '🟡 <b>فاتورة Binance Pay #%d</b>\nالمبلغ: %s USDT\nبعد الدفع اضغط تحقق؛ إضافة الرصيد تتطلب موافقة المالك.' % (did,esc(format(amount,'.2f'))),
+        inline_keyboard([[_btn('💳 فتح صفحة الدفع','primary',None,url=url)],[_btn('🔄 تحقق من الدفع','success',None,cb='bpaycheck:%d' % did)]]))
+
+
+# ============================================================================
 #  DEPOSIT (BINANCE PAY)
 # ============================================================================
 
@@ -2246,11 +2343,16 @@ def deposit_start(user):
             [_btn('💠 USDT · BEP20', 'primary', None, cb='paymethod:bep20')],
             [_btn('💠 TRON · TRC20', 'primary', None, cb='paymethod:trc20')],
             [_btn(t('lbl_cancel', lang), 'danger', None, cb='cancel')]]
+    if binance_enabled(): rows.insert(0, [_btn('🟡 Binance Pay Merchant', 'success', None, cb='paymethod:binance_merchant')])
     return safe_send(user['tg_id'], '💳 اختر طريقة الشحن. تتم مراجعة كل طلب يدوياً قبل إضافة الرصيد.' if lang == 'ar' else '💳 Select a method. Each deposit is reviewed manually.', inline_keyboard(rows))
 
 
 def deposit_choose(user, method):
     lang = lang_of(user)
+    if method == 'binance_merchant':
+        if not binance_enabled(): return safe_send(user['tg_id'], '⚠️ الخدمة غير متاحة.')
+        state_set(user['tg_id'],'deposit_amount',expires=time.time()+session_minutes()*60, method=method)
+        return safe_send(user['tg_id'],'💵 أرسل مبلغ الشحن بعملة USDT لإنشاء فاتورة Binance Pay.', reply_keyboard([[_rbtn(t('lbl_cancel',lang),'danger')]]))
     options = {
         'binance': ('Binance Pay ID', store.get_setting('binance_pay_id', '1234077002')),
         'bep20': ('USDT BEP20', store.get_setting('bep20_address', '0xe64b863710576bc32063cde2039b9477888dc481')),
@@ -2550,6 +2652,9 @@ def handle_state(user, st, text, msg):
         if amount < minimum:
             safe_send(tg_id, "⚠️ " + (("الحد الأدنى للشحن هو %s." % price_str(minimum)) if lang == "ar"
                                       else ("Minimum top-up is %s." % price_str(minimum))))
+            return True
+        if st.get('method') == 'binance_merchant':
+            binance_make_invoice(user, amount)
             return True
         state_set(tg_id, "deposit_txid", amount=amount, method=st.get("method", "binance"),
                   expires=time.time() + session_minutes() * 60)
@@ -2867,6 +2972,15 @@ def handle_callback(cb):
     if head == "search":
         return run_route(user, "search")
 
+    if head == 'bpaycheck' and len(parts) == 2:
+        dep=store.get_deposit(to_int(parts[1]))
+        if not dep or dep.get('user_id')!=user['id'] or dep.get('method')!='binance_merchant': return
+        if dep.get('status')=='approved': return safe_send(chat_id,'✅ تمت إضافة الرصيد مسبقاً.')
+        if binance_check_deposit(dep):
+            notify_owner('✅ فاتورة Binance Pay #%d مدفوعة بحسب استعلام Binance؛ راجعها ووافق من لوحة الشحنات.' % dep['id'])
+            return safe_send(chat_id,'✅ ظهر الدفع في Binance. المالك سيراجع الطلب ويوافق على الشحن.')
+        return safe_send(chat_id,'⏳ لم يتأكد الدفع بعد أو تعذر الاتصال. حاول لاحقاً أو تواصل مع الدعم.')
+
     if head == "paymethod" and len(parts) == 2:
         return deposit_choose(user, parts[1])
 
@@ -2906,6 +3020,8 @@ def handle_callback(cb):
         if not dep:
             return
         if action == "ok":
+            if dep.get('method')=='binance_merchant' and not binance_check_deposit(dep):
+                return safe_send(chat_id,'⚠️ لا يمكن الموافقة: لم يؤكد Binance دفع هذه الفاتورة بالمبلغ والعملة المطلوبين، أو الاتصال غير متاح.')
             dep = store.review_deposit(did, "approved", "approved via bot")
             if not dep:
                 return safe_edit(chat_id, message_id, "⚠️ تمت مراجعة طلب الشحن مسبقاً.")
@@ -2920,6 +3036,8 @@ def handle_callback(cb):
                 ), build_main_keyboard(store.get_user(target["tg_id"])))
             return safe_edit(chat_id, message_id, "✅ #%d — %s" % (did, price_str(dep["amount"])))
         if action == "no":
+            if dep.get('method') == 'binance_merchant':
+                return safe_send(chat_id,'⚠️ لا ترفض فاتورة Binance من البوت؛ قد يدفعها العميل لاحقاً. راجعها من Binance واتصل بالدعم.')
             dep = store.review_deposit(did, "rejected", "rejected via bot")
             if not dep:
                 return safe_edit(chat_id, message_id, "⚠️ تمت مراجعة طلب الشحن مسبقاً.")
@@ -3170,6 +3288,7 @@ def admin_home(user, edit=None):
             [_btn('📝 النصوص والرسائل','primary',None,cb='a:ls:t:0'), _btn('🔤 تسميات الأزرار','primary',None,cb='a:ls:l:0')],
             [_btn('⚙️ الإعدادات والدفع','primary',None,cb='a:ls:s:0'), _btn('🏷 ضبط الخصم','success',None,cb='adm:discount')],
             [_btn('📣 الإذاعة','primary',None,cb='adm:broadcast'), _btn('💾 نسخة احتياطية','primary',None,cb='a:confirm:backup:0')],
+            [_btn('🔗 ربط Binance Pay','primary',None,cb='a:binance')],
             [_btn('🔄 تحديث','default',None,cb='a:home')],
             [_btn('🏪 المتجر','default',None,cb='menu')]]
     markup = inline_keyboard(rows)
@@ -3302,6 +3421,25 @@ def admin_dispatch(user, parts, edit=None):
     if action == 'home': return admin_home(user,edit)
     if action == 'ls' and len(parts)==3: return admin_list(user,parts[1],to_int(parts[2]),edit)
     if action == 'item' and len(parts)==3: return admin_item(user,parts[1],to_int(parts[2],-1),edit)
+    if action in ('binance','binance_test','binance_toggle'):
+        if user['tg_id'] not in owner_ids(): return admin_show(user,'⛔ للمالك الأساسي فقط.',[],edit)
+        configured=bool(BINANCE_PAY_API_KEY and BINANCE_PAY_API_SECRET)
+        if action == 'binance_toggle':
+            if not configured: return admin_show(user,'⚠️ أضف بيانات Merchant في بيئة الاستضافة أولاً، ولا ترسلها في المحادثة.',[],edit)
+            store.set_setting('binance_merchant_enabled','0' if store.get_bool('binance_merchant_enabled') else '1')
+        result=''
+        if action == 'binance_test':
+            try:
+                response=binance_call('/binancepay/openapi/certificates',{})
+                result='✅ استجاب Binance لطلب الشهادات. جرّب فاتورة صغيرة قبل الاستخدام.' if response.get('status')=='SUCCESS' and str(response.get('code'))=='000000' else '❌ رفض Binance الطلب؛ راجع صلاحيات Merchant ومفاتيح البيئة.'
+            except BinanceError:
+                result='❌ تعذر الاتصال أو الإعداد غير مكتمل. راجع شبكة الاستضافة وصلاحيات Merchant.'
+        enabled=store.get_bool('binance_merchant_enabled')
+        text=('🔗 <b>Binance Pay Merchant</b>\nالحالة: %s\nالبيانات: %s\n\n'
+              'ضع BINANCE_PAY_API_KEY وBINANCE_PAY_API_SECRET في متغيرات بيئة الاستضافة، ثم أعد النشر. '
+              'لا ترسل المفاتيح للبوت. يلزم حساب Merchant معتمد وصلاحية معالجة الدفع. '
+              'الشحنات تُراجع وتُعتمد يدوياً بعد فحص الفاتورة.\n%s') % ('مفعّل' if enabled else 'معطّل','موجودة' if configured else 'غير مضبوطة',result)
+        return admin_show(user,text,[[_btn('🔍 اختبار الاتصال','primary',None,cb='a:binance_test'),_btn('🔄 تفعيل / إيقاف','success',None,cb='a:binance_toggle')]],edit)
     if action == 'finduser': return admin_prompt(user, mode='finduser',prompt='🔎 أرسل رقم Telegram ID للمستخدم.')
     if action == 'new' and len(parts)==2 and parts[1] in ('p','c','b'):
         return admin_prompt(user, mode='new',entity=parts[1],prompt='➕ أرسل اسم العنصر الجديد. بعد إنشائه عدّل تفاصيله من أزراره.')

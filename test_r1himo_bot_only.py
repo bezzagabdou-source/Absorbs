@@ -232,6 +232,79 @@ class BotAdminTests(unittest.TestCase):
             self.assertEqual(bot.store.get_user(222)['balance'],5)
             bot.store.adjust_balance(222,-5)
 
+    def test_binance_merchant_flow_is_verified_and_owner_only(self):
+        old_key,old_secret,old_call=bot.BINANCE_PAY_API_KEY,bot.BINANCE_PAY_API_SECRET,bot.binance_call
+        bot.BINANCE_PAY_API_KEY='fake-key'; bot.BINANCE_PAY_API_SECRET='fake-secret'
+        calls=[]; state={'paid':False,'amount':'5.00','currency':'USDT','trade_override':None}
+        def fake(path,payload):
+            calls.append((path,payload))
+            if path.endswith('/certificates'): return {'status':'SUCCESS','code':'000000','data':[]}
+            if path.endswith('/v3/order'):
+                return {'status':'SUCCESS','code':'000000','data':{'currency':'USDT','totalFee':'5.00','prepayId':'12345','checkoutUrl':'https://pay.binance.com/checkout/fake'}}
+            return {'status':'SUCCESS','code':'000000','data':{'merchantTradeNo':state['trade_override'] or payload['merchantTradeNo'],'status':'PAID' if state['paid'] else 'PENDING','currency':state['currency'],'orderAmount':state['amount'],'transactionId':'t123'}}
+        bot.binance_call=fake
+        try:
+            self.callback(self.buyer,'a:binance_toggle')
+            self.assertFalse(bot.store.get_bool('binance_merchant_enabled'))
+            self.callback(self.owner,'a:binance_test')
+            self.assertTrue(any(x[0].endswith('/certificates') for x in calls))
+            self.callback(self.owner,'a:binance_toggle')
+            self.callback(self.buyer,'topup'); self.callback(self.buyer,'paymethod:binance_merchant'); self.message(self.buyer,'5')
+            dep=bot.store.deposits_list(limit=1)[0]
+            self.assertEqual(dep['method'],'binance_merchant')
+            self.assertIn('https://pay.binance.com/checkout/fake',dep['note'])
+            before=len(calls)
+            self.callback(self.owner,'bpaycheck:%d' % dep['id'])
+            self.assertEqual(len(calls),before)  # another user's invoice
+            self.callback(self.buyer,'bpaycheck:%d' % dep['id'])
+            self.callback(self.owner,'dep:ok:%d' % dep['id'])
+            self.assertEqual(bot.store.get_user(222)['balance'],0)
+            state['paid']=True; state['currency']='BTC'
+            self.callback(self.owner,'dep:ok:%d' % dep['id'])
+            state['currency']='USDT'; state['amount']='5.01'
+            self.callback(self.owner,'dep:ok:%d' % dep['id'])
+            state['amount']='5.00'; state['trade_override']='another'
+            self.callback(self.owner,'dep:ok:%d' % dep['id'])
+            self.assertEqual(bot.store.get_user(222)['balance'],0)
+            state['trade_override']=None
+            self.callback(self.buyer,'bpaycheck:%d' % dep['id'])
+            self.assertEqual(bot.store.get_user(222)['balance'],0) # still manual approval
+            self.callback(self.owner,'dep:ok:%d' % dep['id']); self.callback(self.owner,'dep:ok:%d' % dep['id'])
+            self.assertEqual(bot.store.get_user(222)['balance'],5)
+            events=[p for m,p in bot.tg.calls if m=='sendMessage' and p.get('chat_id')==-1004365740808]
+            self.assertEqual(len(events),1)
+            self.assertIn('Binance Pay Merchant',events[0]['text'])
+        finally:
+            bot.BINANCE_PAY_API_KEY,bot.BINANCE_PAY_API_SECRET,bot.binance_call=old_key,old_secret,old_call
+
+    def test_binance_request_signing_and_bad_checkout(self):
+        old_key,old_secret,old_open=bot.BINANCE_PAY_API_KEY,bot.BINANCE_PAY_API_SECRET,bot.urllib.request.build_opener
+        bot.BINANCE_PAY_API_KEY='fake-key'; bot.BINANCE_PAY_API_SECRET='fake-secret'
+        sent=[]
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self,*args): pass
+            def read(self,n): return b'{"status":"SUCCESS","code":"000000","data":[]}'
+        class Opener:
+            def open(self,req,timeout): sent.append(req); return Response()
+        bot.urllib.request.build_opener=lambda *args: Opener()
+        try:
+            bot.binance_call('/binancepay/openapi/certificates',{})
+            req=sent[0]; headers={k.lower():v for k,v in req.header_items()}
+            payload=(headers['binancepay-timestamp']+'\n'+headers['binancepay-nonce']+'\n').encode()+req.data+b'\n'
+            self.assertEqual(headers['binancepay-signature'],bot.hmac.new(b'fake-secret',payload,bot.hashlib.sha512).hexdigest().upper())
+            self.assertEqual(req.full_url,'https://bpay.binanceapi.com/binancepay/openapi/certificates')
+            with self.assertRaises(bot.BinanceError): bot.binance_call('/unknown',{})
+            bot.store.set_setting('binance_merchant_enabled','1')
+            old_call=bot.binance_call
+            bot.binance_call=lambda *args: {'status':'SUCCESS','code':'000000','data':{'currency':'USDT','totalFee':'5','prepayId':'123','checkoutUrl':'https://pay.binance.com.evil.test/steal'}}
+            self.callback(self.buyer,'paymethod:binance_merchant'); self.message(self.buyer,'5')
+            self.assertFalse(any(b.get('url','').startswith('https://pay.binance.com.evil') for b in self.last_buttons()))
+            self.assertEqual(bot.store.get_user(222)['balance'],0)
+            bot.binance_call=old_call
+        finally:
+            bot.BINANCE_PAY_API_KEY,bot.BINANCE_PAY_API_SECRET,bot.urllib.request.build_opener=old_key,old_secret,old_open
+
     def test_backup_contains_sqlite_snapshot(self):
         original = bot.urllib.request.urlopen
         payloads=[]

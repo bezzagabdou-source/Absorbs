@@ -271,7 +271,40 @@ class WebhookTests(unittest.TestCase):
             self.assertEqual((deposit['method'],deposit['status']),('trc20','pending'))
         self.calls.clear(); self.callback(1024,'dep:ok:%d' % deposit['id']); self.callback(1025,'dep:ok:%d' % deposit['id'])
         events=[p for p in self.sent('sendMessage') if p.get('chat_id')==-1004365740808]
-        self.assertEqual(len(events),1); self.assertIn('trc20',events[0]['text'])
+        self.assertEqual(len(events),1); self.assertIn('TRC20',events[0]['text'])
+
+
+
+    def test_08_binance_merchant_manual_review(self):
+        bot=index.rabot
+        saved=(bot.BINANCE_PAY_API_KEY,bot.BINANCE_PAY_API_SECRET,bot.binance_call)
+        bot.BINANCE_PAY_API_KEY='fake-key'; bot.BINANCE_PAY_API_SECRET='fake-secret'
+        status={'paid':False}
+        def fake(path,payload):
+            if path.endswith('/certificates'): return {'status':'SUCCESS','code':'000000','data':[]}
+            if path.endswith('/v3/order'): return {'status':'SUCCESS','code':'000000','data':{'currency':'USDT','totalFee':'5.00','prepayId':'12345','checkoutUrl':'https://pay.binance.com/checkout/fake'}}
+            return {'status':'SUCCESS','code':'000000','data':{'status':'PAID' if status['paid'] else 'PENDING','currency':'USDT','merchantTradeNo':payload['merchantTradeNo'],'transactionId':'123','orderAmount':'5'}}
+        bot.binance_call=fake
+        buyer=666666666
+        try:
+            self.message(1101,'/start',user=buyer)
+            self.callback(1102,'a:binance_test'); self.callback(1103,'a:binance_toggle')
+            self.callback(1104,'paymethod:binance_merchant',user=buyer); self.message(1105,'5',user=buyer)
+            with index._request_context() as st:
+                dep=st.deposits_list(limit=1)[0]
+                self.assertEqual(dep['method'],'binance_merchant')
+                self.assertEqual(st.get_user(buyer)['balance'],0)
+            self.callback(1106,'dep:ok:%d' % dep['id'])
+            with index._request_context() as st: self.assertEqual(st.get_user(buyer)['balance'],0)
+            status['paid']=True
+            self.callback(1107,'bpaycheck:%d' % dep['id'],user=buyer)
+            with index._request_context() as st: self.assertEqual(st.get_user(buyer)['balance'],0)
+            self.calls.clear(); self.callback(1108,'dep:ok:%d' % dep['id']); self.callback(1109,'dep:ok:%d' % dep['id'])
+            with index._request_context() as st: self.assertEqual(st.get_user(buyer)['balance'],5)
+            events=[p for p in self.sent('sendMessage') if p.get('chat_id')==-1004365740808]
+            self.assertEqual(len(events),1)
+        finally:
+            bot.BINANCE_PAY_API_KEY,bot.BINANCE_PAY_API_SECRET,bot.binance_call=saved
 
 
 
