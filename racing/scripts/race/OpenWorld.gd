@@ -302,17 +302,19 @@ func _build_road_network() -> void:
 
 ## Emit a quad as two triangles that BOTH face up.
 ##
-## This is worth spelling out because it is not the "obvious" split. The caller
-## derives `right = dir.cross(UP)`, and for the ring parametrised as
-## (cos a, sin a) that vector points to the *outside* of the loop (-X at angle 0),
-## which mirrors the usual counter-clockwise convention. Enumerating every
-## three-vertex permutation of the four corners against the real travel
-## direction, only `a,d,c` + `a,b,c` tile the quad with both normals pointing up.
-## The intuitive `a,c,b` + `b,c,d` split faces down, and `cull_back` then deletes
-## the entire highway.
+## Orientation here is genuinely counter-intuitive and cost three CI rounds to
+## settle, so it is pinned by a regression test (`highway faces up`). The caller
+## passes vertices as _quad(st, a, c, b, d) where a = p0-left, b = p0+right,
+## c = p1-left, d = p1+right and `right = dir.cross(UP)` points to the *outside*
+## of the ring. Solving every three-vertex permutation of the four corners
+## against the real travel direction gives exactly two upward pairings:
+##   (A,C,B) + (A,C,D)   <- this one
+##   (A,C,B) + (C,D,A)   <- equivalent split
+## Anything that consumes the diagonal the other way (`A,B,D` style) faces down
+## and `cull_back` deletes the whole highway.
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	_quad_tri(st, a, d, c)
-	_quad_tri(st, a, b, c)
+	_quad_tri(st, a, c, b)
+	_quad_tri(st, a, c, d)
 
 
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
