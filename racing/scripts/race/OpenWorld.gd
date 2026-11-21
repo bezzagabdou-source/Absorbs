@@ -36,8 +36,40 @@ var _landmark_root: Node3D
 var _road_body: StaticBody3D
 
 
+## Numbers first: instead of guessing why the highway reads as a black void, log
+## exactly where the spawn is relative to the ring and how high the terrain sits
+## above it. Printed once per region build and surfaced in CI as a notice.
+func _report_geometry() -> void:
+	# a few points in, matching spawn_transform(0)
+	var p: Vector3 = road_points[0]
+	var ang: float = atan2(p.z, p.x)
+	print("[OPENWORLD] spawn=%s ang=%.3f road_y=%.2f terrain_at_spawn=%.2f" % [p, ang,
+		p.y, height_at(p.x, p.z)])
+	var lateral: String = "lateral:"
+	for d in [0.0, 3.0, 6.0, 8.0, 10.0, 14.0, 20.0, 30.0, 45.0, 70.0]:
+		var dir: Vector3 = p.normalized()
+		var side: Vector3 = Vector3(-dir.z, 0.0, dir.x)
+		var q: float = 0.0
+		if d == 0.0:
+			q = height_at(p.x, p.z)
+		else:
+			q = maxf(height_at(p.x + side.x * d, p.z + side.z * d),
+				height_at(p.x - side.x * d, p.z - side.z * d))
+		lateral += " %dm=%.2f" % [int(d), q]
+	print("[OPENWORLD] ", lateral)
+
+
+## QA switch (CI screenshots only): `--debug-flat` paints the terrain green and
+## the carriageway magenta so a capture can separate "geometry missing" from
+## "geometry present but unlit". Nothing references it in a shipping build.
+var debug_flat: bool = false
+
+
 func build(region_data: Dictionary) -> void:
 	region = region_data
+	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if str(arg) == "--debug-flat":
+			debug_flat = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -58,6 +90,7 @@ func build(region_data: Dictionary) -> void:
 	_landmark_root.name = "Landmarks"
 	add_child(_landmark_root)
 	_build_landmarks()
+	_report_geometry()
 	_build_roadside_lighting()
 	_build_distant_city()
 
@@ -230,6 +263,7 @@ func _build_terrain() -> void:
 			mat.set_shader_parameter("snow_line", 4.0)
 	# light the ground with the map's own sky colour
 	var accent: Color = region.get("accent", Color(0.13, 0.91, 1.0))
+	mat.set_shader_parameter("debug_flat", 1.0 if debug_flat else 0.0)
 	mat.set_shader_parameter("sky_bounce_color", Color(0.30, 0.26, 0.46).lerp(accent, 0.18))
 	mat.set_shader_parameter("sky_bounce_energy", 1.45)
 	mi.material_override = mat
@@ -297,6 +331,7 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("ambient_lift", 1.0)
 		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
+		mat.set_shader_parameter("debug_flat", 1.0 if debug_flat else 0.0)
 	mi.material_override = mat
 	add_child(mi)
 	print("[OPENWORLD] highway tris=", mi.mesh.get_faces().size() / 3,

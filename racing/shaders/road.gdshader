@@ -16,6 +16,10 @@ uniform float neon_energy = 1.0;
 uniform float road_width = 14.0;
 uniform float track_scroll = 0.0;
 uniform float ambient_lift : hint_range(0.0, 1.5) = 0.30;
+// Temporary QA switch: paints the carriageway in flat magenta so a capture can
+// tell "the road is not being drawn here" apart from "the road is drawn but
+// too dark". Never enabled in shipping builds.
+uniform float debug_flat : hint_range(0.0, 1.0) = 0.0;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -113,7 +117,12 @@ void fragment() {
 	vec3 amb = vec3(0.30, 0.36, 0.50) * ambient_lift;
 	EMISSION += amb + col * vec3(0.40, 0.46, 0.62) * ambient_lift;
 
-	ALBEDO = col;
+	if (debug_flat > 0.5) {
+		ALBEDO = vec3(1.0, 0.0, 1.0);
+		EMISSION = vec3(1.0, 0.0, 1.0);
+	} else {
+		ALBEDO = col;
+	}
 	// perturb the normal with the grain so highlights break up like real asphalt
 	vec3 n = normalize(wnorm);
 	vec2 grad = vec2(vnoise(uv * grain_scale * 0.5 + 3.1), vnoise(uv * grain_scale * 0.5 - 7.7)) - 0.5;
