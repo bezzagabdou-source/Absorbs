@@ -247,6 +247,13 @@ func _qa_probe() -> void:
 	var c: Camera3D = cam.camera()
 	print("[QAPROBE] cam=%s showcase=%s dist_to_car=%.1fm" % [c.global_position, cam.showcase,
 		c.global_position.distance_to(cp)])
+	open_world.qa_dump_near(cp, 90.0)
+	if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-bird"):
+		c.global_position = cp + Vector3(0.0, 70.0, 0.0)
+		c.look_at(cp, Vector3.UP)
+		c.fov = 70.0
+		cam.showcase = false
+		cam.set_physics_process(false)
 
 func _spawn_ai() -> void:
 	var count = 5

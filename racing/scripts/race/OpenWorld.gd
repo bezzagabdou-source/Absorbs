@@ -843,3 +843,22 @@ func spawn_transform(index: int = 0) -> Transform3D:
 	# p is already the drivable road surface; a small lift avoids spawning inside
 	# the collider without starting the car in free fall
 	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.22)
+
+
+## QA-only: dump every visual instance within a radius of a point, with its AABB,
+## so a capture can never be blamed on the wrong node again.
+func qa_dump_near(centre: Vector3, radius: float) -> void:
+	_qa_dump(self, centre, radius)
+
+
+func _qa_dump(node: Node, centre: Vector3, radius: float) -> void:
+	for child in node.get_children():
+		if child is Node3D:
+			var n3 := child as Node3D
+			var d: float = n3.global_position.distance_to(centre)
+			if d <= radius and n3 is VisualInstance3D:
+				var vi := n3 as VisualInstance3D
+				print("[QADUMP] %-14s pos=%s dist=%.1f aabb_size=%s visible=%s" % [
+					str(n3.name), n3.global_position, d, vi.get_aabb().size,
+					vi.is_visible_in_tree()])
+		_qa_dump(child, centre, radius)

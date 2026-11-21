@@ -1,0 +1,79 @@
+name: QA — roam capture (fast loop)
+
+# Diagnostic-only workflow. One screen, one shot, committed straight back to the
+# branch so the agent can look at it without waiting 13 minutes for the full
+# three-job pipeline. Never publishes anything.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: "4.4.1-stable"
+  GODOT_DIR: /tmp/godot
+
+jobs:
+  roam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          python3 -m pip install --quiet --break-system-packages pillow numpy || true
+          mkdir -p "$GODOT_DIR"
+          curl -fL --retry 3 -o "$GODOT_DIR/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q -o "$GODOT_DIR/godot.zip" -d "$GODOT_DIR"
+          mv "$GODOT_DIR/Godot_v${GODOT_VERSION}_linux.x86_64" "$GODOT_DIR/godot"
+          chmod +x "$GODOT_DIR/godot"
+
+      - name: Import
+        run: |
+          timeout 300 "$GODOT_DIR/godot" --headless --path racing --import || true
+
+      - name: Capture roam (normal + debug-flat + bird's eye)
+        run: |
+          set -x
+          for variant in plain debug bird; do
+            extra=""
+            [ "$variant" = "debug" ] && extra="--debug-flat"
+            [ "$variant" = "bird" ] && extra="--qa-bird"
+            timeout -k 5 90 xvfb-run -a -s "-screen 0 1920x1080x24" \
+              "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+              --rendering-driver opengl3 --resolution 1920x1080 \
+              --write-movie /tmp/roam_${variant}.png --fixed-fps 30 --quit-after 40 \
+              -- --screen=roam --qa-probe $extra >"/tmp/roam_${variant}.log" 2>&1 || true
+            last=$(ls -t /tmp/roam_${variant}*.png 2>/dev/null | head -1)
+            [ -n "$last" ] && cp "$last" "racing/docs/screenshots/qa_roam_${variant}.png"
+            echo "===== $variant probe ====="
+            grep -E '\[QAPROBE\]|\[OPENWORLD\]|SCRIPT ERROR|Invalid |Cannot ' "/tmp/roam_${variant}.log" | head -30
+          done
+
+      - name: Pixel report
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          import statistics, os
+          for v in ["plain", "debug", "bird"]:
+              p = f"racing/docs/screenshots/qa_roam_{v}.png"
+              if not os.path.exists(p):
+                  print(v, "MISSING"); continue
+              im = Image.open(p).convert("RGB"); w, h = im.size
+              print("==", v, im.size)
+              for label, y in [("horizon", 200), ("upper", 380), ("mid", 560), ("low", 760), ("bottom", 1000)]:
+                  px = [im.getpixel((x, y)) for x in range(0, w, 12)]
+                  r = statistics.mean([q[0] for q in px]); g = statistics.mean([q[1] for q in px]); b = statistics.mean([q[2] for q in px])
+                  magenta = sum(1 for q in px if q[0] > 140 and q[2] > 140 and q[1] < 90)
+                  print(f"   y={y:4d} {label:8s} mean=({r:5.1f},{g:5.1f},{b:5.1f}) magenta_px={magenta}")
+          PY
+
+      - name: Commit the captures
+        run: |
+          git config user.name "Arena Agent"
+          git config user.email "agent@arena.ai"
+          git add -f racing/docs/screenshots/qa_roam_*.png 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore(qa): roam capture [skip ci]"
+          git push origin HEAD:arena/cf18c72b-absorbs || true
