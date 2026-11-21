@@ -1,0 +1,19 @@
+==== console tail ====
+Godot Engine v4.4.1.stable.official.49a5bc7b6 - https://godotengine.org
+WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
+     at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
+OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 21.1.8, 256 bits)
+
+Movie Maker mode enabled, recording movie at 30 FPS...
+SCRIPT ERROR: Parse Error: Identifier "fwd" not declared in the current scope.
+          at: GDScript::reload (res://scripts/ui/screens/race.gd:400)
+ERROR: Failed to load script "res://scripts/ui/screens/race.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:3022)
+SCRIPT ERROR: Invalid call. Nonexistent function 'new' in base 'GDScript'.
+          at: goto_instant (res://scripts/autoload/SceneRouter.gd:119)
+----------------
+Done recording movie at path: /tmp/roam.png
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:00.0:15.0 (20% of real-time speed).
+CPU time: 0.01 seconds (average: 0.11 ms/frame)
+GPU time: 0.07 seconds (average: 0.59 ms/frame)
+----------------
