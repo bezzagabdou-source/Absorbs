@@ -47,6 +47,7 @@ var _road_body: StaticBody3D
 var debug_flat: bool = false
 var _qa_no_terrain: bool = false
 var _qa_marker: bool = false
+var _qa_std_road: bool = false
 ## Shared QA scratch buffer; the race screen writes it to disk after the probe.
 static var qa_log_lines: PackedStringArray = PackedStringArray()
 
@@ -60,6 +61,8 @@ func build(region_data: Dictionary) -> void:
 			_qa_no_terrain = true
 		if str(arg) == "--qa-marker":
 			_qa_marker = true
+		if str(arg) == "--qa-std-road":
+			_qa_std_road = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -343,6 +346,17 @@ func _build_road_network() -> void:
 	mi.mesh = st.commit()
 	mi.layers = 1
 
+	if _qa_std_road:
+		# A/B: identical geometry, plain unshaded material. Separates "the shader
+		# draws nothing" from "the mesh is not there".
+		var plain := StandardMaterial3D.new()
+		plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		plain.albedo_color = Color(1.0, 0.2, 1.0)
+		mi.material_override = plain
+		add_child(mi)
+		_build_road_collision(width)
+		_mark_ring_centre()
+		return
 	var mat := ShaderMaterial.new()
 	var sp := "res://shaders/road.gdshader"
 	if ResourceLoader.exists(sp):
@@ -406,7 +420,11 @@ func _build_road_network() -> void:
 		mk.layers = 1
 		add_child(mk)
 
-	# centre line of the ring, for GPS / minimap / spawn logic
+	_mark_ring_centre()
+
+
+## Centre line of the ring, for GPS / minimap / spawn logic.
+func _mark_ring_centre() -> void:
 	var marker := Node3D.new()
 	marker.name = "RingCentre"
 	marker.position = Vector3.ZERO
@@ -896,7 +914,6 @@ func spawn_transform(index: int = 0) -> Transform3D:
 
 ## QA-only: compare the road surface against the ground that should sit under it.
 func qa_height_report() -> void:
-	qa_log_lines.clear()
 	for k in [0, 48, 96, 144]:
 		var a: float = float(k) / 192.0 * TAU
 		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
@@ -911,6 +928,7 @@ func qa_height_report() -> void:
 
 
 func qa_dump_near(centre: Vector3, radius: float) -> void:
+	qa_log_lines.clear()
 	_qa_dump(self, centre, radius)
 
 

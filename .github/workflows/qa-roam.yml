@@ -44,9 +44,10 @@ jobs:
         run: |
           set -x
           mkdir -p racing/docs/screenshots
-          for variant in plain debug; do
+          for variant in plain debug stdroad; do
             extra=""
             [ "$variant" = "debug" ] && extra="--debug-flat"
+            [ "$variant" = "stdroad" ] && extra="--qa-std-road"
             timeout -k 5 200 xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 \
