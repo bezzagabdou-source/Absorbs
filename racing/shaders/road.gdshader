@@ -123,11 +123,20 @@ void fragment() {
 	// and the road keeps its legibility at night.
 	EMISSION += col * vec3(1.45, 1.60, 1.95) * ambient_lift * 1.20 + paint_glow;
 
-	// --- lit road edge: a thin cyan rim just outside the painted shoulder. This
-	// is what sells a night highway at a glance: the carriageway is defined by
-	// light rather than by being brighter than the ground.
-	float rim = smoothstep(0.55, 0.05, abs(abs(lat) - (road_width * 0.5 - 0.08)));
-	EMISSION += mix(neon_a, vec3(0.85, 0.95, 1.0), 0.35) * rim * 0.85 * uv_ok;
+	// --- lit road edge -------------------------------------------------------
+	// Two thin inlaid light strips per side: a bright cyan kerb light and a
+	// fainter echo 0.9 m inboard. A night highway reads as a highway because the
+	// carriageway is DRAWN by light, not because the asphalt is brighter than the
+	// ground. These also give the eye something that visibly converges in
+	// perspective, which is most of what makes speed legible.
+	float edge_band = smoothstep(0.42, 0.16, abs(abs(lat) - (road_width * 0.5 - 0.40)));
+	float echo_band = smoothstep(0.34, 0.12, abs(abs(lat) - (road_width * 0.5 - 1.30)));
+	vec3 edge_col = mix(neon_a, vec3(0.88, 0.97, 1.0), 0.42);
+	EMISSION += edge_col * (edge_band * 1.55 + echo_band * 0.55) * uv_ok;
+
+	// subtle centreline glow so the two carriageways separate at distance
+	float centre_glow = smoothstep(0.55, 0.10, abs(abs(lat) - 0.34));
+	EMISSION += vec3(0.85, 0.92, 1.0) * centre_glow * 0.30 * uv_ok;
 
 	if (debug_flat > 0.5) {
 		ALBEDO = vec3(1.0, 0.0, 1.0);
