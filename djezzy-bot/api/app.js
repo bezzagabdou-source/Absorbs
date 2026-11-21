@@ -11,6 +11,7 @@
  */
 import net from 'node:net';
 import express from 'express';
+import axios from 'axios';
 import { GrammyError, webhookCallback } from 'grammy';
 import config, { validateConfig } from '../src/config.js';
 import { getBot, engine } from '../src/bot.js';
@@ -18,7 +19,7 @@ import store from '../src/store/index.js';
 import { statusPage } from '../src/ui/text.js';
 import { appPage, emojisPage } from '../src/ui/pages.js';
 import { PAID_OFFERS, findOffer } from '../src/djezzy/catalog.js';
-import { describeRoutes } from '../src/djezzy/routes.js';
+import { describeRoutes, discoverDzProxies } from '../src/djezzy/routes.js';
 import { verifyInitData } from '../src/util/telegram-auth.js';
 import { createLogger, sanitize } from '../src/util/logger.js';
 import { safeEqual } from '../src/crypto.js';
@@ -189,6 +190,54 @@ async function probeHandler(req, res) {
   const target = `${config.djezzy.baseUrl}${config.djezzy.paths.requestOtp}`;
 
   try {
+    if (req.query.mode === 'proxies') {
+      /* اكتشاف بروكسيات جزائرية واختبارها فعلياً ضد بوابة جيزي من هنا */
+      const testOne = async (proxy) => {
+        try {
+          const response = await axios({
+            method: 'POST',
+            url: target,
+            headers: { ...config.djezzy.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+            data: new URLSearchParams({ msisdn: '213000000000', client_id: config.djezzy.clientId, scope: 'smsotp' }),
+            timeout: 9000,
+            validateStatus: () => true,
+            responseType: 'text',
+            transformResponse: [(d) => d],
+            proxy: proxy
+              ? { protocol: 'http', host: proxy.host, port: proxy.port, ...(proxy.auth ? { auth: proxy.auth } : {}) }
+              : false,
+          });
+          const blocked = response.status === 403 || response.status === 451;
+          return {
+            route: proxy ? proxy.label : 'direct',
+            status: response.status,
+            ok: !blocked,
+            sample: String(response.data || '').slice(0, 100),
+          };
+        } catch (error) {
+          return { route: proxy ? proxy.label : 'direct', error: error.code || error.message, ok: false };
+        }
+      };
+
+      const discovered = await discoverDzProxies();
+      const results = [await testOne(null)];
+      for (const proxy of discovered.slice(0, 8)) results.push(await testOne(proxy));
+      const working = results.filter((item) => item.ok).map((item) => item.route);
+
+      res.status(200).json({
+        ok: true,
+        mode: 'proxies',
+        latencyMs: Date.now() - started,
+        discovered: discovered.length,
+        working,
+        results,
+        verdict: working.length
+          ? `مسار يعمل: ${working.join(' , ')} — البوت سيستخدمه تلقائياً.`
+          : 'لا يوجد مسار عامل حالياً — شغّل الـ relay داخل الجزائر (relay/server.js) واضبط DJEZZY_RELAY_URL.',
+      });
+      return;
+    }
+
     if (req.query.mode === 'otp') {
       /* اختبار POST حقيقي بنفس شكل إرسال رمز التحقق (بلا إرسال SMS لرقم حقيقي:
          msisdn غير صالح يرفضه الباك-إند بعد عبور البوابة/WAF) */

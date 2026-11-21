@@ -67,6 +67,10 @@ const server = http.createServer(async (req, res) => {
     assert.match(form.get('msisdn'), /^2137\d{8}$/);
     assert.match(req.headers['user-agent'] || '', /Djezzy/);
     assert.match(req.headers['content-type'] || '', /x-www-form-urlencoded/);
+    // رقم اختباري يحاكي حجب البوابة الجغرافي (403)
+    if (form.get('msisdn') === '213700000000') {
+      return send(403, { message: 'Forbidden' });
+    }
     return send(200, { message: 'confirmation code has been sent successfully' });
   }
 
@@ -193,6 +197,14 @@ await step('رمز خاطئ → OTP_INVALID', async () => {
   await assert.rejects(
     () => engine.confirmLogin(TG_ID, MSISDN, '999999'),
     (error) => error.code === ERROR_CODES.OTP_INVALID,
+  );
+});
+
+await step('حجب 403 يُعرض بصدق لكل المسارات المحجوبة', async () => {
+  await assert.rejects(
+    () => engine.startLogin(TG_ID, '213700000000'),
+    (error) => error.status === 403,
+    'يجب إرجاع خطأ بحالة 403 الصريحة عند حجب جميع المسارات',
   );
 });
 

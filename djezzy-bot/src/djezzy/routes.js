@@ -61,7 +61,7 @@ export function parseProxy(raw) {
 }
 
 /** اكتشاف بروكسيات جزائرية من قوائم عامة (best-effort) */
-async function discoverDzProxies() {
+export async function discoverDzProxies() {
   if (!config.djezzy.autoProxy) return [];
   if (AUTO_CACHE.list.length && Date.now() - AUTO_CACHE.fetchedAt < AUTO_TTL_MS) {
     return AUTO_CACHE.list;
@@ -136,6 +136,10 @@ const isNetworkError = (error) =>
     error.code || error.cause?.code,
   );
 
+/* 403/451 = البوابة تحجب هذه المنطقة/العنوان (حجب جغرافي) — ليس خطأ في الطلب،
+   لذا نُجتاز المسار ونجرّب التالي (بروكسي/relay) بدل إسقاط الجلسة */
+const isBlockedStatus = (status) => status === 403 || status === 451;
+
 function axiosFor(route, timeoutMs) {
   const base = {
     timeout: route.kind === 'proxy' ? Math.min(timeoutMs, 10000) : Math.min(timeoutMs, 15000),
@@ -178,6 +182,7 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
   }
 
   let lastError = null;
+  let lastBlocked = null;
 
   for (const route of routes) {
     const started = Date.now();
@@ -209,6 +214,14 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
       const record = { route: route.name, status: response.status, ms: Date.now() - started, at: Date.now() };
       routeStats.attempts.push(record);
       if (routeStats.attempts.length > 40) routeStats.attempts.shift();
+
+      if (isBlockedStatus(response.status)) {
+        // حجب جغرافي من هذا المسار — سجّله وجرّب المسار التالي
+        lastBlocked = { status: response.status, data: response.data, headers: response.headers || {}, route: route.name };
+        log.debug(`المسار ${route.name} محجوب (HTTP ${response.status}) — تجربة المسار التالي…`);
+        continue;
+      }
+
       routeStats.lastSuccess = record;
       return { status: response.status, data: response.data, headers: response.headers || {}, route: route.name };
     } catch (error) {
@@ -225,6 +238,9 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
       throw error;
     }
   }
+
+  // إن وصلنا رداً محجوباً من أي مسار نُرجعه (أوضح من خطأ شبكة) — والعميل يعرض الحجب بصدق
+  if (lastBlocked) return lastBlocked;
 
   const failure = lastError || new Error('فشلت جميع مسارات الوصول إلى جيزي.');
   failure.routeExhausted = true;
@@ -247,4 +263,4 @@ export function describeRoutes() {
   };
 }
 
-export default { request, buildRoutes, parseProxy, describeRoutes, routeStats };
+export default { request, buildRoutes, parseProxy, describeRoutes, routeStats, discoverDzProxies };
