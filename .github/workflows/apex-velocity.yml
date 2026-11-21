@@ -253,6 +253,14 @@ jobs:
               tail -20 /tmp/shot_${screen}.log || true
             fi
           done
+          # QA: carriageway on a plain StandardMaterial3D to separate shader from geometry
+          timeout -k 5 90 xvfb-run -a -s "-screen 0 1920x1080x24" \
+            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+            --rendering-driver opengl3 --resolution 1920x1080 \
+            --write-movie /tmp/shot_roam_std.png --fixed-fps 30 --quit-after 110 \
+            -- --screen=roam --qa-standard-road >/tmp/shot_roam_std.log 2>&1 || true
+          last=$(ls -t /tmp/shot_roam_std*.png 2>/dev/null | head -1)
+          [ -n "$last" ] && cp "$last" racing/docs/screenshots/roam_std.png
           ls -lh racing/docs/screenshots
       - name: Layout diagnostics
         run: |

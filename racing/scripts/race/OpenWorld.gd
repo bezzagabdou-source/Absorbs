@@ -327,6 +327,14 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
 		mi.material_override = mat
+	if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-standard-road"):
+		# QA only: plain StandardMaterial3D, no custom shader. Proves whether the
+		# road geometry is fine and the shader is what makes it invisible.
+		var plain := StandardMaterial3D.new()
+		plain.albedo_color = Color(0.09, 0.10, 0.12)
+		plain.roughness = 0.55
+		plain.metallic = 0.15
+		mi.material_override = plain
 	add_child(mi)
 
 	var skirt_mi := MeshInstance3D.new()
@@ -419,7 +427,7 @@ func _road_along(p: Vector3) -> float:
 	var ang: float = atan2(p.z, p.x)
 	if ang < 0.0:
 		ang += TAU
-	return ang / TAU * TAU * ROAD_RING_RADIUS
+	return ang * ROAD_RING_RADIUS
 
 
 ## Foliage / rocks scattered on the terrain, instanced with MultiMesh so the
