@@ -5,6 +5,12 @@ name: QA — roam capture (fast loop)
 # three-job pipeline. Never publishes anything.
 on:
   workflow_dispatch:
+  # workflow_dispatch only works from the default branch, and this branch is not
+  # it, so a push to the game tree also runs the fast capture.
+  push:
+    paths:
+      - "racing/**"
+      - ".github/workflows/qa-roam.yml"
 
 permissions:
   contents: write
