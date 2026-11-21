@@ -157,8 +157,18 @@ cloudflared tunnel --url http://localhost:8787   # ← بدون حساب، يع�
 # أو:  ngrok http 8787                           # ← يحتاج حساب مجاني
 ```
 
-(على الهاتف: Termux → `pkg install nodejs-lts git` ثم نفس الأوامر؛
-`cloudflared` يُنزَّل كملف تنفيذي واحد من github.com/cloudflare/cloudflared/releases.)
+**بلا حاسوب؟ على الهاتف (Termux) — سطر واحد:** ثبّت Termux من F-Droid ثم:
+
+```bash
+pkg install -y nodejs-lts curl git
+git clone https://github.com/bezzagabdou-source/Absorbs
+cd Absorbs/djezzy-bot/relay
+bash termux.sh
+```
+
+السكربت يثبّت كل شيء، يشغّل الـrelay، يفتح نفق `*.trycloudflare.com` مجاناً
+بدون حساب، ثم يطبع `RELAY_TOKEN` و`DJEZZY_RELAY_URL` جاهزين للنسخ.
+أرسل القيمتين لإعداد Vercel (أو ضعهما يدوياً في Environment Variables ثم Redeploy).
 
 ثم على Vercel (أو اطلب مني أنا):
 
