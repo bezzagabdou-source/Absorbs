@@ -162,6 +162,26 @@ class PostgreSQLTests(unittest.TestCase):
         self.assertIn('orders', backup['tables'])
         self.assertIn('stock_items', backup['tables'])
 
+    def test_068_vip_same_nonce_race(self):
+        self.store.set_settings({'vip_enabled':'1','vip_price':'3','vip_days':'30','vip_percent':'20'})
+        user=self.store.get_or_create_user({'id':33888,'first_name':'VIP'})
+        self.store.adjust_balance(user['tg_id'],10)
+        barrier, results, errors=threading.Barrier(2),[],[]
+        def run():
+            db=PostgresStore(self.url)
+            try:
+                barrier.wait(timeout=10)
+                results.append(db.purchase_vip_atomic(user['tg_id'],'unique-race',3,30,20))
+            except Exception as e: errors.append(e)
+            finally: db.close()
+        threads=[threading.Thread(target=run) for _ in range(2)]
+        for t in threads: t.start()
+        for t in threads: t.join(20)
+        self.assertFalse(errors,errors)
+        self.assertEqual(sum('expires_at' in r for r in results),1)
+        self.assertEqual(self.store.get_user(user['tg_id'])['balance'],7)
+        self.assertEqual(self.store.scalar('SELECT COUNT(*) FROM vip_purchases WHERE user_id=?',(user['id'],)),1)
+
     def test_07_purchase_rolls_back_on_database_failure(self):
         user = self.store.get_or_create_user({'id': 44001, 'first_name': 'Rollback'})
         self.store.adjust_balance(user['tg_id'], 9)

@@ -182,6 +182,56 @@ class BotAdminTests(unittest.TestCase):
         self.assertIn('custom &lt;&amp;', events[-1]['text'])
         self.assertNotIn('private-tx', events[-1]['text'])
 
+    def test_bulk_vip_quantity_and_favorites(self):
+        self.callback(self.owner,'a:new:p'); self.message(self.owner,'Product')
+        pid=bot.store.products(include_hidden=True)[0]['id']
+        self.callback(self.owner,'a:edit:p:%d:price' % pid); self.message(self.owner,'10')
+        self.callback(self.owner,'a:bulk:%d' % pid); self.message(self.owner,'3 7')
+        self.callback(self.owner,'a:stock:batch:%d' % pid); self.message(self.owner,'a\nb\nc\nd\ne\nf')
+        self.callback(self.owner,'a:toggle:p:%d:visible' % pid)
+        for key,value in [('vip_enabled','1'),('vip_price','5'),('vip_days','30'),('vip_percent','20')]:
+            n=next(i for i,x in enumerate(bot.ADMIN_SETTINGS) if x[0]==key)
+            self.callback(self.owner,'a:set:s:%d' % n); self.message(self.owner,value)
+        bot.store.adjust_balance(222,100)
+        self.callback(self.buyer,'vip')
+        nonce=next(x['callback_data'] for x in self.last_buttons() if x.get('callback_data','').startswith('vipbuy:'))
+        self.callback(self.buyer,nonce); self.callback(self.buyer,nonce)
+        self.assertEqual(bot.store.get_user(222)['balance'],95)
+        self.assertEqual(bot.store.scalar('SELECT COUNT(*) FROM vip_purchases'),1)
+        self.assertEqual(bot.unit_price(bot.store.product_by_id(pid),bot.store.get_user(222),1),8)
+        self.assertEqual(bot.unit_price(bot.store.product_by_id(pid),bot.store.get_user(222),3),7)
+        self.callback(self.buyer,'favorite:%d' % pid); self.callback(self.buyer,'favorites')
+        self.assertIn('view:%d' % pid,[x.get('callback_data') for x in self.last_buttons()])
+        self.callback(self.buyer,'qty:%d' % pid); self.message(self.buyer,'3')
+        buy=next(x['callback_data'] for x in self.last_buttons() if x.get('callback_data','').startswith('qtybuy:'))
+        self.callback(self.buyer,buy); self.callback(self.buyer,buy)
+        self.assertEqual(bot.store.get_user(222)['balance'],74)
+        order=bot.store.user_orders(bot.store.get_user(222)['id'])[0]
+        self.assertEqual((order['qty'],order['total'],order['delivery']),(3,21,'a\nb\nc'))
+        self.assertEqual(bot.store.product_stock(pid),3)
+        events=[p for m,p in bot.tg.calls if m=='sendMessage' and p.get('chat_id')==-1004365740808]
+        self.assertEqual(len(events),2)
+        self.callback(self.buyer,'qty:%d' % pid); self.message(self.buyer,'2')
+        buy=next(x['callback_data'] for x in self.last_buttons() if x.get('callback_data','').startswith('qtybuy:'))
+        bot.store.set_setting('vip_percent','10')
+        self.callback(self.buyer,buy)
+        self.assertEqual(bot.store.get_user(222)['balance'],74)
+        self.assertEqual(bot.store.product_stock(pid),3)
+
+    def test_payment_methods_manual_and_invalid_amount(self):
+        for i,(method,expected) in enumerate([('binance','1234077002'),('bep20','0xe64b863710576bc32063cde2039b9477888dc481'),('trc20','TCm3uFLkPdi7yV6qBhJFLtSvYDsKjhNVqg')]):
+            self.callback(self.buyer,'topup'); self.callback(self.buyer,'paymethod:'+method)
+            self.assertTrue(any(expected in p.get('text','') for m,p in bot.tg.calls if m=='sendMessage'))
+            self.message(self.buyer,'-5')
+            self.assertEqual(bot.state_get(222)['kind'],'deposit_amount')
+            self.message(self.buyer,'5'); self.message(self.buyer,'proof-id-%d' % i)
+            dep=bot.store.deposits_list(limit=1)[0]
+            self.assertEqual((dep['method'],dep['amount'],dep['status']),(method,5,'pending'))
+            self.assertEqual(bot.store.get_user(222)['balance'],0)
+            self.callback(self.owner,'dep:ok:%d' % dep['id'])
+            self.assertEqual(bot.store.get_user(222)['balance'],5)
+            bot.store.adjust_balance(222,-5)
+
     def test_backup_contains_sqlite_snapshot(self):
         original = bot.urllib.request.urlopen
         payloads=[]

@@ -483,6 +483,23 @@ CREATE TABLE IF NOT EXISTS deposits (
     reviewed_at TEXT DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    UNIQUE(user_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS vip_purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    nonce TEXT NOT NULL UNIQUE,
+    amount REAL NOT NULL,
+    days INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS broadcasts (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     text       TEXT DEFAULT '',
@@ -519,7 +536,10 @@ def default_settings():
         "api_text_ar": API_AR_DEFAULT,
         "api_text_en": API_EN_DEFAULT,
         # ---- payments ----
-        "binance_pay_id": "",                 # ← فارغ كما طُلب، يُضبط من اللوحة
+        "binance_pay_id": "1234077002",
+        "bep20_address": "0xe64b863710576bc32063cde2039b9477888dc481",
+        "trc20_address": "TCm3uFLkPdi7yV6qBhJFLtSvYDsKjhNVqg",
+        "vip_enabled": "0", "vip_price": "0", "vip_days": "30", "vip_percent": "0",
         "binance_steps_ar": BINANCE_STEPS_AR,
         "binance_steps_en": BINANCE_STEPS_EN,
         "binance_prompt_ar": BINANCE_TXID_PROMPT_AR,
@@ -1068,7 +1088,7 @@ class Store:
     def _financial_lock_suffix(self):
         return ""
 
-    def purchase_atomic(self, tg_id, product_id, qty, referral_percent):
+    def purchase_atomic(self, tg_id, product_id, qty, referral_percent, expected_total=None):
         """Commit debit, order, stock and referral credit together, or none."""
         qty = to_int(qty, 0)
         if qty < 1 or qty > 100:
@@ -1087,8 +1107,11 @@ class Store:
                 if not math.isfinite(price) or price < 0:
                     self.conn.rollback()
                     return {"error": "invalid"}
-                price = discounted_price(price, self)
+                price = unit_price(product, user, qty, self)
                 total = round(price * qty, 2)
+                if expected_total is not None and abs(total - expected_total) > 0.001:
+                    self.conn.rollback()
+                    return {'error': 'price_changed'}
                 if to_float(user.get("balance"), 0) < total:
                     self.conn.rollback()
                     return {"error": "balance", "product": product, "balance": user["balance"], "total": total}
@@ -1254,6 +1277,37 @@ class Store:
 
     def user_orders(self, user_id, limit=20):
         return self.q("SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT ?", (user_id, limit))
+
+    def purchase_vip_atomic(self, tg_id, nonce, expected_price, expected_days, expected_percent):
+        with self.lock:
+            try:
+                self._begin_financial()
+                user = self.conn.execute('SELECT * FROM users WHERE tg_id=?' + self._financial_lock_suffix(), (tg_id,)).fetchone()
+                if not user or not self.get_bool('vip_enabled'):
+                    self.conn.rollback(); return {'error':'disabled'}
+                price = round(to_float(self.get_setting('vip_price', '0'), 0), 2)
+                days = self.get_int('vip_days', 30)
+                percent = self.get_int('vip_percent', 0)
+                if not math.isfinite(price) or price < 0.01 or days < 1 or days > 3650 or not 1 <= percent <= 90:
+                    self.conn.rollback(); return {'error':'disabled'}
+                if price != expected_price or days != expected_days or percent != expected_percent:
+                    self.conn.rollback(); return {'error':'changed'}
+                if self.conn.execute('SELECT id FROM vip_purchases WHERE nonce=?', (nonce,)).fetchone():
+                    self.conn.rollback(); return {'error':'duplicate'}
+                if to_float(user['balance'], 0) < price:
+                    self.conn.rollback(); return {'error':'balance'}
+                key = 'vip_until_%s' % tg_id
+                row = self.conn.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
+                expiry = max(int(time.time()), to_int(row['value'], 0) if row else 0) + days * 86400
+                cur = self.conn.execute('UPDATE users SET balance=ROUND(balance-?,2),spent=ROUND(spent+?,2) WHERE tg_id=? AND balance>=?', (price, price, tg_id, price))
+                if cur.rowcount != 1: raise RuntimeError('VIP balance update failed')
+                self.conn.execute('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', (key, str(expiry)))
+                self.conn.execute('INSERT INTO vip_purchases(user_id,nonce,amount,days,expires_at,created_at) VALUES(?,?,?,?,?,?)', (user['id'],nonce,price,days,expiry,now_iso()))
+                self.conn.commit()
+                self._settings[key] = str(expiry)
+                return {'expires_at':expiry}
+            except Exception:
+                self.conn.rollback(); raise
 
     def create_deposit(self, user_id, amount, method, txid, note=""):
         return self.ex(
@@ -1625,6 +1679,25 @@ def discount_percent(db=None):
     return max(0, min(90, db.get_int("discount_percent", 0)))
 
 
+def vip_until(tg_id, db=None):
+    return to_int((db or store).get_setting('vip_until_%s' % tg_id, '0'), 0)
+
+
+def unit_price(product, user, qty=1, db=None):
+    db = db or store
+    base = max(0, to_float(product.get('price'), 0))
+    percent = discount_percent(db)
+    if user and vip_until(user['tg_id'], db) > time.time():
+        percent = max(percent, min(90, max(0, db.get_int('vip_percent', 0))))
+    price = round(base * (100 - percent) / 100, 2)
+    minimum = db.get_int('bulk_min_%s' % product['id'], 0)
+    bulk_raw = db.get_setting('bulk_price_%s' % product['id'], '')
+    bulk = to_float(bulk_raw, -1)
+    if minimum >= 2 and qty >= minimum and math.isfinite(bulk) and bulk >= 0:
+        price = min(price, bulk)
+    return max(0.01, price) if base > 0 else 0
+
+
 def discounted_price(price, db=None):
     price = to_float(price, 0)
     result = round(price * (100 - discount_percent(db)) / 100, 2)
@@ -1667,9 +1740,11 @@ def build_product_keyboard(product, lang, back="pg:0"):
     if stock > 0:
         rows.append([_btn(label("lbl_buy", lang), "success", None,
                           cb="confirm:%d" % product["id"])])
+        rows.append([_btn('🛒 شراء كمية' if lang == 'ar' else '🛒 Buy quantity', 'primary', None, cb='qty:%d' % product['id'])])
     else:
         rows.append([_btn(label("lbl_out", lang) + " ❌", "danger", None,
                           cb="topup")])
+    rows.append([_btn('⭐ إضافة / إزالة من المفضلة' if lang == 'ar' else '⭐ Toggle favorite', 'primary', None, cb='favorite:%d' % product['id'])])
     rows.append([_btn(label("lbl_back", lang), "default", None, cb=back),
                  _btn(label("lbl_close", lang), "default", None, cb="close")])
     return inline_keyboard(rows)
@@ -1980,7 +2055,10 @@ def product_view(user, product_id, edit=None, back="pg:0"):
     discount = discount_percent()
     if discount:
         body += "\n🏷 %s %s%%: <s>%s</s>" % ("خصم" if lang == "ar" else "Discount", discount, price_str(p.get("price")))
-    body += "\n💵 %s\n📦 %s" % (price_str(discounted_price(p.get("price"))), esc(stock_line))
+    body += "\n💵 %s\n📦 %s" % (price_str(unit_price(p, user)), esc(stock_line))
+    bulk_min = store.get_int('bulk_min_%s' % p['id'], 0)
+    if bulk_min >= 2 and store.get_setting('bulk_price_%s' % p['id'], ''):
+        body += "\n📦 جملة: %d+ · %s / قطعة" % (bulk_min, price_str(unit_price(p, user, bulk_min)))
     markup = build_product_keyboard(p, lang, back=back)
     if edit:
         return safe_edit(user["tg_id"], edit, body, markup)
@@ -2013,6 +2091,7 @@ def profile_text(user):
     rows = [
         [_btn(t("lbl_orders", lang), "primary", None, cb="orders")],
         [_btn(t("lbl_topup", lang), "success", None, cb="topup")],
+        [_btn('👑 VIP', 'primary', None, cb='vip'), _btn('⭐ المفضلة' if lang == 'ar' else '⭐ Favorites', 'primary', None, cb='favorites')],
     ]
     return "\n".join(lines), inline_keyboard(rows)
 
@@ -2022,6 +2101,7 @@ def wallet_text(user):
     rows = [
         [_btn(t("lbl_topup", lang), "success", None, cb="topup")],
         [_btn(t("lbl_orders", lang), "primary", None, cb="orders")],
+        [_btn('👑 VIP', 'primary', None, cb='vip')],
     ]
     body = "<b>%s</b>\n\n💰 %s: <b>%s</b>\n📤 %s: %s" % (
         esc(t("lbl_wallet_title", lang)),
@@ -2083,13 +2163,15 @@ def orders_text(user):
 #  PURCHASE
 # ============================================================================
 
-def deliver_order(user, product, qty=1):
+def deliver_order(user, product, qty=1, expected_total=None):
     """Charge balance, take stock, deliver. Returns (ok, message)."""
     lang = lang_of(user)
-    result = store.purchase_atomic(user["tg_id"], product["id"], qty, store.get_int("referral_percent", 10))
+    result = store.purchase_atomic(user["tg_id"], product["id"], qty, store.get_int("referral_percent", 10), expected_total)
     error = result.get("error")
     if error == "invalid":
         return False, "❌ المنتج غير متاح." if lang == "ar" else "❌ Product unavailable."
+    if error == "price_changed":
+        return False, "⚠️ تغير السعر؛ أعد اختيار الكمية قبل الشراء." if lang == "ar" else "⚠️ Price changed; choose quantity again."
     if error == "delivery_too_long":
         return False, "⚠️ الطلب طويل جداً للتسليم دفعة واحدة؛ اشترِ كمية أقل." if lang == "ar" else "⚠️ Delivery is too long; purchase a smaller quantity."
     if error == "stock":
@@ -2160,7 +2242,23 @@ def deliver_order(user, product, qty=1):
 
 def deposit_start(user):
     lang = lang_of(user)
-    pay_id = store.get_setting("binance_pay_id", "").strip()
+    rows = [[_btn('🟡 Binance Pay', 'primary', None, cb='paymethod:binance')],
+            [_btn('💠 USDT · BEP20', 'primary', None, cb='paymethod:bep20')],
+            [_btn('💠 TRON · TRC20', 'primary', None, cb='paymethod:trc20')],
+            [_btn(t('lbl_cancel', lang), 'danger', None, cb='cancel')]]
+    return safe_send(user['tg_id'], '💳 اختر طريقة الشحن. تتم مراجعة كل طلب يدوياً قبل إضافة الرصيد.' if lang == 'ar' else '💳 Select a method. Each deposit is reviewed manually.', inline_keyboard(rows))
+
+
+def deposit_choose(user, method):
+    lang = lang_of(user)
+    options = {
+        'binance': ('Binance Pay ID', store.get_setting('binance_pay_id', '1234077002')),
+        'bep20': ('USDT BEP20', store.get_setting('bep20_address', '0xe64b863710576bc32063cde2039b9477888dc481')),
+        'trc20': ('TRON TRC20', store.get_setting('trc20_address', 'TCm3uFLkPdi7yV6qBhJFLtSvYDsKjhNVqg')),
+    }
+    if method not in options: return
+    title, pay_id = options[method]
+    pay_id = pay_id.strip()
     if not pay_id:
         body = ("⚙️ <b>%s</b>\n\n%s" % (
             "الشحن غير متاح حالياً" if lang == "ar" else "Top-up unavailable",
@@ -2172,12 +2270,11 @@ def deposit_start(user):
             [_btn(t("lbl_close", lang), "default", None, cb="close")],
         ]))
 
-    steps = store.get_setting("binance_steps_ar" if lang == "ar" else "binance_steps_en", "")
-    if not steps:
-        steps = BINANCE_STEPS_AR if lang == "ar" else BINANCE_STEPS_EN
-    body = "%s\n<code>%s</code>" % (html.escape(steps, quote=False), esc(pay_id))
+    body = ("💳 <b>%s</b>\n<code>%s</code>\n\n" % (esc(title), esc(pay_id)) +
+            ("تأكد من العملة والشبكة مع الدعم قبل التحويل. أرسل مبلغ الشحن بالدولار/USDT؛ ثم أرسل رقم المعاملة لمراجعة المالك." if lang == 'ar' else
+             "Confirm the asset and network with support before transferring. Send the USD/USDT amount, then the transaction ID for manual review."))
     state_set(user["tg_id"], "deposit_amount", expires=time.time() + session_minutes() * 60,
-              lang=lang)
+              lang=lang, method=method)
     kb = reply_keyboard([[_rbtn(t("lbl_cancel", lang), "danger")]])
     return safe_send(user["tg_id"], body, kb)
 
@@ -2192,9 +2289,9 @@ def deposit_ask_amount(user):
                      inline_keyboard([[_btn(t("lbl_cancel", lang), "danger", None, cb="cancel")]]))
 
 
-def deposit_finish(user, txid, amount=None):
+def deposit_finish(user, txid, amount=None, method="binance"):
     lang = lang_of(user)
-    depos_id = store.create_deposit(user["id"], to_float(amount, 0), "binance", txid)
+    depos_id = store.create_deposit(user["id"], to_float(amount, 0), method, txid)
     body = ("⏳ <b>%s</b>\n\n🧾 #%d\n💵 %s\n🔑 <code>%s</code>\n\n%s" % (
         "تم استلام طلب الشحن" if lang == "ar" else "Top-up request received",
         depos_id, price_str(amount), esc(txid),
@@ -2208,9 +2305,9 @@ def deposit_finish(user, txid, amount=None):
             _btn("❌ رفض", "danger", None, cb="dep:no:%d" % depos_id),
         ]])
         notify_owner(
-            "💳 <b>%s</b>\n\n👤 %s (<code>%s</code>)\n💵 %s\n🔑 <code>%s</code>\n\n%s" % (
+            "💳 <b>%s</b>\n\n👤 %s (<code>%s</code>)\n💵 %s\n💳 %s\n🔑 <code>%s</code>\n\n%s" % (
                 "طلب شحن جديد", esc(user.get("first_name") or "-"), user["tg_id"],
-                price_str(amount), esc(txid),
+                price_str(amount), esc(method), esc(txid),
                 "راجعه من لوحة التحكم ← الشحن.",
             ),
             markup,
@@ -2425,22 +2522,36 @@ def handle_state(user, st, text, msg):
         show_search_results(user, text)
         return True
 
+    if kind == 'purchase_qty':
+        if not text.isdigit() or not 1 <= int(text) <= 100:
+            safe_send(tg_id, '⚠️ أدخل كمية من 1 إلى 100.'); return True
+        qty = int(text); p = store.product_by_id(st.get('product_id'))
+        if not p or not p.get('visible') or store.available_stock(p) < qty:
+            state_clear(tg_id); safe_send(tg_id, '⚠️ المنتج غير متاح أو المخزون غير كافٍ.'); return True
+        total = round(unit_price(p, user, qty) * qty, 2)
+        nonce = secrets.token_hex(5)
+        state_set(tg_id, 'quantity_confirm', product_id=p['id'], qty=qty, total=total, nonce=nonce, expires=time.time()+600)
+        safe_send(tg_id, '🛒 <b>%s</b> × %d\nسعر القطعة: %s\nالإجمالي: <b>%s</b>\nتأكيد الشراء من الرصيد؟' % (esc(p['name']), qty, price_str(unit_price(p,user,qty)), price_str(total)),
+                  inline_keyboard([[_btn('✅ تأكيد الشراء','success',None,cb='qtybuy:'+nonce), _btn('❌ إلغاء','danger',None,cb='cancel')]]))
+        return True
+
     if kind == "deposit_amount":
         if text.strip() in ("إلغاء", "الغاء", "cancel", "/cancel", "❌ إلغاء"):
             state_clear(tg_id)
             safe_send(tg_id, "❌ " + ("تم الإلغاء." if lang == "ar" else "Cancelled."),
                       build_main_keyboard(user))
             return True
-        amount = to_float(re.sub(r"[^0-9.]", "", text), 0)
+        amount_text = text.strip().replace(',', '.')
+        amount = round(to_float(amount_text, 0), 2) if re.fullmatch(r'[0-9]+(?:\.[0-9]{1,2})?', amount_text) else 0
         minimum = to_float(store.get_setting("deposit_min", "1"), 1)
-        if amount <= 0:
+        if not math.isfinite(amount) or amount <= 0 or amount > 1000000:
             safe_send(tg_id, "⚠️ " + ("أدخل مبلغاً صحيحاً." if lang == "ar" else "Enter a valid amount."))
             return True
         if amount < minimum:
             safe_send(tg_id, "⚠️ " + (("الحد الأدنى للشحن هو %s." % price_str(minimum)) if lang == "ar"
                                       else ("Minimum top-up is %s." % price_str(minimum))))
             return True
-        state_set(tg_id, "deposit_txid", amount=amount,
+        state_set(tg_id, "deposit_txid", amount=amount, method=st.get("method", "binance"),
                   expires=time.time() + session_minutes() * 60)
         prompt = store.get_setting("binance_prompt_ar" if lang == "ar" else "binance_prompt_en", "")
         if not prompt:
@@ -2455,11 +2566,11 @@ def handle_state(user, st, text, msg):
                       build_main_keyboard(user))
             return True
         txid = text.strip()
-        if len(txid) < 6:
+        if len(txid) < 6 or len(txid) > 200:
             safe_send(tg_id, "⚠️ " + ("معرّف المعاملة غير صالح." if lang == "ar"
                                       else "Invalid transaction ID."))
             return True
-        deposit_finish(user, txid, st.get("amount"))
+        deposit_finish(user, txid, st.get("amount"), st.get("method", "binance"))
         return True
 
     return False
@@ -2677,6 +2788,64 @@ def handle_callback(cb):
     if head == "cat":
         return category_products(user, to_int(parts[1] if len(parts) > 1 else 0, 0), edit=message_id)
 
+    if head == 'favorite' and len(parts) == 2:
+        pid=to_int(parts[1]); p=store.product_by_id(pid)
+        if not p or not p.get('visible'): return safe_send(chat_id, '❌ المنتج غير متاح.')
+        with store.lock:
+            row=store.one('SELECT id FROM favorites WHERE user_id=? AND product_id=?',(user['id'],pid))
+            if row:
+                store.ex('DELETE FROM favorites WHERE id=?',(row['id'],)); message='⭐ أُزيل من المفضلة.'
+            else:
+                store.ex('INSERT INTO favorites(user_id,product_id) VALUES(?,?)',(user['id'],pid)); message='⭐ أُضيف إلى المفضلة.'
+        return safe_send(chat_id, message)
+
+    if head == 'favorites':
+        products=store.q('SELECT p.id,p.name FROM products p JOIN favorites f ON f.product_id=p.id WHERE f.user_id=? AND p.visible=1 ORDER BY f.id DESC LIMIT 30', (user['id'],))
+        rows=[[_btn('⭐ '+p['name'][:40], 'primary', None, cb='view:%d' % p['id'])] for p in products]
+        rows.append([_btn('⬅️ القائمة','default',None,cb='menu')])
+        return safe_send(chat_id, '⭐ <b>المفضلة</b>' if products else '⭐ لا توجد منتجات في المفضلة.', inline_keyboard(rows))
+
+    if head == 'vip':
+        enabled = store.get_bool('vip_enabled')
+        price = round(to_float(store.get_setting('vip_price','0'), 0), 2)
+        days = store.get_int('vip_days',30); pct = store.get_int('vip_percent',0)
+        until = vip_until(user['tg_id'])
+        status = datetime.fromtimestamp(until, timezone.utc).strftime('%Y-%m-%d %H:%M UTC') if until > time.time() else 'غير نشط'
+        if not enabled or not math.isfinite(price) or price < 0.01 or not 1 <= days <= 3650 or not 1 <= pct <= 90:
+            return safe_send(chat_id, '👑 VIP: %s\nالاشتراك غير متاح حالياً.' % esc(status))
+        nonce=secrets.token_hex(8)
+        state_set(user['tg_id'],'vip_confirm',nonce=nonce,price=price,days=days,percent=pct,expires=time.time()+600)
+        body='👑 <b>VIP</b>\nالحالة: %s\nالمدة: %d يوم\nالخصم: %d%%\nالسعر: %s من المحفظة\nيطبّق أفضل سعر فقط، دون جمع الخصومات.' % (esc(status),days,pct,price_str(price))
+        return safe_send(chat_id,body,inline_keyboard([[_btn('✅ شراء / تجديد VIP','success',None,cb='vipbuy:'+nonce),_btn('❌ إلغاء','danger',None,cb='cancel')]]))
+
+    if head == 'vipbuy' and len(parts) == 2:
+        st=state_get(user['tg_id'])
+        if not st or st.get('kind') != 'vip_confirm' or not hmac.compare_digest(st.get('nonce',''),parts[1]):
+            return safe_send(chat_id,'⚠️ التأكيد منتهي أو مستخدم.')
+        result=store.purchase_vip_atomic(user['tg_id'], st['nonce'], st['price'], st['days'], st['percent'])
+        state_clear(user['tg_id'])
+        if result.get('error'):
+            return safe_send(chat_id, '⚠️ تعذر الاشتراك: تحقق من رصيدك والأسعار، ثم حاول مجدداً.')
+        notify_public_event('purchase',user,{'name':'VIP'},1)
+        return safe_send(chat_id,'✅ تم تفعيل VIP حتى %s UTC.' % datetime.fromtimestamp(result['expires_at'],timezone.utc).strftime('%Y-%m-%d %H:%M'))
+
+    if head == 'qty' and len(parts) == 2:
+        p = store.product_by_id(to_int(parts[1]))
+        if not p or not p.get('visible'): return safe_send(chat_id, '❌ المنتج غير متاح.')
+        state_set(user['tg_id'], 'purchase_qty', product_id=p['id'], expires=time.time()+600)
+        return safe_send(chat_id, '📦 أرسل الكمية المطلوبة من 1 إلى 100. للإلغاء /cancel')
+
+    if head == 'qtybuy' and len(parts) == 2:
+        st=state_get(user['tg_id'])
+        if not st or st.get('kind') != 'quantity_confirm' or not hmac.compare_digest(st.get('nonce',''),parts[1]):
+            return safe_send(chat_id, '⚠️ التأكيد منتهي أو مستخدم.')
+        state_clear(user['tg_id'])
+        p=store.product_by_id(st['product_id'])
+        if not p: return safe_send(chat_id, '❌ المنتج غير متاح.')
+        ok, payload=deliver_order(user,p,st['qty'],st['total'])
+        body, markup = payload if isinstance(payload, tuple) else (str(payload), None)
+        return safe_edit(chat_id,message_id,body,markup) if message_id else safe_send(chat_id,body,markup)
+
     if head == "confirm":
         pid = to_int(parts[1] if len(parts) > 1 else 0, 0)
         p = store.product_by_id(pid)
@@ -2697,6 +2866,9 @@ def handle_callback(cb):
 
     if head == "search":
         return run_route(user, "search")
+
+    if head == "paymethod" and len(parts) == 2:
+        return deposit_choose(user, parts[1])
 
     if head == "topup":
         return deposit_start(user)
@@ -2962,6 +3134,9 @@ ADMIN_SETTINGS = [
     ('owner_ids','معرّفات المالكين'),
     ('required_channel_1','قناة الاشتراك الأولى'),('required_channel_2','قناة الاشتراك الثانية'),
     ('event_chat_id','ID شات إشعارات المبيعات والشحن'),
+    ('bep20_address','عنوان BEP20'),('trc20_address','عنوان TRC20'),
+    ('vip_enabled','تفعيل VIP (1 أو 0)'),('vip_price','سعر اشتراك VIP'),
+    ('vip_days','مدة VIP بالأيام'),('vip_percent','خصم VIP %'),
 ]
 ADMIN_TEXTS = [
     ('welcome_ar','الترحيب بالعربية'),('welcome','الترحيب الأساسي'),
@@ -3066,6 +3241,8 @@ def admin_item(user, kind, ident, edit=None):
         rows.append([_btn('👁 تبديل الظهور','primary',None,cb='a:toggle:%s:%d:visible' % (kind,ident))])
         if kind == 'p':
             lines.append('المخزون المتاح: %d' % store.product_stock(ident))
+            lines.append('الجملة: %s+ · %s للقطعة' % (esc(store.get_setting('bulk_min_%d' % ident, '0')), esc(store.get_setting('bulk_price_%d' % ident, '—'))))
+            rows.append([_btn('📦 ضبط سعر الجملة','primary',None,cb='a:bulk:%d' % ident)])
             rows.extend([[_btn('➕ قطعة واحدة متعددة الأسطر','success',None,cb='a:stock:add:%d' % ident)],
                          [_btn('📚 إضافة دفعة: كل سطر قطعة','primary',None,cb='a:stock:batch:%d' % ident),
                           _btn('📋 عرض المخزون','primary',None,cb='a:stock:view:%d' % ident)],
@@ -3106,7 +3283,7 @@ def admin_item(user, kind, ident, edit=None):
         dep = store.get_deposit(ident)
         if not dep: return admin_list(user,'d',0,edit)
         target = store.get_user_by_id(dep['user_id'])
-        body = '💳 <b>شحنة #%d</b>\nالمستخدم: <code>%s</code>\nالمبلغ: %s\nالمعاملة: <code>%s</code>\nالحالة: %s' % (ident,esc((target or {}).get('tg_id','—')),price_str(dep['amount']),esc(dep['txid']),esc(dep['status']))
+        body = '💳 <b>شحنة #%d</b>\nالمستخدم: <code>%s</code>\nالمبلغ: %s\nالطريقة: %s\nالمعاملة: <code>%s</code>\nالحالة: %s' % (ident,esc((target or {}).get('tg_id','—')),price_str(dep['amount']),esc(dep.get('method','')),esc(dep['txid']),esc(dep['status']))
         rows = [[_btn('✅ قبول','success',None,cb='dep:ok:%d' % ident),_btn('❌ رفض','danger',None,cb='dep:no:%d' % ident)],
                 [_btn('⬅️ الشحنات','default',None,cb='a:ls:d:0')]]
         return admin_show(user,body,rows,edit)
@@ -3168,6 +3345,10 @@ def admin_dispatch(user, parts, edit=None):
         if obj:
             {'p':store.update_product,'c':store.update_category,'b':store.update_button}[kind](ident,{key:0 if obj.get(key) else 1})
         return admin_item(user,kind,ident,edit)
+    if action == 'bulk' and len(parts)==2:
+        pid=to_int(parts[1])
+        if not store.product_by_id(pid): return admin_home(user,edit)
+        return admin_prompt(user,mode='bulk',ident=pid,prompt='📦 أرسل الحد الأدنى والسعر لكل قطعة مفصولين بمسافة، مثال: 10 2.50. أرسل 0 لإيقاف الجملة.')
     if action == 'stock' and len(parts)==3:
         mode, pid = parts[1],to_int(parts[2]); product=store.product_by_id(pid)
         if not product: return admin_home(user,edit)
@@ -3286,6 +3467,18 @@ def admin_apply_input(user, st, text):
                      store.add_button({'label_ar':text,'label_en':text,'action':'menu'}))
             state_clear(user['tg_id']); safe_send(user['tg_id'],'✅ تم الإنشاء. أكمل التفاصيل من الأزرار.',build_main_keyboard(user))
             admin_item(user,kind,ident); return True
+        if mode == 'bulk':
+            if not store.product_by_id(ident): raise ValueError('المنتج غير موجود.')
+            parts = text.split()
+            if parts == ['0']:
+                store.set_settings({'bulk_min_%d' % ident: '0', 'bulk_price_%d' % ident: ''})
+            else:
+                if len(parts) != 2 or not parts[0].isdigit(): raise ValueError('مثال: 10 2.50')
+                qty, price = int(parts[0]), float(parts[1].replace(',', '.'))
+                normal = to_float(store.product_by_id(ident)['price'], 0)
+                if qty < 2 or qty > 100 or not math.isfinite(price) or price < 0.01 or price > normal: raise ValueError('الكمية 2–100 والسعر موجب ولا يتجاوز السعر العادي.')
+                store.set_settings({'bulk_min_%d' % ident: str(qty), 'bulk_price_%d' % ident: str(round(price, 2))})
+            state_clear(user['tg_id']); safe_send(user['tg_id'], '✅ تم حفظ سعر الجملة.', build_main_keyboard(user)); admin_item(user,'p',ident); return True
         if mode in ('stock_single', 'stock_batch'):
             if not store.product_by_id(ident): raise ValueError('المنتج غير موجود.')
             if not text: raise ValueError('المحتوى فارغ.')
@@ -3349,15 +3542,15 @@ def admin_apply_input(user, st, text):
                     raise ValueError('أرسل معرّف قناة عامة صالحاً، أو off للإيقاف.')
             if key == 'event_chat_id' and not re.fullmatch(r'-?[0-9]{1,20}', value):
                 raise ValueError('أرسل ID رقمياً صحيحاً أو 0 للإيقاف.')
-            if key in ('referral_percent','discount_percent','page_size','deposit_session_minutes'):
-                maximum={'referral_percent':100,'discount_percent':90,'page_size':30,'deposit_session_minutes':1440}[key]
-                minimum=1 if key in ('page_size','deposit_session_minutes') else 0
+            if key in ('referral_percent','discount_percent','page_size','deposit_session_minutes','vip_days','vip_percent'):
+                maximum={'referral_percent':100,'discount_percent':90,'page_size':30,'deposit_session_minutes':1440,'vip_days':3650,'vip_percent':90}[key]
+                minimum=1 if key in ('page_size','deposit_session_minutes','vip_days') else 0
                 if not value.isdigit() or not minimum<=int(value)<=maximum: raise ValueError('القيمة خارج الحدود المسموحة.')
-            if key=='deposit_min':
+            if key in ('deposit_min','vip_price'):
                 n=float(value.replace(',','.'))
-                if not math.isfinite(n) or n<=0 or n>1000000: raise ValueError('الحد الأدنى غير صالح.')
+                if not math.isfinite(n) or n<0 or n>1000000 or (key == 'deposit_min' and n == 0): raise ValueError('المبلغ غير صالح.')
                 value=str(n)
-            if key in ('style_enabled','mirror_rows','maintenance','dm_owner_on_order','dm_owner_on_deposit') and value not in ('0','1'): raise ValueError('أرسل 1 للتفعيل أو 0 للإيقاف.')
+            if key in ('style_enabled','mirror_rows','maintenance','dm_owner_on_order','dm_owner_on_deposit','vip_enabled') and value not in ('0','1'): raise ValueError('أرسل 1 للتفعيل أو 0 للإيقاف.')
             if key=='default_lang' and value not in ('ar','en'): raise ValueError('أرسل ar أو en.')
             if key=='payment_methods' and any(x not in ('manual','binance') for x in value.split(',')): raise ValueError('القيم المتاحة binance أو manual.')
             if key=='support_username': value=value.lstrip('@')

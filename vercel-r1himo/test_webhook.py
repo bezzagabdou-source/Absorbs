@@ -232,4 +232,47 @@ class WebhookTests(unittest.TestCase):
 
 
 
+    def test_07_vip_bulk_favorites_and_payment_flow(self):
+        buyer=555555555
+        self.message(1001,'/start',user=buyer)
+        self.callback(1002,'a:new:p'); self.message(1003,'Bulk PG')
+        with index._request_context():
+            pid=next(p['id'] for p in index.rabot.store.products(include_hidden=True) if p['name']=='Bulk PG')
+        self.callback(1004,'a:edit:p:%d:price' % pid); self.message(1005,'10')
+        self.callback(1006,'a:bulk:%d' % pid); self.message(1007,'2 7')
+        self.callback(1008,'a:stock:batch:%d' % pid); self.message(1009,'one\ntwo\nthree')
+        self.callback(1010,'a:toggle:p:%d:visible' % pid)
+        with index._request_context() as st:
+            st.adjust_balance(buyer,50)
+            st.set_settings({'vip_enabled':'1','vip_price':'5','vip_days':'30','vip_percent':'20'})
+        self.callback(1011,'vip',user=buyer)
+        buyvip=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('vipbuy:'))
+        self.calls.clear(); self.callback(1012,buyvip,user=buyer); self.callback(1013,buyvip,user=buyer)
+        with index._request_context() as st:
+            self.assertEqual(st.get_user(buyer)['balance'],45)
+            self.assertEqual(st.scalar('SELECT COUNT(*) FROM vip_purchases'),1)
+            self.assertGreater(index.rabot.vip_until(buyer),0)
+        self.callback(1014,'favorite:%d' % pid,user=buyer); self.callback(1015,'favorites',user=buyer)
+        self.assertIn('view:%d' % pid,[x.get('callback_data') for x in self.buttons()])
+        self.callback(1016,'qty:%d' % pid,user=buyer); self.message(1017,'2',user=buyer)
+        buy=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(1018,buy,user=buyer); self.callback(1019,buy,user=buyer)
+        with index._request_context() as st:
+            self.assertEqual(st.get_user(buyer)['balance'],31)
+            self.assertEqual(st.product_stock(pid),1)
+            order=st.user_orders(st.get_user(buyer)['id'])[0]
+            self.assertEqual((order['qty'],order['total'],order['delivery']),(2,14,'one\ntwo'))
+            backup=json.loads(st.export_backup())
+            self.assertIn('vip_purchases',backup['tables']); self.assertIn('favorites',backup['tables'])
+        self.callback(1020,'topup',user=buyer); self.callback(1021,'paymethod:trc20',user=buyer)
+        self.message(1022,'4',user=buyer); self.message(1023,'tx-proof-123',user=buyer)
+        with index._request_context() as st:
+            deposit=st.deposits_list(limit=1)[0]
+            self.assertEqual((deposit['method'],deposit['status']),('trc20','pending'))
+        self.calls.clear(); self.callback(1024,'dep:ok:%d' % deposit['id']); self.callback(1025,'dep:ok:%d' % deposit['id'])
+        events=[p for p in self.sent('sendMessage') if p.get('chat_id')==-1004365740808]
+        self.assertEqual(len(events),1); self.assertIn('trc20',events[0]['text'])
+
+
+
 if __name__ == '__main__': unittest.main()

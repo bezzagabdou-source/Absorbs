@@ -4,6 +4,7 @@ import tempfile
 import threading
 import unittest
 
+os.environ.setdefault('OWNER_ID', '6818164226')
 from rabot import Store
 
 
@@ -64,6 +65,18 @@ class SQLiteFinancialTests(unittest.TestCase):
         self.assertAlmostEqual(result['total'], 2.4)
         self.assertAlmostEqual(self.db.get_user(99123)['balance'], 7.6)
         self.assertAlmostEqual(self.db.get_order(result['order_id'])['unit_price'], 2.4)
+
+    def test_vip_race_and_rollback(self):
+        self.db.set_settings({'vip_enabled':'1','vip_price':'3','vip_days':'30','vip_percent':'20'})
+        results=self.race(lambda db: db.purchase_vip_atomic(99123,'same-nonce',3,30,20))
+        self.assertEqual(sum('expires_at' in r for r in results),1)
+        self.assertEqual(self.db.get_user(99123)['balance'],7)
+        self.assertEqual(self.db.scalar('SELECT COUNT(*) FROM vip_purchases'),1)
+        self.db.conn.execute("CREATE TRIGGER fail_vip BEFORE INSERT ON vip_purchases BEGIN SELECT RAISE(ABORT, 'injected'); END")
+        self.db.conn.commit()
+        with self.assertRaises(Exception): self.db.purchase_vip_atomic(99123,'another-nonce',3,30,20)
+        self.assertEqual(self.db.get_user(99123)['balance'],7)
+        self.assertEqual(self.db.scalar('SELECT COUNT(*) FROM vip_purchases'),1)
 
     def test_deposit_once(self):
         did = self.db.create_deposit(self.user['id'], 5, 'binance', 'test')
