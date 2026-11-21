@@ -1,15 +1,22 @@
-==== console tail ====
+==== console ====
 Godot Engine v4.4.1.stable.official.49a5bc7b6 - https://godotengine.org
 WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by the graphics driver.
      at: set_use_vsync (platform/linuxbsd/x11/gl_manager_x11.cpp:360)
 OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 21.1.8, 256 bits)
 
 Movie Maker mode enabled, recording movie at 30 FPS...
+[QAPROBE] car=(651.0, 0.788358, 0.0) nearest_road=(651.0, 0.568358, 0.0) lateral=0.00m dy=0.22m
+[QAPROBE] cam=(650.684, 6.699064, 4.317934) showcase=true dist_to_car=7.3m
+[QADUMP] Highway aabb=[P: (-646.0241, -2.641821, -698.6008), S: (1316.625, 7.097498, 1292.051)] mat=<ShaderMaterial#-9223371986070141477> layers=1
+[QADUMP] @MeshInstance3D@132 pos=(642.5816, 4.068358, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
+[QADUMP] @MeshInstance3D@133 pos=(642.5816, 7.568358, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
+[QADUMP] @OmniLight3D@134 pos=(642.5816, 7.468358, 1.758025) dist=10.9 aabb_size=(52.0, 52.0, 52.0) visible=true
+[QAPROBE] cam_fwd=(0.050538, -0.721451, -0.690619) pitch=-0.81
 ----------------
-Done recording movie at path: /tmp/roam.png
-110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:53.0 (1% of real-time speed).
-CPU time: 4.72 seconds (average: 42.94 ms/frame)
-GPU time: 6.32 seconds (average: 57.45 ms/frame)
+Done recording movie at path: /tmp/roam_plain.png
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:01.0 (2% of real-time speed).
+CPU time: 3.28 seconds (average: 29.84 ms/frame)
+GPU time: 4.10 seconds (average: 37.31 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
