@@ -229,6 +229,26 @@ func _spawn_player() -> void:
 	player.gear_changed.connect(func(_g): AudioDirector.play_sfx("gear_shift", -16.0))
 	cam.bind(player)
 	player.input_enabled = true
+	if roaming and (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-spawncheck"):
+		var t2 := Timer.new()
+		t2.wait_time = 0.5
+		t2.one_shot = true
+		t2.autostart = true
+		t2.timeout.connect(_qa_spawncheck)
+		add_child(t2)
+
+
+## QA: report the vertical relationship between the car and the nearest piece of
+## highway, plus the camera basis, so a capture can be read as numbers.
+func _qa_spawncheck() -> void:
+	var cp: Vector3 = player.global_position
+	var rp: Vector3 = open_world.nearest_road_point(cp)
+	print("[SPAWN] car=%s nearest_road=%s ground_here=%.2f road_y=%.2f" % [cp, rp,
+		open_world.height_at(cp.x, cp.z), rp.y])
+	print("[SPAWN] horizontal_gap=%.2f m  vertical_gap=%.2f m" % [
+		Vector2(cp.x - rp.x, cp.z - rp.z).length(), rp.y - open_world.height_at(rp.x, rp.z)])
+	var c: Camera3D = cam.camera()
+	print("[SPAWN] cam=%s fwd=%s" % [c.global_position, -c.global_transform.basis.z])
 func _spawn_ai() -> void:
 	var count = 5
 	if mode == "drag":
