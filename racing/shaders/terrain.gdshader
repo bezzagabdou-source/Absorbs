@@ -13,6 +13,7 @@ uniform vec3 road_tint : source_color = vec3(0.12, 0.12, 0.14);
 uniform float rock_slope : hint_range(0.0, 1.0) = 0.62;
 uniform float snow_line : hint_range(-1.0, 1.0) = 0.72;
 uniform float macro_scale = 0.012;
+uniform float debug_flat : hint_range(0.0, 1.0) = 0.0;
 uniform float detail_scale = 0.9;
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
 uniform float road_blend_width = 7.0;
@@ -98,11 +99,19 @@ void fragment() {
 	// Kept deliberately low: at 1.35 this lit the countryside like overcast noon
 	// and the tarmac stopped reading as the darkest thing in frame. 0.45 keeps
 	// the land visible as shapes at night while staying clearly below the paint.
-	vec3 sky_bounce = mix(vec3(0.55, 0.60, 0.80), vec3(0.78, 0.86, 1.05), terrain_up);
+	// Deliberately dim and only faintly blue. The earlier value (0.78, 0.86, 1.05)
+	// at 0.45 energy made the whole plain read as bright blue water and, worse,
+	// out-shone the tarmac — the road has to be the brightest surface in frame.
+	vec3 sky_bounce = mix(vec3(0.34, 0.38, 0.46), vec3(0.46, 0.51, 0.60), terrain_up);
 	// emissive bounce is applied on ALBEDO-scaled colour and NOT affected by fog
 	// the way lighting is, so it reads as ground-level ambient instead of haze
-	ALBEDO = ground;
-	EMISSION = ground * sky_bounce * 0.45;
+	if (debug_flat > 0.5) {
+		ALBEDO = vec3(0.0, 1.0, 0.2);
+		EMISSION = vec3(0.0, 1.0, 0.2);
+	} else {
+		ALBEDO = ground;
+		EMISSION = ground * sky_bounce * 0.62;
+	}
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;
 	SPECULAR = mix(0.25, 0.55, wetness);

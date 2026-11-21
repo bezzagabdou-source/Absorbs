@@ -41,8 +41,17 @@ var _road_body: StaticBody3D
 ## Build the whole region. Deterministic for a given seed so replays and
 ## leaderboards stay honest, and every pass is independent of the previous ones
 ## except for the shared noise fields.
+## QA switch, CI captures only (`--debug-flat`): paints the ground green and the
+## carriageway magenta so a screenshot can prove the road is drawn where the
+## camera sits. Defaults to off, so shipping builds are unaffected.
+var debug_flat: bool = false
+
+
 func build(region_data: Dictionary) -> void:
 	region = region_data
+	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if str(arg) == "--debug-flat":
+			debug_flat = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -249,6 +258,7 @@ func _build_terrain() -> void:
 			mat.set_shader_parameter("snow_line", 4.0)
 	# light the ground with the map's own sky colour
 	var accent: Color = region.get("accent", Color(0.13, 0.91, 1.0))
+	mat.set_shader_parameter("debug_flat", 1.0 if debug_flat else 0.0)
 	mat.set_shader_parameter("sky_bounce_color", Color(0.30, 0.26, 0.46).lerp(accent, 0.18))
 	mat.set_shader_parameter("sky_bounce_energy", 1.45)
 	mi.material_override = mat
@@ -335,6 +345,7 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("ambient_lift", 1.0)
 		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
+		mat.set_shader_parameter("debug_flat", 1.0 if debug_flat else 0.0)
 		mi.material_override = mat
 	add_child(mi)
 

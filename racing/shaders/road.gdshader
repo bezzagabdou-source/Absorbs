@@ -4,8 +4,8 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
-uniform vec3 asphalt_color : source_color = vec3(0.055, 0.058, 0.068);
-uniform vec3 aggregate_color : source_color = vec3(0.19, 0.20, 0.22);
+uniform vec3 asphalt_color : source_color = vec3(0.085, 0.090, 0.102);
+uniform vec3 aggregate_color : source_color = vec3(0.26, 0.27, 0.30);
 uniform vec3 line_color : source_color = vec3(0.95, 0.96, 1.0);
 uniform vec3 neon_a : source_color = vec3(0.13, 0.91, 1.0);
 uniform vec3 neon_b : source_color = vec3(1.0, 0.18, 0.62);
@@ -16,6 +16,9 @@ uniform float neon_energy = 1.0;
 uniform float road_width = 14.0;
 uniform float track_scroll = 0.0;
 uniform float ambient_lift : hint_range(0.0, 1.5) = 0.30;
+// QA switch, off in shipping builds: paints the carriageway flat magenta so a
+// capture can prove the road is drawn where the camera sits.
+uniform float debug_flat : hint_range(0.0, 1.0) = 0.0;
 
 varying vec3 wpos;
 varying vec3 wnorm;
@@ -91,9 +94,9 @@ void fragment() {
 	// dashes every 3.2 m laterally, 4.5 m on / 4.5 m off longitudinally
 	float lane_d = abs(fract(lat / 3.2) - 0.5) * 3.2;
 	float dash = step(0.42, fract(along / 9.0));
-	float lane = smoothstep(0.34, 0.20, lane_d) * dash * uv_ok;
+	float lane = smoothstep(0.42, 0.26, lane_d) * dash * uv_ok;
 	// centre line: solid double
-	float centre = smoothstep(0.30, 0.17, abs(abs(lat) - 0.34));
+	float centre = smoothstep(0.34, 0.21, abs(abs(lat) - 0.34));
 	lane = max(lane, centre * uv_ok);
 	// solid edge lines so the road reads as a road at any speed
 	float edge_line = smoothstep(0.40, 0.24, abs(abs(lat) - (road_width * 0.5 - 0.70)));
@@ -118,9 +121,20 @@ void fragment() {
 	// pale blue wash that read as water. This is tuned as a light contribution:
 	// the asphalt stays dark (0.06 albedo * lift), the white paint stays bright,
 	// and the road keeps its legibility at night.
-	EMISSION += col * vec3(2.35, 2.55, 3.00) * ambient_lift * 0.30 + paint_glow;
+	EMISSION += col * vec3(2.35, 2.55, 3.00) * ambient_lift * 0.85 + paint_glow;
 
-	ALBEDO = col;
+	// --- lit road edge: a thin cyan rim just outside the painted shoulder. This
+	// is what sells a night highway at a glance: the carriageway is defined by
+	// light rather than by being brighter than the ground.
+	float rim = smoothstep(0.55, 0.05, abs(abs(lat) - (road_width * 0.5 - 0.08)));
+	EMISSION += mix(neon_a, vec3(0.85, 0.95, 1.0), 0.35) * rim * 0.55 * uv_ok;
+
+	if (debug_flat > 0.5) {
+		ALBEDO = vec3(1.0, 0.0, 1.0);
+		EMISSION = vec3(1.0, 0.0, 1.0);
+	} else {
+		ALBEDO = col;
+	}
 	// perturb the normal with the grain so highlights break up like real asphalt
 	vec3 n = normalize(wnorm);
 	vec2 grad = vec2(vnoise(uv * grain_scale * 0.5 + 3.1), vnoise(uv * grain_scale * 0.5 - 7.7)) - 0.5;
