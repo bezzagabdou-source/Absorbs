@@ -157,6 +157,11 @@ func _foundation() -> void:
 		# Same class of bug for the ground: an inside-out terrain mesh is culled
 		# away from above and the world looks like it has no floor at all.
 		_check(_terrain_faces_up(ow), "terrain faces up " + prof)
+		# The ground is a 25 m grid and the road is a 192-sample ribbon: wherever a
+		# grid cell straddles the ring, the interpolated terrain can rise above the
+		# exact ring height. Assert the tarmac is actually above the ground at a
+		# spread of angles, otherwise the road is buried and invisible.
+		_check(_road_above_ground(ow), "road above terrain " + prof)
 		ow.queue_free()
 
 	print("[SUITE] SECTION screens (instantiate)")
@@ -164,6 +169,25 @@ func _foundation() -> void:
 			"settings", "credits", "profile", "results"]:
 		var scr = load("res://scripts/ui/screens/%s.gd" % id)
 		_check(scr != null, "screen script " + id)
+
+
+## Sample the ring at many angles and require the carriageway to sit clear of the
+## terrain height under it. Guards the "terrain swallows the highway" regression.
+func _road_above_ground(ow: Node) -> bool:
+	var worst := 1.0e9
+	var at := 0.0
+	for k in range(24):
+		var a: float = float(k) / 24.0 * TAU
+		var r: float = 620.0 * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
+		var x: float = cos(a) * r
+		var z: float = sin(a) * r
+		var ground: float = float(ow.call("height_at", x, z))
+		var road_y: float = float(ow.call("_ring_height", a)) + 1.15
+		if road_y - ground < worst:
+			worst = road_y - ground
+			at = a
+	print("[TEST]   min road clearance %.2f m at %.2f rad" % [worst, at])
+	return worst > 0.02
 
 
 ## The ground must face up too: sample the terrain triangles and require the

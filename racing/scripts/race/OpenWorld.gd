@@ -19,9 +19,11 @@ const GRID := 200                 # terrain vertices per side
 const ROAD_RING_RADIUS := 620.0
 const ROAD_SEGMENTS := 192
 ## How far the carved shoulder sits below the tarmac. The road is a chord between
-## 192 samples over a different grid, so the corridor must sit slightly under it
-## or the terrain pokes through; 6 cm is invisible at driving height.
-const ROAD_EMBANKMENT := 0.06
+## 192 samples over a different grid, so the corridor must sit under it or the
+## terrain pokes through; this is also the visible road-bed height.
+const ROAD_EMBANKMENT := 0.55
+## Tarmac height above the carved shoulder.
+const ROAD_LIFT := 1.15
 
 var region: Dictionary = {}
 var grid: int = GRID
@@ -262,9 +264,11 @@ func _build_road_network() -> void:
 		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
 		var x: float = cos(a) * r
 		var z: float = sin(a) * r
-		# 8 cm above the carved shoulder: reads as tarmac thickness, keeps the
-		# collider clear of the ground mesh, and never floats visibly.
-		road_points.append(Vector3(x, _ring_height(a) + 0.08, z))
+		# ROAD_LIFT above the carved shoulder. The terrain grid is 25 m coarse, so
+		# its linear interpolation can rise ~1 m above the exact ring height between
+		# vertices; a lifted carriageway with a skirt (below) is the only way to
+		# guarantee the tarmac is never buried. Reads as a raised road bed.
+		road_points.append(Vector3(x, _ring_height(a) + ROAD_LIFT, z))
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -284,6 +288,28 @@ func _build_road_network() -> void:
 		_quad(st, a, c, b, d)
 		road_index.append({"a": p0, "b": p1})
 
+	# --- skirt: two vertical walls dropped from the carriageway edges down past the
+	# shoulder. Without them the lifted road reads as a floating ribbon; with them
+	# it is an embankment, and they also hide any terrain triangle that pokes up
+	# between grid vertices.
+	var skirt := SurfaceTool.new()
+	skirt.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var drop: float = ROAD_LIFT + ROAD_EMBANKMENT + 3.0
+	for i in range(ROAD_SEGMENTS):
+		var s0: Vector3 = road_points[i]
+		var s1: Vector3 = road_points[(i + 1) % ROAD_SEGMENTS]
+		var sdir: Vector3 = (s1 - s0)
+		if sdir.length() < 0.01:
+			continue
+		sdir = sdir.normalized()
+		var sright: Vector3 = sdir.cross(Vector3.UP).normalized() * width * 0.5
+		for edge in [-1.0, 1.0]:
+			var e0: Vector3 = s0 + sright * edge
+			var e1: Vector3 = s1 + sright * edge
+			# outward-facing wall: (top0, bottom1, top1) / (top0, bottom0, bottom1)
+			_skirt_tri(skirt, e0, e1 - Vector3.UP * drop, e1, sright * edge)
+			_skirt_tri(skirt, e0, e0 - Vector3.UP * drop, e1 - Vector3.UP * drop, sright * edge)
+
 	var mi := MeshInstance3D.new()
 	mi.name = "Highway"
 	mi.mesh = st.commit()
@@ -302,6 +328,16 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
 		mi.material_override = mat
 	add_child(mi)
+
+	var skirt_mi := MeshInstance3D.new()
+	skirt_mi.name = "HighwaySkirt"
+	skirt_mi.mesh = skirt.commit()
+	skirt_mi.layers = 1
+	var skirt_mat := StandardMaterial3D.new()
+	skirt_mat.albedo_color = Color(0.09, 0.10, 0.13)
+	skirt_mat.roughness = 0.92
+	skirt_mi.material_override = skirt_mat
+	add_child(skirt_mi)
 
 	# collision so you can actually drive the highway
 	_road_body = StaticBody3D.new()
@@ -352,6 +388,21 @@ func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
 		# UV in road space: x = 0..1 across the carriageway, y = metres along it.
 		# The shader needs this to paint lane lines that follow the curve.
 		st.set_uv(Vector2(_road_lateral(v), _road_along(v)))
+		st.add_vertex(v)
+
+
+## One embankment-wall triangle, wound so it faces away from the carriageway.
+func _skirt_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, outward: Vector3) -> void:
+	var n: Vector3 = outward.normalized()
+	# Godot renders -(u x v); flip when the given order leans inward so both walls
+	# are visible from the field either side of the road.
+	if -(b - a).cross(c - a).dot(n) < 0.0:
+		var t: Vector3 = b
+		b = c
+		c = t
+	for v in [a, b, c]:
+		st.set_normal(Vector3.UP)
+		st.set_uv(Vector2.ZERO)
 		st.add_vertex(v)
 
 
