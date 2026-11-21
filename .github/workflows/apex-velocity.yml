@@ -253,6 +253,16 @@ jobs:
               tail -20 /tmp/shot_${screen}.log || true
             fi
           done
+          # QA: unshaded magenta carriageway so "not drawn" and "drawn but dark"
+          # can never be confused again
+          timeout -k 5 90 xvfb-run -a -s "-screen 0 1920x1080x24" \
+            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+            --rendering-driver opengl3 --resolution 1920x1080 \
+            --write-movie /tmp/shot_roam_magenta.png --fixed-fps 30 --quit-after 110 \
+            -- --screen=roam --qa-road >/tmp/shot_roam_magenta.log 2>&1 || true
+          last=$(ls -t /tmp/shot_roam_magenta*.png 2>/dev/null | head -1)
+          [ -n "$last" ] && cp "$last" racing/docs/screenshots/roam_magenta.png
+          { echo "===== roam_magenta ====="; grep -E 'QAROAD|ERROR|SHADER' /tmp/shot_roam_magenta.log | head -20; } >> /tmp/console.log
           ls -lh racing/docs/screenshots
       - name: Layout diagnostics
         run: |

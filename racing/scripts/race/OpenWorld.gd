@@ -41,8 +41,14 @@ var _road_body: StaticBody3D
 ## Build the whole region. Deterministic for a given seed so replays and
 ## leaderboards stay honest, and every pass is independent of the previous ones
 ## except for the shared noise fields.
+var qa_road: bool = false
+
+
 func build(region_data: Dictionary) -> void:
 	region = region_data
+	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if str(arg) == "--qa-road":
+			qa_road = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -327,7 +333,17 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
 		mi.material_override = mat
+	if qa_road:
+		var dbg := StandardMaterial3D.new()
+		dbg.albedo_color = Color(1.0, 0.0, 1.0)
+		dbg.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		dbg.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mi.material_override = dbg
 	add_child(mi)
+	if qa_road:
+		var p0dbg: Vector3 = road_points[0]
+		print("[QAROAD] road_points[0]=%s y_ground=%0.2f camera_mesh_aabb=%s" % [p0dbg,
+			height_at(p0dbg.x, p0dbg.z), mi.get_aabb()])
 
 	var skirt_mi := MeshInstance3D.new()
 	skirt_mi.name = "HighwaySkirt"
