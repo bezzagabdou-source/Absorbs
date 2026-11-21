@@ -894,8 +894,6 @@ func spawn_transform(index: int = 0) -> Transform3D:
 	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.22)
 
 
-## QA-only: dump every visual instance within a radius of a point, with its AABB,
-## so a capture can never be blamed on the wrong node again.
 ## QA-only: compare the road surface against the ground that should sit under it.
 func qa_height_report() -> void:
 	qa_log_lines.clear()
@@ -910,7 +908,6 @@ func qa_height_report() -> void:
 		qa_log_lines.append("[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr, clear])
 	qa_log_lines.append("[QAH] grid=%d segs=%d points=%d" % [grid, ROAD_SEGMENTS, road_points.size()])
 	qa_log_lines.append("[QAH] first_points=%s %s %s" % [road_points[0], road_points[1], road_points[2]])
-	f.close()
 
 
 func qa_dump_near(centre: Vector3, radius: float) -> void:

@@ -64,6 +64,21 @@ jobs:
           grep -iE 'SCRIPT ERROR|Parse Error' /tmp/import.log | head -30 | while read -r l; do echo "::error::$l"; done || true
           if grep -qiE 'SCRIPT ERROR|Parse Error' /tmp/import.log; then exit 1; fi
 
+      - name: Script load check (catches name-resolution failures)
+        run: |
+          # A renamed identifier leaves a screen unable to compile. Godot logs
+          # "Parse Error" and the scene comes up empty, which reads downstream as a
+          # black render; gdparse and gdlint both pass because they never resolve
+          # names. This loads every .gd file and fails the build on any of them.
+          set +e
+          "$GODOT_DIR/godot" --headless --path racing res://tests/ScriptLoadProbe.tscn 2>&1 | tee /tmp/scripts.log
+          code=${PIPESTATUS[0]}
+          grep -E '^\[SCRIPTS\] FAIL' /tmp/scripts.log | head -40 \
+            | while read -r l; do echo "::error::$l"; done || true
+          grep -E 'SCRIPT ERROR|Parse Error' /tmp/scripts.log | head -20 \
+            | while read -r l; do echo "::error::$l"; done || true
+          if [ "$code" -ne 0 ]; then exit 1; fi
+
       - name: Shader compile check (real GL context)
         run: |
           # The dummy/headless renderer does not compile GLSL, so a broken shader
