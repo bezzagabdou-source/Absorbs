@@ -1,4 +1,4 @@
-=== probe 2026-11-21T19:52:45
+=== probe 2026-11-21T20:01:48
 [QAPROBE] car=(651.0, 0.788358, 0.0) nearest_road=(651.0, 0.568358, 0.0) lateral=0.00m dy=0.22m
 [QAPROBE] cam=(648.9539, 4.053297, -11.7831) showcase=true dist_to_car=12.4m
 [QAPROBE] cam_fwd=(0.168984, -0.076886, 0.982615) pitch=-0.08
