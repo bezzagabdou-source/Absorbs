@@ -56,8 +56,10 @@ jobs:
             last=$(ls -t /tmp/roam_${variant}*.png 2>/dev/null | head -1)
             echo "== $variant -> $last"
             [ -n "$last" ] && cp "$last" "racing/docs/screenshots/qa_roam_${variant}.png"
-            cp "$HOME/.local/share/godot/app_userdata"/*/qa_probe.log \
-              "racing/docs/qa_probe_${variant}.log" 2>/dev/null || true
+            # user:// lives under different app ids between runs, so glob both
+            find "$HOME/.local/share/godot/app_userdata" -name 'qa_probe.log' \
+              -exec cp {} "racing/docs/qa_probe_${variant}.log" \; 2>/dev/null || true
+            ls -la racing/docs/qa_probe_${variant}.log 2>/dev/null || echo "NO PROBE LOG for $variant"
             grep -iE 'SCRIPT ERROR|Parse Error' "/tmp/roam_${variant}.log" | head -5 || true
           done
           { echo "==== console ===="; tail -50 /tmp/roam_plain.log; } > racing/docs/qa_console.log || true
