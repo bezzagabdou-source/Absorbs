@@ -203,8 +203,8 @@ await step('رمز خاطئ → OTP_INVALID', async () => {
 await step('حجب 403 يُعرض بصدق لكل المسارات المحجوبة', async () => {
   await assert.rejects(
     () => engine.startLogin(TG_ID, '213700000000'),
-    (error) => error.status === 403,
-    'يجب إرجاع خطأ بحالة 403 الصريحة عند حجب جميع المسارات',
+    (error) => error.status === 403 && error.code === ERROR_CODES.BLOCKED,
+    'يجب إرجاع خطأ BLOCKED بحالة 403 عند حجب جميع المسارات',
   );
 });
 

@@ -208,10 +208,12 @@ async function probeHandler(req, res) {
               : false,
           });
           const blocked = response.status === 403 || response.status === 451;
+          // 5xx هنا غالباً خطأ من البروكسي نفسه (مثل 502 عند فشل CONNECT) — ليس نجاحاً
+          const ok = !blocked && response.status < 500;
           return {
             route: proxy ? proxy.label : 'direct',
             status: response.status,
-            ok: !blocked,
+            ok,
             sample: String(response.data || '').slice(0, 100),
           };
         } catch (error) {

@@ -3,6 +3,7 @@ export const ERROR_CODES = {
   CONFIG: 'CONFIG',
   NETWORK: 'NETWORK',
   TIMEOUT: 'TIMEOUT',
+  BLOCKED: 'BLOCKED',
   AUTH: 'AUTH',
   AUTH_EXPIRED: 'AUTH_EXPIRED',
   OTP_INVALID: 'OTP_INVALID',
@@ -22,6 +23,8 @@ const FRIENDLY = {
     'تعذّر الوصول إلى خوادم جيزي: جيزي لا تسمح بالاتصال إلا من شبكات داخل الجزائر، والاستضافة الحالية خارجها.',
   [ERROR_CODES.TIMEOUT]:
     'تعذّر الوصول إلى خوادم جيزي (حجب جغرافي): الطلبات القادمة من خارج الجزائر لا تصل أبداً.',
+  [ERROR_CODES.BLOCKED]:
+    'خوادم جيزي تحجب هذا العنوان (حجب جغرافي — خارج الجزائر). الحل: شغّل relay داخل الجزائر (relay/server.js) واضبط DJEZZY_RELAY_URL على Vercel.',
   [ERROR_CODES.AUTH]: 'بيانات الجلسة غير صالحة — أعد إضافة الرقم.',
   [ERROR_CODES.AUTH_EXPIRED]: 'انتهت صلاحية الجلسة — أعد تسجيل الدخول برمز تحقق جديد.',
   [ERROR_CODES.OTP_INVALID]: 'رمز التحقق غير صحيح.',
@@ -78,6 +81,12 @@ export function normalizeError(error, context = {}) {
   }
   if (!error?.response) {
     return new DjezzyError(ERROR_CODES.NETWORK, `تعذّر الاتصال: ${detail}`, { status, retryable: true });
+  }
+
+  /* حجب جغرافي: nginx يعيد 403/451 نصّياً (ليس JSON تطبيق) — نميّزه عن أخطاء التطبيق */
+  const rawText = `${typeof payload === 'string' ? payload : JSON.stringify(payload ?? '')}${detail}`;
+  if ((status === 403 || status === 451) && /forbidden|nginx/i.test(rawText)) {
+    return new DjezzyError(ERROR_CODES.BLOCKED, null, { status, payload, retryable: false });
   }
 
   const text = String(typeof payload === 'string' ? payload : JSON.stringify(payload ?? '') + detail).toLowerCase();

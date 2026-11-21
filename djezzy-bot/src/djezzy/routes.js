@@ -198,8 +198,16 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
 
   let lastError = null;
   let lastBlocked = null;
+  let autoTried = 0;
 
   for (const route of routes) {
+    // بعد حجب أول: البروكسيات العمومية تُجرَّب بحد أقصى 3 وبمهلة قصيرة
+    // (معظمها أجنبي محجوب أيضاً — لا نُعلّق كل طلب دقائق في قوائم ميّتة)
+    const isAuto = route.kind === 'proxy' && route.name.startsWith('auto:');
+    if (isAuto && autoTried >= 3 && (lastBlocked || lastError)) break;
+    if (isAuto) autoTried += 1;
+    const effectiveTimeout = lastBlocked && isAuto ? Math.min(timeoutMs, 5000) : timeoutMs;
+
     const started = Date.now();
     try {
       let response;
@@ -222,7 +230,7 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
         }
         response = { status: payload.status, data: payload.body ?? '', headers: payload.headers || {} };
       } else {
-        const http = axiosFor(route, timeoutMs);
+        const http = axiosFor(route, effectiveTimeout);
         response = await http.request({ method, url: target, headers, data });
       }
 

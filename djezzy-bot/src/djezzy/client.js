@@ -186,6 +186,9 @@ export class DjezzyClient {
     }
     if (response.status < 200 || response.status >= 300) {
       const detail = DjezzyClient.message(response.json) || response.text?.slice(0, 200) || `HTTP ${response.status}`;
+      if ((response.status === 403 || response.status === 451) && /forbidden|nginx/i.test(String(response.text || ''))) {
+        throw new DjezzyError(ERROR_CODES.BLOCKED, null, { status: response.status, payload: response.json });
+      }
       throw new DjezzyError(ERROR_CODES.UNKNOWN, detail, { status: response.status, payload: response.json });
     }
 

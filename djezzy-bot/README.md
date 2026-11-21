@@ -123,26 +123,52 @@ https://<project>.vercel.app/api/setup?key=<WEBHOOK_SECRET>
 
 ### تجاوز الحجب الجغرافي (طبقات المسارات)
 
-خوادم جيزي تقبل الشبكات الجزائرية بشكل موثوق. ترتيب المحاولة في `routes.js`:
+**مُختبَر عملياً (2026):** بوابة `apim.djezzy.dz` تعيد `403 Forbidden` (nginx) لكل
+العناوين الأجنبية — من Vercel ومن بروكسيات عالمية متعدّدة — بينما جذر النطاق
+يعمل عادياً. أي: الحجب **على مستوى البلد** (الجزائر فقط)، وليس على Vercel تحديداً.
+لذلك ترتيب المحاولة في `routes.js`:
 
-1. **relay** — `DJEZZY_RELAY_URL`: خادم وسيط تشغّله داخل الجزائر (`relay/`).
-2. **مباشر** — من الاستضافة (`DJEZZY_DIRECT=1`).
+1. **relay** — `DJEZZY_RELAY_URL`: خادم وسيط تشغّله داخل الجزائر (`relay/`). ✅ **الحل الوحيد المضمون**
+2. **مباشر** — من الاستضافة (`DJEZZY_DIRECT=1`) — يفشل بـ403 خارج الجزائر ثم يُجتاز.
 3. **بروكسياتك** — `DJEZZY_PROXIES` (صيغ: `http://user:pass@host:port` أو `host:port:user:pass`).
-4. **بروكسيات جزائرية عمومية** — اكتشاف تلقائي (`DJEZZY_AUTO_PROXY=1`).
+4. **بروكسيات عمومية** — اكتشاف تلقائي من قوائم عالمية (`DJEZZY_AUTO_PROXY=1`).
 
-الأخطاء الشبكية فقط تُكيَّف للمسار التالي؛ أي استجابة HTTP تُعتبر نهائية.
-الحالة تُعرض في `/health` (`djezzy.routes`) و `/api/probe`.
+الأخطاء الشبكية **و403/451 (الحجب الجغرافي)** تُكيَّف للمسار التالي؛ أي استجابة
+HTTP أخرى تُعتبر نهائية. الحالة تُعرض في `/health` (`djezzy.routes`) و
+`/api/probe?key=…&mode=otp` (اختبار POST حقيقي) و `mode=proxies` (اختبار البروكسيات).
 
-### تشغيل relay داخل الجزائر
+### تشغيل relay داخل الجزائر (خطوات كاملة)
+
+تحتاج جهازاً داخل الجزائر (حاسب/هاتف) ونفقاً مجانياً لأن عنوانك خلف NAT:
 
 ```bash
-cd djezzy-bot/relay
+# 1) المصدر + التوكن
+git clone https://github.com/bezzagabdou-source/Absorbs && cd Absorbs/djezzy-bot/relay
 npm install
-RELAY_TOKEN=$(node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))") npm start
-# على Vercel: DJEZZY_RELAY_URL=http://<IP-جهازك>:8787  +  DJEZZY_RELAY_TOKEN=<نفس الرمز>
+export RELAY_TOKEN=$(node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))")
+echo "احتفظ بهذا الرمز — ستحتاجه على Vercel: $RELAY_TOKEN"
+
+# 2) التشغيل
+npm start        # 🟢 يعمل على المنفذ 8787
+
+# 3) نفق عام مجاني (اختر واحداً — أيٌّ منها يعطيك https://…)
+cloudflared tunnel --url http://localhost:8787   # ← بدون حساب، يعطي https://xxx.trycloudflare.com
+# أو:  bore local 8787 --to bore.pub             # ← بدون حساب
+# أو:  ngrok http 8787                           # ← يحتاج حساب مجاني
 ```
 
-(على الهاتف: Termux → `pkg install nodejs-lts` ثم نفس الأوامر.)
+(على الهاتف: Termux → `pkg install nodejs-lts git` ثم نفس الأوامر؛
+`cloudflared` يُنزَّل كملف تنفيذي واحد من github.com/cloudflare/cloudflared/releases.)
+
+ثم على Vercel (أو اطلب مني أنا):
+
+```
+DJEZZY_RELAY_URL=https://<عنوان-النفق-الخاص-بك>
+DJEZZY_RELAY_TOKEN=<نفس RELAY_TOKEN أعلاه>
+```
+
+وأعد النشر، ثم تحقّق: `/api/probe?key=<WEBHOOK_SECRET>&mode=otp` يجب أن يعود
+بـ `"route":"relay"` وحالة ليست 403.
 
 ---
 
