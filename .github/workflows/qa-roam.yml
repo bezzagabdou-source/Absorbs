@@ -40,43 +40,18 @@ jobs:
         run: |
           timeout 300 "$GODOT_DIR/godot" --headless --path racing --import || true
 
-      - name: Capture roam (normal + debug-flat + bird's eye)
+      - name: Capture roam
         run: |
           set -x
-          for variant in plain debug marker; do
-            extra=""
-            [ "$variant" = "debug" ] && extra="--debug-flat"
-            [ "$variant" = "bird" ] && extra="--qa-bird"
-            [ "$variant" = "marker" ] && extra="--qa-marker"
-            timeout -k 5 90 xvfb-run -a -s "-screen 0 1920x1080x24" \
-              "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
-              --rendering-driver opengl3 --resolution 1920x1080 \
-              --write-movie /tmp/roam_${variant}.png --fixed-fps 30 --quit-after 40 \
-              -- --screen=roam --qa-probe $extra >"/tmp/roam_${variant}.log" 2>&1 || true
-            last=$(ls -t /tmp/roam_${variant}*.png 2>/dev/null | head -1)
-            [ -n "$last" ] && cp "$last" "racing/docs/screenshots/qa_roam_${variant}.png"
-            cp "$HOME/.local/share/godot/app_userdata"/*/qa_probe.log "racing/docs/qa_probe_${variant}.log" 2>/dev/null || true
-            echo "===== $variant probe ====="
-            grep -E '\[QAPROBE\]|\[OPENWORLD\]|SCRIPT ERROR|Invalid |Cannot ' "/tmp/roam_${variant}.log" | head -30
-          done
-
-      - name: Pixel report
-        run: |
-          python3 - <<'PY'
-          from PIL import Image
-          import statistics, os
-          for v in ["plain", "debug", "marker"]:
-              p = f"racing/docs/screenshots/qa_roam_{v}.png"
-              if not os.path.exists(p):
-                  print(v, "MISSING"); continue
-              im = Image.open(p).convert("RGB"); w, h = im.size
-              print("==", v, im.size)
-              for label, y in [("horizon", 200), ("upper", 380), ("mid", 560), ("low", 760), ("bottom", 1000)]:
-                  px = [im.getpixel((x, y)) for x in range(0, w, 12)]
-                  r = statistics.mean([q[0] for q in px]); g = statistics.mean([q[1] for q in px]); b = statistics.mean([q[2] for q in px])
-                  magenta = sum(1 for q in px if q[0] > 140 and q[2] > 140 and q[1] < 90)
-                  print(f"   y={y:4d} {label:8s} mean=({r:5.1f},{g:5.1f},{b:5.1f}) magenta_px={magenta}")
-          PY
+          timeout -k 5 120 xvfb-run -a -s "-screen 0 1920x1080x24" \
+            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+            --rendering-driver opengl3 --resolution 1920x1080 \
+            --write-movie /tmp/roam.png --fixed-fps 30 --quit-after 40 \
+            -- --screen=roam >/tmp/roam.log 2>&1 || true
+          last=$(ls -t /tmp/roam*.png 2>/dev/null | head -1)
+          echo "captured: $last"
+          [ -n "$last" ] && cp "$last" racing/docs/screenshots/qa_roam_plain.png
+          tail -40 /tmp/roam.log || true
 
       - name: Commit the captures
         run: |
