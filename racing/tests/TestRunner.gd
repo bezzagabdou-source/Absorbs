@@ -182,7 +182,7 @@ func _road_above_ground(ow: Node) -> bool:
 		var x: float = cos(a) * r
 		var z: float = sin(a) * r
 		var ground: float = float(ow.call("height_at", x, z))
-		var road_y: float = float(ow.call("_ring_height", a)) + 1.15
+		var road_y: float = float(ow.call("_road_surface_height", a))
 		if road_y - ground < worst:
 			worst = road_y - ground
 			at = a

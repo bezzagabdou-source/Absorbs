@@ -128,6 +128,8 @@ func height_at(x: float, z: float) -> float:
 	var plateau: float = maxf(24.0, cell * 2.0)
 	var blend: float = plateau + maxf(150.0, cell * 6.0)
 	var corridor: float = smoothstep(blend, plateau, absf(Vector2(x, z).length() - ring_r))
+	# height_at is recursive-free: _ring_height is the raw noise, so the shoulder
+	# lands exactly one ROAD_LIFT below the finished tarmac.
 	# 6 cm below the tarmac: enough that the road chord never pokes through the
 	# carved shoulder, small enough to read as a kerb rather than a trench.
 	h = lerpf(h, road_h - ROAD_EMBANKMENT, corridor)
@@ -136,6 +138,26 @@ func height_at(x: float, z: float) -> float:
 
 ## Height of the ring highway at a given angle. Kept as one function so the road
 ## mesh and the terrain carve can never drift apart.
+## Height of the finished road surface at a given angle.
+##
+## Deliberately NOT height_at() at the ring position. The noise carries an octave
+## with a 22 m wavelength, while the road ribbon is sampled every 20 m and the
+## terrain grid every 25 m — both are coarser than that octave, so each surface
+## aliases it differently and the two can disagree by well over a metre. Sampling
+## a 7-point box around the ring position low-passes the profile into something
+## both meshes reproduce, which is what keeps the tarmac on top of the land.
+func _road_surface_height(ang: float) -> float:
+	var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
+	var sum := 0.0
+	var taps := 7
+	var span := 1.4      # ~34 m of arc at ring radius: wider than the 22 m octave
+	for k in range(taps):
+		var da: float = (float(k) / float(taps - 1) - 0.5) * span
+		var a: float = ang + da
+		sum += height_at(cos(a) * r, sin(a) * r)
+	return sum / float(taps) + ROAD_LIFT
+
+
 func _ring_height(ang: float) -> float:
 	var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
 	var x: float = cos(ang) * r
@@ -264,11 +286,10 @@ func _build_road_network() -> void:
 		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
 		var x: float = cos(a) * r
 		var z: float = sin(a) * r
-		# ROAD_LIFT above the carved shoulder. The terrain grid is 25 m coarse, so
-		# its linear interpolation can rise ~1 m above the exact ring height between
-		# vertices; a lifted carriageway with a skirt (below) is the only way to
-		# guarantee the tarmac is never buried. Reads as a raised road bed.
-		road_points.append(Vector3(x, _ring_height(a) + ROAD_LIFT, z))
+		# Sit on the terrain the mesh actually renders (height_at includes the
+		# carve), plus ROAD_LIFT. A depth-tested surface cannot be buried if it is
+		# sampled from the same function that built the ground beneath it.
+		road_points.append(Vector3(x, _road_surface_height(a), z))
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -327,13 +348,6 @@ func _build_road_network() -> void:
 		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
 		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
 		mi.material_override = mat
-	if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-standard-road"):
-		# QA only: plain StandardMaterial3D, no custom shader. Proves whether the
-		# road geometry is fine and the shader is what makes it invisible.
-		var plain := StandardMaterial3D.new()
-		plain.albedo_color = Color(1.0, 0.0, 1.0)
-		plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mi.material_override = plain
 	add_child(mi)
 
 	var skirt_mi := MeshInstance3D.new()
