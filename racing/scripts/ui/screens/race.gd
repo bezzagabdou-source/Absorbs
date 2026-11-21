@@ -397,7 +397,7 @@ func _update_post_live(delta: float) -> void:
 		var c: Camera3D = cam.camera()
 		if c:
 			var sun_dir: Vector3 = -env_rig.sun.global_transform.basis.z
-			var facing: float = clampf(fwd.dot(sun_dir), 0.0, 1.0)
+			var facing: float = clampf((-c.global_transform.basis.z).dot(sun_dir), 0.0, 1.0)
 			if str(track.get("time", "night")) != "night":
 				post_mat.set_shader_parameter("flare_strength", pow(facing, 3.0) * 0.9)
 
