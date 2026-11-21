@@ -1,7 +1,7 @@
-=== probe 2026-11-21T19:55:13
+=== probe 2026-11-21T21:12:27
 [QAPROBE] car=(651.0, 0.788358, 0.0) nearest_road=(651.0, 0.568358, 0.0) lateral=0.00m dy=0.22m
-[QAPROBE] cam=(648.9539, 4.053297, -11.7831) showcase=true dist_to_car=12.4m
-[QAPROBE] cam_fwd=(0.168984, -0.076886, 0.982615) pitch=-0.08
+[QAPROBE] cam=(648.3593, 4.486124, -11.65792) showcase=true dist_to_car=12.5m
+[QAPROBE] cam_fwd=(0.23076, -0.118197, 0.965805) pitch=-0.12
 [QADUMP] Highway aabb=[P: (-646.0241, -2.641821, -698.6008), S: (1316.625, 7.097498, 1292.051)] mat=<StandardMaterial3D#-9223371986103695909> layers=1
 [QADUMP] @MeshInstance3D@132 pos=(642.5816, 4.068358, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
 [QADUMP] @MeshInstance3D@133 pos=(642.5816, 7.568358, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
@@ -12,5 +12,6 @@
 [QAH] ang=4.71 road=-2.53 terrain=-4.23 clearance=1.70
 [QAH] grid=96 segs=192 points=192
 [QAH] first_points=(651.0, 0.568358, 0.0) (656.3114, 0.239771, 21.48541) (660.0342, 0.071889, 43.26093)
+[QAH] road_vs_mesh: buried=0/192 worst_clearance=1.70 at=27
 [QAH] mesh verts=1152 indexed=false
 [QAH] tris up=384 down=0 verts_near_spawn=6 area=64633
