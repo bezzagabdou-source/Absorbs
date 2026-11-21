@@ -266,6 +266,7 @@ func _qa_probe() -> void:
 	_qa_log("[QAPROBE] cam=%s showcase=%s dist_to_car=%.1fm" % [c.global_position, cam.showcase,
 		c.global_position.distance_to(cp)])
 	open_world.qa_dump_near(cp, 90.0)
+	open_world.qa_height_report()
 	var fwd: Vector3 = -c.global_transform.basis.z
 	_qa_log("[QAPROBE] cam_fwd=%s pitch=%.2f" % [fwd, c.global_transform.basis.get_euler().x])
 	_qa_flush()
@@ -394,7 +395,6 @@ func _update_post_live(delta: float) -> void:
 		var c: Camera3D = cam.camera()
 		if c:
 			var sun_dir: Vector3 = -env_rig.sun.global_transform.basis.z
-			var fwd: Vector3 = -c.global_transform.basis.z
 			var facing: float = clampf(fwd.dot(sun_dir), 0.0, 1.0)
 			if str(track.get("time", "night")) != "night":
 				post_mat.set_shader_parameter("flare_strength", pow(facing, 3.0) * 0.9)

@@ -45,6 +45,7 @@ var _road_body: StaticBody3D
 ## carriageway magenta so a screenshot can prove the road is drawn where the
 ## camera sits. Defaults to off, so shipping builds are unaffected.
 var debug_flat: bool = false
+var _qa_no_terrain: bool = false
 
 
 func build(region_data: Dictionary) -> void:
@@ -52,6 +53,8 @@ func build(region_data: Dictionary) -> void:
 	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if str(arg) == "--debug-flat":
 			debug_flat = true
+		if str(arg) == "--qa-no-terrain":
+			_qa_no_terrain = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -62,7 +65,8 @@ func build(region_data: Dictionary) -> void:
 	var seed_value: int = int(region_data.get("seed", 1337))
 	_rng.seed = seed_value
 	_build_noise(seed_value)
-	_build_terrain()
+	if not _qa_no_terrain:
+		_build_terrain()
 	_build_road_network()
 	_scatter_root = Node3D.new()
 	_scatter_root.name = "Scatter"
@@ -847,6 +851,24 @@ func spawn_transform(index: int = 0) -> Transform3D:
 
 ## QA-only: dump every visual instance within a radius of a point, with its AABB,
 ## so a capture can never be blamed on the wrong node again.
+## QA-only: compare the road surface against the ground that should sit under it.
+func qa_height_report() -> void:
+	var f := FileAccess.open("res://docs/qa_probe.log", FileAccess.READ_WRITE)
+	if f == null:
+		return
+	f.seek_end()
+	for k in [0, 48, 96, 144]:
+		var a: float = float(k) / 192.0 * TAU
+		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
+		var x: float = cos(a) * r
+		var z: float = sin(a) * r
+		var road: float = _road_surface_height(a)
+		var terr: float = height_at(x, z)
+		f.store_string("\n[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr,
+			road - terr])
+	f.close()
+
+
 func qa_dump_near(centre: Vector3, radius: float) -> void:
 	_qa_dump(self, centre, radius)
 
