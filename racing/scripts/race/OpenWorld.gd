@@ -379,8 +379,9 @@ func _build_road_network() -> void:
 		# height_at() is the analytic profile; the RENDERED terrain is that profile
 		# linearly interpolated across a 25 m grid, and between grid vertices the
 		# chord can sit well above the analytic height.
-		if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-lift"):
-			mi.position = Vector3(0.0, 8.0, 0.0)
+		for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+			if str(arg).begins_with("--qa-lift="):
+				mi.position = Vector3(0.0, float(str(arg).split("=")[1]), 0.0)
 		add_child(mi)
 		_build_road_collision(width)
 		_mark_ring_centre()
