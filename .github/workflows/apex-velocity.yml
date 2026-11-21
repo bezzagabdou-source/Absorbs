@@ -52,6 +52,9 @@ jobs:
             fi
           done
           gdlint scripts tests || fail=1
+          # gdparse accepts an identifier that is used but never declared; only
+          # Godot's compiler rejects it. This gate closes that gap locally.
+          python3 tools/check_undeclared.py || fail=1
           python3 tools/physics_sim.py
           exit $fail
 

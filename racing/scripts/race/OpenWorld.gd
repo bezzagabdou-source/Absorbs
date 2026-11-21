@@ -293,7 +293,7 @@ func _build_road_network() -> void:
 	# centre line of the ring, for GPS / minimap / spawn logic
 	var marker := Node3D.new()
 	marker.name = "RingCentre"
-	marker.position = centre
+	marker.position = Vector3.ZERO
 	add_child(marker)
 
 
