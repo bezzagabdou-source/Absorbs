@@ -151,9 +151,13 @@ const isNetworkError = (error) =>
     error.code || error.cause?.code,
   );
 
-/* 403/451 = البوابة تحجب هذه المنطقة/العنوان (حجب جغرافي) — ليس خطأ في الطلب،
-   لذا نُجتاز المسار ونجرّب التالي (بروكسي/relay) بدل إسقاط الجلسة */
-const isBlockedStatus = (status) => status === 403 || status === 451;
+/* حجب جغرافي = nginx يعيد نص "403 Forbidden" (أو451) — أما أخطاء التطبيق
+   JSON (رصيد/باقة/eligibility) فلا تُجتاز وتُعرض للمستخدم فوراً */
+const isBlockedStatus = (status, body) => {
+  if (status === 451) return true;
+  if (status !== 403) return false;
+  return /403 forbidden|nginx/i.test(String(body ?? ''));
+};
 
 function axiosFor(route, timeoutMs) {
   const base = {
@@ -238,7 +242,7 @@ export async function request({ method = 'POST', url, query, headers = {}, data,
       routeStats.attempts.push(record);
       if (routeStats.attempts.length > 40) routeStats.attempts.shift();
 
-      if (isBlockedStatus(response.status)) {
+      if (isBlockedStatus(response.status, response.data)) {
         // حجب جغرافي من هذا المسار — سجّله وجرّب المسار التالي
         lastBlocked = { status: response.status, data: response.data, headers: response.headers || {}, route: route.name };
         log.debug(`المسار ${route.name} محجوب (HTTP ${response.status}) — تجربة المسار التالي…`);

@@ -74,6 +74,46 @@ async function homeView(ctx, note = null) {
   await render(ctx, text, ui.mainMenu(menuOpts(user)));
 }
 
+/** فحص الحساب (الرصيد + العروض + السجل) — مشترك بين الزر والقائمة الملوّنة */
+async function showOverview(ctx) {
+  const context = await requireAccount(ctx);
+  if (!context) return;
+
+  const wait = await takeCooldown(context.user, 'overview');
+  if (wait) return answer(ctx, `⏳ انتظر ${wait} ثانية`);
+
+  await answer(ctx, '🔄 جارٍ الفحص…');
+  await render(ctx, '⏳ <i>جارٍ جلب بيانات حسابك من جيزي…</i>', ui.backHome());
+
+  try {
+    const overview = await engine.getOverview(ctx.from.id, context.msisdn);
+    await render(ctx, txt.overviewText({ account: context.account, overview }), ui.afterAction());
+  } catch (error) {
+    log.warn(`فشل الفحص: ${error.code || error.message}`);
+    await render(ctx, txt.errorText(error), ui.afterAction());
+  }
+}
+
+function helpText() {
+  return [
+    'ℹ️ <b>كيف يعمل البوت</b>',
+    '',
+    '1️⃣ «📱 إضافة رقم جديد» → أرسل الرقم (07…) → أدخل رمز التحقق.',
+    '2️⃣ بعد التأكيد تظهر لك «🟢 الهدايا المجانية» و«🔵 العروض المدفوعة».',
+    '3️⃣ 🟢 هدية 2 جيجا كل أسبوع · هدية الجمعة/المناسبة · بونص الدعوة — مجانية 100%.',
+    '4️⃣ 🔵 عروض يومية/أسبوعية/شهرية بأسعار واضحة — تُفعَّل بتأكيدك فقط.',
+    '5️⃣ «⚙️ إدارة الأرقام» → تبديل/حذف الأرقام.',
+    '',
+    'الأزرار الملوّنة أسفل الشات: 👤 ملفي · 🎁 الهدايا · 💳 العروض · 💰 الرصيد · 🤝 إحالة · ℹ️ مساعدة · 🗑️ حذف.',
+    'الأوامر: /start · /menu · /cancel · /help · /diag',
+    '',
+    '🩺 <code>/diag</code> — تشخيص كامل (الرصيد/السجل/المسارات) إن فشل شيء.',
+    '',
+    '🔐 تُشفَّر رموز الجلسات قبل تخزينها ولا تُعرض أبداً.',
+    '⚠️ استخدم البوت على أرقامك فقط، وبما يتوافق مع شروط خدمة جيزي.',
+  ].join('\n');
+}
+
 /** يرجع { user, msisdn } أو يشرح للمستخدم ما ينقص */
 async function requireAccount(ctx) {
   const user = await loadUser(ctx);
@@ -137,6 +177,13 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
       user.state = null;
       await store.saveUser(user);
     }
+    // قائمة رد ملوّنة ثابتة (أخضر/أزرق/أحمر) أسفل الشات — مثل صورة YASSER SHOPE
+    await ctx
+      .reply('🗂️ <b>القائمة الرئيسية</b> — اختر من الأزرار الملوّنة بالأسفل 👇', {
+        parse_mode: 'HTML',
+        reply_markup: ui.mainReplyKeyboard(),
+      })
+      .catch(() => {});
     await homeView(ctx);
   });
 
@@ -148,29 +195,20 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
   });
 
   bot.command('help', async (ctx) => {
-    await ctx.reply(
-      [
-        'ℹ️ <b>كيف يعمل البوت</b>',
-        '',
-        '1️⃣ «📱 إضافة رقم جديد» → أرسل الرقم (07…) → أدخل رمز التحقق.',
-        '2️⃣ بعد التأكيد تظهر لك «🟢 الهدايا المجانية» و«🔵 العروض المدفوعة».',
-        '3️⃣ 🟢 هدية 2 جيجا كل أسبوع · هدية الجمعة/المناسبة · بونص الدعوة — مجانية 100%.',
-        '4️⃣ 🔵 عروض يومية/أسبوعية/شهرية بأسعار واضحة — تُفعَّل بتأكيدك فقط.',
-        '5️⃣ «⚙️ إدارة الأرقام» → تبديل/حذف الأرقام.',
-        '',
-        'الأوامر: /start · /menu · /cancel · /help',
-        '',
-        '🌐 <b>لوحة أزرار ملوّنة على الويب:</b> زر «لوحة أزرار» في القائمة',
-        '(أزرار حقيقية بخلفيات زرقاء/خضراء/حمراء + إيموجيات متحركة HTML).',
-        '',
-        '🌍 <b>اتصال جيزي:</b> البوت يجرّب تلقياً: relay ← مباشر ← بروكسيات جزائرية.',
-        'إن فشل كل شيء شغّل <code>djezzy-bot/relay</code> داخل الجزائر واضبط DJEZZY_RELAY_URL.',
-        '',
-        '🔐 تُشفَّر رموز الجلسات قبل تخزينها ولا تُعرض أبداً.',
-        '⚠️ استخدم البوت على أرقامك فقط، وبما يتوافق مع شروط خدمة جيزي.',
-      ].join('\n'),
-      { parse_mode: 'HTML', reply_markup: ui.backHome() },
-    );
+    await ctx.reply(helpText(), { parse_mode: 'HTML', reply_markup: ui.backHome() });
+  });
+
+  /* تشخيص: الرصيد + السجل + المسارات (HTTP) */
+  bot.command('diag', async (ctx) => {
+    const context = await requireAccount(ctx);
+    if (!context) return;
+    await render(ctx, '🩺 <i>جارٍ التشخيص…</i>', ui.backHome());
+    try {
+      const report = await engine.runDiag(ctx.from.id, context.msisdn);
+      await render(ctx, txt.diagText(report), ui.afterAction());
+    } catch (error) {
+      await render(ctx, txt.errorText(error), ui.backHome());
+    }
   });
 
   /* --------------------------- الأزرار العامة --------------------------- */
@@ -329,22 +367,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
 
   /* ---------------------------- فحص الحساب ---------------------------- */
   bot.callbackQuery('act:overview', async (ctx) => {
-    const context = await requireAccount(ctx);
-    if (!context) return;
-
-    const wait = await takeCooldown(context.user, 'overview');
-    if (wait) return answer(ctx, `⏳ انتظر ${wait} ثانية`);
-
-    await answer(ctx, '🔄 جارٍ الفحص…');
-    await render(ctx, '⏳ <i>جارٍ جلب بيانات حسابك من جيزي…</i>', ui.backHome());
-
-    try {
-      const overview = await engine.getOverview(ctx.from.id, context.msisdn);
-      await render(ctx, txt.overviewText({ account: context.account, overview }), ui.afterAction());
-    } catch (error) {
-      log.warn(`فشل الفحص: ${error.code || error.message}`);
-      await render(ctx, txt.errorText(error), ui.afterAction());
-    }
+    await showOverview(ctx);
   });
 
   /* ---------------------- عرض 6 جيجا (مدفوع/باقة) ---------------------- */
@@ -460,8 +483,40 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
   bot.on('message:text', async (ctx) => {
     const user = await loadUser(ctx);
     const state = user.state;
+    const text = String(ctx.message.text || '').trim();
 
     if (!state?.step) {
+      /* أزرار القائمة الملوّنة (reply keyboard) — تُطابَق نصوصها هنا */
+      if (/ملفي|رصيد/i.test(text) && !/حذف/i.test(text)) {
+        await showOverview(ctx);
+        return;
+      }
+      if (/الهدايا|^🎁/.test(text)) {
+        await render(ctx, txt.catalogText('free', { mode: engine.mode }), ui.freeGiftsMenu());
+        return;
+      }
+      if (/العروض|^💳/.test(text)) {
+        await render(ctx, txt.catalogText('paid', { mode: engine.mode }), ui.paidOffersMenu(0));
+        return;
+      }
+      if (/إحالة|دعوة صديق/i.test(text)) {
+        await render(ctx, txt.mgmPrompt(), ui.cancelOnly('cat:free'));
+        return;
+      }
+      if (/مساعدة|^ℹ️/i.test(text)) {
+        await ctx.reply(helpText(), { parse_mode: 'HTML', reply_markup: ui.backHome() });
+        return;
+      }
+      if (/حذف رقم/i.test(text)) {
+        const accounts = accountsOf(user);
+        if (accounts.length === 0) {
+          await render(ctx, 'لا توجد أرقام لحذفها.', ui.backHome());
+          return;
+        }
+        await render(ctx, '🗑 اختر الرقم الذي تريد حذفه (ستُحذف جلسته أيضاً):', ui.removeMenu(accounts));
+        return;
+      }
+
       await ctx.reply('استخدم الأزرار للتنقل 👇 أو أرسل /menu للقائمة الرئيسية.', {
         reply_markup: ui.mainMenu(menuOpts(user)),
       });

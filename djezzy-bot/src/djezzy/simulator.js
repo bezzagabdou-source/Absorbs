@@ -58,7 +58,27 @@ export const simulator = {
       msisdn,
       mainBalance: '100.00 DA',
       package: 'SIMULATED',
-      data: { msisdn, mainBalance: '100.00 DA' },
+      // الشكل الحقيقي (JSON:API)
+      data: {
+        msisdn,
+        mainBalance: '100.00 DA',
+        attributes: { balance: '100.00 DA', 'activation-time': new Date().toISOString() },
+      },
+      included: [
+        { type: 'subscription-types', attributes: { name: { text: { ar: 'باقة تجريبية' } } } },
+        {
+          type: 'connected-products',
+          attributes: {
+            products: [
+              {
+                name: { text: { ar: 'عرض تجريبي' } },
+                'expiry-at': new Date(Date.now() + 86400000).toISOString(),
+                balances: [{ 'bundle-type': 'data', 'total-amount': 1024, 'remaining-amount': 512 }],
+              },
+            ],
+          },
+        },
+      ],
     };
   },
 

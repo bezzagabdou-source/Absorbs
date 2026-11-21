@@ -52,6 +52,9 @@ const djezzyPaths = {
   memberGetMember: process.env.DJEZZY_PATH_MGM || '/djezzy-api/api/v1/subscribers/{msisdn}/member-get-member?include=',
   scanReward: process.env.DJEZZY_PATH_SCAN_REWARD || '/mobile-api/api/v1/services/scan/activate-reward/{msisdn}',
   history: process.env.DJEZZY_PATH_HISTORY || '/mobile-api/api/v1/subscribers/subscription-history/{msisdn}',
+  // مسارات بديلة (بوت yacin العامل): walk/activate-reward للهدية + activate-product للعروض
+  walkReward: process.env.DJEZZY_PATH_WALK_REWARD || '/mobile-api/api/v1/services/walk/activate-reward/{msisdn}',
+  activateProduct: process.env.DJEZZY_PATH_ACTIVATE_PRODUCT || '/mobile-api/api/v1/subscribers/activate-product/{msisdn}',
 };
 
 const djezzyClientId = (process.env.DJEZZY_CLIENT_ID || DEFAULT_CLIENT_ID).trim();

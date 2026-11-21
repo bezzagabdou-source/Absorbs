@@ -10,10 +10,50 @@ import { createLogger } from '../util/logger.js';
 import { decrypt, encrypt } from '../crypto.js';
 import { isExpired } from '../util/time.js';
 import { DjezzyError, ERROR_CODES } from './errors.js';
+import { describeRoutes } from './routes.js';
 import store from '../store/index.js';
 
 const log = createLogger('djezzy/engine');
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** تطبيع بروكسي جيزي (JSON:API): الرصيد/التفيد/العروض المفعّلة */
+function normalizeProfile(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw.data && typeof raw.data === 'object' ? raw.data : raw;
+  const attrs = data.attributes && typeof data.attributes === 'object' ? data.attributes : data;
+  const included = Array.isArray(raw.included) ? raw.included : [];
+
+  let simType = null;
+  for (const item of included) {
+    if (item?.type === 'subscription-types') {
+      const text = item.attributes?.name?.text || {};
+      simType = text.ar || text.fr || text.en || null;
+      break;
+    }
+  }
+
+  const activeOffers = [];
+  for (const item of included) {
+    if (item?.type !== 'connected-products') continue;
+    for (const product of item.attributes?.products || []) {
+      const dataBal = (product.balances || []).find((b) => b?.['bundle-type'] === 'data');
+      activeOffers.push({
+        name: product.name?.text?.ar || product.name?.text?.en || product.name?.text?.fr || 'عرض',
+        remaining: dataBal?.['remaining-amount'] ?? null,
+        total: dataBal?.['total-amount'] ?? null,
+        expiry: product['expiry-at'] || null,
+      });
+    }
+  }
+
+  return {
+    balance: attrs?.balance ?? data?.mainBalance ?? attrs?.mainBalance ?? null,
+    activationAt: attrs?.['activation-time'] ?? null,
+    simType,
+    activeOffers,
+    raw,
+  };
+}
 
 const pick = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
 
@@ -203,14 +243,16 @@ export class DjezzyEngine {
     const { lastAt, nextEligibleAt, history } = await this.#weeklyStatus(telegramId, msisdn);
     const now = Date.now();
 
-    // البروفايل (الرصيد/الباقة) — يُقرأ إن كان المسار متاحاً ولا يُسقط الفحص
+    // البروفايل (الرصيد/الباقة/العروض) — الشكل الحقيقي: data.attributes.balance + included
     let profile = null;
+    let profileError = null;
     try {
-      profile = await this.#withAuth(telegramId, msisdn, async ({ token }) =>
-        this.client.getProfile({ token, msisdn }),
+      profile = normalizeProfile(
+        await this.#withAuth(telegramId, msisdn, async ({ token }) => this.client.getProfile({ token, msisdn })),
       );
-    } catch {
+    } catch (error) {
       profile = null;
+      profileError = { code: error?.code || 'UNKNOWN', status: error?.status ?? null, message: error?.message };
     }
 
     return {
@@ -221,11 +263,49 @@ export class DjezzyEngine {
       canClaimNow: !lastAt || now >= nextEligibleAt,
       recent: history.filter((item) => item.at).sort((a, b) => b.at - a.at).slice(0, 5),
       promoConfigured: Boolean(config.djezzy.scanQr),
+      balance: profile?.balance ?? null,
+      simType: profile?.simType ?? null,
+      activationAt: profile?.activationAt ?? null,
+      activeOffers: profile?.activeOffers ?? [],
       profile,
+      profileError,
     };
   }
 
   /* -------------------------- هدية 2 جيجا -------------------------- */
+  /** تشخيص شامل (أمر /diag): البروفايل + السجل + المسارات — دون تفعيل أي هدية */
+  async runDiag(telegramId, msisdn) {
+    const report = { at: Date.now(), msisdn, profile: null, history: null, routes: null };
+
+    try {
+      report.routes = describeRoutes();
+    } catch {
+      report.routes = null;
+    }
+
+    try {
+      const raw = await this.#withAuth(telegramId, msisdn, async ({ token }) => this.client.getProfile({ token, msisdn }));
+      const normalized = normalizeProfile(raw);
+      report.profile = {
+        ok: true,
+        balance: normalized?.balance ?? null,
+        simType: normalized?.simType ?? null,
+        offers: normalized?.activeOffers?.length ?? 0,
+      };
+    } catch (error) {
+      report.profile = { ok: false, code: error?.code || 'UNKNOWN', status: error?.status ?? null, message: error?.message };
+    }
+
+    try {
+      const history = await this.#withAuth(telegramId, msisdn, async ({ token }) => this.client.getHistory({ token, msisdn }));
+      report.history = { ok: true, count: normalizeHistory(history).length };
+    } catch (error) {
+      report.history = { ok: false, code: error?.code || 'UNKNOWN', status: error?.status ?? null, message: error?.message };
+    }
+
+    return report;
+  }
+
   async claimWeeklyGift(telegramId, msisdn) {
     let user = await this.#guardQuota(await this.store.getUser(telegramId));
     await this.store.saveUser(user);

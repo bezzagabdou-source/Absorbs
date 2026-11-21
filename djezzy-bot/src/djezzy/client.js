@@ -275,10 +275,12 @@ export class DjezzyClient {
     const response = await this.#send({
       method: 'GET',
       path: fill(this.paths.subscriber, { msisdn }),
+      // الشكل الحقيقي (hex bot): الرصيد في data.attributes.balance + العروض في included
+      query: { include: 'connected-products,supplementary-informations' },
       token,
     });
     this.#ensure(response, { ok: (s) => s === 200 || s === 204 });
-    return response.json?.data ?? response.json ?? {};
+    return response.json ?? {};
   }
 
   async getHistory({ token, msisdn }) {
@@ -329,7 +331,21 @@ export class DjezzyClient {
       payload: this.#walkPayload(),
       ua: 'Djezzy/2.7.5',
     });
-    return this.#interpretReward(response, 'هدية 2 جيجا');
+    try {
+      return this.#interpretReward(response, 'هدية 2 جيجا');
+    } catch (error) {
+      // مسار بديل حديث (yacin bot): walk/activate-reward — عند404/405/خطأ غير معروف فقط
+      const retriable = error?.code === ERROR_CODES.UNKNOWN && ![401, 402, 403, 429].includes(error?.status);
+      if (!retriable) throw error;
+      const fallback = await this.#send({
+        method: 'POST',
+        path: fill(this.paths.walkReward, { msisdn }),
+        body: { packageCode: this.giftCode },
+        token,
+        ua: 'MobileApp/3.0.0',
+      });
+      return this.#interpretReward(fallback, 'هدية 2 جيجا');
+    }
   }
 
   async claimScanGift({ token, msisdn, qrCode = this.scanQr }) {
@@ -355,7 +371,21 @@ export class DjezzyClient {
       payload: { data: { id: packageCode, type: 'products' } },
       ua: 'Djezzy/2.7.5',
     });
-    return this.#interpretReward(response, packageCode);
+    try {
+      return this.#interpretReward(response, packageCode);
+    } catch (error) {
+      // مسار بديل (yacin bot): activate-product بـ packageCode عند404/405/خطأ غير معروف
+      const retriable = error?.code === ERROR_CODES.UNKNOWN && ![401, 402, 403, 429].includes(error?.status);
+      if (!retriable) throw error;
+      const fallback = await this.#send({
+        method: 'POST',
+        path: fill(this.paths.activateProduct, { msisdn }),
+        body: { packageCode },
+        token,
+        ua: 'MobileApp/3.0.0',
+      });
+      return this.#interpretReward(fallback, packageCode);
+    }
   }
 
   /** بونص الدعوة (Member-Get-Member) */
@@ -390,11 +420,25 @@ export class DjezzyClient {
       throw new DjezzyError(ERROR_CODES.AUTH_EXPIRED, message || 'الجلسة منتهية', { status: response.status, payload: json });
     }
 
+    // حجب جغرافي (nginx) ليس خطأ رصيد
+    if (
+      (response.status === 403 || response.status === 451) &&
+      /403 forbidden|nginx/i.test(String(response.text || ''))
+    ) {
+      throw new DjezzyError(ERROR_CODES.BLOCKED, null, { status: response.status, payload: json });
+    }
+
     if (response.status === 402 || response.status === 403 || innerStatus === 402 || innerStatus === 403) {
+      const balance = json?.data?.mainBalance ?? json?.data?.attributes?.balance;
+      const balanceLine = balance ? `\n💰 رصيدك الحالي: ${balance} دج` : '';
+      const planLine = /2 جيجا|2G|GIFTWALKWIN/i.test(String(label))
+        ? '\nℹ️ شرط جيزي: قد يتطلب الاستلام اشتراك باقة 100 دج أو أكثر أسبوعياً.'
+        : '';
       throw new DjezzyError(
         ERROR_CODES.BALANCE,
-        message ||
-          'جيزي ترفض التفعيل: الرصيد غير كافٍ أو الشريحة غير مؤهّلة لهذا العرض.',
+        (message || 'جيزي ترفض التفعيل: الرصيد غير كافٍ أو الشريحة غير مؤهّلة لهذا العرض.') +
+          balanceLine +
+          planLine,
         { status: response.status, payload: json },
       );
     }

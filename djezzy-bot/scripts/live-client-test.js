@@ -103,7 +103,30 @@ const server = http.createServer(async (req, res) => {
   /* 4) البروفايل: GET /djezzy-api/api/v1/subscribers/{msisdn} */
   if (url.pathname === '/djezzy-api/api/v1/subscribers/213770123456' && req.method === 'GET') {
     if (!okAuth) return send(401, { fault: { code: 900901, message: 'Invalid Credentials' } });
-    return send(200, { status: 200, data: { msisdn: '213770123456', mainBalance: '250.00 DA' } });
+    assert.match(url.searchParams.get('include') || '', /connected-products/, 'يجب include=connected-products');
+    return send(200, {
+      status: 200,
+      data: {
+        msisdn: '213770123456',
+        mainBalance: '250.00 DA',
+        attributes: { balance: '250.00 DA', 'activation-time': '2026-01-05T10:00:00.000Z' },
+      },
+      included: [
+        { type: 'subscription-types', attributes: { name: { text: { ar: 'باقة جيزي' } } } },
+        {
+          type: 'connected-products',
+          attributes: {
+            products: [
+              {
+                name: { text: { ar: 'عرض تجريبي' } },
+                'expiry-at': '2026-12-31T00:00:00.000Z',
+                balances: [{ 'bundle-type': 'data', 'total-amount': 4096, 'remaining-amount': 2048 }],
+              },
+            ],
+          },
+        },
+      ],
+    });
   }
 
   /* 5) تفعيل المنتجات/الهدايا — الشكل الحقيقي: subscription-product */
@@ -221,7 +244,9 @@ await step('السجل والبروفايل يُقرأان بالتوكن', asyn
   assert.equal(overview.canClaimNow, true);
   assert.ok(calls.some((item) => item.path.includes('subscription-history')), 'يجب استدعاء السجل');
   assert.ok(calls.some((item) => item.path === '/djezzy-api/api/v1/subscribers/213770123456'), 'يجب استدعاء البروفايل');
-  assert.equal(overview.profile?.mainBalance, '250.00 DA');
+  assert.equal(overview.balance, '250.00 DA', 'الرصيد من data.attributes.balance');
+  assert.equal(overview.simType, 'باقة جيزي');
+  assert.equal(overview.activeOffers?.[0]?.remaining, 2048);
 });
 
 await step('استلام هدية 2 جيجا (subscription-product + حمولة GIFTWALKWIN)', async () => {

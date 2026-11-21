@@ -71,17 +71,75 @@ export function accountsText(accounts, activeMsisdn) {
   return lines.join('\n');
 }
 
+export function diagText(report) {
+  const ok = (v) => (v ? '✅' : '❌');
+  const lines = ['🩺 <b>تشخيص الاتصال بجيزي</b>', '', `الرقم: <code>${escape(report.msisdn)}</code>`, ''];
+
+  const p = report.profile;
+  lines.push(`${ok(p?.ok)} <b>البروفايل/الرصيد:</b>`);
+  if (p?.ok) lines.push(`   💰 الرصيد: ${escape(String(p.balance ?? 'غير متوفر'))} دج · الشريحة: ${escape(p.simType ?? '—')} · عروض مفعّلة: ${p.offers}`);
+  else lines.push(`   خطأ: ${escape(p?.code || '?')} ${p?.status ? `(HTTP ${p.status})` : ''} — ${escape((p?.message || '').slice(0, 120))}`);
+
+  const h = report.history;
+  lines.push(`${ok(h?.ok)} <b>السجل:</b>`);
+  if (h?.ok) lines.push(`   📜 ${h.count} اشتراك مسجّل`);
+  else lines.push(`   خطأ: ${escape(h?.code || '?')} ${h?.status ? `(HTTP ${h.status})` : ''}`);
+
+  const r = report.routes;
+  lines.push('', '<b>🌍 المسارات:</b>');
+  if (r) {
+    lines.push(`   relay: ${r.configured?.relay ? '✅ ' + escape(r.configured.relay) : '❌ غير مضبوط'}`);
+    lines.push(`   مباشر: ${r.configured?.direct ? '✅' : '❌'} · بروكسيات يدوية: ${r.configured?.envProxies ?? 0} · تلقائية: ${r.configured?.autoProxy ? '✅' : '❌'} (مكتشفة: ${r.configured?.discovered ?? 0})`);
+    if (r.lastSuccess) lines.push(`   آخر نجاح: ${escape(r.lastSuccess.route)} · HTTP ${r.lastSuccess.status} · ${r.lastSuccess.ms}ms`);
+    const failed = (r.recent || []).filter((a) => a.error || a.status >= 400).slice(-3);
+    for (const a of failed) lines.push(`   ⚠️ ${escape(a.route)}: ${a.error ? escape(a.error) : 'HTTP ' + a.status}`);
+  }
+
+  lines.push('', '💡 إن فشل البروفايل/السجل: أعد المحاولة، وإن تكرر شغّل relay داخل الجزائر.');
+  return lines.join('\n');
+}
+
+const fmtData = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 1024) return `${(n / 1024).toFixed(n >= 10240 ? 0 : 1)} غ`;
+  return `${n} م.ب`;
+};
+
 export function overviewText({ account, overview }) {
   const lines = [
     '📊 <b>حالة الحساب</b>',
     '',
     `الرقم: <code>${escape(account.label)}</code>`,
     `حالة الجلسة: ${account.sessionValid ? '✅ صالحة' : '⚠️ تحتاج تجديداً'}`,
+  ];
+
+  if (overview.balance != null && overview.balance !== '') {
+    lines.push(`💰 الرصيد: <b>${escape(String(overview.balance))}</b> دج`);
+  } else if (overview.profileError) {
+    lines.push(`💰 الرصيد: ⚠️ تعذّر الجلب (${escape(overview.profileError.code)})`);
+  }
+  if (overview.simType) lines.push(`💳 الشريحة: ${escape(overview.simType)}`);
+  if (overview.activationAt) lines.push(`📅 تفعيل الخط: ${escape(formatDateTime(Date.parse(overview.activationAt) || overview.activationAt))}`);
+
+  if (overview.activeOffers?.length) {
+    lines.push('', '<b>📦 العروض المفعّلة:</b>');
+    for (const offer of overview.activeOffers.slice(0, 6)) {
+      const amount =
+        offer.remaining != null && offer.total != null
+          ? ` — المتبقي ${fmtData(offer.remaining) ?? offer.remaining}/${fmtData(offer.total) ?? offer.total}`
+          : '';
+      const expiry = offer.expiry ? ` · ينتهي ${escape(formatDateTime(Date.parse(offer.expiry) || offer.expiry))}` : '';
+      lines.push(`• ${escape(offer.name)}${amount}${expiry}`);
+    }
+  }
+
+  lines.push(
     '',
     overview.lastWeeklyAt
       ? `🎁 آخر هدية 2 جيجا: ${escape(formatDateTime(overview.lastWeeklyAt))}`
       : '🎁 لم تستلم هدية 2 جيجا من هذا البوت بعد',
-  ];
+  );
 
   if (overview.nextEligibleAt) {
     lines.push(
