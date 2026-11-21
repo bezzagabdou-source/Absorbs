@@ -18,6 +18,10 @@ const REGION_SIZE := 2400.0       # metres across
 const GRID := 200                 # terrain vertices per side
 const ROAD_RING_RADIUS := 620.0
 const ROAD_SEGMENTS := 192
+## How far the carved corridor sits below the road surface. Must exceed the
+## worst-case sag of a 20 m road chord over the height curve; 1.1 m is ample and
+## still looks like a kerb rather than a canyon.
+const ROAD_EMBANKMENT := 1.1
 
 var region: Dictionary = {}
 var grid: int = GRID
@@ -116,7 +120,13 @@ func height_at(x: float, z: float) -> float:
 	var plateau: float = maxf(42.0, cell * 2.4)
 	var blend: float = plateau + maxf(36.0, cell * 3.0)
 	var corridor: float = smoothstep(blend, plateau, absf(Vector2(x, z).length() - ring_r))
-	h = lerpf(h, road_h, corridor)
+	# The corridor is carved slightly BELOW the road, not level with it. The road
+	# is a chord between 192 samples while the terrain is sampled on a different
+	# grid, so wherever the ring height has a local maximum between two road
+	# samples the terrain vertex sits above the chord and pokes through it. A
+	# shallow trench plus a thin embankment makes that geometrically impossible
+	# and reads as a real road shoulder.
+	h = lerpf(h, road_h - ROAD_EMBANKMENT, corridor)
 	return h
 
 
@@ -245,7 +255,7 @@ func _build_road_network() -> void:
 		# grid, so its linear interpolation can rise a few centimetres above the
 		# exact ring height between vertices. A 0.45 m lift makes that impossible
 		# to see while keeping the car visually on the tarmac.
-		road_points.append(Vector3(x, _ring_height(a) + 0.45, z))
+		road_points.append(Vector3(x, _ring_height(a) + 0.12, z))
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -754,4 +764,4 @@ func spawn_transform(index: int = 0) -> Transform3D:
 	var dir: Vector3 = (q - p).normalized()
 	# p is already the drivable road surface; a small lift avoids spawning inside
 	# the collider without starting the car in free fall
-	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.35)
+	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.30)
