@@ -36,6 +36,35 @@ var _landmark_root: Node3D
 var _road_body: StaticBody3D
 
 
+## Build the whole region. Deterministic for a given seed so replays and
+## leaderboards stay honest, and every pass is independent of the previous ones
+## except for the shared noise fields.
+func build(region_data: Dictionary) -> void:
+	region = region_data
+	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
+	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
+	# density there. Geometry that matters for driving is unchanged: height_at()
+	# still uses the full-resolution noise.
+	if RenderingServer.get_video_adapter_name().to_lower().contains("llvmpipe") \
+			or OS.has_feature("server"):
+		grid = 96
+	var seed_value: int = int(region_data.get("seed", 1337))
+	_rng.seed = seed_value
+	_build_noise(seed_value)
+	_build_terrain()
+	_build_road_network()
+	_scatter_root = Node3D.new()
+	_scatter_root.name = "Scatter"
+	add_child(_scatter_root)
+	_build_scatter()
+	_landmark_root = Node3D.new()
+	_landmark_root.name = "Landmarks"
+	add_child(_landmark_root)
+	_build_landmarks()
+	_build_roadside_lighting()
+	_build_distant_city()
+
+
 func _build_noise(seed_value: int) -> void:
 	height_noise = FastNoiseLite.new()
 	height_noise.seed = seed_value
