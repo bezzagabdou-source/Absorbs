@@ -171,8 +171,14 @@ func _foundation() -> void:
 		_check(scr != null, "screen script " + id)
 
 
-## Sample the ring at many angles and require the carriageway to sit clear of the
-## terrain height under it. Guards the "terrain swallows the highway" regression.
+## Sample the ring at the exact ring radius and require the carriageway to sit
+## clear of the carved shoulder by a real margin.
+##
+## At the ring radius the carve weight is exactly 1, so the shoulder is the
+## smoothed profile minus ROAD_EMBANKMENT and the tarmac is that profile plus
+## ROAD_LIFT: the clearance is LIFT + EMBANKMENT = 1.70 m by construction, which
+## leaves 0.88 m after the worst-case 0.82 m rise the 46 m noise octave can add
+## between terrain grid vertices. Guards the "terrain swallows the highway" bug.
 func _road_above_ground(ow: Node) -> bool:
 	var worst := 1.0e9
 	var at := 0.0
@@ -187,7 +193,7 @@ func _road_above_ground(ow: Node) -> bool:
 			worst = road_y - ground
 			at = a
 	print("[TEST]   min road clearance %.2f m at %.2f rad" % [worst, at])
-	return worst > 0.02
+	return worst > 0.5
 
 
 ## The ground must face up too: sample the terrain triangles and require the

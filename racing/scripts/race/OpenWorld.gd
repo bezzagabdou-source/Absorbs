@@ -88,7 +88,9 @@ func _build_noise(seed_value: int) -> void:
 
 ## Height at a world position. The profile depends on the region biome:
 ## metro keeps the city flat, alpine raises ridges, coastal cuts a shelf.
-func height_at(x: float, z: float) -> float:
+## Natural, uncarved ground height. Split out so the road profile can be
+## low-passed without re-entering the carve (which would recurse).
+func height_raw(x: float, z: float) -> float:
 	var base: float = height_noise.get_noise_2d(x, z)
 	var d: float = Vector2(x, z).length() / (REGION_SIZE * 0.5)
 	var profile: String = str(region.get("profile", "metro"))
@@ -108,6 +110,12 @@ func height_at(x: float, z: float) -> float:
 			h = base * 26.0 + detail_noise.get_noise_2d(x, z) * 1.6
 	# flatten the outer rim so the world does not end in a cliff
 	h *= 1.0 - smoothstep(0.88, 1.0, d) * 0.85
+	return h
+
+
+func height_at(x: float, z: float) -> float:
+	var h: float = height_raw(x, z)
+	var d: float = Vector2(x, z).length() / (REGION_SIZE * 0.5)
 	# --- carve the highway corridor ---------------------------------------
 	# The ring radius is a deterministic function of angle, so the terrain can be
 	# blended toward the road's own height without any lookup. Without this the
@@ -115,7 +123,7 @@ func height_at(x: float, z: float) -> float:
 	# cutting across the frame.
 	var ang: float = atan2(z, x)
 	var ring_r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
-	var road_h: float = _ring_height(ang)
+	var road_h: float = _smooth_ring_height(ang)
 	# The corridor must be a flat plateau at least two grid cells wide on each
 	# side of the road. A narrower carve is exact only at grid vertices; between
 	# them the terrain triangle interpolates back up to the natural height and
@@ -128,25 +136,21 @@ func height_at(x: float, z: float) -> float:
 	var plateau: float = maxf(24.0, cell * 2.0)
 	var blend: float = plateau + maxf(150.0, cell * 6.0)
 	var corridor: float = smoothstep(blend, plateau, absf(Vector2(x, z).length() - ring_r))
-	# height_at is recursive-free: _ring_height is the raw noise, so the shoulder
-	# lands exactly one ROAD_LIFT below the finished tarmac.
-	# 6 cm below the tarmac: enough that the road chord never pokes through the
-	# carved shoulder, small enough to read as a kerb rather than a trench.
+	# The shoulder lands exactly ROAD_EMBANKMENT below the finished tarmac because
+	# both read the same smoothed profile.
 	h = lerpf(h, road_h - ROAD_EMBANKMENT, corridor)
 	return h
 
 
-## Height of the ring highway at a given angle. Kept as one function so the road
-## mesh and the terrain carve can never drift apart.
-## Height of the finished road surface at a given angle.
+## Low-passed ring profile: the single source of truth for the highway height.
 ##
-## Deliberately NOT height_at() at the ring position. The noise carries an octave
-## with a 22 m wavelength, while the road ribbon is sampled every 20 m and the
-## terrain grid every 25 m — both are coarser than that octave, so each surface
-## aliases it differently and the two can disagree by well over a metre. Sampling
-## a 7-point box around the ring position low-passes the profile into something
-## both meshes reproduce, which is what keeps the tarmac on top of the land.
-func _road_surface_height(ang: float) -> float:
+## Deliberately NOT the raw noise at the ring position. The noise carries an
+## octave with a 22 m wavelength, while the road ribbon is sampled every 20 m and
+## the terrain grid every 25 m — both are coarser than that octave, so each surface
+## aliases it differently and the two can disagree by well over a metre, which is
+## what kept burying the tarmac under its own embankment. A 34 m box average
+## attenuates 22 m to 0.20 while leaving 200 m at 0.96.
+func _smooth_ring_height(ang: float) -> float:
 	var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
 	var sum := 0.0
 	var taps := 7
@@ -154,29 +158,13 @@ func _road_surface_height(ang: float) -> float:
 	for k in range(taps):
 		var da: float = (float(k) / float(taps - 1) - 0.5) * span
 		var a: float = ang + da
-		sum += height_at(cos(a) * r, sin(a) * r)
-	return sum / float(taps) + ROAD_LIFT
+		sum += height_raw(cos(a) * r, sin(a) * r)
+	return sum / float(taps)
 
 
-func _ring_height(ang: float) -> float:
-	var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0))
-	var x: float = cos(ang) * r
-	var z: float = sin(ang) * r
-	# base noise only: no carve, otherwise this recurses
-	var base: float = height_noise.get_noise_2d(x, z)
-	var profile: String = str(region.get("profile", "metro"))
-	var h := 0.0
-	match profile:
-		"alpine":
-			h = base * 180.0 + pow(maxf(0.0, base), 1.6) * 260.0
-		"desert":
-			h = base * 46.0 + sin(x * 0.0026) * 14.0 + cos(z * 0.0031) * 11.0
-			h += detail_noise.get_noise_2d(x * 0.6, z * 0.6) * 4.5
-		"coast":
-			h = base * 120.0
-		_:
-			h = base * 26.0 + detail_noise.get_noise_2d(x, z) * 1.6
-	return h
+## Finished tarmac height: the smoothed profile plus the carriageway lift.
+func _road_surface_height(ang: float) -> float:
+	return _smooth_ring_height(ang) + ROAD_LIFT
 
 
 func _build_terrain() -> void:
