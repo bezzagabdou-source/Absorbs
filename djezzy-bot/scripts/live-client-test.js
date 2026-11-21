@@ -141,7 +141,10 @@ const server = http.createServer(async (req, res) => {
     // هدية 2 جيجا (Walk Win)
     if (body?.data?.id === 'GIFTWALKWIN') {
       assert.equal(body.data.type, 'products');
-      assert.equal(body.data.meta.services.code, 'GIFTWALKWIN2GO');
+      assert.ok(
+        ['GIFTWALKWIN2GO', 'GIFTWALKWIN6GO'].includes(body.data.meta.services.code),
+        'كود Walk غير متوقع: ' + body.data.meta.services.code,
+      );
       assert.equal(body.data.meta.services.id, 'WALKWIN');
       assert.ok(Number(body.data.meta.services.steps) >= 10000);
       if (ineligible) {
@@ -311,6 +314,17 @@ await step('بونص الدعوة (MGM) يُرسل برقم الصديق', async
   const result = await engine.claimMgmBonus(TG_ID, MSISDN, '213771112222');
   assert.equal(result.ok, true);
   assert.ok(calls.some((call) => call.path.endsWith('/member-get-member')));
+});
+
+await step('هدية6G بأي طريقة (claimFridayGift): باركود QR أولاً ثم Walk6G', async () => {
+  const result = await engine.claimFridayGift(TG_ID, MSISDN);
+  assert.equal(result.ok, true, 'يجب نجاح6G: ' + (result.message || ''));
+  assert.ok(result.claimed.length > 0, 'يجب أن تحتوي النتيجة على هدية مفعّلة');
+  const qr = calls.some((call) => call.path.includes('/services/scan/activate-reward/'));
+  const walk6 = calls.some(
+    (call) => call.path.endsWith('/subscription-product') && call.body.includes('GIFTWALKWIN6GO') && call.body.includes('20000'),
+  );
+  assert.ok(qr || walk6, 'يجب محاولة الباركود QR أو Walk6G فعلياً');
 });
 
 await step('خطأ الشبكة يُحوَّل إلى NETWORK عبر كل المسارات', async () => {

@@ -96,6 +96,8 @@ export const config = {
     // هدية 2 جيجا الأسبوعية (Walk Win) — الحمولة الحقيقية المعتمدة في كل السكربتات
     walkProductId: process.env.DJEZZY_WALK_PRODUCT_ID || 'GIFTWALKWIN',
     giftWalkCode: process.env.DJEZZY_GIFT_WALK_CODE || 'GIFTWALKWIN2GO',
+    // مستوى6 جيجا في Walk Win (20000 خطوة) — يُجرَّب تلقائياً زر6G والجمعة
+    giftWalk6Code: process.env.DJEZZY_GIFT_WALK6_CODE || 'GIFTWALKWIN6GO',
     walkServiceId: process.env.DJEZZY_WALK_SERVICE_ID || 'WALKWIN',
     walkSteps: int(process.env.DJEZZY_WALK_STEPS, 10000),
     // هدية QR (هدايا المناسبات/المباريات/الجمعة) — الرابط يُحدَّث حسب الحملة

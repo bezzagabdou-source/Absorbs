@@ -159,10 +159,14 @@ await step('رمز صحيح يربط الرقم ويحفظ الجلسة', async 
   assert.ok(account.tokenEnc.startsWith('v1:'), 'التوكن يجب أن يُخزَّن مشفّراً');
 });
 
-await step('زر 6 جيغا لا يفعّل شيئاً مدفوعاً بدون رمز باقة', async () => {
+await step('زر 6 جيغا: محاولة مجانية أولاً ولا تفعيل مدفوع بدون رمز باقة', async () => {
   const text = await click('act:6gb');
-  assert.match(text, /ليست هدية مجانية/);
-  assert.match(text, /packageCode|رمز الباقة/);
+  // إما نتيجة المحاولة المجانية (QR/Walk6G) أو شاشة المدفوع المُعلنة — لا تفعيل مدفوع صامت أبداً
+  const freeOk = /نتيجة استلام الهدايا|هدية 6 جيجا|6 جيجا \(Walk/.test(text);
+  const paidScreen = /ليست هدية مجانية/.test(text);
+  assert.ok(freeOk || paidScreen, 'نتيجة مجانية أو شاشة مدفوعة صريحة مطلوبة: ' + String(text).slice(0, 160));
+  if (paidScreen) assert.match(text, /packageCode|رمز الباقة/);
+  assert.ok(!/تأكيد تفعيل <b>|offerConfirm/.test(text), 'لا يُفعَّل أي عرض مدفوع تلقائياً');
 });
 
 await step('هدية 2 جيغا تُستلم (لا محاكاة صريحة في الوضع الحقيقي)', async () => {

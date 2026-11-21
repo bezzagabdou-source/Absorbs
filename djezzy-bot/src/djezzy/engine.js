@@ -338,6 +338,75 @@ export class DjezzyEngine {
   }
 
   /* ------------------------ الهدية الترويجية ------------------------ */
+  /**
+   * هدية6G «بأي طريقة» (زر6G + الجمعة): يجرّب تسلسلياً
+   * 1) باركود/QR ترويجي (DJEZZY_SCAN_QR) — كود الباركود يفعّله الخادم
+   * 2) Walk Win مستوى6G (20000 خطوة — GIFTWALKWIN6GO) عبر مسارين
+   * الفشل يُعرض بصدق (رصيد/شرط باقة/حجب) — لا يُختلق أي كود.
+   */
+  async claimFridayGift(telegramId, msisdn) {
+    let user = await this.#guardQuota(await this.store.getUser(telegramId));
+    await this.store.saveUser(user);
+
+    const attempts = [];
+    const isFriday = new Date().getDay() === 5;
+
+    if (config.djezzy.scanQr) {
+      try {
+        const response = await this.#withAuth(telegramId, msisdn, async ({ token, user: fresh }) => {
+          const result = await this.client.claimScanGift({ token, msisdn });
+          await this.#recordResult(fresh, msisdn, { claimed: [{ name: 'هدية الباركود (QR)' }], failed: [] });
+          return result;
+        });
+        attempts.push({ method: 'باركود QR', ok: true });
+        return {
+          ok: true,
+          status: 'claimed',
+          claimed: [{ name: '🎁 هدية الجمعة عبر الباركود (QR)', data: 'حسب الحملة' }],
+          failed: [],
+          message: response?.message || 'تم تفعيل الهدية عبر الباركود.',
+          attempts,
+        };
+      } catch (error) {
+        attempts.push({ method: 'باركود QR', ok: false, code: error?.code, status: error?.status, message: error?.message });
+      }
+    }
+
+    try {
+      const response = await this.#withAuth(telegramId, msisdn, async ({ token, user: fresh }) => {
+        const result = await this.client.claimWalk6Gift({ token, msisdn });
+        await this.#recordResult(fresh, msisdn, { claimed: [{ name: 'هدية 6 جيجا' }], failed: [] });
+        return result;
+      });
+      attempts.push({ method: 'Walk6G (20000 خطوة)', ok: true });
+      return {
+        ok: true,
+        status: 'claimed',
+        claimed: [{ name: '🔥 هدية 6 جيجا (Walk Win)', data: '6 GB / 30 يوم' }],
+        failed: [],
+        message: response?.message || 'تم تفعيل6 جيجا بنجاح.',
+        attempts,
+      };
+    } catch (error) {
+      attempts.push({ method: 'Walk6G (20000 خطوة)', ok: false, code: error?.code, status: error?.status, message: error?.message });
+      const blocking = attempts.find((a) => ['BALANCE', 'BLOCKED', 'AUTH_EXPIRED', 'RATE_LIMITED'].includes(a.code));
+      if (blocking) {
+        throw new DjezzyError(blocking.code, blocking.message || null, { status: blocking.status ?? null });
+      }
+    }
+
+    return {
+      ok: false,
+      status: 'failed',
+      claimed: [],
+      failed: attempts.map((a) => ({ name: a.method, reason: a.message || a.code || 'غير متاح الآن' })),
+      message: isFriday
+        ? 'كل الطرق المجانية جُرّبت ولم تتوفر الهدية الآن (قد تكون مُستلمة أو الشريحة غير مؤهّلة).'
+        : 'هدية6G مجانية تُجرَّب في كل جمعة — اليوم ليست جمعة أو لم تتوفر بعد.',
+      attempts,
+    };
+  }
+
   async claimPromoGift(telegramId, msisdn) {
     let user = await this.#guardQuota(await this.store.getUser(telegramId));
     await this.store.saveUser(user);
@@ -381,6 +450,17 @@ export class DjezzyEngine {
         if (error?.code !== ERROR_CODES.OFFER_ALREADY_ACTIVE) {
           failed.push({ name: 'الهدية الترويجية', reason: error?.friendly || error?.message });
         }
+      }
+    }
+
+    //6G بأي طريقة (باركود QR ← Walk6G) — جزء من «كل الهدايا»
+    try {
+      const six = await this.claimFridayGift(telegramId, msisdn);
+      if (six.status === 'claimed') claimed.push(...six.claimed);
+      else failed.push({ name: 'هدية6 جيجا', reason: six.message });
+    } catch (error) {
+      if (error?.code !== ERROR_CODES.OFFER_ALREADY_ACTIVE) {
+        failed.push({ name: 'هدية6 جيجا', reason: error?.friendly || error?.message });
       }
     }
 

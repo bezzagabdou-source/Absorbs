@@ -37,6 +37,7 @@ export class DjezzyClient {
     this.legacyClientSecret = options.legacyClientSecret ?? config.djezzy.legacyClientSecret;
     this.activePair = null;
     this.giftCode = options.giftCode ?? config.djezzy.giftWalkCode;
+    this.giftWalk6Code = options.giftWalk6Code ?? config.djezzy.giftWalk6Code;
     this.scanQr = options.scanQr ?? config.djezzy.scanQr;
     this.userAgent = options.userAgent ?? config.djezzy.userAgent;
     // عند التحديد الصريح في الاختبارات: لا نستخدم طبقات المسارات (اختبار ضد سيرفر وهمي محلي)
@@ -345,6 +346,33 @@ export class DjezzyClient {
         ua: 'MobileApp/3.0.0',
       });
       return this.#interpretReward(fallback, 'هدية 2 جيجا');
+    }
+  }
+
+  /**6 جيجا — مستوى20000 خطوة في Walk Win (أي طريقة: subscription-product ثم walk/activate-reward) */
+  async claimWalk6Gift({ token, msisdn }) {
+    if (this.dryRun) return simulator.claimGift({ msisdn, giftId: this.giftWalk6Code });
+    const payload = {
+      data: {
+        id: config.djezzy.walkProductId,
+        type: 'products',
+        meta: { services: { steps: 20000, code: this.giftWalk6Code, id: 'WALKWIN' } },
+      },
+    };
+    const response = await this.#activateSubscriptionProduct({ token, msisdn, payload, ua: 'Djezzy/2.7.5' });
+    try {
+      return this.#interpretReward(response, 'هدية 6 جيجا');
+    } catch (error) {
+      const retriable = error?.code === ERROR_CODES.UNKNOWN && ![401, 402, 403, 429].includes(error?.status);
+      if (!retriable) throw error;
+      const fallback = await this.#send({
+        method: 'POST',
+        path: fill(this.paths.walkReward, { msisdn }),
+        body: { packageCode: this.giftWalk6Code },
+        token,
+        ua: 'MobileApp/3.0.0',
+      });
+      return this.#interpretReward(fallback, 'هدية 6 جيجا');
     }
   }
 

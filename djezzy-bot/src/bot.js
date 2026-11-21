@@ -370,11 +370,28 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
     await showOverview(ctx);
   });
 
-  /* ---------------------- عرض 6 جيجا (مدفوع/باقة) ---------------------- */
+  /* ---------------------- زر6 جيجا: مجاني أولاً ثم المدفوع ---------------------- */
   bot.callbackQuery('act:6gb', async (ctx) => {
     const context = await requireAccount(ctx);
     if (!context) return;
-    await answer(ctx);
+    await answer(ctx, '🔥 جارٍ تفعيل6G بأي طريقة…');
+
+    //1) أي طريقة مجانية أولاً: باركود QR ثم Walk Win20000 خطوة (الجمعة تحديداً)
+    try {
+      const free = await engine.claimFridayGift(ctx.from.id, context.msisdn);
+      if (free.ok) {
+        await render(ctx, txt.giftsResult(free, { simulated: engine.mode === 'simulation' }), ui.afterAction());
+        return;
+      }
+      var freeReason = free.message; // فشل مجاني مُعلَن بصدق — نعرضه فوق خيارات المدفوع
+    } catch (error) {
+      // رصيد/شرط باقة/حجب: رسالة صريحة + نُبقي خيار المدفوع ظاهراً
+      if (['BALANCE', 'BLOCKED', 'AUTH_EXPIRED', 'RATE_LIMITED', 'OFFER_ALREADY_ACTIVE'].includes(error?.code)) {
+        await render(ctx, txt.errorText(error), ui.afterAction());
+        return;
+      }
+      var freeReason = error?.message;
+    }
 
     const offer = configuredPaidOffer();
     if (!offer) {
@@ -383,6 +400,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
         [
           '🔥 <b>عرض 6 جيجا</b>',
           '',
+          ...(typeof freeReason !== 'undefined' && freeReason ? [`⚠️ المحاولة المجانية: ${freeReason}`, ''] : []),
           'عروض 6 جيجا في جيزي ليست هدية مجانية — لكل عرض رمز باقة خاص به،',
           'وتفعيله قد يُخصم من رصيدك.',
           '',
@@ -439,7 +457,9 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
         ? '⏳ <i>جارٍ استلام هدية 2 جيجا الأسبوعية…</i>'
         : mode === 'promo'
           ? '⏳ <i>جارٍ استلام هدية الجمعة/المناسبة…</i>'
-          : '⏳ <i>جارٍ استلام كل الهدايا المتاحة…</i>',
+          : mode === 'friday'
+            ? '⏳ <i>جارٍ تفعيل6G بأي طريقة (باركود QR ← Walk Win20000 خطوة)…</i>'
+            : '⏳ <i>جارٍ استلام كل الهدايا المتاحة…</i>',
       ui.backHome(),
     );
 
@@ -449,7 +469,9 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
           ? await engine.claimWeeklyGift(ctx.from.id, context.msisdn)
           : mode === 'promo'
             ? await engine.claimPromoGift(ctx.from.id, context.msisdn)
-            : await engine.claimAllGifts(ctx.from.id, context.msisdn);
+            : mode === 'friday'
+              ? await engine.claimFridayGift(ctx.from.id, context.msisdn)
+              : await engine.claimAllGifts(ctx.from.id, context.msisdn);
 
       const header = result.ok ? '✅' : '⚠️';
       await render(
@@ -467,6 +489,7 @@ export function createBot({ token = config.bot.token, botInfo } = {}) {
   bot.callbackQuery('act:gift:all', giftHandler('all'));
   bot.callbackQuery('gift:weekly2go', giftHandler('weekly'));
   bot.callbackQuery('gift:promoqr', giftHandler('promo'));
+  bot.callbackQuery('gift:friday6', giftHandler('friday'));
 
   /* ------------------------- بونص الدعوة (MGM) ------------------------- */
   bot.callbackQuery('gift:mgm', async (ctx) => {
