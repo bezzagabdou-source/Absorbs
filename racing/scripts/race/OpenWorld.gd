@@ -300,9 +300,14 @@ func _build_road_network() -> void:
 	add_child(marker)
 
 
+## Emit a quad as two triangles that BOTH face up. The previous pairing
+## (a,b,c)+(a,c,d) produced one downward and one upward face, so `cull_back`
+## deleted half of every road quad and the highway rendered as a black wedge.
+## Vertex layout from the caller: a = p0-left, b = p0+right, c = p1-left,
+## d = p1+right, with `dir` pointing from p0 to p1.
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	_quad_tri(st, a, b, c)
-	_quad_tri(st, a, c, d)
+	_quad_tri(st, a, c, b)
+	_quad_tri(st, b, c, d)
 
 
 func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
