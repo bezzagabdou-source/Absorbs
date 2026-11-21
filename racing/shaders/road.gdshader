@@ -118,7 +118,7 @@ void fragment() {
 	// pale blue wash that read as water. This is tuned as a light contribution:
 	// the asphalt stays dark (0.06 albedo * lift), the white paint stays bright,
 	// and the road keeps its legibility at night.
-	EMISSION += col * vec3(1.55, 1.72, 2.05) * ambient_lift * 0.55 + paint_glow;
+	EMISSION += col * vec3(2.35, 2.55, 3.00) * ambient_lift * 0.55 + paint_glow;
 
 	ALBEDO = col;
 	// perturb the normal with the grain so highlights break up like real asphalt

@@ -95,13 +95,14 @@ void fragment() {
 	// Sky bounce. Without this a night scene crushes the whole landscape to pure
 	// black, because the only directional light is a 0.3-energy moon and the
 	// compatibility backend's sky ambient does not reach large flat surfaces.
-	// Values are tuned against the night capture: grass/rock stay readable as
-	// shapes while the neon road remains the brightest thing in frame.
+	// Kept deliberately low: at 1.35 this lit the countryside like overcast noon
+	// and the tarmac stopped reading as the darkest thing in frame. 0.45 keeps
+	// the land visible as shapes at night while staying clearly below the paint.
 	vec3 sky_bounce = mix(vec3(0.55, 0.60, 0.80), vec3(0.78, 0.86, 1.05), terrain_up);
 	// emissive bounce is applied on ALBEDO-scaled colour and NOT affected by fog
 	// the way lighting is, so it reads as ground-level ambient instead of haze
 	ALBEDO = ground;
-	EMISSION = ground * sky_bounce * 1.35;
+	EMISSION = ground * sky_bounce * 0.45;
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;
 	SPECULAR = mix(0.25, 0.55, wetness);
