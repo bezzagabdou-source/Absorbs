@@ -55,6 +55,7 @@ jobs:
               -- --screen=roam --qa-probe $extra >"/tmp/roam_${variant}.log" 2>&1 || true
             last=$(ls -t /tmp/roam_${variant}*.png 2>/dev/null | head -1)
             [ -n "$last" ] && cp "$last" "racing/docs/screenshots/qa_roam_${variant}.png"
+            cp "$HOME/.local/share/godot/app_userdata"/*/qa_probe.log "racing/docs/qa_probe_${variant}.log" 2>/dev/null || true
             echo "===== $variant probe ====="
             grep -E '\[QAPROBE\]|\[OPENWORLD\]|SCRIPT ERROR|Invalid |Cannot ' "/tmp/roam_${variant}.log" | head -30
           done
@@ -81,6 +82,6 @@ jobs:
         run: |
           git config user.name "Arena Agent"
           git config user.email "agent@arena.ai"
-          git add -f racing/docs/screenshots/qa_roam_*.png racing/docs/qa_probe.log 2>/dev/null || true
+          git add -f racing/docs/screenshots/qa_roam_*.png racing/docs/qa_probe*.log 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore(qa): roam capture [skip ci]"
           git push origin HEAD:arena/cf18c72b-absorbs || true

@@ -247,15 +247,12 @@ func _qa_log(t: String) -> void:
 
 
 func _qa_flush() -> void:
+	# user:// only. Writing to res:// at runtime makes the resource filesystem
+	# rescan mid-frame, which stalled the renderer and produced black captures.
 	var f := FileAccess.open("user://qa_probe.log", FileAccess.WRITE)
 	if f:
 		f.store_string("\n".join(_qa_lines) + "\n" + "\n".join(open_world.qa_log_lines))
 		f.close()
-		# also drop it next to the captures, which the workflow commits back
-		var g := FileAccess.open("res://docs/qa_probe.log", FileAccess.WRITE)
-		if g:
-			g.store_string("\n".join(_qa_lines) + "\n" + "\n".join(open_world.qa_log_lines))
-			g.close()
 
 
 ## QA-only: print where the car actually is relative to the highway, in metres.
