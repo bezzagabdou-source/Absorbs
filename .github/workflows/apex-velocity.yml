@@ -261,6 +261,17 @@ jobs:
             | while read -r l; do echo "::notice::roam_debug: $l"; done || true
           grep -iE 'SHADER ERROR|Shader compilation|error\([0-9]+\)' /tmp/shot_roam_debug.log \
             | head -8 | while read -r l; do echo "::warning file=racing/shaders::roam_debug: $l"; done || true
+          # second QA capture: same pseudo-colours with only terrain + road built,
+          # no scatter/landmarks/skyline/lamps, to pin the occluder
+          timeout -k 5 75 xvfb-run -a -s "-screen 0 1920x1080x24" \
+            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+            --rendering-driver opengl3 --resolution 1920x1080 \
+            --write-movie /tmp/shot_roam_iso.png --fixed-fps 30 --quit-after 40 \
+            -- --screen=roam --debug-flat --qa-isolate >/tmp/shot_roam_iso.log 2>&1 || true
+          last=$(ls -t /tmp/shot_roam_iso*.png 2>/dev/null | head -1)
+          [ -n "$last" ] && cp "$last" racing/docs/screenshots/roam_iso.png && echo "rendered roam_iso"
+          grep -E '\[OPENWORLD\] (near-mesh|groups)' /tmp/shot_roam_iso.log \
+            | head -20 | while read -r l; do echo "::notice::roam_iso: $l"; done || true
           ls -lh racing/docs/screenshots
       - name: Layout diagnostics
         run: |

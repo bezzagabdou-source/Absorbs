@@ -57,12 +57,27 @@ func _report_geometry() -> void:
 				height_at(p.x - side.x * d, p.z - side.z * d))
 		lateral += " %dm=%.2f" % [int(d), q]
 	print("[OPENWORLD] ", lateral)
+	# everything that could possibly occlude the spawn point: report any node with
+	# a mesh whose origin is close to the ring at angle 0
+	for child in get_children():
+		for sub in child.get_children():
+			if sub is Node3D and sub.name in ["SkyTower", "Arena", "Rocks", "RockScatter",
+					"TreeTrunks", "TreeCanopy", "Skyline", "Mast", "Lighthouse"]:
+				var gp: Vector3 = (sub as Node3D).global_position
+				var dist: float = Vector2(gp.x - 651.0, gp.z).length()
+				if dist < 220.0:
+					print("[OPENWORLD] near-mesh %s at %s dist=%.1f" % [sub.name, gp, dist])
+	var counts := {}
+	for child in get_children():
+		counts[str(child.name)] = child.get_child_count()
+	print("[OPENWORLD] groups=", counts)
 
 
 ## QA switch (CI screenshots only): `--debug-flat` paints the terrain green and
 ## the carriageway magenta so a capture can separate "geometry missing" from
 ## "geometry present but unlit". Nothing references it in a shipping build.
 var debug_flat: bool = false
+var _qa_isolate: bool = false
 
 
 func build(region_data: Dictionary) -> void:
@@ -70,6 +85,11 @@ func build(region_data: Dictionary) -> void:
 	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if str(arg) == "--debug-flat":
 			debug_flat = true
+		if str(arg) == "--qa-isolate":
+			# build the terrain and the road only: no scatter, no landmarks, no
+			# skyline, no lamps. If the near field is still black with this on,
+			# the occluder is the terrain or the post stack, not a prop.
+			_qa_isolate = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -85,12 +105,16 @@ func build(region_data: Dictionary) -> void:
 	_scatter_root = Node3D.new()
 	_scatter_root.name = "Scatter"
 	add_child(_scatter_root)
-	_build_scatter()
+	if not _qa_isolate:
+		_build_scatter()
 	_landmark_root = Node3D.new()
 	_landmark_root.name = "Landmarks"
 	add_child(_landmark_root)
-	_build_landmarks()
+	if not _qa_isolate:
+		_build_landmarks()
 	_report_geometry()
+	if _qa_isolate:
+		return
 	_build_roadside_lighting()
 	_build_distant_city()
 
