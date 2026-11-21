@@ -46,6 +46,7 @@ var _road_body: StaticBody3D
 ## camera sits. Defaults to off, so shipping builds are unaffected.
 var debug_flat: bool = false
 var _qa_no_terrain: bool = false
+var _qa_std_road: bool = false
 
 
 func build(region_data: Dictionary) -> void:
@@ -55,6 +56,8 @@ func build(region_data: Dictionary) -> void:
 			debug_flat = true
 		if str(arg) == "--qa-no-terrain":
 			_qa_no_terrain = true
+		if str(arg) == "--qa-std-road":
+			_qa_std_road = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -337,6 +340,16 @@ func _build_road_network() -> void:
 	mi.name = "Highway"
 	mi.mesh = st.commit()
 	mi.layers = 1
+	if _qa_std_road:
+		# QA A/B: identical geometry with a plain unshaded material. If this shows
+		# and the ShaderMaterial does not, the bug is in road.gdshader, not the mesh.
+		var plain := StandardMaterial3D.new()
+		plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		plain.albedo_color = Color(1.0, 0.0, 1.0)
+		mi.material_override = plain
+		add_child(mi)
+		_build_road_collision(width)
+		return
 	var mat := ShaderMaterial.new()
 	var sp := "res://shaders/road.gdshader"
 	if ResourceLoader.exists(sp):
@@ -387,6 +400,27 @@ func _build_road_network() -> void:
 	marker.name = "RingCentre"
 	marker.position = Vector3.ZERO
 	add_child(marker)
+
+
+## Collision body for the carriageway, split out so the QA A/B path can share it.
+func _build_road_collision(width: float) -> void:
+	_road_body = StaticBody3D.new()
+	_road_body.name = "HighwayCollision"
+	_road_body.collision_layer = 1
+	add_child(_road_body)
+	for i in range(0, ROAD_SEGMENTS, 2):
+		var p0: Vector3 = road_points[i]
+		var p1: Vector3 = road_points[(i + 1) % ROAD_SEGMENTS]
+		var fwd: Vector3 = p1 - p0
+		if fwd.length() < 0.5:
+			continue
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(width * 0.95, 1.0, fwd.length() + 0.5)
+		cs.shape = box
+		cs.position = Vector3((p0.x + p1.x) * 0.5, p0.y - 0.5, (p0.z + p1.z) * 0.5)
+		cs.rotation.y = atan2(fwd.x, fwd.z)
+		_road_body.add_child(cs)
 
 
 ## Emit a quad as two triangles that BOTH face up.
