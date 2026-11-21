@@ -36,6 +36,11 @@ func bind(node: Node3D) -> void:
 		_cam.global_position = _pos_smooth
 
 
+## The camera node, so screens can project world points (sun flare) to 2D.
+func camera() -> Camera3D:
+	return _cam
+
+
 func add_shake(amount: float) -> void:
 	_shake = minf(_shake + amount, 2.2)
 

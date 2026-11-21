@@ -5,6 +5,7 @@ extends Control
 signal pause_pressed
 
 const ARC_SEGMENTS := 44
+const TouchControlsScript = preload("res://scripts/ui/TouchControls.gd")
 
 var player
 var track_data
@@ -27,10 +28,7 @@ var _damage_fill: ColorRect
 var _drift_label: Label
 var _drift_score = 0.0
 var _steer_touch = 0.0
-var _touch_left = false
-var _touch_right = false
-var _nitro_btn: Button
-var _brake_btn: Button
+var _touch: Control
 var _mobile = true
 
 const SPEEDO_SIZE := 300.0
@@ -195,42 +193,13 @@ func _build_speedo() -> void:
 
 
 func _build_touch() -> void:
-	var left = UIStyle.make_icon_button("back", 132, Color.WHITE)
-	left.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	left.offset_left = 40
-	left.offset_top = -176
-	left.offset_right = 172
-	left.offset_bottom = -44
-	left.button_down.connect(func(): _touch_left = true)
-	left.button_up.connect(func(): _touch_left = false)
-	left.visible = _mobile
-	add_child(left)
-	var right = UIStyle.make_icon_button("play", 132, Color.WHITE)
-	right.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	right.offset_left = 188
-	right.offset_top = -176
-	right.offset_right = 320
-	right.offset_bottom = -44
-	right.button_down.connect(func(): _touch_right = true)
-	right.button_up.connect(func(): _touch_right = false)
-	right.visible = _mobile
-	add_child(right)
-	_brake_btn = UIStyle.make_button(Localization.t("hud.brake"), UIStyle.RED, false, 24, 104)
-	_brake_btn.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	_brake_btn.offset_left = -SPEEDO_SIZE - SPEEDO_MARGIN - 150
-	_brake_btn.offset_top = -140
-	_brake_btn.offset_right = -SPEEDO_SIZE - SPEEDO_MARGIN - 20
-	_brake_btn.offset_bottom = -36
-	_brake_btn.visible = _mobile
-	add_child(_brake_btn)
-	_nitro_btn = UIStyle.make_button(Localization.t("hud.nitro"), UIStyle.CYAN, true, 24, 104)
-	_nitro_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	_nitro_btn.offset_left = -140
-	_nitro_btn.offset_top = -150
-	_nitro_btn.offset_right = 140
-	_nitro_btn.offset_bottom = -46
-	_nitro_btn.visible = _mobile
-	add_child(_nitro_btn)
+	_touch = TouchControlsScript.new()
+	_touch.name = "TouchControls"
+	_touch.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_touch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_touch.set_accent(accent)
+	_touch.visible = _mobile
+	add_child(_touch)
 
 
 func _build_warnings() -> void:
@@ -277,9 +246,16 @@ func tick(delta: float, stats: Dictionary) -> void:
 	_gear_label.text = str(stats.get("gear", 1))
 	_pos_label.text = str(stats.get("position_text", "-"))
 	_lap_label.text = str(stats.get("lap_text", "-"))
-	_time_label.text = str(stats.get("time_text", "00:00.00"))
-	var best = str(stats.get("best_text", "--:--.--"))
-	_best_label.text = "BEST " + best
+	if stats.get("roam", false):
+		# free roam has no clock and no rivals: show distance instead
+		_time_label.text = "FREE"
+		_best_label.text = "ROAM"
+		_pos_label.text = "—"
+		_lap_label.text = "—"
+	else:
+		_time_label.text = str(stats.get("time_text", "00:00.00"))
+		var best = str(stats.get("best_text", "--:--.--"))
+		_best_label.text = "BEST " + best
 	var nitro: float = float(stats.get("nitro", 0.0))
 	_nitro_fill.offset_right = (SPEEDO_SIZE) * clampf(nitro, 0.0, 1.0)
 	_nitro_fill.color = UIStyle.CYAN if nitro > 0.25 else UIStyle.AMBER
@@ -371,19 +347,29 @@ func _map_point(v: Vector3, min_x: float, min_z: float, sc: float, pad: float) -
 
 
 func touch_steer() -> float:
-	var v = 0.0
-	if _touch_left:
-		v -= 1.0
-	if _touch_right:
-		v += 1.0
-	return v
+	if _touch and _touch.visible:
+		return _touch.steer_value()
+	return 0.0
+
+
+func touch_throttle() -> float:
+	if _touch and _touch.visible:
+		return _touch.throttle_value()
+	return 0.0
 
 
 func touch_brake() -> float:
-	if _brake_btn and _brake_btn.visible and _brake_btn.button_pressed:
-		return 1.0
+	if _touch and _touch.visible:
+		return _touch.brake_value()
 	return 0.0
 
 
 func touch_nitro() -> bool:
-	return _nitro_btn != null and _nitro_btn.visible and _nitro_btn.button_pressed
+	if _touch and _touch.visible:
+		return _touch.nitro_held()
+	return false
+
+
+func set_nitro_charge(v: float) -> void:
+	if _touch:
+		_touch.set_nitro_charge(v)

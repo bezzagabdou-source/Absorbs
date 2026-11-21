@@ -30,7 +30,7 @@ var checkpoints: Array = []
 var scenery_root: Node3D
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _neon_mat: ShaderMaterial
-var _road_mat: StandardMaterial3D
+var _road_mat: Material
 
 
 func build(track_dict: Dictionary) -> void:
@@ -73,19 +73,43 @@ func build(track_dict: Dictionary) -> void:
 
 
 func _build_materials() -> void:
-	_road_mat = StandardMaterial3D.new()
-	_road_mat.albedo_color = Color(0.30, 0.31, 0.36)
-	if ResourceLoader.exists("res://assets/textures/asphalt_albedo.png"):
-		_road_mat.albedo_texture = load("res://assets/textures/asphalt_albedo.png")
-		_road_mat.uv1_scale = Vector3(1.0, 18.0, 1.0)
-	_road_mat.roughness = 0.55 if weather != "rain" else 0.20
-	_road_mat.metallic = 0.0 if weather != "rain" else 0.35
+	_build_road_material()
 	_neon_mat = ShaderMaterial.new()
 	var sh = Shader.new()
 	sh.code = NEON_SHADER
 	_neon_mat.shader = sh
 	_neon_mat.set_shader_parameter("color", accent)
 	_neon_mat.set_shader_parameter("energy", 2.6)
+
+
+## Road surface uses the procedural asphalt shader: aggregate grain, tar seams,
+## wet patches, puddles and neon smear. No texture files, so it tiles forever
+## and costs nothing to ship.
+func _build_road_material() -> void:
+	var shader_path := "res://shaders/road.gdshader"
+	if not ResourceLoader.exists(shader_path):
+		_road_mat = StandardMaterial3D.new()
+		_road_mat.albedo_color = Color(0.30, 0.31, 0.36)
+		_road_mat.roughness = 0.55
+		return
+	var sh: Shader = load(shader_path)
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	var env_key := env
+	var wet := 0.42 if weather == "rain" else (0.20 if env_key == "coast" else 0.10)
+	m.set_shader_parameter("wetness", wet)
+	m.set_shader_parameter("road_width", 14.0)
+	m.set_shader_parameter("neon_a", accent)
+	m.set_shader_parameter("neon_b", accent.lerp(Color(1.0, 0.18, 0.62), 0.55))
+	m.set_shader_parameter("neon_energy", 1.0 if weather == "rain" else 0.55)
+	m.set_shader_parameter("asphalt_color", Color(0.048, 0.050, 0.058))
+	m.set_shader_parameter("aggregate_color", Color(0.17, 0.18, 0.20))
+	if env_key == "desert" or env_key == "canyon":
+		m.set_shader_parameter("asphalt_color", Color(0.14, 0.115, 0.085))
+		m.set_shader_parameter("aggregate_color", Color(0.30, 0.25, 0.19))
+	elif env_key == "snow":
+		m.set_shader_parameter("neon_energy", 0.25)
+	_road_mat = m
 
 
 func _build_road() -> void:
@@ -236,27 +260,48 @@ func _build_barriers() -> void:
 	add_child(nmi)
 
 
+## Ground: dense plane driven by the terrain shader so the open world reads as
+## real land (grass / sand / rock / snow by slope and height) instead of a flat
+## tinted rectangle.
 func _build_ground() -> void:
 	var plane = PlaneMesh.new()
-	plane.size = Vector2(4200, 4200)
-	plane.subdivide_width = 8
-	plane.subdivide_depth = 8
+	plane.size = Vector2(5200, 5200)
+	plane.subdivide_width = 48
+	plane.subdivide_depth = 48
 	var mi = MeshInstance3D.new()
 	mi.name = "Ground"
 	mi.mesh = plane
-	var mat = StandardMaterial3D.new()
-	if env == "city":
-		mat.albedo_color = Color(0.045, 0.05, 0.07)
-	elif env == "desert":
-		mat.albedo_color = Color(0.55, 0.38, 0.22)
-	elif env == "mountain":
-		mat.albedo_color = Color(0.20, 0.26, 0.22)
+	var mat: Material = StandardMaterial3D.new()
+	var shader_path := "res://shaders/terrain.gdshader"
+	if ResourceLoader.exists(shader_path):
+		var sm := ShaderMaterial.new()
+		sm.shader = load(shader_path)
+		if env == "city":
+			sm.set_shader_parameter("grass_color", Color(0.055, 0.075, 0.062))
+			sm.set_shader_parameter("rock_color", Color(0.085, 0.090, 0.105))
+			sm.set_shader_parameter("sand_color", Color(0.10, 0.11, 0.14))
+			sm.set_shader_parameter("road_tint", Color(0.032, 0.036, 0.048))
+			sm.set_shader_parameter("snow_line", 4.0)
+			sm.set_shader_parameter("wetness", 0.55 if weather == "rain" else 0.2)
+		elif env == "desert":
+			sm.set_shader_parameter("grass_color", Color(0.36, 0.27, 0.16))
+			sm.set_shader_parameter("sand_color", Color(0.78, 0.60, 0.38))
+			sm.set_shader_parameter("rock_color", Color(0.52, 0.34, 0.22))
+			sm.set_shader_parameter("snow_line", 4.0)
+		elif env == "mountain":
+			sm.set_shader_parameter("grass_color", Color(0.13, 0.19, 0.15))
+			sm.set_shader_parameter("rock_color", Color(0.28, 0.29, 0.31))
+			sm.set_shader_parameter("sand_color", Color(0.30, 0.30, 0.28))
+			sm.set_shader_parameter("snow_line", 0.62)
+		else:
+			sm.set_shader_parameter("grass_color", Color(0.14, 0.24, 0.18))
+			sm.set_shader_parameter("sand_color", Color(0.62, 0.58, 0.44))
+			sm.set_shader_parameter("rock_color", Color(0.24, 0.25, 0.24))
+			sm.set_shader_parameter("wetness", 0.4)
+		mat = sm
 	else:
 		mat.albedo_color = Color(0.10, 0.22, 0.26)
-	mat.roughness = 0.95
-	if ResourceLoader.exists("res://assets/textures/concrete_albedo.png"):
-		mat.albedo_texture = load("res://assets/textures/concrete_albedo.png")
-		mat.uv1_scale = Vector3(140, 140, 1)
+		mat.roughness = 0.95
 	mi.material_override = mat
 	mi.position = Vector3(0, data.min_y - 0.4, 0)
 	mi.layers = 1

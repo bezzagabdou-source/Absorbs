@@ -78,6 +78,8 @@ func apply(key: String, value: Variant) -> void:
 		"assist", "steer_mode", "sensitivity", "invert_tilt", "motion_blur", \
 		"camera_shake", "render_scale", "show_fps", "vibration":
 			pass
+		"post_fx":
+			RenderingServer.set_default_clear_color(Color(0.02, 0.025, 0.05, 1))
 
 
 func _set_bus_db(bus: String, linear: float) -> void:
@@ -93,20 +95,33 @@ func _set_bus_db(bus: String, linear: float) -> void:
 
 func _apply_quality(quality: String) -> void:
 	var tier: Dictionary = {
-		"low": {"scale": 0.62, "shadow": 0, "glow": false, "ssao": false, "aa": 0, "fog": true},
-		"medium": {"scale": 0.78, "shadow": 1024, "glow": true, "ssao": false, "aa": 0, "fog": true},
-		"high": {"scale": 0.92, "shadow": 2048, "glow": true, "ssao": false, "aa": 1, "fog": true},
-		"ultra": {"scale": 1.0, "shadow": 4096, "glow": true, "ssao": true, "aa": 2, "fog": true},
+		"low": {"scale": 0.62, "shadow": 0, "glow": false, "ssao": false, "aa": 0,
+			"aa_mode": 0, "fog": true, "aniso": 1},
+		"medium": {"scale": 0.78, "shadow": 1024, "glow": true, "ssao": false, "aa": 0,
+			"aa_mode": 1, "fog": true, "aniso": 2},
+		"high": {"scale": 0.92, "shadow": 2048, "glow": true, "ssao": false, "aa": 1,
+			"aa_mode": 1, "fog": true, "aniso": 4},
+		"ultra": {"scale": 1.0, "shadow": 4096, "glow": true, "ssao": true, "aa": 2,
+			"aa_mode": 2, "fog": true, "aniso": 8},
 	}
 	var cfg: Dictionary = tier.get(quality, tier["high"])
 	if not bool(values.get("_manual_scale", false)):
 		values["render_scale"] = cfg["scale"]
 	if int(cfg["shadow"]) > 0:
 		RenderingServer.directional_shadow_atlas_set_size(int(cfg["shadow"]), true)
+		ProjectSettings.set_setting("rendering/lights_and_shadows/directional_shadow/soft_shadow_filter_quality",
+			2 if int(cfg["shadow"]) >= 2048 else 1)
+	# anisotropic filtering raises the sharpness of the procedural road at grazing
+	# angles, which is exactly where a racing game is judged
+	ProjectSettings.set_setting("rendering/textures/default_filters/anisotropic_filtering_level",
+		int(cfg["aniso"]))
 	var vp = get_viewport()
 	if vp:
 		vp.msaa_3d = int(cfg["aa"])
-		vp.screen_space_aa = 1 if int(cfg["aa"]) == 0 else 0
+		vp.screen_space_aa = int(cfg["aa_mode"])
+		vp.use_taa = false
+	# keep textures from shimmering at distance on low tiers
+	RenderingServer.set_default_clear_color(Color(0.02, 0.025, 0.05, 1))
 
 
 func save_settings() -> void:

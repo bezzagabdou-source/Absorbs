@@ -28,10 +28,13 @@ func _build_mode_row() -> void:
 	_mode_row.add_theme_constant_override("separation", 14)
 	content.add_child(_mode_row)
 	var idx = 0
-	for mode in ["circuit", "trial", "drag"]:
-		var label = Localization.t("mode.circuit" if mode == "circuit" else ("mode.trial" if mode == "trial" else "mode.drag"))
-		var b = UIStyle.make_button(label, UIStyle.CYAN, mode == _mode, 24, 66)
-		b.custom_minimum_size = Vector2(240, 66)
+	for mode in ["circuit", "trial", "drag", "roam"]:
+		var key := "mode.circuit" if mode == "circuit" else (
+			"mode.trial" if mode == "trial" else ("mode.drag" if mode == "drag" else "mode.roam"))
+		var label = Localization.t(key)
+		var accent_col: Color = UIStyle.MAGENTA if mode == "roam" else UIStyle.CYAN
+		var b = UIStyle.make_button(label, accent_col, mode == _mode, 24, 66)
+		b.custom_minimum_size = Vector2(232, 66)
 		var m = mode
 		b.pressed.connect(func(): _set_mode(m))
 		_mode_row.add_child(b)
@@ -42,7 +45,7 @@ func _set_mode(mode: String) -> void:
 	_mode = mode
 	for i in range(_mode_row.get_child_count()):
 		var b: Button = _mode_row.get_child(i)
-		var m = ["circuit", "trial", "drag"][i]
+		var m = ["circuit", "trial", "drag", "roam"][i]
 		b.add_theme_stylebox_override("normal", UIStyle.glass_box(20, Color(0.09, 0.13, 0.22, 0.66), 0.22))
 		if m == _mode:
 			b.add_theme_stylebox_override("normal", UIStyle.accent_box(UIStyle.CYAN, 0.3, 20, 0.4))
@@ -222,8 +225,12 @@ func _refresh_detail() -> void:
 	for c in _detail.get_children():
 		c.queue_free()
 	_detail.add_child(UIStyle.make_kicker(str(track.get("env", "")).to_upper() + " / " + _mode.to_upper(), UIStyle.CYAN, 14))
-	_detail.add_child(UIStyle.make_title(str(track["name"]), 48, UIStyle.CYAN))
-	_detail.add_child(UIStyle.make_label(str(track.get("desc", "")), "body", 24, UIStyle.TEXT_DIM))
+	if _mode == "roam":
+		_detail.add_child(UIStyle.make_title(Localization.t("tracks.roam_title"), 48, UIStyle.MAGENTA))
+		_detail.add_child(UIStyle.make_label(Localization.t("tracks.roam_desc"), "body", 24, UIStyle.TEXT_DIM))
+	else:
+		_detail.add_child(UIStyle.make_title(str(track["name"]), 48, UIStyle.CYAN))
+		_detail.add_child(UIStyle.make_label(str(track.get("desc", "")), "body", 24, UIStyle.TEXT_DIM))
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	_detail.add_child(row)
@@ -242,4 +249,7 @@ func _start() -> void:
 		AudioDirector.play_sfx("ui_back", -4.0)
 		return
 	AudioDirector.play_sfx("ui_confirm", 0.0)
+	if _mode == "roam":
+		go("race", {"track": track, "mode": "roam", "laps": 1})
+		return
 	go("race", {"track": track, "mode": _mode, "laps": 1 if _mode == "drag" else int(track.get("laps", 3))})

@@ -115,6 +115,43 @@ func _foundation() -> void:
 		model.set_damage(0.3)
 		model.queue_free()
 
+	print("[SUITE] SECTION graphics assets")
+	for shader_path in ["res://shaders/car_paint.gdshader", "res://shaders/road.gdshader",
+			"res://shaders/terrain.gdshader", "res://shaders/post_fx.gdshader"]:
+		_check(ResourceLoader.exists(shader_path), "shader present " + shader_path)
+		if ResourceLoader.exists(shader_path):
+			var sh: Shader = load(shader_path)
+			_check(sh != null, "shader loads " + shader_path)
+			# compiling the shader here makes a broken GLSL line fail the suite
+			var mat := ShaderMaterial.new()
+			mat.shader = sh
+			_check(mat.shader == sh, "shader binds " + shader_path)
+	var TouchControls = load("res://scripts/ui/TouchControls.gd")
+	_check(TouchControls != null, "touch controls script")
+	var tc = TouchControls.new()
+	add_child(tc)
+	tc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tc.set_accent(Color("22e9ff"))
+	tc.set_nitro_charge(0.5)
+	_check(absf(tc.steer_value()) <= 1.0, "touch steer range")
+	_check(tc.throttle_value() >= 0.0, "touch throttle readable")
+	tc.queue_free()
+
+	print("[SUITE] SECTION open world")
+	var OpenWorld = load("res://scripts/race/OpenWorld.gd")
+	for prof in ["metro", "desert", "alpine", "coast"]:
+		var ow = OpenWorld.new()
+		add_child(ow)
+		ow.build({"id": prof, "name": prof, "seed": 1234, "profile": prof})
+		var spawn: Transform3D = ow.spawn_transform(0)
+		_check(spawn.origin.length() > 1.0, "spawn placed " + prof)
+		var h: float = ow.height_at(120.0, -240.0)
+		_check(absf(h) < 2000.0, "terrain height sane " + prof)
+		_check(ow.road_points.size() > 100, "road ring built " + prof)
+		var near: Vector3 = ow.nearest_road_point(Vector3(50, 0, 50))
+		_check(near.length() > 1.0, "nearest road point " + prof)
+		ow.queue_free()
+
 	print("[SUITE] SECTION screens (instantiate)")
 	for id in ["menu", "tracks", "garage", "shop", "achievements", "daily",
 			"settings", "credits", "profile", "results"]:
@@ -139,6 +176,21 @@ func _runtime() -> void:
 		await _frames(5)
 		_check(SceneRouter.current_id == id, "screen " + id + " loads")
 		_check(SceneRouter.current != null, "screen " + id + " builds")
+
+	print("[SUITE] SECTION runtime free roam")
+	SceneRouter.goto_instant("race", {"track": GameData.TRACKS[0], "mode": "roam"})
+	await _frames(6)
+	var roam_scr: Node = SceneRouter.current
+	_check(roam_scr != null, "roam race built")
+	if roam_scr != null:
+		_check(bool(roam_scr.get("roaming")), "roam flag set")
+		await _frames(40)
+		var roam_player = roam_scr.get("player")
+		_check(roam_player != null, "roam player spawned")
+		if roam_player != null:
+			_check(roam_player.global_position.y > -80.0, "roam player above ground")
+		roam_scr.queue_free()
+	await _frames(2)
 
 	print("[SUITE] SECTION runtime races")
 	for track in GameData.TRACKS:

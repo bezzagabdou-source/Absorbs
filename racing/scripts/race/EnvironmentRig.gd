@@ -117,10 +117,13 @@ var sun: DirectionalLight3D
 var rain: GPUParticles3D
 var sky_mat: ShaderMaterial
 var _wet = false
+var _fog_height: float = 0.0
 
 
-func setup(env: String, time_of_day: String, weather: String, accent: Color) -> void:
+func setup(env: String, time_of_day: String, weather: String, accent: Color,
+		fog_height: float = 0.0) -> void:
 	_wet = weather == "rain"
+	_fog_height = fog_height
 	var p: Dictionary = PRESETS.get(_preset_key(env, time_of_day), PRESETS["city_night"])
 	_build_sky(p, weather)
 	_build_sun(p)
@@ -173,45 +176,70 @@ func _build_sun(p: Dictionary) -> void:
 	sun.look_at(Vector3.ZERO, Vector3.UP)
 
 
+## World environment: physically-plausible atmosphere, ACES in the post stack,
+## SSAO-style contact shading off (costly on mobile), fog with height falloff,
+## sky reflections and a modest glow for the neon signage.
 func _build_world_env(p: Dictionary, accent: Color) -> void:
 	world_env = WorldEnvironment.new()
 	var e = Environment.new()
 	var sky = Sky.new()
 	sky.sky_material = sky_mat
-	sky.radiance_size = Sky.RADIANCE_SIZE_128
+	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	e.ambient_light_sky_contribution = 0.62
 	e.ambient_light_color = p["ambient"]
-	e.ambient_light_energy = 1.0
+	e.ambient_light_energy = clampf(float(p.get("ambient_energy", 1.15)), 0.4, 2.4)
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+
+	# --- tonemapping: ACES in-engine, our post shader adds the grade --------
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
-	e.tonemap_exposure = 1.05
-	e.tonemap_white = 6.0
+	e.tonemap_exposure = 1.0
+	e.tonemap_white = 6.5
+
+	# --- bloom / glow: neon should bleed, highlights should not smear ------
 	e.glow_enabled = true
 	e.glow_intensity = float(p["glow_intensity"])
-	e.glow_strength = 1.0
-	e.glow_bloom = 0.12
-	e.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
-	e.glow_hdr_threshold = 0.85
-	e.glow_hdr_scale = 2.0
-	e.set_glow_level(1, 0.0)
-	e.set_glow_level(2, 0.6)
-	e.set_glow_level(3, 0.9)
-	e.set_glow_level(4, 0.6)
-	e.set_glow_level(5, 0.3)
-	e.adjustment_enabled = true
-	e.adjustment_brightness = 1.02
-	e.adjustment_contrast = 1.12
-	e.adjustment_saturation = 1.18
+	e.glow_strength = 1.05
+	e.glow_bloom = 0.16
+	e.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+	e.glow_hdr_threshold = 1.0
+	e.glow_hdr_scale = 2.4
+	e.glow_normalized = true
+	e.set_glow_level(0, 0.0)
+	e.set_glow_level(1, 0.35)
+	e.set_glow_level(2, 0.75)
+	e.set_glow_level(3, 1.0)
+	e.set_glow_level(4, 0.85)
+	e.set_glow_level(5, 0.55)
+	e.set_glow_level(6, 0.25)
+
+	# --- atmosphere --------------------------------------------------------
 	e.fog_enabled = true
-	e.fog_light_color = (p["fog"] as Color).lerp(accent, 0.18)
-	e.fog_light_energy = 0.9
-	e.fog_density = float(p["fog_density"]) * (1.9 if _wet else 1.0)
-	e.fog_aerial_perspective = 0.35
-	e.fog_sky_affect = 0.25
+	e.fog_mode = Environment.FOG_MODE_EXPONENTIAL
+	e.fog_light_color = (p["fog"] as Color).lerp(accent, 0.14)
+	e.fog_light_energy = 1.0
+	e.fog_density = float(p["fog_density"]) * (2.1 if _wet else 1.0)
+	e.fog_aerial_perspective = 0.55
+	e.fog_sky_affect = 0.30
+	e.fog_height = maxf(0.0, _fog_height)
+	e.fog_height_density = 0.22
+	e.fog_sun_scatter = 0.35
+
+	# --- ground truth shading ---------------------------------------------
+	e.ssao_enabled = false       # mobile: keep the frame budget
 	e.ssr_enabled = false
-	e.ssao_enabled = false
+	e.ssil_enabled = false
+	e.sdfgi_enabled = false
+	e.volumetric_fog_enabled = false
+
+	# --- subtle grading (post shader does the heavy lifting) ---------------
+	e.adjustment_enabled = true
+	e.adjustment_brightness = 1.0
+	e.adjustment_contrast = 1.05
+	e.adjustment_saturation = 1.10
+
 	world_env.environment = e
 	add_child(world_env)
 

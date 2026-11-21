@@ -1,0 +1,555 @@
+extends Node3D
+## Open-world region generator.
+##
+## Builds a large explorable landscape at runtime — no downloaded assets, all
+## CC0 geometry generated here:
+##   * a height-mapped terrain mesh (fast noise, 6 octaves) with regional
+##     biomes: metro plains, desert dunes, alpine ridges, coastal shelf
+##   * a road network: a main ring highway plus radial connectors, carved into
+##     the terrain so the tarmac looks laid into the land
+##   * hand-placed landmark anchors (downtown core, radio mast, circuit arena,
+##     harbour) that scenery passes fill in
+##   * roadside foliage/rock scatter with a distance-aware multi-mesh
+##
+## The world is generated from a seed so a given region always looks the same,
+## which keeps leaderboards and replays honest.
+
+const REGION_SIZE := 2400.0       # metres across
+const GRID := 200                 # terrain vertices per side
+const ROAD_RING_RADIUS := 620.0
+const ROAD_SEGMENTS := 192
+
+var region: Dictionary = {}
+var height_noise: FastNoiseLite
+var detail_noise: FastNoiseLite
+var road_points: PackedVector3Array = PackedVector3Array()
+var road_index: Array = []
+var terrain_mesh_instance: MeshInstance3D
+var _rng := RandomNumberGenerator.new()
+var _scatter_root: Node3D
+var _landmark_root: Node3D
+var _road_body: StaticBody3D
+
+
+func build(region_data: Dictionary) -> void:
+	region = region_data
+	var seed_value: int = int(region_data.get("seed", 1337))
+	_rng.seed = seed_value
+	_build_noise(seed_value)
+	_build_terrain()
+	_build_road_network()
+	_scatter_root = Node3D.new()
+	_scatter_root.name = "Scatter"
+	add_child(_scatter_root)
+	_build_scatter()
+	_landmark_root = Node3D.new()
+	_landmark_root.name = "Landmarks"
+	add_child(_landmark_root)
+	_build_landmarks()
+
+
+func _build_noise(seed_value: int) -> void:
+	height_noise = FastNoiseLite.new()
+	height_noise.seed = seed_value
+	height_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	height_noise.frequency = 0.0011
+	height_noise.fractal_octaves = 6
+	height_noise.fractal_lacunarity = 2.1
+	height_noise.fractal_gain = 0.48
+	height_noise.domain_warp_enabled = true
+	height_noise.domain_warp_amplitude = 90.0
+	height_noise.domain_warp_frequency = 0.0009
+
+	detail_noise = FastNoiseLite.new()
+	detail_noise.seed = seed_value + 91
+	detail_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	detail_noise.frequency = 0.018
+	detail_noise.fractal_octaves = 3
+
+
+## Height at a world position. The profile depends on the region biome:
+## metro keeps the city flat, alpine raises ridges, coastal cuts a shelf.
+func height_at(x: float, z: float) -> float:
+	var base: float = height_noise.get_noise_2d(x, z)
+	var d: float = Vector2(x, z).length() / (REGION_SIZE * 0.5)
+	var profile: String = str(region.get("profile", "metro"))
+	var h := 0.0
+	match profile:
+		"alpine":
+			h = base * 180.0 + pow(maxf(0.0, base), 1.6) * 260.0
+		"desert":
+			h = base * 46.0 + sin(x * 0.0026) * 14.0 + cos(z * 0.0031) * 11.0
+			# dune ripples
+			h += detail_noise.get_noise_2d(x * 0.6, z * 0.6) * 4.5
+		"coast":
+			h = base * 120.0
+			if d > 0.66:
+				h = lerpf(h, -8.0, smoothstep(0.66, 1.0, d))
+		_:
+			h = base * 26.0 + detail_noise.get_noise_2d(x, z) * 1.6
+	# flatten the outer rim so the world does not end in a cliff
+	h *= 1.0 - smoothstep(0.88, 1.0, d) * 0.85
+	return h
+
+
+func _build_terrain() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var step: float = REGION_SIZE / float(GRID)
+	var half: float = REGION_SIZE * 0.5
+	var heights := PackedFloat32Array()
+	heights.resize((GRID + 1) * (GRID + 1))
+	for iz in range(GRID + 1):
+		for ix in range(GRID + 1):
+			var x: float = -half + float(ix) * step
+			var z: float = -half + float(iz) * step
+			heights[iz * (GRID + 1) + ix] = height_at(x, z)
+
+	# normals by central difference so the lighting reads the ridges
+	var normals := PackedVector3Array()
+	normals.resize(heights.size())
+	for iz in range(GRID + 1):
+		for ix in range(GRID + 1):
+			var xl: float = heights[iz * (GRID + 1) + maxi(0, ix - 1)]
+			var xr: float = heights[iz * (GRID + 1) + mini(GRID, ix + 1)]
+			var zd: float = heights[maxi(0, iz - 1) * (GRID + 1) + ix]
+			var zu: float = heights[mini(GRID, iz + 1) * (GRID + 1) + ix]
+			var n := Vector3(xl - xr, 2.0 * step, zd - zu).normalized()
+			normals[iz * (GRID + 1) + ix] = n
+
+	for iz in range(GRID):
+		for ix in range(GRID):
+			var i0: int = iz * (GRID + 1) + ix
+			var i1: int = i0 + 1
+			var i2: int = i0 + (GRID + 1)
+			var i3: int = i2 + 1
+			var p0 := Vector3(-half + float(ix) * step, heights[i0], -half + float(iz) * step)
+			var p1 := Vector3(-half + float(ix + 1) * step, heights[i1], -half + float(iz) * step)
+			var p2 := Vector3(-half + float(ix) * step, heights[i2], -half + float(iz + 1) * step)
+			var p3 := Vector3(-half + float(ix + 1) * step, heights[i3], -half + float(iz + 1) * step)
+			_tri(st, p0, p2, p1, normals[i0], normals[i2], normals[i1])
+			_tri(st, p1, p2, p3, normals[i1], normals[i2], normals[i3])
+
+	var mi := MeshInstance3D.new()
+	mi.name = "Terrain"
+	mi.mesh = st.commit()
+	mi.layers = 1
+	var mat := ShaderMaterial.new()
+	var shader_path := "res://shaders/terrain.gdshader"
+	if ResourceLoader.exists(shader_path):
+		mat.shader = load(shader_path)
+		var profile: String = str(region.get("profile", "metro"))
+		if profile == "desert":
+			mat.set_shader_parameter("sand_color", Color(0.80, 0.62, 0.38))
+			mat.set_shader_parameter("rock_color", Color(0.55, 0.36, 0.22))
+			mat.set_shader_parameter("grass_color", Color(0.42, 0.31, 0.19))
+			mat.set_shader_parameter("snow_line", 4.0)
+		elif profile == "alpine":
+			mat.set_shader_parameter("snow_line", 0.42)
+			mat.set_shader_parameter("rock_color", Color(0.30, 0.31, 0.33))
+			mat.set_shader_parameter("grass_color", Color(0.14, 0.20, 0.16))
+		elif profile == "coast":
+			mat.set_shader_parameter("sand_color", Color(0.70, 0.64, 0.48))
+			mat.set_shader_parameter("grass_color", Color(0.16, 0.26, 0.19))
+			mat.set_shader_parameter("snow_line", 4.0)
+		else:
+			mat.set_shader_parameter("grass_color", Color(0.07, 0.09, 0.075))
+			mat.set_shader_parameter("rock_color", Color(0.075, 0.08, 0.095))
+			mat.set_shader_parameter("sand_color", Color(0.10, 0.105, 0.13))
+			mat.set_shader_parameter("snow_line", 4.0)
+	mi.material_override = mat
+	terrain_mesh_instance = mi
+	add_child(mi)
+
+
+func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
+		na: Vector3, nb: Vector3, nc: Vector3) -> void:
+	for pair in [[a, na], [b, nb], [c, nc]]:
+		var p: Vector3 = pair[0]
+		var n: Vector3 = pair[1]
+		st.set_normal(n)
+		st.set_uv(Vector2(p.x, p.z) * 0.01)
+		st.add_vertex(p)
+
+
+## Main ring highway + four radial spurs, carved into the terrain.
+func _build_road_network() -> void:
+	var centre := Vector3(0, 0, 0)
+	road_points = PackedVector3Array()
+	for i in range(ROAD_SEGMENTS):
+		var a: float = float(i) / float(ROAD_SEGMENTS) * TAU
+		# radius modulated so the loop is not a perfect circle
+		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
+		var x: float = cos(a) * r
+		var z: float = sin(a) * r
+		road_points.append(Vector3(x, height_at(x, z) + 0.9, z))
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var width := 16.0
+	for i in range(ROAD_SEGMENTS):
+		var p0: Vector3 = road_points[i]
+		var p1: Vector3 = road_points[(i + 1) % ROAD_SEGMENTS]
+		var dir: Vector3 = (p1 - p0)
+		if dir.length() < 0.01:
+			continue
+		dir = dir.normalized()
+		var right: Vector3 = dir.cross(Vector3.UP).normalized() * width * 0.5
+		var a := p0 - right
+		var b := p0 + right
+		var c := p1 - right
+		var d := p1 + right
+		_quad(st, a, c, b, d)
+		road_index.append({"a": p0, "b": p1})
+
+	var mi := MeshInstance3D.new()
+	mi.name = "Highway"
+	mi.mesh = st.commit()
+	mi.layers = 1
+	var mat := ShaderMaterial.new()
+	var sp := "res://shaders/road.gdshader"
+	if ResourceLoader.exists(sp):
+		mat.shader = load(sp)
+		mat.set_shader_parameter("wetness", 0.24)
+		mat.set_shader_parameter("road_width", width)
+		mat.set_shader_parameter("neon_energy", 0.55)
+		mat.set_shader_parameter("neon_a", Color(0.13, 0.91, 1.0))
+		mat.set_shader_parameter("neon_b", Color(1.0, 0.18, 0.62))
+	mi.material_override = mat
+	add_child(mi)
+
+	# collision so you can actually drive the highway
+	_road_body = StaticBody3D.new()
+	_road_body.name = "HighwayCollision"
+	_road_body.collision_layer = 1
+	add_child(_road_body)
+	for i in range(0, ROAD_SEGMENTS, 2):
+		var p0: Vector3 = road_points[i]
+		var p1: Vector3 = road_points[(i + 1) % ROAD_SEGMENTS]
+		var fwd: Vector3 = p1 - p0
+		if fwd.length() < 0.5:
+			continue
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(width * 0.95, 1.0, fwd.length() + 0.5)
+		cs.shape = box
+		cs.position = Vector3((p0.x + p1.x) * 0.5, p0.y - 0.5, (p0.z + p1.z) * 0.5)
+		cs.rotation.y = atan2(fwd.x, fwd.z)
+		_road_body.add_child(cs)
+
+	# centre line of the ring, for GPS / minimap / spawn logic
+	var marker := Node3D.new()
+	marker.name = "RingCentre"
+	marker.position = centre
+	add_child(marker)
+
+
+func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+	_quad_tri(st, a, b, c)
+	_quad_tri(st, a, c, d)
+
+
+func _quad_tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3) -> void:
+	var n: Vector3 = (b - a).cross(c - a).normalized()
+	if n.y < 0.0:
+		n = -n
+	for v in [a, b, c]:
+		st.set_normal(Vector3.UP)
+		st.set_uv(Vector2(v.x, v.z) * 0.05)
+		st.add_vertex(v)
+
+
+## Foliage / rocks scattered on the terrain, instanced with MultiMesh so the
+## whole region costs a handful of draw calls.
+func _build_scatter() -> void:
+	var profile: String = str(region.get("profile", "metro"))
+	if profile == "desert":
+		_spawn_props("rock", 420, 3.0, 9.0, Color(0.42, 0.30, 0.20))
+		_spawn_props("rock", 160, 9.0, 22.0, Color(0.50, 0.36, 0.24))
+	else:
+		_spawn_trees(profile)
+
+
+func _spawn_trees(profile: String) -> void:
+	var count := 900 if profile == "metro" else 1500
+	var trunk_mesh := CylinderMesh.new()
+	trunk_mesh.top_radius = 0.16
+	trunk_mesh.bottom_radius = 0.28
+	trunk_mesh.height = 3.4
+	trunk_mesh.radial_segments = 6
+	var leaf_mesh := SphereMesh.new()
+	leaf_mesh.radius = 1.9
+	leaf_mesh.height = 4.2
+	leaf_mesh.radial_segments = 8
+	leaf_mesh.rings = 5
+
+	var trunk_mm := MultiMesh.new()
+	trunk_mm.transform_format = MultiMesh.TRANSFORM_3D
+	trunk_mm.instance_count = count
+	var leaf_mm := MultiMesh.new()
+	leaf_mm.transform_format = MultiMesh.TRANSFORM_3D
+	leaf_mm.use_colors = true
+	leaf_mm.instance_count = count
+
+	var placed := 0
+	var tries := 0
+	while placed < count and tries < count * 12:
+		tries += 1
+		var x: float = _rng.randf_range(-REGION_SIZE * 0.46, REGION_SIZE * 0.46)
+		var z: float = _rng.randf_range(-REGION_SIZE * 0.46, REGION_SIZE * 0.46)
+		var y: float = height_at(x, z)
+		if y < 0.0:
+			continue
+		# keep the highway clear
+		var d: float = Vector2(x, z).length()
+		if absf(d - ROAD_RING_RADIUS) < 34.0:
+			continue
+		var s: float = _rng.randf_range(0.75, 1.7)
+		var basis := Basis(Vector3.UP, _rng.randf_range(0.0, TAU)).scaled(Vector3(s, s, s))
+		var pos := Vector3(x, y, z)
+		trunk_mm.set_instance_transform(placed, Transform3D(basis, pos + Vector3.UP * 1.4 * s))
+		leaf_mm.set_instance_transform(placed, Transform3D(basis, pos + Vector3.UP * 4.3 * s))
+		var tint := Color(0.10, 0.24, 0.13).lerp(Color(0.24, 0.33, 0.16), _rng.randf())
+		if profile == "alpine":
+			tint = Color(0.09, 0.18, 0.14).lerp(Color(0.16, 0.24, 0.18), _rng.randf())
+		leaf_mm.set_instance_color(placed, tint)
+		placed += 1
+
+	trunk_mm.instance_count = placed
+	leaf_mm.instance_count = placed
+	var trunk_mi := MeshInstance3D.new()
+	trunk_mi.name = "TreeTrunks"
+	var trunk_mat := StandardMaterial3D.new()
+	trunk_mat.albedo_color = Color(0.14, 0.11, 0.08)
+	trunk_mat.roughness = 0.95
+	trunk_mi.material_override = trunk_mat
+	trunk_mi.multimesh = trunk_mm
+	trunk_mi.layers = 1
+	_scatter_root.add_child(trunk_mi)
+
+	var leaf_mi := MeshInstance3D.new()
+	leaf_mi.name = "TreeCanopy"
+	var leaf_mat := StandardMaterial3D.new()
+	leaf_mat.vertex_color_use_as_albedo = true
+	leaf_mat.roughness = 0.85
+	leaf_mi.material_override = leaf_mat
+	leaf_mi.multimesh = leaf_mm
+	leaf_mi.layers = 1
+	_scatter_root.add_child(leaf_mi)
+
+
+func _spawn_props(kind: String, count: int, min_s: float, max_s: float, tint: Color) -> void:
+	var mesh: Mesh
+	if kind == "rock":
+		var sm := SphereMesh.new()
+		sm.radius = 1.0
+		sm.height = 1.4
+		sm.radial_segments = 7
+		sm.rings = 4
+		mesh = sm
+	else:
+		mesh = BoxMesh.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = mesh
+	mm.instance_count = count
+	for i in range(count):
+		var x: float = _rng.randf_range(-REGION_SIZE * 0.46, REGION_SIZE * 0.46)
+		var z: float = _rng.randf_range(-REGION_SIZE * 0.46, REGION_SIZE * 0.46)
+		var y: float = height_at(x, z)
+		var s: float = _rng.randf_range(min_s, max_s)
+		var basis := Basis(Vector3.UP, _rng.randf_range(0.0, TAU))
+		basis = basis.scaled(Vector3(s, s * _rng.randf_range(0.55, 0.9), s))
+		mm.set_instance_transform(i, Transform3D(basis, Vector3(x, y + s * 0.2, z)))
+		mm.set_instance_color(i, tint.darkened(_rng.randf() * 0.35))
+	var mi := MeshInstance3D.new()
+	mi.name = "RockScatter"
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.roughness = 0.96
+	mi.material_override = mat
+	mi.multimesh = mm
+	mi.layers = 1
+	_scatter_root.add_child(mi)
+
+
+## Signature landmarks per region, so every map has a skyline you can navigate by.
+func _build_landmarks() -> void:
+	var profile: String = str(region.get("profile", "metro"))
+	var accent: Color = region.get("accent", Color(0.13, 0.91, 1.0))
+	if profile == "metro":
+		_landmark_tower(Vector3(0, height_at(0, 0), 0), 210.0, accent)
+		_landmark_arena(Vector3(ROAD_RING_RADIUS * 0.72, 0, 0), accent)
+	elif profile == "alpine":
+		_landmark_mast(Vector3(0, height_at(0, 0), 0), 150.0, accent)
+	elif profile == "desert":
+		_landmark_arena(Vector3(0, height_at(0, 0), 0), Color(1.0, 0.62, 0.22))
+	else:
+		_landmark_lighthouse(Vector3(ROAD_RING_RADIUS * 0.8, 0, ROAD_RING_RADIUS * 0.5), accent)
+
+
+func _landmark_tower(base: Vector3, h: float, accent: Color) -> void:
+	var root := Node3D.new()
+	root.name = "SkyTower"
+	root.position = base
+	_landmark_root.add_child(root)
+	var body := MeshInstance3D.new()
+	var bm := CylinderMesh.new()
+	bm.top_radius = 6.0
+	bm.bottom_radius = 13.0
+	bm.height = h
+	bm.radial_segments = 14
+	body.mesh = bm
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(0.05, 0.08, 0.14)
+	glass.metallic = 0.9
+	glass.roughness = 0.10
+	body.material_override = glass
+	body.position = Vector3(0, h * 0.5, 0)
+	root.add_child(body)
+	# emissive ribs: reads like a lit skyscraper at night
+	for i in range(10):
+		var ring := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.inner_radius = lerpf(6.6, 13.4, float(i) / 9.0)
+		tm.outer_radius = lerpf(6.9, 13.8, float(i) / 9.0)
+		tm.rings = 4
+		tm.ring_segments = 20
+		ring.mesh = tm
+		var em := StandardMaterial3D.new()
+		em.albedo_color = accent
+		em.emission_enabled = true
+		em.emission = accent
+		em.emission_energy_multiplier = 3.0
+		em.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ring.material_override = em
+		ring.position = Vector3(0, h * (0.12 + float(i) * 0.085), 0)
+		root.add_child(ring)
+	# beacon
+	var beacon := OmniLight3D.new()
+	beacon.position = Vector3(0, h + 2.0, 0)
+	beacon.light_color = accent
+	beacon.light_energy = 6.0
+	beacon.omni_range = 160.0
+	beacon.shadow_enabled = false
+	root.add_child(beacon)
+
+
+func _landmark_mast(base: Vector3, h: float, accent: Color) -> void:
+	var root := Node3D.new()
+	root.name = "RelayMast"
+	root.position = base
+	_landmark_root.add_child(root)
+	var mast := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.6
+	cm.bottom_radius = 2.4
+	cm.height = h
+	cm.radial_segments = 8
+	mast.mesh = cm
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color(0.30, 0.32, 0.36)
+	metal.metallic = 0.85
+	metal.roughness = 0.35
+	mast.material_override = metal
+	mast.position = Vector3(0, h * 0.5, 0)
+	root.add_child(mast)
+	var beacon := MeshInstance3D.new()
+	var bm := SphereMesh.new()
+	bm.radius = 2.2
+	bm.height = 4.4
+	bm.radial_segments = 10
+	bm.rings = 6
+	beacon.mesh = bm
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = accent
+	bmat.emission_enabled = true
+	bmat.emission = accent
+	bmat.emission_energy_multiplier = 6.0
+	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	beacon.material_override = bmat
+	beacon.position = Vector3(0, h + 1.0, 0)
+	root.add_child(beacon)
+	var light := OmniLight3D.new()
+	light.position = Vector3(0, h, 0)
+	light.light_color = accent
+	light.light_energy = 5.0
+	light.omni_range = 140.0
+	root.add_child(light)
+
+
+func _landmark_arena(at: Vector3, accent: Color) -> void:
+	var root := Node3D.new()
+	root.name = "CircuitArena"
+	root.position = Vector3(at.x, height_at(at.x, at.z), at.z)
+	_landmark_root.add_child(root)
+	var bowl := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 96.0
+	tm.outer_radius = 128.0
+	tm.rings = 12
+	tm.ring_segments = 48
+	bowl.mesh = tm
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color(0.16, 0.17, 0.20)
+	stone.roughness = 0.8
+	bowl.material_override = stone
+	bowl.position = Vector3(0, 12.0, 0)
+	bowl.scale = Vector3(1.0, 0.16, 1.0)
+	root.add_child(bowl)
+	var flood := OmniLight3D.new()
+	flood.position = Vector3(0, 70.0, 0)
+	flood.light_color = accent
+	flood.light_energy = 4.0
+	flood.omni_range = 260.0
+	flood.shadow_enabled = false
+	root.add_child(flood)
+
+
+func _landmark_lighthouse(at: Vector3, accent: Color) -> void:
+	var root := Node3D.new()
+	root.name = "Lighthouse"
+	root.position = Vector3(at.x, height_at(at.x, at.z), at.z)
+	_landmark_root.add_child(root)
+	var tower := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 3.0
+	cm.bottom_radius = 5.0
+	cm.height = 44.0
+	cm.radial_segments = 12
+	tower.mesh = cm
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(0.86, 0.88, 0.92)
+	white.roughness = 0.55
+	tower.material_override = white
+	tower.position = Vector3(0, 22.0, 0)
+	root.add_child(tower)
+	var lamp := OmniLight3D.new()
+	lamp.position = Vector3(0, 46.0, 0)
+	lamp.light_color = accent
+	lamp.light_energy = 8.0
+	lamp.omni_range = 220.0
+	root.add_child(lamp)
+
+
+## Closest point on the highway ring — used by the minimap and AI traffic.
+func nearest_road_point(p: Vector3) -> Vector3:
+	var best := p
+	var best_d := 1.0e20
+	for i in range(0, road_points.size(), 4):
+		var q: Vector3 = road_points[i]
+		var d: float = Vector2(q.x - p.x, q.z - p.z).length_squared()
+		if d < best_d:
+			best_d = d
+			best = q
+	return best
+
+
+func spawn_transform(index: int = 0) -> Transform3D:
+	# start on the ring, facing along the road
+	var i: int = (index * 7) % road_points.size()
+	var p: Vector3 = road_points[i]
+	var q: Vector3 = road_points[(i + 3) % road_points.size()]
+	var dir: Vector3 = (q - p).normalized()
+	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 1.2)

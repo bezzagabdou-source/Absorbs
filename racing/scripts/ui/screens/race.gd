@@ -9,6 +9,7 @@ const CarControllerScript = preload("res://scripts/vehicle/CarController.gd")
 const CarModelScript = preload("res://scripts/vehicle/CarModel.gd")
 const ChaseCameraScript = preload("res://scripts/race/ChaseCamera.gd")
 const AIDriverScript = preload("res://scripts/race/AIDriver.gd")
+const OpenWorldScript = preload("res://scripts/race/OpenWorld.gd")
 const HUD = preload("res://scripts/ui/RaceHUD.gd")
 
 var router
@@ -22,11 +23,16 @@ var world: Node3D
 var viewport: SubViewport
 var viewport_container: SubViewportContainer
 var builder
+var open_world
+var roaming := false
 var env_rig
 var player
 var ai_cars: Array = []
 var cam
 var hud
+var post: ColorRect
+var post_mat: ShaderMaterial
+var _damage_flash := 0.0
 
 var race_time = 0.0
 var state = "countdown"     # countdown | racing | finished
@@ -52,8 +58,97 @@ func _ready() -> void:
 	mode = str(params.get("mode", "circuit"))
 	laps_target = int(params.get("laps", track.get("laps", 3)))
 	_build_world()
+	_build_post()
 	_build_hud()
 	_start_race()
+
+
+## Free-roam regions. Each map gets a deterministic seed so the terrain, the
+## highway loop and the landmarks are identical every time you visit.
+const ROAM_REGIONS := {
+	"neon_harbor": {"id": "neon_harbor", "name": "NEON HARBOR", "seed": 2026,
+		"profile": "metro", "accent": Color(0.13, 0.91, 1.0)},
+	"dune_fury": {"id": "dune_fury", "name": "DUNE FURY", "seed": 4411,
+		"profile": "desert", "accent": Color(1.0, 0.62, 0.22)},
+	"alpine_run": {"id": "alpine_run", "name": "ALPINE RUN", "seed": 9081,
+		"profile": "alpine", "accent": Color(0.55, 0.85, 1.0)},
+	"coast_highway": {"id": "coast_highway", "name": "COAST HIGHWAY", "seed": 3377,
+		"profile": "coast", "accent": Color(1.0, 0.55, 0.30)},
+}
+
+
+func _roam_region_for() -> Dictionary:
+	var key := str(track.get("id", "neon_harbor"))
+	if ROAM_REGIONS.has(key):
+		return ROAM_REGIONS[key]
+	# map any circuit onto a region that matches its biome
+	match str(track.get("env", "city")):
+		"desert", "canyon":
+			return ROAM_REGIONS["dune_fury"]
+		"mountain":
+			return ROAM_REGIONS["alpine_run"]
+		"coast":
+			return ROAM_REGIONS["coast_highway"]
+		_:
+			return ROAM_REGIONS["neon_harbor"]
+
+
+func _build_open_world() -> void:
+	var region := _roam_region_for()
+	open_world = OpenWorldScript.new()
+	open_world.name = "OpenWorld"
+	world.add_child(open_world)
+	open_world.build(region)
+
+
+## Cinematic post stack. A full-rect ColorRect samples the 3D viewport texture
+## through post_fx.gdshader, so the grade, vignette, aberration, grain and
+## flare all stay inside the mobile fill budget (one full-screen pass).
+func _build_post() -> void:
+	var shader_path := "res://shaders/post_fx.gdshader"
+	if not ResourceLoader.exists(shader_path):
+		return
+	post_mat = ShaderMaterial.new()
+	post_mat.shader = load(shader_path)
+	post = ColorRect.new()
+	post.name = "PostFX"
+	post.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	post.color = Color(1, 1, 1, 1)
+	post.material = post_mat
+	add_child(post)
+	update_post()
+
+
+## Push the current lighting/weather into the post shader.
+func update_post() -> void:
+	if post_mat == null:
+		return
+	var key := str(track.get("env", "city")) + "_" + str(track.get("time", "night"))
+	var night := 1.0 if str(track.get("time", "night")) == "night" else 0.0
+	post_mat.set_shader_parameter("night_mode", night)
+	post_mat.set_shader_parameter("exposure", 1.06 if night > 0.5 else 1.0)
+	post_mat.set_shader_parameter("contrast", 1.10)
+	post_mat.set_shader_parameter("saturation", 1.14 if night > 0.5 else 1.06)
+	post_mat.set_shader_parameter("vignette", 0.46 if night > 0.5 else 0.30)
+	post_mat.set_shader_parameter("aberration", 0.22)
+	post_mat.set_shader_parameter("grain", 0.022)
+	post_mat.set_shader_parameter("bloom_bleed", 0.10)
+	var sun_dir: Vector3 = Vector3(0.4, 0.3, -0.8)
+	if env_rig and env_rig.sun:
+		sun_dir = -env_rig.sun.global_transform.basis.z
+	var fpos := Vector2(0.5, 0.5)
+	var c: Camera3D = cam.camera() if cam else null
+	if c and size.x > 1.0 and size.y > 1.0:
+		var sp: Vector2 = c.unproject_position(c.global_position + sun_dir * 500.0)
+		fpos = Vector2(sp.x / size.x, sp.y / size.y)
+	post_mat.set_shader_parameter("flare_pos", fpos)
+	var flare := 0.0
+	if str(track.get("time", "night")) == "sunset" or str(track.get("time", "day")) == "day":
+		flare = 0.55
+	post_mat.set_shader_parameter("flare_strength", flare)
+	var warm := str(track.get("time", "night")) == "sunset"
+	post_mat.set_shader_parameter("flare_color", Color(1.0, 0.62, 0.34) if warm else Color(1.0, 0.95, 0.86))
 
 
 func _build_world() -> void:
@@ -76,14 +171,22 @@ func _build_world() -> void:
 	world = Node3D.new()
 	world.name = "World"
 	viewport.add_child(world)
-	builder = TrackBuilderScript.new()
-	builder.name = "Track"
-	world.add_child(builder)
-	builder.build(track)
+	roaming = mode == "roam"
+	if roaming:
+		_build_open_world()
+	else:
+		builder = TrackBuilderScript.new()
+		builder.name = "Track"
+		world.add_child(builder)
+		builder.build(track)
 	env_rig = EnvironmentRigScript.new()
 	env_rig.name = "Environment"
 	world.add_child(env_rig)
-	env_rig.setup(str(track["env"]), str(track["time"]), str(track["weather"]), builder.accent)
+	if roaming:
+		env_rig.setup(str(track["env"]), str(track["time"]), str(track["weather"]),
+			open_world.region.get("accent", Color(0.13, 0.91, 1.0)))
+	else:
+		env_rig.setup(str(track["env"]), str(track["time"]), str(track["weather"]), builder.accent)
 	cam = ChaseCameraScript.new()
 	world.add_child(cam)
 	_spawn_player()
@@ -106,8 +209,11 @@ func _spawn_player() -> void:
 	var paint_id = str(rec.get("paint", car.get("paint", "cyan")))
 	model.build(car, paint_id, str(rec.get("rim", "stock")))
 	player.attach_model(model)
-	var st: Transform3D = builder.start_transform
-	player.global_transform = Transform3D(st.basis, st.origin + st.basis.x * 4.2 + st.basis.z * 6.0)
+	if roaming:
+		player.global_transform = open_world.spawn_transform(0)
+	else:
+		var st: Transform3D = builder.start_transform
+		player.global_transform = Transform3D(st.basis, st.origin + st.basis.x * 4.2 + st.basis.z * 6.0)
 	player.impact.connect(_on_player_impact)
 	player.nitro_started.connect(func(): cam.set_nitro(true); AudioDirector.play_sfx("nitro", -4.0))
 	player.nitro_ended.connect(func(): cam.set_nitro(false))
@@ -119,7 +225,7 @@ func _spawn_ai() -> void:
 	var count = 5
 	if mode == "drag":
 		count = 1
-	elif mode == "time_trial":
+	elif mode == "time_trial" or mode == "roam":
 		count = 0
 	var used: Array = []
 	for i in range(count):
@@ -165,8 +271,12 @@ func _difficulty_bonus() -> float:
 func _build_hud() -> void:
 	hud = HUD.new()
 	hud.player = player
-	hud.track_data = builder.data
-	hud.accent = builder.accent
+	if roaming:
+		hud.track_data = null
+		hud.accent = open_world.region.get("accent", Color(0.13, 0.91, 1.0))
+	else:
+		hud.track_data = builder.data
+		hud.accent = builder.accent
 	add_child(hud)
 	hud.pause_pressed.connect(_toggle_pause)
 
@@ -207,6 +317,31 @@ func _process(delta: float) -> void:
 		_update_hud(delta)
 	if env_rig and player:
 		env_rig.set_rain_follow(player.global_position)
+	_update_post_live(delta)
+	if player and hud:
+		hud.set_nitro_charge(float(player.nitro_amount))
+
+
+## Drive the speed-reactive parts of the post stack. Kept separate from
+## update_post() (static grade) so the per-frame cost is a few uniform writes.
+func _update_post_live(delta: float) -> void:
+	if post_mat == null:
+		return
+	var spd := 0.0
+	if player:
+		spd = clampf(absf(float(player.speed)) / 95.0, 0.0, 1.0)
+	post_mat.set_shader_parameter("speed_zoom", spd * spd * 0.045)
+	_damage_flash = maxf(0.0, _damage_flash - delta * 2.6)
+	post_mat.set_shader_parameter("damage_flash", _damage_flash)
+	# keep the flare anchored to the sun as the camera moves
+	if env_rig and env_rig.sun and cam and cam.camera():
+		var c: Camera3D = cam.camera()
+		if c:
+			var sun_dir: Vector3 = -env_rig.sun.global_transform.basis.z
+			var fwd: Vector3 = -c.global_transform.basis.z
+			var facing: float = clampf(fwd.dot(sun_dir), 0.0, 1.0)
+			if str(track.get("time", "night")) != "night":
+				post_mat.set_shader_parameter("flare_strength", pow(facing, 3.0) * 0.9)
 
 
 func _read_driver_input(delta: float) -> void:
@@ -227,14 +362,24 @@ func _read_driver_input(delta: float) -> void:
 			t = -t
 		steer = clampf(t * 1.8 * float(SettingsStore.get_value("sensitivity", 1.0)), -1.0, 1.0)
 	if hud.touch_steer() != 0.0:
-		_touch_steer_smooth = lerpf(_touch_steer_smooth, hud.touch_steer(), delta * 9.0)
+		_touch_steer_smooth = lerpf(_touch_steer_smooth, hud.touch_steer(), delta * 14.0)
 		steer = _touch_steer_smooth
+	elif absf(_touch_steer_smooth) > 0.001:
+		_touch_steer_smooth = lerpf(_touch_steer_smooth, 0.0, delta * 6.0)
+		steer = _touch_steer_smooth
+	# analogue pedals: the further you press, the more throttle/brake
+	throttle = maxf(throttle, hud.touch_throttle())
 	brake = maxf(brake, hud.touch_brake())
 	nitro = nitro or hud.touch_nitro()
 	player.set_inputs(throttle, brake, steer, nitro, handbrake)
 
 
 func _update_lap(_delta: float) -> void:
+	if roaming:
+		# no laps, no checkpoints: free roam just tracks distance travelled
+		player_progress = player.distance_travelled
+		_wrong_way_t = 0.0
+		return
 	var prj: Dictionary = builder.data.project(player.global_position, checkpoint_idx * 150)
 	player_progress = float(prj["along"])
 	var cps: Array = builder.checkpoints
@@ -315,6 +460,9 @@ func _finish_race() -> void:
 
 
 func _update_standings() -> void:
+	if roaming:
+		car_position = 1
+		return
 	var ahead = 0
 	for ai in ai_cars:
 		var prj: Dictionary = builder.data.project(ai["node"].global_position)
@@ -343,6 +491,8 @@ func _update_hud(delta: float) -> void:
 		"drift": player.drift_amount,
 		"position_text": "%d/%d" % [car_position, ai_cars.size() + 1] if mode == "circuit" else "TT",
 		"lap_text": "%d/%d" % [lap, laps_target] if mode == "circuit" else "1/1",
+		"roam": roaming,
+		"roam_speed": player.speed_kmh() if roaming else 0.0,
 		"time_text": format_time(t),
 		"best_text": format_time(best_lap_seen) if best_lap_seen > 0.0 else "--:--.--",
 		"wrong_way": _wrong_way_t > 0.9,
