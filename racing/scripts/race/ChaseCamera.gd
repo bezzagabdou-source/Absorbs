@@ -18,6 +18,10 @@ var _cam: Camera3D
 var _roll: float = 0.0
 var _pos_smooth: Vector3 = Vector3.ZERO
 var _nitro_boost: float = 0.0
+## Cinematic establishing shot: sits high and wide so the world, the road and the
+## skyline all read at once. Used by the screenshot rig and the roam intro.
+var showcase: bool = false
+var _showcase_t: float = 0.0
 
 
 func _ready() -> void:
@@ -34,7 +38,10 @@ func bind(node: Node3D) -> void:
 	target = node
 	if node:
 		var back = node.global_transform.basis.z
-		_pos_smooth = node.global_position + back * _boom + Vector3.UP * _height
+		if showcase:
+			_pos_smooth = node.global_position + back * 15.0 + Vector3.UP * 5.4
+		else:
+			_pos_smooth = node.global_position + back * _boom + Vector3.UP * _height
 		_cam.global_position = _pos_smooth
 
 
@@ -54,6 +61,7 @@ func set_nitro(on: bool) -> void:
 func physics_tick(delta: float) -> void:
 	if target == null or not is_instance_valid(target):
 		return
+	_showcase_t += delta * 0.16
 	var speed: float = 0.0
 	if target.has_method("speed_kmh"):
 		speed = float(target.call("speed_kmh"))
@@ -66,6 +74,16 @@ func physics_tick(delta: float) -> void:
 		_cam.look_at(target.global_position + forward * 30.0 + Vector3.UP * 0.7, Vector3.UP)
 		_cam.fov = _fov_base + clampf(speed / 22.0, 0.0, 12.0) + _nitro_boost * 6.0
 		_apply_shake(delta, 0.35)
+		return
+	if showcase:
+		# slow orbit on a high boom: reads as a cinematic establishing shot
+		var a: float = _showcase_t
+		var centre: Vector3 = target.global_position
+		var cam_pos: Vector3 = centre + Vector3(sin(a) * 15.0, 6.2, cos(a) * 15.0)
+		_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 1.6, 0.0, 1.0))
+		_cam.global_position = _pos_smooth
+		_cam.look_at(centre + Vector3.UP * 1.4, Vector3.UP)
+		_cam.fov = lerpf(_cam.fov, 56.0, delta * 2.0)
 		return
 	var speed_norm = clampf(speed / 340.0, 0.0, 1.0)
 	var desired_boom = _boom + speed_norm * 1.6 + _nitro_boost * 1.9

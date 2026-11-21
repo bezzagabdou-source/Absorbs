@@ -93,8 +93,10 @@ void fragment() {
 	// Values are tuned against the night capture: grass/rock stay readable as
 	// shapes while the neon road remains the brightest thing in frame.
 	vec3 sky_bounce = mix(vec3(0.55, 0.60, 0.80), vec3(0.78, 0.86, 1.05), terrain_up);
+	// emissive bounce is applied on ALBEDO-scaled colour and NOT affected by fog
+	// the way lighting is, so it reads as ground-level ambient instead of haze
 	ALBEDO = ground;
-	EMISSION = ground * sky_bounce;
+	EMISSION = ground * sky_bounce * 1.35;
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;
 	SPECULAR = mix(0.25, 0.55, wetness);

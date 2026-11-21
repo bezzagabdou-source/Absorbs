@@ -193,6 +193,10 @@ func _build_world() -> void:
 	else:
 		env_rig.setup(str(track["env"]), str(track["time"]), str(track["weather"]), builder.accent)
 	cam = ChaseCameraScript.new()
+	# Free roam opens on a cinematic establishing orbit so the map reads before
+	# the player takes over; the camera drops to chase the moment they touch the
+	# throttle (see _read_driver_input).
+	cam.showcase = roaming
 	world.add_child(cam)
 	_spawn_player()
 	_spawn_ai()
@@ -224,6 +228,7 @@ func _spawn_player() -> void:
 	player.nitro_ended.connect(func(): cam.set_nitro(false))
 	player.gear_changed.connect(func(_g): AudioDirector.play_sfx("gear_shift", -16.0))
 	cam.bind(player)
+	player.input_enabled = true
 
 
 func _spawn_ai() -> void:
@@ -366,6 +371,10 @@ func _read_driver_input(delta: float) -> void:
 		if bool(SettingsStore.get_value("invert_tilt", false)):
 			t = -t
 		steer = clampf(t * 1.8 * float(SettingsStore.get_value("sensitivity", 1.0)), -1.0, 1.0)
+	# any real input ends the free-roam establishing shot
+	if cam.showcase and (absf(steer) > 0.08 or throttle > 0.08 or brake > 0.08):
+		cam.showcase = false
+		AudioDirector.play_sfx("ui_click", -18.0)
 	if hud.touch_steer() != 0.0:
 		_touch_steer_smooth = lerpf(_touch_steer_smooth, hud.touch_steer(), delta * 14.0)
 		steer = _touch_steer_smooth
