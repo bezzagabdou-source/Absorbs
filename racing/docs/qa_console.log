@@ -6,17 +6,17 @@ OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Dev
 
 Movie Maker mode enabled, recording movie at 30 FPS...
 [QAPROBE] car=(651.0, 0.788358, 0.0) nearest_road=(651.0, 0.568358, 0.0) lateral=0.00m dy=0.22m
-[QAPROBE] cam=(649.1506, 4.662052, -10.65995) showcase=true dist_to_car=11.5m
+[QAPROBE] cam=(648.3593, 4.486124, -11.65792) showcase=true dist_to_car=12.5m
 [QADUMP] Highway aabb=[P: (-646.0241, -2.641821, -698.6008), S: (1316.625, 7.097498, 1292.051)] mat=<ShaderMaterial#-9223371986070141477> layers=1
 [QADUMP] @MeshInstance3D@132 pos=(642.5816, 4.068358, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
 [QADUMP] @MeshInstance3D@133 pos=(642.5816, 7.568358, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
 [QADUMP] @OmniLight3D@134 pos=(642.5816, 7.468358, 1.758025) dist=10.9 aabb_size=(52.0, 52.0, 52.0) visible=true
-[QAPROBE] cam_fwd=(0.167422, -0.153908, 0.973798) pitch=-0.15
+[QAPROBE] cam_fwd=(0.23076, -0.118197, 0.965805) pitch=-0.12
 ----------------
 Done recording movie at path: /tmp/roam_plain.png
-110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:29.0 (2% of real-time speed).
-CPU time: 3.78 seconds (average: 34.40 ms/frame)
-GPU time: 4.93 seconds (average: 44.81 ms/frame)
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:47.0 (1% of real-time speed).
+CPU time: 4.79 seconds (average: 43.53 ms/frame)
+GPU time: 6.35 seconds (average: 57.69 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
