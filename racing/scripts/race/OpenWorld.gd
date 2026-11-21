@@ -317,7 +317,7 @@ func _spawn_trees(profile: String) -> void:
 
 	trunk_mm.instance_count = placed
 	leaf_mm.instance_count = placed
-	var trunk_mi := MeshInstance3D.new()
+	var trunk_mi := MultiMeshInstance3D.new()
 	trunk_mi.name = "TreeTrunks"
 	var trunk_mat := StandardMaterial3D.new()
 	trunk_mat.albedo_color = Color(0.14, 0.11, 0.08)
@@ -327,7 +327,7 @@ func _spawn_trees(profile: String) -> void:
 	trunk_mi.layers = 1
 	_scatter_root.add_child(trunk_mi)
 
-	var leaf_mi := MeshInstance3D.new()
+	var leaf_mi := MultiMeshInstance3D.new()
 	leaf_mi.name = "TreeCanopy"
 	var leaf_mat := StandardMaterial3D.new()
 	leaf_mat.vertex_color_use_as_albedo = true
@@ -363,7 +363,7 @@ func _spawn_props(kind: String, count: int, min_s: float, max_s: float, tint: Co
 		basis = basis.scaled(Vector3(s, s * _rng.randf_range(0.55, 0.9), s))
 		mm.set_instance_transform(i, Transform3D(basis, Vector3(x, y + s * 0.2, z)))
 		mm.set_instance_color(i, tint.darkened(_rng.randf() * 0.35))
-	var mi := MeshInstance3D.new()
+	var mi := MultiMeshInstance3D.new()
 	mi.name = "RockScatter"
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
