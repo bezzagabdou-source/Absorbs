@@ -229,11 +229,17 @@ jobs:
           # each screen gets a 75s budget; a heavy 3D scene that overruns must not
           # swallow the whole job, so the loop keeps going and reports what it got
           for screen in boot menu garage shop tracks race roam achievements daily settings credits profile; do
-            timeout -k 5 75 xvfb-run -a -s "-screen 0 1920x1080x24" \
+            budget=75
+            frames=40
+            if [ "$screen" = "roam" ]; then budget=170; frames=110; fi
+            timeout -k 5 $budget xvfb-run -a -s "-screen 0 1920x1080x24" \
               "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
               --rendering-driver opengl3 --resolution 1920x1080 \
-              --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after 40 \
+              --write-movie /tmp/shot_${screen}.png --fixed-fps 30 --quit-after $frames \
               -- --screen=$screen >/tmp/shot_${screen}.log 2>&1 || true
+            # full console capture: the annotations only keep a few greps, and the
+            # reason a screen looks wrong is usually one line further down
+            { echo "===== ${screen} (exit $?) ====="; tail -70 /tmp/shot_${screen}.log; } >> /tmp/console.log
             last=$(ls -t /tmp/shot_${screen}*.png 2>/dev/null | head -1)
             grep -iE 'SHADER ERROR|Shader compilation|error\([0-9]+\)|shader_' /tmp/shot_${screen}.log \
               | head -12 | while read -r l; do echo "::warning file=racing/shaders::${screen}: $l"; done || true
@@ -314,7 +320,8 @@ jobs:
         run: |
           git config user.name "Arena Agent"
           git config user.email "agent@arena.ai"
-          git add -f racing/docs/screenshots racing/docs/diag.log 2>/dev/null || true
+          cp /tmp/console.log racing/docs/console.log 2>/dev/null || true
+          git add -f racing/docs/screenshots racing/docs/diag.log racing/docs/console.log 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "no visual changes"
           else
