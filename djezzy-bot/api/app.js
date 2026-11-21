@@ -189,6 +189,31 @@ async function probeHandler(req, res) {
   const target = `${config.djezzy.baseUrl}${config.djezzy.paths.requestOtp}`;
 
   try {
+    if (req.query.mode === 'otp') {
+      /* اختبار POST حقيقي بنفس شكل إرسال رمز التحقق (بلا إرسال SMS لرقم حقيقي:
+         msisdn غير صالح يرفضه الباك-إند بعد عبور البوابة/WAF) */
+      const msisdn = String(req.query.msisdn || '213000000000');
+      const response = await fetch(target, {
+        method: 'POST',
+        headers: { ...config.djezzy.headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ msisdn, client_id: config.djezzy.clientId, scope: 'smsotp' }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await response.text().catch(() => '');
+      const blocked = response.status === 403 || response.status === 451;
+      res.status(blocked ? 502 : 200).json({
+        ok: !blocked,
+        mode: 'otp-post',
+        status: response.status,
+        latencyMs: Date.now() - started,
+        sample: text.slice(0, 300),
+        verdict: blocked
+          ? '403/451 — البوابة ترفض من منطقة Vercel (حجب جغرافي محتمل). جرّب مسار relay.'
+          : 'POST عبَر البوابة ووصل لتطبيق جيزي — المسار مباشر ويعمل من Vercel.',
+      });
+      return;
+    }
+
     // GET بدون أي معاملات: لا يُرسل رمزاً ولا يمسّ أي حساب — فحص اتصال فقط
     const response = await fetch(target, {
       method: 'GET',
@@ -236,8 +261,10 @@ async function diagnoseHandler(req, res) {
   add('PUBLIC_URL', Boolean(config.bot.publicUrl), config.bot.publicUrl || 'غير معروف', 'اضبطه على https://<project>.vercel.app');
   add(
     'تخزين دائم (KV)',
-    store.adapter === 'kv',
-    store.adapter === 'kv' ? 'Upstash/Vercel KV' : 'ذاكرة مؤقتة — الجلسات تُفقد',
+    ['kv', 'github', 'telegram', 'file'].includes(store.adapter),
+    { kv: 'Upstash/Vercel KV', github: 'GitHub bot-state', telegram: 'رسالة مثبّتة بتيليجرام', file: 'قرص محلي' }[
+      store.adapter
+    ] || 'ذاكرة مؤقتة — الجلسات تُفقد',
     'أنشئ Upstash Redis وأضف KV_REST_API_URL/TOKEN',
   );
 
