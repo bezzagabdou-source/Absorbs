@@ -96,7 +96,6 @@ void fragment() {
 	EMISSION += mix(neon_a, vec3(1.0), 0.35) * puddle * 0.05;
 
 	ALBEDO = col;
-	NORMAL_MAP = vec3(0.0);
 	// perturb the normal with the grain so highlights break up like real asphalt
 	vec3 n = normalize(wnorm);
 	vec2 grad = vec2(vnoise(uv * grain_scale * 0.5 + 3.1), vnoise(uv * grain_scale * 0.5 - 7.7)) - 0.5;

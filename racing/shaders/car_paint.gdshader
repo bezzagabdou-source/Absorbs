@@ -55,12 +55,17 @@ void fragment() {
 	METALLIC = clamp(metallic + flake_mask * 0.25, 0.0, 1.0);
 	ROUGHNESS = clamp(roughness - flake_mask * 0.10, 0.02, 1.0);
 	SPECULAR = 0.55;
-	CLEARCOAT = clearcoat;
-	CLEARCOAT_GLOSS = 1.0 - clearcoat_roughness;
+
+	// Clearcoat is not available in the GL Compatibility renderer, so the lacquer
+	// layer is faked: tighten the roughness toward the clearcoat value and add a
+	// white Fresnel sheen that peaks at grazing angles, which is what a real
+	// clearcoat reads as on a curved panel.
+	ROUGHNESS = mix(ROUGHNESS, clearcoat_roughness, clearcoat);
+	vec3 coat = vec3(1.0) * fres * clearcoat * (1.0 - clearcoat_roughness * 0.6);
 
 	// rim light additive on grazing angles = studio-light look
 	vec3 rim_vec = pow(1.0 - ndv, rim_power) * rim_strength * rim_color;
-	EMISSION = rim_vec + flake_color * flake_mask * 0.06;
+	EMISSION = rim_vec + coat + flake_color * flake_mask * 0.06;
 
 	// subtle white sheen along the top surfaces (roof, shoulders)
 	float top = smoothstep(0.55, 1.0, normalize(world_normal).y);
