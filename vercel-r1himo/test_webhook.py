@@ -308,4 +308,38 @@ class WebhookTests(unittest.TestCase):
 
 
 
+    def test_09_quantity_selection_and_copy_quote(self):
+        buyer=777777777
+        self.message(1201,'/start',user=buyer)
+        with index._request_context() as st:
+            pid=st.add_product({'name':'One & bulk', 'price':10, 'visible':1})
+            st.add_stock_lines(pid,['one','two','three'])
+            st.set_settings({'bulk_min_%d' % pid:'2','bulk_price_%d' % pid:'7'})
+            st.adjust_balance(buyer,50)
+        self.callback(1202,'view:%d' % pid,user=buyer)
+        self.assertIn('qty:%d' % pid,[b.get('callback_data') for b in self.buttons()])
+        self.callback(1203,'qty:%d' % pid,user=buyer)
+        self.assertIn('qtypick:%d:1' % pid,[b.get('callback_data') for b in self.buttons()])
+        self.callback(1204,'qtypick:%d:1' % pid,user=buyer)
+        confirm=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.calls.clear(); self.callback(1205,confirm,user=buyer); self.callback(1206,confirm,user=buyer)
+        with index._request_context() as st:
+            order=st.user_orders(st.get_user(buyer)['id'])[0]
+            self.assertEqual((order['qty'],order['total']),(1,10))
+        event=next(p for p in self.sent('sendMessage') if p.get('chat_id')==-1004365740808)
+        self.assertIn('<blockquote>',event['text'])
+        self.assertIn('One &amp; bulk',event['text'])
+        self.assertIn('One & bulk',event['reply_markup']['inline_keyboard'][0][0]['copy_text']['text'])
+        self.callback(1207,'qty:%d' % pid,user=buyer)
+        self.callback(1208,'qtypick:%d:2' % pid,user=buyer)
+        confirm=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(1209,confirm,user=buyer)
+        with index._request_context() as st:
+            orders=st.user_orders(st.get_user(buyer)['id'])
+            self.assertEqual(len(orders),2)
+            self.assertEqual((orders[0]['qty'],orders[0]['total']),(2,14))
+            self.assertEqual(st.get_user(buyer)['balance'],26)
+
+
+
 if __name__ == '__main__': unittest.main()

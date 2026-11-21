@@ -1740,9 +1740,8 @@ def build_product_keyboard(product, lang, back="pg:0"):
     stock = store.available_stock(product)
     rows = []
     if stock > 0:
-        rows.append([_btn(label("lbl_buy", lang), "success", None,
-                          cb="confirm:%d" % product["id"])])
-        rows.append([_btn('🛒 شراء كمية' if lang == 'ar' else '🛒 Buy quantity', 'primary', None, cb='qty:%d' % product['id'])])
+        rows.append([_btn('🛒 شراء: اختر الكمية' if lang == 'ar' else '🛒 Buy: choose quantity',
+                          'success', None, cb='qty:%d' % product['id'])])
     else:
         rows.append([_btn(label("lbl_out", lang) + " ❌", "danger", None,
                           cb="topup")])
@@ -1750,6 +1749,38 @@ def build_product_keyboard(product, lang, back="pg:0"):
     rows.append([_btn(label("lbl_back", lang), "default", None, cb=back),
                  _btn(label("lbl_close", lang), "default", None, cb="close")])
     return inline_keyboard(rows)
+
+
+def quantity_options(user, product, edit=None):
+    lang=lang_of(user)
+    available=min(100,store.available_stock(product))
+    if available < 1:
+        text='⚠️ المنتج غير متاح أو المخزون غير كافٍ.' if lang == 'ar' else '⚠️ Product unavailable or out of stock.'
+        return safe_edit(user['tg_id'], edit, text) if edit else safe_send(user['tg_id'], text)
+    state_set(user['tg_id'],'purchase_qty',product_id=product['id'],expires=time.time()+600)
+    choices=[n for n in (1,2,3,5,10) if n<=available]
+    buttons=[_btn(('قطعة واحدة' if n == 1 else '%d قطع' % n) if lang == 'ar' else ('1 item' if n == 1 else '%d items' % n),
+                  'success' if n == 1 else 'primary',None,cb='qtypick:%d:%d' % (product['id'],n)) for n in choices]
+    rows=[buttons[i:i+2] for i in range(0,len(buttons),2)]
+    rows.append([_btn('❌ إلغاء' if lang == 'ar' else '❌ Cancel','danger',None,cb='cancel')])
+    text=('🛒 <b>%s</b>\nاختر قطعة واحدة أو كمية للجملة، أو أرسل أي رقم من 1 إلى %d.' if lang == 'ar' else
+          '🛒 <b>%s</b>\nChoose one item or a larger quantity, or send a number from 1 to %d.') % (esc(product['name']),available)
+    return safe_edit(user['tg_id'],edit,text,inline_keyboard(rows)) if edit else safe_send(user['tg_id'],text,inline_keyboard(rows))
+
+
+def quantity_preview(user, product_id, qty, edit=None):
+    lang=lang_of(user)
+    p=store.product_by_id(product_id)
+    if not p or not p.get('visible') or not 1 <= qty <= 100 or store.available_stock(p)<qty:
+        text='⚠️ المنتج غير متاح أو المخزون غير كافٍ.' if lang == 'ar' else '⚠️ Product unavailable or insufficient stock.'
+        return safe_send(user['tg_id'],text)
+    unit=unit_price(p,user,qty); total=round(unit*qty,2); nonce=secrets.token_hex(5)
+    state_set(user['tg_id'],'quantity_confirm',product_id=p['id'],qty=qty,total=total,nonce=nonce,expires=time.time()+600)
+    text=('🛒 <b>%s</b> × %d\nسعر القطعة: %s\nالإجمالي: <b>%s</b>\nتأكيد الشراء من الرصيد؟' if lang == 'ar' else
+          '🛒 <b>%s</b> × %d\nUnit price: %s\nTotal: <b>%s</b>\nConfirm purchase from wallet?') % (esc(p['name']),qty,price_str(unit),price_str(total))
+    markup=inline_keyboard([[_btn('✅ تأكيد الشراء' if lang == 'ar' else '✅ Confirm purchase','success',None,cb='qtybuy:'+nonce),
+                             _btn('❌ إلغاء' if lang == 'ar' else '❌ Cancel','danger',None,cb='cancel')]])
+    return safe_edit(user['tg_id'],edit,text,markup) if edit else safe_send(user['tg_id'],text,markup)
 
 
 def build_back_keyboard(lang, with_close=True):
@@ -1984,17 +2015,36 @@ def notify_public_event(kind, user, product=None, qty=1, deposit=None):
     chat = store.get_setting("event_chat_id", EVENT_CHAT_ID).strip()
     if not re.fullmatch(r"-?[0-9]{1,20}", chat) or chat in ("0", "-0"):
         return
-    if kind == "purchase":
-        body = "✨<b>New purchase</b>\n<blockquote>🆔 User: %s\n📦 Product: <b>%s</b>\n📊 Quantity: %d</blockquote>" % (esc(mask_user_id(user["tg_id"])), esc((product or {}).get("name", "—")[:150]), qty)
-    elif kind == "deposit" and deposit:
-        body = "💰<b>New deposit</b>\n<blockquote>🆔 User: %s\n💵 Amount: <b>%.3f USDT</b>\n💳 Method: %s</blockquote>" % (esc(mask_user_id(user["tg_id"])), to_float(deposit.get("amount"), 0), esc({'binance':'Binance Pay','binance_merchant':'Binance Pay Merchant','bep20':'BEP20','trc20':'TRC20'}.get(deposit.get('method'), deposit.get('method') or 'Binance Pay')))
+    masked=mask_user_id(user['tg_id'])
+    if kind == 'purchase':
+        name=' '.join(str((product or {}).get('name') or '—').split())[:120]
+        plain='🛍 New purchase\n🆔 User: %s\n📦 Product: %s\n📊 Quantity: %d' % (masked,name,qty)
+        body='🛍 <b>New purchase</b>\n<blockquote>🆔 User: %s\n📦 Product: <b>%s</b>\n📊 Quantity: %d</blockquote>' % (esc(masked),esc(name),qty)
+    elif kind == 'deposit' and deposit:
+        method={'binance':'Binance Pay','binance_merchant':'Binance Pay Merchant','bep20':'BEP20','trc20':'TRC20'}.get(deposit.get('method'),deposit.get('method') or 'Binance Pay')
+        method=' '.join(str(method).split())[:80]
+        amount='%.3f USDT' % to_float(deposit.get('amount'),0)
+        plain='💰 New deposit\n🆔 User: %s\n💵 Amount: %s\n💳 Method: %s' % (masked,amount,method)
+        body='💰 <b>New deposit</b>\n<blockquote>🆔 User: %s\n💵 Amount: <b>%s</b>\n💳 Method: %s</blockquote>' % (esc(masked),esc(amount),esc(method))
     else:
         return
+    # Telegram copy button copies only the public message, never delivery or txid.
+    markup={'inline_keyboard':[[{'text':'📋 نسخ','copy_text':{'text':plain}}]]}
+    params=dict(chat_id=int(chat),text=body,parse_mode='HTML',disable_web_page_preview=True)
     try:
-        tg.call("sendMessage", timeout=6, chat_id=int(chat), text=body, parse_mode="HTML", disable_web_page_preview=True)
+        tg.call('sendMessage',timeout=6,reply_markup=markup,**params)
+    except TgError as exc:
+        if exc.code == 400:
+            # Older Bot API versions may reject copy_text. The quote remains selectable.
+            try:
+                tg.call('sendMessage',timeout=6,**params)
+                return
+            except Exception:
+                pass
+        log.warning('تعذر إرسال إشعار النشاط إلى الشات؛ تحقق من صلاحيات البوت.')
     except Exception:
-        # A failed public notification must never undo or duplicate a payment.
-        log.warning("تعذر إرسال إشعار النشاط إلى الشات؛ تحقق من صلاحيات البوت.")
+        # No retries after an ambiguous network error: Telegram may have sent it.
+        log.warning('تعذر إرسال إشعار النشاط إلى الشات؛ تحقق من صلاحيات البوت.')
 
 
 # ============================================================================
@@ -2627,14 +2677,7 @@ def handle_state(user, st, text, msg):
     if kind == 'purchase_qty':
         if not text.isdigit() or not 1 <= int(text) <= 100:
             safe_send(tg_id, '⚠️ أدخل كمية من 1 إلى 100.'); return True
-        qty = int(text); p = store.product_by_id(st.get('product_id'))
-        if not p or not p.get('visible') or store.available_stock(p) < qty:
-            state_clear(tg_id); safe_send(tg_id, '⚠️ المنتج غير متاح أو المخزون غير كافٍ.'); return True
-        total = round(unit_price(p, user, qty) * qty, 2)
-        nonce = secrets.token_hex(5)
-        state_set(tg_id, 'quantity_confirm', product_id=p['id'], qty=qty, total=total, nonce=nonce, expires=time.time()+600)
-        safe_send(tg_id, '🛒 <b>%s</b> × %d\nسعر القطعة: %s\nالإجمالي: <b>%s</b>\nتأكيد الشراء من الرصيد؟' % (esc(p['name']), qty, price_str(unit_price(p,user,qty)), price_str(total)),
-                  inline_keyboard([[_btn('✅ تأكيد الشراء','success',None,cb='qtybuy:'+nonce), _btn('❌ إلغاء','danger',None,cb='cancel')]]))
+        quantity_preview(user,st.get('product_id'),int(text))
         return True
 
     if kind == "deposit_amount":
@@ -2937,8 +2980,13 @@ def handle_callback(cb):
     if head == 'qty' and len(parts) == 2:
         p = store.product_by_id(to_int(parts[1]))
         if not p or not p.get('visible'): return safe_send(chat_id, '❌ المنتج غير متاح.')
-        state_set(user['tg_id'], 'purchase_qty', product_id=p['id'], expires=time.time()+600)
-        return safe_send(chat_id, '📦 أرسل الكمية المطلوبة من 1 إلى 100. للإلغاء /cancel')
+        return quantity_options(user,p,edit=message_id)
+
+    if head == 'qtypick' and len(parts) == 3:
+        st=state_get(user['tg_id']); pid=to_int(parts[1]); qty=to_int(parts[2])
+        if not st or st.get('kind')!='purchase_qty' or st.get('product_id')!=pid:
+            return safe_send(chat_id,'⚠️ اختيار الكمية منتهي، أعد فتح المنتج.')
+        return quantity_preview(user,pid,qty,edit=message_id)
 
     if head == 'qtybuy' and len(parts) == 2:
         st=state_get(user['tg_id'])

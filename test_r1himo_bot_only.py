@@ -305,6 +305,64 @@ class BotAdminTests(unittest.TestCase):
         finally:
             bot.BINANCE_PAY_API_KEY,bot.BINANCE_PAY_API_SECRET,bot.urllib.request.build_opener=old_key,old_secret,old_open
 
+    def test_choose_one_or_wholesale_with_price_preview(self):
+        pid=bot.store.add_product({'name':'Special <item>','price':10,'visible':1})
+        bot.store.add_stock_lines(pid,['a','b','c','d'])
+        bot.store.set_settings({'bulk_min_%d' % pid:'3','bulk_price_%d' % pid:'7'})
+        bot.store.adjust_balance(222,100)
+        self.callback(self.buyer,'view:%d' % pid)
+        self.assertIn('qty:%d' % pid,[b.get('callback_data') for b in self.last_buttons()])
+        self.callback(self.buyer,'qty:%d' % pid)
+        choices=[b.get('callback_data') for b in self.last_buttons()]
+        self.assertIn('qtypick:%d:1' % pid,choices)
+        self.assertIn('qtypick:%d:3' % pid,choices)
+        self.callback(self.buyer,'qtypick:%d:1' % pid)
+        confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(self.buyer,confirm); self.callback(self.buyer,confirm)
+        orders=bot.store.user_orders(bot.store.get_user(222)['id'])
+        self.assertEqual(len(orders),1); self.assertEqual((orders[0]['qty'],orders[0]['total']),(1,10))
+        self.callback(self.buyer,'qty:%d' % pid)
+        self.callback(self.buyer,'qtypick:%d:3' % pid)
+        confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(self.buyer,confirm)
+        orders=bot.store.user_orders(bot.store.get_user(222)['id'])
+        self.assertEqual(len(orders),2); self.assertEqual((orders[0]['qty'],orders[0]['total']),(3,21))
+        self.assertEqual(bot.store.product_stock(pid),0)
+        self.assertEqual(bot.store.get_user(222)['balance'],69)
+
+    def test_quote_copy_and_copy_button_fallback(self):
+        bot.tg.calls.clear()
+        bot.notify_public_event('purchase',{'tg_id':123456789},{'name':'<private & name>'},3)
+        event=next(p for m,p in bot.tg.calls if m=='sendMessage')
+        self.assertIn('<blockquote>',event['text']); self.assertIn('</blockquote>',event['text'])
+        self.assertIn('&lt;private &amp; name&gt;',event['text']); self.assertIn('123***6789',event['text'])
+        copied=event['reply_markup']['inline_keyboard'][0][0]['copy_text']['text']
+        self.assertIn('Product: <private & name>',copied); self.assertIn('Quantity: 3',copied)
+        self.assertLessEqual(len(copied),256)
+        bot.tg.calls.clear()
+        bot.notify_public_event('deposit',{'tg_id':123456789},deposit={'amount':3,'method':'binance','txid':'TOPSECRET'})
+        event=next(p for m,p in bot.tg.calls if m=='sendMessage')
+        self.assertIn('<blockquote>',event['text']); self.assertIn('3.000 USDT',event['text'])
+        self.assertIn('Binance Pay',event['reply_markup']['inline_keyboard'][0][0]['copy_text']['text'])
+        self.assertNotIn('TOPSECRET',str(event))
+        calls=[]; original=bot.tg.call
+        def reject_copy(method,timeout=30,**params):
+            if method=='sendMessage':
+                calls.append(params)
+                if params.get('reply_markup'): raise bot.TgError('unsupported copy button',400)
+            return {'message_id':1}
+        try:
+            bot.tg.call=reject_copy
+            bot.notify_public_event('purchase',{'tg_id':123456789},{'name':'X'},1)
+            self.assertEqual(len(calls),2); self.assertNotIn('reply_markup',calls[-1])
+            calls.clear()
+            def network_fail(method,timeout=30,**params):
+                calls.append(params); raise bot.TgError('network',0)
+            bot.tg.call=network_fail
+            bot.notify_public_event('purchase',{'tg_id':123456789},{'name':'X'},1)
+            self.assertEqual(len(calls),1)
+        finally: bot.tg.call=original
+
     def test_backup_contains_sqlite_snapshot(self):
         original = bot.urllib.request.urlopen
         payloads=[]
