@@ -858,7 +858,13 @@ func _qa_dump(node: Node, centre: Vector3, radius: float) -> void:
 			var d: float = n3.global_position.distance_to(centre)
 			if d <= radius and n3 is VisualInstance3D:
 				var vi := n3 as VisualInstance3D
-				print("[QADUMP] %-14s pos=%s dist=%.1f aabb_size=%s visible=%s" % [
+				var line := "[QADUMP] %-14s pos=%s dist=%.1f aabb_size=%s visible=%s" % [
 					str(n3.name), n3.global_position, d, vi.get_aabb().size,
-					vi.is_visible_in_tree()])
+					vi.is_visible_in_tree()]
+				print(line)
+				var f := FileAccess.open("res://docs/qa_probe.log", FileAccess.READ_WRITE)
+				if f:
+					f.seek_end()
+					f.store_string("\n" + line)
+					f.close()
 		_qa_dump(child, centre, radius)

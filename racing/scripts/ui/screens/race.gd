@@ -238,19 +238,41 @@ func _spawn_player() -> void:
 	player.input_enabled = true
 
 
+var _qa_lines: PackedStringArray = PackedStringArray()
+
+
+func _qa_log(t: String) -> void:
+	print(t)
+	_qa_lines.append(t)
+
+
+func _qa_flush() -> void:
+	var f := FileAccess.open("res://docs/qa_probe.log", FileAccess.WRITE)
+	if f:
+		f.store_string("\n".join(_qa_lines))
+		f.close()
+
+
 ## QA-only: print where the car actually is relative to the highway, in metres.
 func _qa_probe() -> void:
+	# CI job logs are behind an authenticated blob URL that the agent cannot read,
+	# so the probe writes a file INSIDE the repo and the workflow commits it.
+	_qa_lines.append("=== probe %s" % Time.get_datetime_string_from_system())
 	var cp: Vector3 = player.global_position
 	var near: Vector3 = open_world.nearest_road_point(cp)
 	var flat: float = Vector2(cp.x - near.x, cp.z - near.z).length()
-	print("[QAPROBE] car=%s nearest_road=%s lateral=%.2fm dy=%.2fm" % [cp, near, flat, cp.y - near.y])
+	_qa_log("[QAPROBE] car=%s nearest_road=%s lateral=%.2fm dy=%.2fm" % [cp, near, flat, cp.y - near.y])
 	var c: Camera3D = cam.camera()
-	print("[QAPROBE] cam=%s showcase=%s dist_to_car=%.1fm" % [c.global_position, cam.showcase,
+	_qa_log("[QAPROBE] cam=%s showcase=%s dist_to_car=%.1fm" % [c.global_position, cam.showcase,
 		c.global_position.distance_to(cp)])
 	open_world.qa_dump_near(cp, 90.0)
+	var fwd: Vector3 = -c.global_transform.basis.z
+	_qa_log("[QAPROBE] cam_fwd=%s pitch=%.2f" % [fwd, c.global_transform.basis.get_euler().x])
+	_qa_flush()
 	if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-bird"):
 		c.global_position = cp + Vector3(0.0, 70.0, 0.0)
 		c.look_at(cp, Vector3.UP)
+		_qa_flush()
 		c.fov = 70.0
 		cam.showcase = false
 		cam.set_physics_process(false)
