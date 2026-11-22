@@ -93,11 +93,16 @@ func physics_tick(delta: float) -> void:
 		var look_dir: Vector3 = forward
 		if road_ahead.length_squared() > 0.01:
 			look_dir = road_ahead.normalized()
-		var sway: float = sin(_showcase_t * 2.0) * 0.30
-		var cam_pos: Vector3 = centre - look_dir * 11.0 + Vector3.UP * 3.0 + right * sway
-		_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 2.2, 0.0, 1.0))
+		# Tight and low. A 11 m boom at 3 m up looks along the horizon and the
+		# carriageway — 16 m of asphalt directly under the car — never enters the
+		# frame; everything below the horizon line is then read as "no road".
+		# Sitting 6.5 m back and 2.2 m up puts the tarmac in the bottom third and
+		# leaves the road ahead filling the middle of the frame.
+		var sway: float = sin(_showcase_t * 2.0) * 0.25
+		var cam_pos: Vector3 = centre - look_dir * 6.5 + Vector3.UP * 2.2 + right * sway
+		_pos_smooth = _pos_smooth.lerp(cam_pos, clampf(delta * 2.4, 0.0, 1.0))
 		_cam.global_position = _pos_smooth
-		_cam.look_at(centre + look_dir * 18.0 + Vector3.UP * 0.4, Vector3.UP)
+		_cam.look_at(centre + look_dir * 9.0 - Vector3.UP * 1.9, Vector3.UP)
 		_cam.fov = lerpf(_cam.fov, 64.0, delta * 2.0)
 		return
 	var speed_norm = clampf(speed / 340.0, 0.0, 1.0)
