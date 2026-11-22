@@ -161,7 +161,7 @@ await check("seed: الأقسام والمحافظ والقنوات", async () =
     assert.ok(String(bySlug[slug] ?? "").endsWith("-poster.jpg"), `${slug}=${bySlug[slug]}`);
   }
   const channels = await db.query("select chat from channels order by sort");
-  assert.deepEqual(channels.rows.map((r) => r.chat), ["@chinwichi", "@ft_H_N_O", "@CHNawaa"]);
+  assert.deepEqual(channels.rows.map((r) => r.chat), ["@chinwichi", "@ft_H_N_O", "@CHNawaa", "@C_2_2_H"]);
   const prizes = await db.query("select title, points from prizes order by points");
   assert.ok(prizes.rowCount >= 4, `جوائز=${prizes.rowCount}`);
   const cheap = prizes.rows.find((r) => String(r.title).includes("وساطة"));
@@ -178,19 +178,20 @@ await check("webhook: يرفض الطلبات بدون السر", async () => {
 /* 1. الاشتراك الإجباري */
 await check("start: بوابة الاشتراك الإجباري (أزرار القنوات)", async () => {
   await resetSent();
-  await membership({ "@chinwichi": "left", "@ft_H_N_O": "left", "@CHNawaa": "left" });
+  await membership({ "@chinwichi": "left", "@ft_H_N_O": "left", "@CHNawaa": "left", "@C_2_2_H": "left" });
   await sendUpdate(msg(users.buyer, "/start"));
   const gate = await waitForMessage(555, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
   assert.ok(hasButton(gate, "ft_H_N_O"));
   assert.ok(hasButton(gate, "CHNawaa"));
   assert.ok(hasButton(gate, "CHINWICHI"));
+  assert.ok(hasButton(gate, "C_2_2_H"));
   assert.ok(hasButton(gate, "تحقق من الاشتراك"));
   const state = await mockState();
   assert.ok(!state.sent.some((m) => (m.text ?? "").includes("اختر القسم")), "يجب ألا تظهر القائمة قبل الاشتراك");
 });
 
 await check("chk: التحقق يفتح القائمة الرئيسية بعد الاشتراك", async () => {
-  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member" });
+  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member", "@C_2_2_H": "member" });
   await resetSent();
   await sendUpdate(cb(users.buyer, "chk"));
   const menu = await waitForMessage(555, (m) => (m.text ?? "").includes("CHINWI STORE"));
@@ -228,7 +229,7 @@ await check("menu: زر الألعاب يفتح قائمة فري فاير و ب
 });
 
 await check("gate: الحساب المعفى @A_B_B_X_N يدخل بلا اشتراك", async () => {
-  await membership({ "@chinwichi": "left", "@ft_H_N_O": "left", "@CHNawaa": "left" });
+  await membership({ "@chinwichi": "left", "@ft_H_N_O": "left", "@CHNawaa": "left", "@C_2_2_H": "left" });
   await resetSent();
   const exempt = { id: 777, is_bot: false, first_name: "Owner", username: "A_B_B_X_N", language_code: "ar" };
   await sendUpdate(msg(exempt, "/start"));
@@ -238,7 +239,7 @@ await check("gate: الحساب المعفى @A_B_B_X_N يدخل بلا اشتر
 });
 
 await check("buttons: القائمة الرئيسية خضراء والدعم أحمر", async () => {
-  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member" });
+  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member", "@C_2_2_H": "member" });
   await resetSent();
   await sendUpdate(msg({ id: 777, is_bot: false, first_name: "Owner", username: "A_B_B_X_N" }, "/start"));
   const menu = await waitForMessage(777, (m) => (m.text ?? "").includes("اختر القسم"));
@@ -248,7 +249,7 @@ await check("buttons: القائمة الرئيسية خضراء والدعم أ
 });
 
 await check("gate: تظهر البوابة حتى لو تعذّر التحقق ثم تفتح بزر «تحققت»", async () => {
-  await membership({ "@chinwichi": "__error", "@ft_H_N_O": "__error", "@CHNawaa": "__error" });
+  await membership({ "@chinwichi": "__error", "@ft_H_N_O": "__error", "@CHNawaa": "__error", "@C_2_2_H": "__error" });
   await resetSent();
   await sendUpdate(msg(users.other, "/start"));
   const gate = await waitForMessage(999, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
@@ -263,7 +264,7 @@ await check("gate: تظهر البوابة حتى لو تعذّر التحقق �
   await sendUpdate(cb(users.other, "chk"));
   const menu = await waitForMessage(999, (m) => (m.text ?? "").includes("CHINWI STORE"));
   assert.ok(hasButton(menu, "شحن الألعاب الرقمية"));
-  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member" });
+  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member", "@C_2_2_H": "member" });
 });
 
 /* 2. تصفح القسم والمنتج */
@@ -599,7 +600,7 @@ await check("api: محافظ وقنوات وأقسام", async () => {
 
 await check("api: القنوات معطّلة → البوت يسمح بالدخول", async () => {
   await adminPost("settings", { require_subscription: false });
-  await membership({ "@chinwichi": "left", "@ft_H_N_O": "left", "@CHNawaa": "left" });
+  await membership({ "@chinwichi": "left", "@ft_H_N_O": "left", "@CHNawaa": "left", "@C_2_2_H": "left" });
   await resetSent();
   await sendUpdate(msg(users.other, "/start"));
   const menu = await waitForMessage(999, (m) => (m.text ?? "").includes("CHINWI STORE"));
@@ -704,7 +705,7 @@ await check("api: مركز الحماية يرجع الإعدادات والأح
 await check("api: قفل البوت يوقف كل الرسائل غير الإدارية", async () => {
   await adminPost("security/lock");
   await sleep(400);
-  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member" });
+  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member", "@C_2_2_H": "member" });
   await resetSent();
   await sendUpdate(msg(users.buyer, "/start"));
   const locked = await waitForMessage(555, (m) => (m.text ?? "").includes("صيانة") || (m.text ?? "").includes("قفل"));
@@ -897,7 +898,7 @@ await check("contest: الدخول من رابط إحالة يمنح صاحب ا
   const joiner = { id: 4242, is_bot: false, first_name: "مدعو", username: "invited_dz", language_code: "ar" };
   await db.query("DELETE FROM referrals WHERE invitee_id = 4242");
   await db.query("UPDATE users SET points = 0, referrals_count = 0 WHERE tg_id = 555");
-  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member" });
+  await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member", "@C_2_2_H": "member" });
   await resetSent();
   await sendUpdate(msg(joiner, "/start ref_555"));
   const note = await waitForMessage(555, (m) => (m.text ?? "").includes("دخل شخص جديد"));

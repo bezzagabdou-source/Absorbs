@@ -1021,6 +1021,15 @@ async function migrateOnce(query: Query): Promise<void> {
     );
   });
 
+  // 📣 قناة الاشتراك الإجباري @C_2_2_H — طلب المالك (تُضاف مرة واحدة؛ بعدها التفعيل/الإيقاف من اللوحة)
+  await bump("migr_force_channel_c2h_v1", async () => {
+    await query(
+      `INSERT INTO channels (chat, title, url, sort, active)
+       VALUES ('@C_2_2_H', 'قناة C_2_2_H', 'https://t.me/C_2_2_H', 4, true)
+       ON CONFLICT (chat) DO UPDATE SET title = EXCLUDED.title, url = EXCLUDED.url, active = true`,
+    );
+  });
+
   // 💵 سعر الدولار = سعر السوق السوداء (ساحة بورسعيد، 16/11/2026 ≈ 243 دج) — مع الإبقاء على 310 دج للفليكسي
   await bump("migr_usd_black_market_v1", async () => {
     await query(
@@ -1043,6 +1052,7 @@ const SEED_CHANNELS = [
   { chat: "@chinwichi", title: "قناة CHINWICHI", url: "https://t.me/chinwichi", sort: 1 },
   { chat: "@ft_H_N_O", title: "قناة ft_H_N_O", url: "https://t.me/ft_H_N_O", sort: 2 },
   { chat: "@CHNawaa", title: "قناة CHNawaa", url: "https://t.me/CHNawaa", sort: 3 },
+  { chat: "@C_2_2_H", title: "قناة C_2_2_H", url: "https://t.me/C_2_2_H", sort: 4 },
 ];
 
 /* ── جوائز المسابقات (قابلة للتعديل من لوحة التحكم) ── */
@@ -1116,7 +1126,8 @@ async function seedWithin(query: Query): Promise<void> {
     }
   }
 
-  const chRow = await query("SELECT count(*)::text AS count FROM channels");
+  // نقيس القنوات الأصلية فقط: مهاجرة migr_force_channel_c2h_v1 قد تزرع C_2_2_H قبل هذا الفحص — وإلا لن تُزرع القنوات الثلاث
+  const chRow = await query("SELECT count(*)::text AS count FROM channels WHERE chat IN ('@chinwichi', '@ft_H_N_O', '@CHNawaa')");
   if (Number((chRow.rows[0] as { count?: string } | undefined)?.count ?? 0) === 0) {
     for (const c of SEED_CHANNELS) {
       await query("INSERT INTO channels (chat, title, url, sort) VALUES ($1,$2,$3,$4) ON CONFLICT (chat) DO NOTHING", [
