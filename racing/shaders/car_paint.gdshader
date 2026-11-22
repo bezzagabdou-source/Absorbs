@@ -37,8 +37,14 @@ void fragment() {
 	float ndv = clamp(dot(normalize(world_normal), normalize(VIEW)), 0.0, 1.0);
 	// Fresnel: edge of the body catches the sky, middle stays deep paint colour
 	float fres = pow(1.0 - ndv, 5.0);
-	// fake ambient occlusion toward the lower body / wheel arches
-	float lower_ao = mix(1.0 - ao_power, 1.0, smoothstep(-0.15, 0.55, world_pos.y - (MODEL_MATRIX[3].y)));
+	// Fake ambient occlusion toward the sills and wheel arches. Height is taken
+	// relative to the car's own origin (MODEL_MATRIX[3].y is the chassis pivot, so
+	// this is a local height in metres). The previous bounds (-0.15 .. 0.55) put
+	// almost the entire body outside the ramp, so every panel got the bright end
+	// of the mix and, combined with the studio key light, the paint clipped to
+	// flat white — the car looked like an unpainted shell.
+	float local_h = world_pos.y - MODEL_MATRIX[3].y;
+	float lower_ao = mix(1.0 - ao_power * 0.55, 1.0, smoothstep(-0.85, 0.75, local_h));
 
 	// the top of every panel catches a little more sky, the sills less
 	float panel_light = mix(0.92, 1.06, smoothstep(0.25, 0.85, world_normal.y));
@@ -60,8 +66,12 @@ void fragment() {
 	vec3 coat = vec3(1.0) * fres * clearcoat * (1.0 - clearcoat_roughness * 0.6);
 
 	// rim light additive on grazing angles = studio-light look
-	vec3 rim_vec = pow(1.0 - ndv, rim_power) * rim_strength * rim_color;
-	EMISSION = rim_vec + coat + flake_color * sheen * fres * 0.35;
+	// Additive terms stay subordinate to the base coat. At full strength the
+	// clearcoat + rim + flake stack summed past 1.0 on every lit panel and ACES had
+	// nothing left to roll off, which is what produced the white body.
+	vec3 rim_vec = pow(1.0 - ndv, rim_power) * rim_strength * rim_color * 0.45;
+	vec3 coat_vec = coat * 0.30;
+	EMISSION = rim_vec + coat_vec + flake_color * sheen * fres * 0.10;
 
 	// subtle white sheen along the top surfaces (roof, shoulders)
 	float top = smoothstep(0.55, 1.0, normalize(world_normal).y);

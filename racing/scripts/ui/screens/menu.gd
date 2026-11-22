@@ -140,9 +140,9 @@ func _add_car_showcase() -> void:
 	e.background_mode = Environment.BG_CANVAS
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.40, 0.52, 0.76)
-	e.ambient_light_energy = 0.85
+	e.ambient_light_energy = 0.55
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
-	e.tonemap_exposure = 1.08
+	e.tonemap_exposure = 0.92
 	e.tonemap_white = 6.0
 	# SSAO/SSIL are Forward+ only; on the compatibility backend they only emit
 	# warnings, and the paint shader already fakes contact shading.
@@ -160,23 +160,23 @@ func _add_car_showcase() -> void:
 	# a reflective floor means a 3.4-energy key clips every top-facing panel.
 	var key = DirectionalLight3D.new()
 	key.light_color = Color(0.88, 0.94, 1.0)
-	key.light_energy = 1.5
+	key.light_energy = 1.05
 	key.rotation_degrees = Vector3(-34, -132, 0)
 	root.add_child(key)
 	var rim = DirectionalLight3D.new()
 	rim.light_color = Color(1.0, 0.25, 0.66)
-	rim.light_energy = 2.0
+	rim.light_energy = 1.15
 	rim.rotation_degrees = Vector3(-8, 58, 0)
 	root.add_child(rim)
 	var fill = DirectionalLight3D.new()
 	fill.light_color = Color(0.16, 0.85, 1.0)
-	fill.light_energy = 0.9
+	fill.light_energy = 0.55
 	fill.rotation_degrees = Vector3(-44, 148, 0)
 	root.add_child(fill)
 	# soft top light so the roof and wing never go to pure black
 	var top = DirectionalLight3D.new()
 	top.light_color = Color(0.75, 0.85, 1.0)
-	top.light_energy = 0.7
+	top.light_energy = 0.40
 	top.rotation_degrees = Vector3(-90, 0, 0)
 	root.add_child(top)
 	_car_pivot = Node3D.new()

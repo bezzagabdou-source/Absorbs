@@ -65,7 +65,7 @@ func _build_viewport() -> void:
 	e.background_mode = Environment.BG_CANVAS
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.4, 0.5, 0.72)
-	e.ambient_light_energy = 1.15
+	e.ambient_light_energy = 0.70
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.glow_enabled = true
 	e.glow_intensity = 0.85
@@ -74,17 +74,17 @@ func _build_viewport() -> void:
 	root.add_child(env)
 	var key = DirectionalLight3D.new()
 	key.light_color = Color(0.9, 0.95, 1.0)
-	key.light_energy = 2.4
+	key.light_energy = 1.15
 	key.rotation_degrees = Vector3(-32, -140, 0)
 	root.add_child(key)
 	var neon = DirectionalLight3D.new()
 	neon.light_color = UIStyle.MAGENTA
-	neon.light_energy = 3.0
+	neon.light_energy = 1.60
 	neon.rotation_degrees = Vector3(-8, 60, 0)
 	root.add_child(neon)
 	var fill2 = DirectionalLight3D.new()
 	fill2.light_color = UIStyle.CYAN
-	fill2.light_energy = 1.4
+	fill2.light_energy = 0.70
 	fill2.rotation_degrees = Vector3(-50, 160, 0)
 	root.add_child(fill2)
 	_car_pivot = Node3D.new()
