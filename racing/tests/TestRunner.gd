@@ -139,6 +139,7 @@ func _foundation() -> void:
 
 	print("[SUITE] SECTION open world")
 	var OpenWorld = load("res://scripts/race/OpenWorld.gd")
+	var ow_test = null
 	for prof in ["metro", "desert", "alpine", "coast"]:
 		var ow = OpenWorld.new()
 		add_child(ow)
@@ -166,7 +167,39 @@ func _foundation() -> void:
 		# exact ring height. Assert the tarmac is actually above the ground at a
 		# spread of angles, otherwise the road is buried and invisible.
 		_check(_road_above_ground(ow), "road above terrain " + prof)
-		ow.queue_free()
+		# the last region's world is kept alive for the map test below
+		if prof == "coast":
+			ow_test = ow
+		else:
+			ow.queue_free()
+
+	# World map: it reads the very same road samples the collider was built from,
+	# so a mismatch here would mean the map lies about what is drivable.
+	var MapScript = load("res://scripts/ui/WorldMap.gd")
+	_check(MapScript != null, "world map script loads")
+	var map = MapScript.new()
+	add_child(map)
+	map.open_world = ow_test
+	map.player = null
+	map._build()
+	_check(map._road.size() == ow_test.road_points.size(), "world map draws every road sample")
+	_check(map._bounds.size.x > 620.0, "world map covers the whole ring")
+	map.queue_free()
+	if ow_test != null:
+		ow_test.queue_free()
+
+	# Perf governor: the tier list must be monotonic (each step is cheaper than the
+	# one above it) or "step down when slow" would silently do nothing.
+	var Perf = load("res://scripts/autoload/PerfGovernor.gd")
+	var gov = Perf.new()
+	gov.active = false
+	add_child(gov)
+	var prev_mesh := 100000
+	for s in Perf.STEPS:
+		_check(int(s["mesh"]) < prev_mesh, "perf step %s is cheaper than the step above" % s["label"])
+		prev_mesh = int(s["mesh"])
+	_check(Perf.STEPS.size() >= 3, "at least three quality steps")
+	gov.queue_free()
 
 	print("[SUITE] SECTION screens (instantiate)")
 	for id in ["menu", "tracks", "garage", "shop", "achievements", "daily",
