@@ -227,7 +227,9 @@ jobs:
     name: Render screenshots (software GL)
     needs: verify
     continue-on-error: true
-    if: github.event_name == 'push' && github.ref_type == 'branch'
+    # branch pushes refresh the committed captures; a tag build records what
+    # shipped, so both are worth rendering
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
