@@ -123,7 +123,12 @@ func _add_car_showcase() -> void:
 	var vp = SubViewport.new()
 	vp.size = Vector2i(1180, 760)
 	_car_vp = vp
+	# `transparent_bg` only clears to alpha; the Environment still has to opt in
+	# with BG_CANVAS. With BG_CLEAR_COLOR the viewport paints an opaque white/blue
+	# rectangle that hides the menu artwork behind the car, which is exactly what
+	# the screenshot showed: a bright slab where the studio should be.
 	vp.transparent_bg = true
+	vp.own_world_3d = true
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -132,7 +137,7 @@ func _add_car_showcase() -> void:
 	vp.add_child(root)
 	var env = WorldEnvironment.new()
 	var e = Environment.new()
-	e.background_mode = Environment.BG_CLEAR_COLOR
+	e.background_mode = Environment.BG_CANVAS
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.40, 0.52, 0.76)
 	e.ambient_light_energy = 0.85

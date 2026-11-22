@@ -59,7 +59,10 @@ func _build_viewport() -> void:
 	vp.add_child(root)
 	var env = WorldEnvironment.new()
 	var e = Environment.new()
-	e.background_mode = Environment.BG_CLEAR_COLOR
+	# BG_CANVAS + transparent_bg is the only combination that lets the garage's
+	# own artwork show through behind the car; BG_CLEAR_COLOR paints an opaque
+	# slab over it.
+	e.background_mode = Environment.BG_CANVAS
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.4, 0.5, 0.72)
 	e.ambient_light_energy = 1.15
