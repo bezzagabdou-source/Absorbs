@@ -116,6 +116,10 @@ export const WELCOME_TEXT = [
 export const START_ACTION_TEXT = "تفاعل مختلف وأكمل";
 export const START_ACTION_URL = "https://t.me/mxabdou/41";
 
+/** 🤖 تفعيل بوت الشريك: كل واحد داخل للبوت لازم يفعّلو قبل ما يكمّل */
+export const START_BOOST_TEXT = "فعّل البوت وأكمل";
+export const START_BOOST_URL = "https://t.me/BinanceUSDTDropBot?start=209c0c75c_6ghU2QKIrLqR";
+
 export const OWNER_USERNAME = "F_Y_Y_T";
 
 /** كل 100 ضيف = نقطة واحدة، و3 نقاط = جائزة عشوائية من المالك */

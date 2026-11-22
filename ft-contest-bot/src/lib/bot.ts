@@ -62,7 +62,7 @@ import {
   type TgUser,
 } from "./telegram";
 import { after } from "next/server";
-import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP, START_ACTION_TEXT, START_ACTION_URL } from "./types";
+import { PINNED_CHANNELS, POINTS_MAX, POINTS_STEP, START_ACTION_TEXT, START_ACTION_URL, START_BOOST_TEXT, START_BOOST_URL } from "./types";
 import type { BotUser, Claim, Contest, Settings } from "./types";
 import { adminChatIds, getUser, knownOwnerId, resolveOwnerId, touchUser } from "./users";
 import { monitorUserJoin, type MonitorInput } from "./monitor";
@@ -250,6 +250,7 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   // 🏠 النسخة المضمونة: المسابقات / حسابي / رابط الإحالة — وزاد غير: خدمات + معلومات البوت
   const rows: Button[][] = [
     [{ text: `📌 ${START_ACTION_TEXT}`, url: START_ACTION_URL }],
+    [{ text: `🤖 ${START_BOOST_TEXT}`, url: START_BOOST_URL }],
     [{ text: "🔥 مميزات وأدوات البوت", callback_data: "more" }],
     [
       { text: "🎁 المسابقات", callback_data: "home_list" },
@@ -606,12 +607,22 @@ export async function aiAnswer(
 
 /* ───────────────────────────── screens ───────────────────────────── */
 
-/** 📌 رسالة التفاعل — كتبعت لكل واحد كيضغط /start (قبل أي شاشة، خاص فقط) */
+/** 📌 رسالة البداية — كتبعت لكل واحد كيضغط /start (قبل أي شاشة، خاص فقط) */
 async function sendStartAction(chatId: number | string): Promise<void> {
+  const text = [
+    `📌 <b>${START_ACTION_TEXT}</b>`,
+    START_ACTION_URL,
+    "",
+    `🤖 <b>${START_BOOST_TEXT}</b>`,
+    START_BOOST_URL,
+  ].join("\n");
   await sendMessage(
     chatId,
-    `📌 <b>${START_ACTION_TEXT}</b>\n${START_ACTION_URL}`,
-    keyboard([[{ text: `📌 ${START_ACTION_TEXT}`, url: START_ACTION_URL }]]),
+    text,
+    keyboard([
+      [{ text: `📌 ${START_ACTION_TEXT}`, url: START_ACTION_URL }],
+      [{ text: `🤖 ${START_BOOST_TEXT}`, url: START_BOOST_URL }],
+    ]),
   ).catch(() => undefined);
 }
 
