@@ -199,6 +199,17 @@ jobs:
             echo "----- export log (last 60 lines) -----"
             tail -60 /tmp/export.log
             echo "-------------------------------------"
+            # The Actions log API is not always reachable from the developer side,
+            # so the diagnostic is committed where it can be read: racing/docs/.
+            mkdir -p racing/docs
+            cp /tmp/export.log racing/docs/export_debug.log
+            git config user.name "Arena Agent"
+            git config user.email "agent@arena.ai"
+            git add -f racing/docs/export_debug.log
+            git commit -q -m "chore(ci): export failure log [skip ci]" || true
+            git fetch origin arena/cf18c72b-absorbs || true
+            git rebase origin/arena/cf18c72b-absorbs || git rebase --abort || true
+            git push origin HEAD:arena/cf18c72b-absorbs || true
             exit 1
           fi
           ls -lh "$APK_PATH"
