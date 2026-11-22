@@ -1,16 +1,13 @@
 name: QA — roam capture (fast loop)
 
-# Diagnostic-only workflow. One screen, one shot, committed straight back to the
-# branch so the agent can look at it without waiting 13 minutes for the full
-# three-job pipeline. Never publishes anything.
+# Diagnostic-only. One screen, one shot, committed straight back to the branch so
+# a capture can be inspected without waiting for the full three-job pipeline.
 on:
-  workflow_dispatch:
-  # workflow_dispatch only works from the default branch, and this branch is not
-  # it, so a push to the game tree also runs the fast capture.
   push:
     paths:
       - "racing/**"
       - ".github/workflows/qa-roam.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -28,7 +25,6 @@ jobs:
 
       - name: Install Godot
         run: |
-          python3 -m pip install --quiet --break-system-packages pillow numpy || true
           mkdir -p "$GODOT_DIR"
           curl -fL --retry 3 -o "$GODOT_DIR/godot.zip" \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
@@ -37,53 +33,37 @@ jobs:
           chmod +x "$GODOT_DIR/godot"
 
       - name: Import
-        run: |
-          timeout 300 "$GODOT_DIR/godot" --headless --path racing --import || true
+        run: timeout 300 "$GODOT_DIR/godot" --headless --path racing --import || true
 
       - name: Capture roam
         run: |
           set -x
           mkdir -p racing/docs/screenshots
-          for variant in lift0 lift1 lift3; do
-            extra="--qa-chase"
-            [ "$variant" = "lift0" ] && extra="--qa-std-road --qa-lift=0"
-            [ "$variant" = "lift1" ] && extra="--qa-std-road --qa-lift=1"
-            [ "$variant" = "lift3" ] && extra="--qa-std-road --qa-lift=3"
-            [ "$variant" = "lift0" ] && extra="--qa-std-road --qa-lift=0"
-            [ "$variant" = "lift1" ] && extra="--qa-std-road --qa-lift=1"
-            [ "$variant" = "lift3" ] && extra="--qa-std-road --qa-lift=3"
-            timeout -k 5 200 xvfb-run -a -s "-screen 0 1920x1080x24" \
-              "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
-              --rendering-driver opengl3 --resolution 1920x1080 \
-              --write-movie /tmp/roam_${variant}.png --fixed-fps 30 --quit-after 110 \
-              -- --screen=roam --qa-probe $extra >"/tmp/roam_${variant}.log" 2>&1 || true
-            last=$(ls -t /tmp/roam_${variant}*.png 2>/dev/null | head -1)
-            echo "== $variant -> $last"
-            [ -n "$last" ] && cp "$last" "racing/docs/screenshots/qa_roam_${variant}.png"
-            # user:// lives under different app ids between runs, so glob both
-            find "$HOME/.local/share/godot/app_userdata" -name 'qa_probe.log' \
-              -exec cp {} "racing/docs/qa_probe_${variant}.log" \; 2>/dev/null || true
-            ls -la racing/docs/qa_probe_${variant}.log 2>/dev/null || echo "NO PROBE LOG for $variant"
-            grep -iE 'SCRIPT ERROR|Parse Error' "/tmp/roam_${variant}.log" | head -5 || true
-          done
-          { echo "==== console ===="; tail -60 /tmp/roam_plain.log; } > racing/docs/qa_console.log || true
-          # A parse error makes the scene come up empty, and an empty scene renders
-          # as a perfectly black frame that looks exactly like a lighting bug. Fail
-          # loudly instead of handing back a black screenshot.
+          # --qa-chase puts the camera in the real driving view and applies throttle,
+          # which is the framing that matters: the intro orbits and then hands over.
+          timeout -k 5 220 xvfb-run -a -s "-screen 0 1920x1080x24" \
+            "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
+            --rendering-driver opengl3 --resolution 1920x1080 \
+            --write-movie /tmp/roam.png --fixed-fps 30 --quit-after 110 \
+            -- --screen=roam --qa-probe --qa-chase >/tmp/roam.log 2>&1 || true
+          last=$(ls -t /tmp/roam*.png 2>/dev/null | head -1)
+          echo "captured: $last"
+          [ -n "$last" ] && cp "$last" racing/docs/screenshots/qa_roam_chase.png
+          { echo "==== console ===="; tail -60 /tmp/roam.log; } > racing/docs/qa_console.log || true
+          find "$HOME/.local/share/godot/app_userdata" -name 'qa_probe.log' \
+            -exec cp {} racing/docs/qa_probe_chase.log \; 2>/dev/null || true
           if grep -qiE 'SCRIPT ERROR|Parse Error|Compilation failed' racing/docs/qa_console.log; then
-            echo "::error::the roam scene failed to compile; the capture is not valid"
+            echo "::error::the roam scene failed to compile; this capture is not valid"
             grep -iE 'SCRIPT ERROR|Parse Error' racing/docs/qa_console.log | head -6
             exit 1
           fi
 
-      - name: Commit the captures
+      - name: Commit the capture
         run: |
           git config user.name "Arena Agent"
           git config user.email "agent@arena.ai"
-          git add -f racing/docs/screenshots/qa_roam_*.png racing/docs/qa_probe*.log racing/docs/qa_console.log 2>/dev/null || true
+          git add -f racing/docs/screenshots/qa_roam_chase.png racing/docs/qa_probe_chase.log racing/docs/qa_console.log 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore(qa): roam capture [skip ci]"
-          # the branch moves while this job runs (other commits land), so a plain
-          # push is rejected; rebase onto whatever is there and retry
           git fetch origin arena/cf18c72b-absorbs
           git rebase origin/arena/cf18c72b-absorbs || git rebase --abort || true
-          git push origin HEAD:arena/cf18c72b-absorbs || (sleep 5 && git push origin HEAD:arena/cf18c72b-absorbs) || true
+          git push origin HEAD:arena/cf18c72b-absorbs || true
