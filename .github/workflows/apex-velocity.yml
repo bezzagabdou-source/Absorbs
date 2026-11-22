@@ -79,8 +79,10 @@ jobs:
             | while read -r l; do echo "::error::$l"; done || true
           if [ "$code" -ne 0 ]; then exit 1; fi
 
-      - name: Shader scope check (static, instant)
-        run: python3 racing/tools/check_shaders.py
+      - name: Shader static checks (scope + identifiers, instant)
+        run: |
+          python3 racing/tools/check_shaders.py
+          python3 racing/tools/check_shader_ids.py
 
       - name: Shader compile check (real GL context)
         run: |

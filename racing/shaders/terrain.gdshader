@@ -143,7 +143,7 @@ void fragment() {
 		ALBEDO = ground;
 		EMISSION = ground * sky_bounce * 0.30 + road_emission;
 	}
-	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
+	ROUGHNESS = mix(0.95, 0.72, asphalt) - wetness * 0.35;
 	METALLIC = 0.0;
 	SPECULAR = mix(0.25, 0.55, wetness);
 
