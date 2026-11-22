@@ -1,1 +1,151 @@
-==== console ====
+==== exit 0 ====
+   25 | 
+   26 | uniform float road_ring_radius = 620.0;
+   27 | uniform float road_half_width = 8.0;
+   28 | uniform float road_shoulder = 3.0;
+   29 | uniform vec3 road_surface_color : source_color = vec3(0.115, 0.125, 0.145);
+   30 | uniform vec3 road_paint_color : source_color = vec3(0.93, 0.95, 1.0);
+   31 | uniform vec3 road_edge_light : source_color = vec3(0.16, 0.92, 1.0);
+   32 | uniform float road_fade = 0.0;
+   33 | 
+   34 | 
+   35 | 
+   36 | uniform vec3 sky_bounce_color : source_color = vec3(0.36, 0.31, 0.52);
+   37 | uniform float sky_bounce_energy : hint_range(0.0, 3.0) = 1.0;
+   38 | 
+   39 | varying vec3 wpos;
+E  40-> vec3 road_emission = vec3(0.0);
+   41 | varying vec3 wnorm;
+   42 | varying float terrain_up;
+   43 | 
+   44 | float hash12(vec2 p) {
+   45 |  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+   46 |  p3 += dot(p3, p3.yzx + 33.33);
+   47 |  return fract((p3.x + p3.y) * p3.z);
+   48 | }
+   49 | 
+   50 | float vnoise(vec2 p) {
+   51 |  vec2 i = floor(p);
+   52 |  vec2 f = fract(p);
+   53 |  f = f * f * (3.0 - 2.0 * f);
+   54 |  float a = hash12(i);
+   55 |  float b = hash12(i + vec2(1.0, 0.0));
+   56 |  float c = hash12(i + vec2(0.0, 1.0));
+   57 |  float d = hash12(i + vec2(1.0, 1.0));
+   58 |  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+   59 | }
+   60 | 
+   61 | float fbm(vec2 p) {
+   62 |  float acc = 0.0;
+   63 |  float a = 0.5;
+   64 |  for (int i = 0; i < 5; i++) {
+   65 |  acc += a * vnoise(p);
+   66 |  p *= 2.03;
+   67 |  a *= 0.5;
+   68 |  }
+   69 |  return acc;
+   70 | }
+   71 | 
+   72 | void vertex() {
+   73 |  wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+   74 |  
+   75 |  
+   76 |  
+   77 |  
+   78 |  wnorm = NORMAL;
+   79 |  terrain_up = NORMAL.y;
+   80 | }
+   81 | 
+   82 | void fragment() {
+   83 |  vec3 n = normalize(wnorm);
+   84 |  float slope = 1.0 - clamp(terrain_up, 0.0, 1.0);
+   85 | 
+   86 |  
+   87 |  float d1 = vnoise(wpos.xz * detail_scale);
+   88 |  float d2 = vnoise(wpos.zy * detail_scale * 0.7);
+   89 |  float d3 = vnoise(wpos.xy * detail_scale * 0.9);
+   90 |  float detail = (d1 * n.y + d2 * abs(n.x) + d3 * abs(n.z));
+   91 | 
+   92 |  
+   93 |  float macro = fbm(wpos.xz * macro_scale);
+   94 |  float macro2 = fbm(wpos.xz * macro_scale * 3.1 + 17.0);
+   95 | 
+   96 |  vec3 ground = mix(grass_color, sand_color, smoothstep(0.42, 0.66, macro));
+   97 |  ground = mix(ground, rock_color, smoothstep(rock_slope - 0.12, rock_slope + 0.16, slope));
+   98 |  ground *= mix(0.82, 1.12, detail * 0.6 + macro2 * 0.4);
+   99 | 
+  100 |  
+  101 |  float snow = smoothstep(snow_line - 0.06, snow_line + 0.10, terrain_up * 0.65 + wpos.y * 0.00002);
+  102 |  snow *= smoothstep(0.35, 0.7, macro2 + 0.25);
+  103 |  ground = mix(ground, snow_color, clamp(snow, 0.0, 1.0));
+  104 | 
+  105 |  
+  106 |  float ang = atan(wpos.z, wpos.x);
+  107 |  float ring_r = road_ring_radius * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0));
+  108 |  float radial = length(wpos.xz) - ring_r; 
+  109 |  float wheel = abs(radial);
+  110 |  float asphalt = 1.0 - smoothstep(road_half_width - 0.6, road_half_width + 0.2, wheel);
+  111 |  float shoulder = 1.0 - smoothstep(road_half_width, road_half_width + road_shoulder, wheel);
+  112 |  float along = ang * road_ring_radius; 
+  113 |  
+  114 |  float lane_gap = abs(fract((radial + road_half_width) / 3.6 + 0.5) - 0.5) * 3.6;
+  115 |  float dash = step(0.45, fract(along / 9.0));
+  116 |  float lane = (1.0 - smoothstep(0.10, 0.22, lane_gap)) * dash;
+  117 |  float centre = 1.0 - smoothstep(0.16, 0.34, abs(wheel - 0.30));
+  118 |  float edge = 1.0 - smoothstep(0.14, 0.30, abs(wheel - (road_half_width - 0.55)));
+  119 |  float paint = clamp(max(max(lane, centre), edge), 0.0, 1.0) * asphalt;
+  120 |  float agg = vnoise(wpos.xz * 26.0) * 0.5 + vnoise(wpos.xz * 7.0) * 0.5;
+  121 |  vec3 tarmac = road_surface_color * (0.82 + agg * 0.36);
+  122 |  ground = mix(ground, tarmac, asphalt);
+  123 |  ground = mix(ground, road_tint, shoulder * 0.35 * (1.0 - asphalt));
+  124 |  ground = mix(ground, road_paint_color, paint);
+  125 |  float kerb = 1.0 - smoothstep(0.05, 0.22, abs(wheel - (road_half_width - 0.16)));
+  126 |  road_emission = road_edge_light * kerb * 1.5 + road_paint_color * paint * 0.55;
+  127 | 
+  128 |  
+  129 |  
+  130 |  
+  131 |  
+  132 |  
+  133 |  
+  134 |  
+  135 |  
+  136 |  
+  137 |  vec3 sky_bounce = mix(vec3(0.34, 0.38, 0.46), vec3(0.46, 0.51, 0.60), terrain_up);
+  138 |  
+  139 |  
+  140 |  if (debug_flat > 0.5) {
+  141 |  ALBEDO = vec3(0.0, 1.0, 0.2);
+  142 |  EMISSION = vec3(0.0, 1.0, 0.2);
+  143 |  } else {
+  144 |  ALBEDO = ground;
+  145 |  EMISSION = ground * sky_bounce * 0.42 + road_emission;
+  146 |  }
+  147 |  ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
+  148 |  METALLIC = 0.0;
+  149 |  SPECULAR = mix(0.25, 0.55, wetness);
+  150 | 
+  151 |  NORMAL = normalize(n + vec3(detail - 0.5, 0.0, macro2 - 0.5) * 0.22);
+  152 | }
+  153 | 
+SHADER ERROR: Global non-constant variables are not supported. Expected 'const' keyword before constant definition.
+          at: (null) (:40)
+ERROR: Shader compilation failed.
+   at: set_code (drivers/gles3/storage/material_storage.cpp:3000)
+[QAPROBE] car=(651.0, 5.691842, 0.0) nearest_road=(651.0, 5.471842, 0.0) lateral=0.00m dy=0.22m
+[QAPROBE] cam=(649.2156, 8.086473, -8.06747) showcase=true dist_to_car=8.6m
+[QADUMP] Highway aabb=[P: (-646.0241, -1.512679, -698.6008), S: (1316.625, 13.04292, 1292.051)] mat=<ShaderMaterial#-9223371986070141477> layers=1
+[QADUMP] @MeshInstance3D@132 pos=(642.5816, 8.971842, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
+[QADUMP] @MeshInstance3D@133 pos=(642.5816, 12.47184, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
+[QADUMP] @OmniLight3D@134 pos=(642.5816, 12.37184, 1.758025) dist=10.9 aabb_size=(52.0, 52.0, 52.0) visible=true
+[QAPROBE] cam_fwd=(0.222993, -0.21814, 0.950099) pitch=-0.22
+----------------
+Done recording movie at path: /tmp/roam.png
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:45.0 (1% of real-time speed).
+CPU time: 4.87 seconds (average: 44.26 ms/frame)
+GPU time: 6.34 seconds (average: 57.61 ms/frame)
+----------------
+WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
+     at: cleanup (core/object/object.cpp:2378)
+ERROR: 4 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:614)
