@@ -100,7 +100,7 @@
   122 |  ground = mix(ground, road_tint, shoulder * 0.35 * (1.0 - asphalt));
   123 |  ground = mix(ground, road_paint_color, paint);
   124 |  float kerb = 1.0 - smoothstep(0.05, 0.22, abs(wheel - (road_half_width - 0.16)));
-  125 |  vec3 road_emission = road_edge_light * kerb * 1.5 + road_paint_color * paint * 0.55;
+  125 |  vec3 road_emission = road_edge_light * kerb * 2.2 + road_paint_color * paint * 0.85;
   126 | 
   127 |  
   128 |  
@@ -111,7 +111,7 @@
   133 |  
   134 |  
   135 |  
-  136 |  vec3 sky_bounce = mix(vec3(0.34, 0.38, 0.46), vec3(0.46, 0.51, 0.60), terrain_up);
+  136 |  vec3 sky_bounce = mix(vec3(0.26, 0.30, 0.40), vec3(0.36, 0.41, 0.52), terrain_up);
   137 |  
   138 |  
   139 |  if (debug_flat > 0.5) {
@@ -119,7 +119,7 @@
   141 |  EMISSION = vec3(0.0, 1.0, 0.2);
   142 |  } else {
   143 |  ALBEDO = ground;
-  144 |  EMISSION = ground * sky_bounce * 0.42 + road_emission;
+  144 |  EMISSION = ground * sky_bounce * 0.30 + road_emission;
   145 |  }
 E 146->  ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
   147 |  METALLIC = 0.0;
@@ -142,8 +142,8 @@ ERROR: Shader compilation failed.
 ----------------
 Done recording movie at path: /tmp/roam.png
 110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:34.0 (1% of real-time speed).
-CPU time: 4.69 seconds (average: 42.64 ms/frame)
-GPU time: 6.28 seconds (average: 57.09 ms/frame)
+CPU time: 4.72 seconds (average: 42.87 ms/frame)
+GPU time: 6.35 seconds (average: 57.75 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
