@@ -79,6 +79,9 @@ jobs:
             | while read -r l; do echo "::error::$l"; done || true
           if [ "$code" -ne 0 ]; then exit 1; fi
 
+      - name: Export preset check (device compatibility, instant)
+        run: python3 racing/tools/check_export_presets.py
+
       - name: Shader static checks (scope + identifiers, instant)
         run: |
           python3 racing/tools/check_shaders.py
@@ -195,6 +198,18 @@ jobs:
           "$AAPT" dump badging "$APK_PATH" | head -20
           APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort | tail -1)
           "$APKSIGNER" verify --print-certs "$APK_PATH"
+          # Device compatibility gate. The v2 APKs shipped arm64-v8a only, so any
+          # 32-bit phone (and every 64-bit device running a 32-bit ROM) failed with
+          # "App not installed" — a build that cannot be installed is not shippable.
+          # Assert BOTH ABIs are present in the packaged native libraries.
+          LIBS=$(unzip -l "$APK_PATH" | grep -oE 'lib/[a-z0-9_-]+/' | sort -u)
+          echo "native ABIs in APK: $LIBS"
+          for abi in arm64-v8a armeabi-v7a; do
+            if ! echo "$LIBS" | grep -q "lib/$abi/"; then
+              echo "::error::APK is missing $abi native libraries; it will fail to install on those devices"
+              exit 1
+            fi
+          done
           SIZE=$(stat -c%s "$APK_PATH")
           echo "::notice::APK_SIZE_BYTES=$SIZE"
           du -h "$APK_PATH"
@@ -214,7 +229,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: "APEX VELOCITY ${{ github.ref_name }}"
           body: |
-            APEX VELOCITY — Android build (Godot 4.4.1, arm64-v8a, signed).
+            APEX VELOCITY — Android build (Godot 4.4.1, arm64-v8a + armeabi-v7a, signed).
             Install with `adb install APEX-VELOCITY.apk` or sideload on device.
             See racing/docs/TESTLOG.md for the verified test log.
           files: build/APEX-VELOCITY.apk

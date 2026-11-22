@@ -315,3 +315,59 @@ the horizon with the car on it.
 The 120 fps claim remains a **budget and an adaptation strategy**, not a
 measurement on hardware; CI renders in software and cannot represent a phone GPU.
 The frame counter exists so the number can be checked on a real device in seconds.
+
+---
+
+# Round 15 — "App not installed"
+
+**Reported symptom:** the released APK would not install on the user's phone at
+all ("no pa installe"). Not a crash, not a black screen — the package manager
+rejected it before any of the game's code ran.
+
+## Root cause
+
+`racing/export_presets.cfg` shipped a 64-bit-only package:
+
+```
+architectures/armeabi-v7a=false
+architectures/arm64-v8a=true
+version/code=1
+version/name="1.0.0"
+```
+
+A phone whose primary ABI is 32-bit — or a 64-bit phone running a 32-bit ROM —
+has no `lib/arm64-v8a/` to load, and Android reports a bare "App not installed"
+with no diagnostic. The same preset also carried `version/code=1` permanently, so
+every release looked to Android like an older build than whatever was installed
+and the update path was broken too.
+
+This is a *packaging* failure, which is why no test caught it: the headless
+suite, the script probe, the shader probe and the APK size gate all passed, and
+CI even verified the signature. Nothing asserted that the binary could actually
+be loaded by the device it was published for.
+
+## Fix
+
+* `architectures/armeabi-v7a=true` alongside `arm64-v8a` — one universal APK that
+  installs on both. The engine libraries for the second ABI add roughly the size
+  of the native runtime, which the size gate still covers.
+* `version/code=20001`, `version/name="2.0.2"` — monotonic, so updates install
+  over an existing copy instead of being rejected.
+* `min_sdk=24`, `target_sdk=34` pinned explicitly rather than left to defaults.
+
+## Two new gates, so this cannot ship again
+
+| Gate | Where | What it asserts |
+|---|---|---|
+| `tools/check_export_presets.py` | CI `verify`, instant | both `arm64-v8a` and `armeabi-v7a` enabled, `version/code >= 1`, version name present |
+| APK ABI assertion | CI `build`, after export | `unzip -l` of the *actual artifact* must contain `lib/arm64-v8a/` **and** `lib/armeabi-v7a/` |
+
+The second one matters most: it inspects the artifact that is about to be
+published, so a preset that looks correct but produces a single-ABI package is
+still caught.
+
+## Lesson
+
+The preset is a first-class source file. It was tracked, but nothing parsed it,
+so a one-line flag decided whether the entire release was usable. Checks belong
+on the artifact and on its configuration, not only on the code that goes into it.
