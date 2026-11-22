@@ -41,7 +41,7 @@ jobs:
           mkdir -p racing/docs/screenshots
           # --qa-chase puts the camera in the real driving view and applies throttle,
           # which is the framing that matters: the intro orbits and then hands over.
-          timeout -k 5 220 xvfb-run -a -s "-screen 0 1920x1080x24" \
+          timeout -k 5 400 xvfb-run -a -s "-screen 0 1920x1080x24" \
             "$GODOT_DIR/godot" --path racing --rendering-method gl_compatibility \
             --rendering-driver opengl3 --resolution 1920x1080 \
             --write-movie /tmp/roam.png --fixed-fps 30 --quit-after 110 \
@@ -49,9 +49,13 @@ jobs:
           last=$(ls -t /tmp/roam*.png 2>/dev/null | head -1)
           echo "captured: $last"
           [ -n "$last" ] && cp "$last" racing/docs/screenshots/qa_roam_chase.png
-          { echo "==== console ===="; tail -60 /tmp/roam.log; } > racing/docs/qa_console.log || true
+          { echo "==== console ===="; echo "lines=$(wc -l < /tmp/roam.log)"; tail -80 /tmp/roam.log; } > racing/docs/qa_console.log || true
           find "$HOME/.local/share/godot/app_userdata" -name 'qa_probe.log' \
             -exec cp {} racing/docs/qa_probe_chase.log \; 2>/dev/null || true
+          # an empty log means the run never started (timeout), not a compile error
+          if [ "$(wc -l < /tmp/roam.log)" -lt 5 ]; then
+            echo "::warning::the roam capture produced no output; see the step log"
+          fi
           if grep -qiE 'SCRIPT ERROR|Parse Error|Compilation failed' racing/docs/qa_console.log; then
             echo "::error::the roam scene failed to compile; this capture is not valid"
             grep -iE 'SCRIPT ERROR|Parse Error' racing/docs/qa_console.log | head -6
