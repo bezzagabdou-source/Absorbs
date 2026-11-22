@@ -122,6 +122,7 @@ var rain: GPUParticles3D
 var sky_mat: ShaderMaterial
 var _wet = false
 var _fog_height: float = 0.0
+var probe: ReflectionProbe
 
 
 func setup(env: String, time_of_day: String, weather: String, accent: Color,
@@ -132,6 +133,7 @@ func setup(env: String, time_of_day: String, weather: String, accent: Color,
 	_build_sky(p, weather)
 	_build_sun(p)
 	_build_world_env(p, accent)
+	_build_reflection_probe(Vector3.ZERO, 700.0)
 	if _wet:
 		_build_rain()
 
@@ -202,7 +204,12 @@ func _build_world_env(p: Dictionary, accent: Color) -> void:
 	e.ambient_light_sky_contribution = 0.62
 	e.ambient_light_color = p["ambient"]
 	e.ambient_light_energy = clampf(float(p.get("ambient_energy", 1.15)), 0.4, 2.4)
+	# A sky-only reflection source makes wet tarmac and car paint look flat: there
+	# is nothing for them to mirror but the gradient. A probe around the play area
+	# gives the paint the road, the kerbs and the skyline, which is the single
+	# biggest realism win per millisecond on a phone.
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	e.sdfgi_enabled = false
 
 	# --- tonemapping: ACES in-engine, our post shader adds the grade --------
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
@@ -253,6 +260,26 @@ func _build_world_env(p: Dictionary, accent: Color) -> void:
 
 	world_env.environment = e
 	add_child(world_env)
+
+
+## A single box probe covering the drivable area. `update_mode` is set to ONCE so
+## the cube map is baked a handful of frames after the world is built and then
+## costs nothing; it is refreshed when the car has travelled far enough that the
+## old capture no longer describes its surroundings.
+func _build_reflection_probe(centre: Vector3, radius: float) -> void:
+	probe = ReflectionProbe.new()
+	probe.size = Vector3(radius * 2.0, radius * 1.2, radius * 2.0)
+	probe.position = centre + Vector3.UP * radius * 0.25
+	probe.origin_offset = Vector3.ZERO
+	probe.box_projection = true
+	probe.interior = false
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	probe.cull_mask = 0xFFFFF
+	probe.blend_distance = 6.0
+	probe.intensity = 1.05
+	probe.max_distance = radius * 2.4
+	probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+	add_child(probe)
 
 
 func _build_rain() -> void:
