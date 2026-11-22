@@ -37,7 +37,6 @@ uniform vec3 sky_bounce_color : source_color = vec3(0.36, 0.31, 0.52);
 uniform float sky_bounce_energy : hint_range(0.0, 3.0) = 1.0;
 
 varying vec3 wpos;
-vec3 road_emission = vec3(0.0);
 varying vec3 wnorm;
 varying float terrain_up;
 
@@ -123,7 +122,7 @@ void fragment() {
 	ground = mix(ground, road_tint, shoulder * 0.35 * (1.0 - asphalt));
 	ground = mix(ground, road_paint_color, paint);
 	float kerb = 1.0 - smoothstep(0.05, 0.22, abs(wheel - (road_half_width - 0.16)));
-	road_emission = road_edge_light * kerb * 1.5 + road_paint_color * paint * 0.55;
+	vec3 road_emission = road_edge_light * kerb * 1.5 + road_paint_color * paint * 0.55;
 
 	// Sky bounce. Without this a night scene crushes the whole landscape to pure
 	// black, because the only directional light is a 0.3-energy moon and the
