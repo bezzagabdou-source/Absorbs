@@ -1,12 +1,15 @@
 name: APEX VELOCITY — build, test, export APK
 
 on:
+  # Path filters and tag filters do not compose in GitHub Actions: when `paths` is
+  # present a tag push is filtered against it too, and a tag has no changed files,
+  # so `v*` builds silently never ran. Tags are therefore their own event.
   push:
     branches: ["**"]
     tags: ["v*"]
-    paths:
-      - "racing/**"
-      - ".github/workflows/apex-velocity.yml"
+    paths-ignore:
+      - "**/*.md"
+      - "racing/docs/screenshots/**"
   pull_request:
     paths:
       - "racing/**"
