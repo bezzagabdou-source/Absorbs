@@ -351,9 +351,28 @@ be loaded by the device it was published for.
 * `architectures/armeabi-v7a=true` alongside `arm64-v8a` — one universal APK that
   installs on both. The engine libraries for the second ABI add roughly the size
   of the native runtime, which the size gate still covers.
-* `version/code=20001`, `version/name="2.0.2"` — monotonic, so updates install
+* `version/code=20100`, `version/name="2.1.0"` — monotonic, so updates install
   over an existing copy instead of being rejected.
-* `min_sdk=24`, `target_sdk=34` pinned explicitly rather than left to defaults.
+
+### The second failure, and why it mattered
+
+The first attempt at the fix also pinned `min_sdk=24` / `target_sdk=34`, and the
+export immediately started failing with Godot's *blank* configuration error:
+
+```
+ERROR: Cannot export project with preset "Android" due to configuration errors:
+ERROR: Project export for preset "Android" failed.
+```
+
+No message after the colon. That is a known Godot behaviour — the validation can
+set `valid = false` without appending any text — and it is genuinely
+undiagnosable from a phone screenshot of the log. Removing the two explicit SDK
+levels (they are optional; Godot substitutes sane defaults) made the same preset
+export successfully with **both** ABIs.
+
+The lesson recorded here: a blank `configuration errors:` line is not "something
+is wrong with the environment", it is "one of the optional override fields is
+blank or malformed". Leave overrides out unless they are required.
 
 ## Two new gates, so this cannot ship again
 
