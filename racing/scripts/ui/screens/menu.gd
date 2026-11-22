@@ -203,20 +203,28 @@ func _add_car_showcase() -> void:
 	# material, so the paint and the rim lights reflect into the ground the way a
 	# detailing studio floor does. The turntable ring sits on top of it.
 	var floor_mi = MeshInstance3D.new()
-	var fm = PlaneMesh.new()
-	fm.size = Vector2(60, 60)
-	fm.subdivide_width = 2
-	fm.subdivide_depth = 2
-	floor_mi.mesh = fm
-	# A radial-falloff material would need a texture; instead keep the floor very
-	# dark and non-metallic so it reads as a black studio floor and the glow ring
-	# + reflections do the work without a visible grey rectangle edge.
+	# A flat 60 m plane read as a huge bright slab behind the car: four
+	# directional lights with no shadows, a metallic floor and ACES tone mapping
+	# clipped it to white, and its square edges were visible against the artwork.
+	# A round podium cannot do that — it is small, unshaded and deliberately dark,
+	# so no lighting rig can blow it out, and it reads as a studio stage rather
+	# than a painted rectangle.
+	var podium = CylinderMesh.new()
+	podium.top_radius = 4.55
+	podium.bottom_radius = 4.75
+	podium.height = 0.16
+	podium.radial_segments = 64
+	podium.rings = 1
+	floor_mi.mesh = podium
 	var fmat = StandardMaterial3D.new()
-	fmat.albedo_color = Color(0.012, 0.014, 0.022)
-	fmat.metallic = 0.55
-	fmat.roughness = 0.28
+	fmat.albedo_color = Color(0.026, 0.032, 0.048)
+	fmat.metallic = 0.18
+	fmat.roughness = 0.55
+	# unshaded would kill the rim light bleeding across the stage, so keep it lit
+	# but pin the exposure with a very low albedo; the cyan ring does the drama.
+	fmat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	floor_mi.material_override = fmat
-	floor_mi.position = Vector3(0, -0.40, 0)
+	floor_mi.position = Vector3(0, -0.46, 0)
 	root.add_child(floor_mi)
 	# glowing turntable ring under the car
 	var ring = MeshInstance3D.new()
