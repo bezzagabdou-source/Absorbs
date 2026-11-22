@@ -17,6 +17,18 @@ uniform float debug_flat : hint_range(0.0, 1.0) = 0.0;
 uniform float detail_scale = 0.9;
 uniform float wetness : hint_range(0.0, 1.0) = 0.0;
 uniform float road_blend_width = 7.0;
+// --- highway painted straight onto the ground ---------------------------------
+// The carriageway is drawn HERE as well as by its own ribbon mesh. The ribbon is
+// 16 m wide and sits 1.7 m up for the collider, so from a chase camera it is a
+// thin strip that vanishes over every crest and can be buried by the interpolated
+// terrain. Painting the asphalt into the ground shader means the road is always
+// present, always the right width, and can never z-fight with what it sits on.
+uniform float road_ring_radius = 620.0;
+uniform float road_half_width = 8.0;
+uniform float road_shoulder = 3.0;
+uniform vec3 road_surface_color : source_color = vec3(0.115, 0.125, 0.145);
+uniform vec3 road_paint_color : source_color = vec3(0.93, 0.95, 1.0);
+uniform vec3 road_edge_light : source_color = vec3(0.16, 0.92, 1.0);
 uniform float road_fade = 0.0;
 // Colour of the sky above the horizon, written by the environment rig each time
 // the preset changes. Used as the ground-level bounce so a night map is lit by
@@ -25,6 +37,7 @@ uniform vec3 sky_bounce_color : source_color = vec3(0.36, 0.31, 0.52);
 uniform float sky_bounce_energy : hint_range(0.0, 3.0) = 1.0;
 
 varying vec3 wpos;
+vec3 road_emission = vec3(0.0);
 varying vec3 wnorm;
 varying float terrain_up;
 
@@ -89,9 +102,28 @@ void fragment() {
 	snow *= smoothstep(0.35, 0.7, macro2 + 0.25);
 	ground = mix(ground, snow_color, clamp(snow, 0.0, 1.0));
 
-	// road shoulders darken and pack down
-	float road = smoothstep(1.0, 0.0, road_fade);
-	ground = mix(ground, road_tint * (0.8 + detail * 0.5), road * 0.55);
+	// --- the highway ---------------------------------------------------------
+	float ang = atan(wpos.z, wpos.x);
+	float ring_r = road_ring_radius * (1.0 + 0.10 * sin(ang * 3.0) + 0.05 * cos(ang * 5.0));
+	float radial = length(wpos.xz) - ring_r;      // signed metres from the centreline
+	float wheel = abs(radial);
+	float asphalt = 1.0 - smoothstep(road_half_width - 0.6, road_half_width + 0.2, wheel);
+	float shoulder = 1.0 - smoothstep(road_half_width, road_half_width + road_shoulder, wheel);
+	float along = ang * road_ring_radius;          // arc metres, for the dashes
+	// lane dashes: 3.6 m pitch, painted 55% of the time
+	float lane_gap = abs(fract((radial + road_half_width) / 3.6 + 0.5) - 0.5) * 3.6;
+	float dash = step(0.45, fract(along / 9.0));
+	float lane = (1.0 - smoothstep(0.10, 0.22, lane_gap)) * dash;
+	float centre = 1.0 - smoothstep(0.16, 0.34, abs(wheel - 0.30));
+	float edge = 1.0 - smoothstep(0.14, 0.30, abs(wheel - (road_half_width - 0.55)));
+	float paint = clamp(max(max(lane, centre), edge), 0.0, 1.0) * asphalt;
+	float agg = vnoise(wpos.xz * 26.0) * 0.5 + vnoise(wpos.xz * 7.0) * 0.5;
+	vec3 tarmac = road_surface_color * (0.82 + agg * 0.36);
+	ground = mix(ground, tarmac, asphalt);
+	ground = mix(ground, road_tint, shoulder * 0.35 * (1.0 - asphalt));
+	ground = mix(ground, road_paint_color, paint);
+	float kerb = 1.0 - smoothstep(0.05, 0.22, abs(wheel - (road_half_width - 0.16)));
+	road_emission = road_edge_light * kerb * 1.5 + road_paint_color * paint * 0.55;
 
 	// Sky bounce. Without this a night scene crushes the whole landscape to pure
 	// black, because the only directional light is a 0.3-energy moon and the
@@ -110,7 +142,7 @@ void fragment() {
 		EMISSION = vec3(0.0, 1.0, 0.2);
 	} else {
 		ALBEDO = ground;
-		EMISSION = ground * sky_bounce * 0.42;
+		EMISSION = ground * sky_bounce * 0.42 + road_emission;
 	}
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;

@@ -292,6 +292,11 @@ func _build_terrain() -> void:
 	# light the ground with the map's own sky colour
 	var accent: Color = region.get("accent", Color(0.13, 0.91, 1.0))
 	mat.set_shader_parameter("debug_flat", 1.0 if debug_flat else 0.0)
+	# The ground shader paints the highway, so it needs the same numbers the
+	# generator used. One source of truth keeps paint, mesh and collider aligned.
+	mat.set_shader_parameter("road_ring_radius", ROAD_RING_RADIUS)
+	mat.set_shader_parameter("road_half_width", 8.0)
+	mat.set_shader_parameter("road_shoulder", 3.0)
 	mat.set_shader_parameter("sky_bounce_color", Color(0.30, 0.26, 0.46).lerp(accent, 0.18))
 	mat.set_shader_parameter("sky_bounce_energy", 1.45)
 	mi.material_override = mat
