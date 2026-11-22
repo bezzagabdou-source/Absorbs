@@ -63,7 +63,7 @@ func _build_perf_readout() -> void:
 	_perf.position = Vector2(-190, -18)
 	_perf.custom_minimum_size = Vector2(180, 0)
 	_perf.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if not SettingsStore.get_bool("show_fps", false):
+	if not bool(SettingsStore.get_value("show_fps", false)):
 		_perf.visible = false
 	add_child(_perf)
 

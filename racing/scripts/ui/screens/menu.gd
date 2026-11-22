@@ -20,8 +20,11 @@ func build() -> void:
 
 
 func _add_hero() -> void:
-	var art = UIStyle.make_art_background("menu_hero")
+	# A slow cross-fade across the four shipped region paintings: the same places
+	# the player will actually drive, so the menu sells the world, not a poster.
+	var art = UIStyle.make_crossfade_backdrop(UIStyle.REGION_ART, 7.0)
 	content.add_child(art)
+	move_child(art, 0)
 	var title_block = VBoxContainer.new()
 	title_block.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	title_block.offset_left = 84

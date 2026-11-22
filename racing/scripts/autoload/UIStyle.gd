@@ -377,12 +377,18 @@ func icon(name: String) -> Texture2D:
 func art(name: String) -> Texture2D:
 	if _art_cache.has(name):
 		return _art_cache[name]
-	var path = "res://assets/art/%s.webp" % name
+	# Art is authored as PNG but the shipped sheets were pre-converted to WebP to
+	# keep the APK small. Accept either, plus the legacy track_<name> prefix, so a
+	# brand-new illustration works the moment it lands in assets/art.
 	var tex: Texture2D = null
-	if ResourceLoader.exists(path):
-		tex = load(path)
-	elif ResourceLoader.exists("res://assets/art/track_%s.webp" % name):
-		tex = load("res://assets/art/track_%s.webp" % name)
+	for suffix in [".webp", ".png", ".jpg"]:
+		for prefix in ["", "track_"]:
+			var path: String = "res://assets/art/%s%s%s" % [prefix, name, suffix]
+			if ResourceLoader.exists(path):
+				tex = load(path)
+				break
+		if tex != null:
+			break
 	_art_cache[name] = tex
 	return tex
 
@@ -677,3 +683,61 @@ func make_rule(accent: Color = Color(1, 1, 1, 0.12), height: float = 2.0) -> Col
 
 func apply_rtl(root: Control) -> void:
 	root.layout_direction = Control.LAYOUT_DIRECTION_RTL if Localization.is_rtl() else Control.LAYOUT_DIRECTION_LTR
+
+
+## Region artwork for the title and menu backdrops. The four shipped pieces are
+## the same world the game drives through, so the menu reads as part of the game
+## rather than as a separate product.
+const REGION_ART := [
+	"menu_hero",
+	"splash_alpine",
+	"splash_desert",
+	"splash_coast",
+]
+
+
+## A slow cross-fading backdrop: two layers, offset by one index, each fading in
+## over a full beat. Cheap (two TextureRects and one tween) but it makes the title
+## screen feel alive instead of static.
+func make_crossfade_backdrop(names: Array, seconds: float = 7.0) -> Control:
+	var holder = Control.new()
+	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	holder.clip_contents = true
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var layers: Array[TextureRect] = []
+	for i in 2:
+		var rect = TextureRect.new()
+		rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.modulate.a = 1.0 if i == 0 else 0.0
+		holder.add_child(rect)
+		layers.append(rect)
+	layers[0].texture = art(str(names[0]))
+
+	# a scrim so type stays legible over any of the pieces
+	var scrim = ColorRect.new()
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scrim.color = Color(0.012, 0.016, 0.032, 0.58)
+	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(scrim)
+
+	var idx := 0
+	var tween = holder.create_tween()
+	tween.set_loops()
+	for i in range(1, names.size() * 2):
+		var front = layers[(i + 1) % 2]
+		var under = layers[i % 2]
+		var next_name = str(names[(idx + 1) % names.size()])
+		tween.tween_callback(func() -> void:
+			front.texture = art(next_name)
+			front.modulate.a = 0.0)
+		tween.tween_property(front, "modulate:a", 1.0, seconds * 0.35)
+		tween.tween_interval(seconds * 0.5)
+		tween.tween_property(front, "modulate:a", 0.0, seconds * 0.35)
+		tween.tween_callback(func() -> void:
+			under.texture = front.texture)
+		idx += 1
+	return holder

@@ -37,7 +37,10 @@ func _build_intro_backdrop() -> void:
 	content.add_child(holder)
 
 	var art = TextureRect.new()
-	art.texture = UIStyle.art("menu_hero")
+	# Rotate the opening painting per launch so the game does not always open on
+	# the same skyline; all four are graded to carry the same type lockup.
+	var opening: Array = UIStyle.REGION_ART
+	art.texture = UIStyle.art(str(opening[randi() % opening.size()]))
 	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
