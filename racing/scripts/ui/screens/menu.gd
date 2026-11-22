@@ -217,12 +217,13 @@ func _add_car_showcase() -> void:
 	podium.rings = 1
 	floor_mi.mesh = podium
 	var fmat = StandardMaterial3D.new()
-	fmat.albedo_color = Color(0.026, 0.032, 0.048)
-	fmat.metallic = 0.18
-	fmat.roughness = 0.55
-	# unshaded would kill the rim light bleeding across the stage, so keep it lit
-	# but pin the exposure with a very low albedo; the cyan ring does the drama.
-	fmat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	# SHADING_MODE_UNSHADED: the podium is a graphic element, not a lit surface.
+	# Even at albedo 0.026 the lit version still rendered near-white, because four
+	# shadowless directional lights plus ambient sum to far more than the albedo
+	# implies and ACES then rolls the result toward grey. Unshaded makes the colour
+	# exact and immune to any future change in the light rig.
+	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fmat.albedo_color = Color(0.055, 0.075, 0.115)
 	floor_mi.material_override = fmat
 	floor_mi.position = Vector3(0, -0.46, 0)
 	root.add_child(floor_mi)
