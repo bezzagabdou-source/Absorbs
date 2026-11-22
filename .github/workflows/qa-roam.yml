@@ -49,18 +49,17 @@ jobs:
           last=$(ls -t /tmp/roam*.png 2>/dev/null | head -1)
           echo "captured: $last"
           [ -n "$last" ] && cp "$last" racing/docs/screenshots/qa_roam_chase.png
-          { echo "==== console ===="; echo "lines=$(wc -l < /tmp/roam.log)"; tail -80 /tmp/roam.log; } > racing/docs/qa_console.log || true
+          { echo "==== console ===="; echo "lines=$(wc -l < /tmp/roam.log 2>/dev/null || echo 0)"; cat /tmp/roam.log 2>/dev/null | tail -120; } > racing/docs/qa_console.log || true
           find "$HOME/.local/share/godot/app_userdata" -name 'qa_probe.log' \
             -exec cp {} racing/docs/qa_probe_chase.log \; 2>/dev/null || true
-          # an empty log means the run never started (timeout), not a compile error
-          if [ "$(wc -l < /tmp/roam.log)" -lt 5 ]; then
-            echo "::warning::the roam capture produced no output; see the step log"
-          fi
-          if grep -qiE 'SCRIPT ERROR|Parse Error|Compilation failed' racing/docs/qa_console.log; then
-            echo "::error::the roam scene failed to compile; this capture is not valid"
-            grep -iE 'SCRIPT ERROR|Parse Error' racing/docs/qa_console.log | head -6
+          # Inspect, do not guess: print what the capture actually said, and only
+          # fail the job when the scene demonstrably failed to compile.
+          if grep -qiE 'SCRIPT ERROR|Parse Error|Compilation failed' /tmp/roam.log 2>/dev/null; then
+            echo "::error::the roam scene failed to compile"
+            grep -iE 'SCRIPT ERROR|Parse Error' /tmp/roam.log | head -8
             exit 1
           fi
+          if [ ! -s /tmp/roam.log ]; then echo "::warning::capture wrote no console output"; fi
 
       - name: Commit the capture
         run: |
