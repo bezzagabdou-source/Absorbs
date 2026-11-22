@@ -1,16 +1,12 @@
 name: APEX VELOCITY — build, test, export APK
 
 on:
-  # Path filters and tag filters do not compose in GitHub Actions: when `paths` is
-  # present a tag push is filtered against it too, and a tag has no changed files,
-  # so `v*` builds silently never ran. Tags are therefore their own event.
-  # No path filter at all. Both `paths` and `paths-ignore` are evaluated for tag
-  # pushes as well, and a tag has no changed files, so any filter here silently
-  # prevents every release build. Commits that only touch docs simply run the
-  # pipeline; it is a few minutes and it keeps releases reliable.
+  # NOTE: GitHub does not evaluate `paths`/`paths-ignore` for tag pushes at all
+  # when a tag filter is present in the same `push` block — and it does not run a
+  # tag build if that tag name was ever pushed before. Both of those have silently
+  # swallowed release builds here. `push` therefore has NO filters, so every push
+  # including tags builds; a tag build publishes the release.
   push:
-    branches: ["**"]
-    tags: ["v*"]
   pull_request:
     paths:
       - "racing/**"
