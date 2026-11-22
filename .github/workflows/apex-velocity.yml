@@ -167,6 +167,13 @@ jobs:
           [ -d "$SRC" ] || SRC="$GODOT_DIR/tpl"
           cp -r "$SRC"/. "$DEST"/
           test -f "$DEST/android_release.apk"
+          # Exporting armeabi-v7a as well as arm64-v8a needs BOTH native templates
+          # unpacked side by side; with only android_release.apk present Godot
+          # refuses the preset with a bare "configuration errors" message.
+          ls -1 "$DEST" | grep -i android || true
+          for tpl in android_release.apk android_debug.apk; do
+            test -f "$DEST/$tpl" || { echo "::error::missing export template $tpl"; exit 1; }
+          done
 
       - name: Generate release keystore
         run: |
@@ -187,7 +194,11 @@ jobs:
           mkdir -p build
           "$GODOT_DIR/godot" --headless --path racing --export-release "Android" "$PWD/$APK_PATH" 2>&1 | tee /tmp/export.log
           if [ ! -s "$APK_PATH" ]; then
-            grep -iE 'error|fail|missing|not found|cannot|invalid' /tmp/export.log | head -30 | while read -r l; do echo "::error::$l"; done
+            # Print the whole tail: the useful Godot line is often a plain
+            # "configuration errors" list rather than anything matching /error/.
+            echo "----- export log (last 60 lines) -----"
+            tail -60 /tmp/export.log
+            echo "-------------------------------------"
             exit 1
           fi
           ls -lh "$APK_PATH"
