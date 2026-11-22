@@ -368,10 +368,47 @@ func icon(name: String) -> Texture2D:
 	var tex: Texture2D = null
 	if ResourceLoader.exists(path):
 		tex = load(path)
+	if tex == null and (name == "map" or name == "pin"):
+		tex = vector_icon(name)
 	if tex == null:
 		tex = circle_icon(64, Color.WHITE)
 	_icon_cache[name] = tex
 	return tex
+
+
+## Procedural glyphs for the few icons that are pure geometry. Drawing them beats
+## shipping another PNG: they stay crisp at any density and cost no APK size.
+func vector_icon(kind: String, px: int = 96) -> ImageTexture:
+	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var c := Vector2(px * 0.5, px * 0.5)
+	var r := px * 0.46
+	match kind:
+		"map":
+			# a folded paper map: three panels and a dotted route
+			for i in 3:
+				var x0: float = px * (0.16 + 0.24 * float(i))
+				var fold: float = 0.0 if i % 2 == 0 else px * 0.06
+				for y in range(int(px * 0.20), int(px * 0.80)):
+					var wobble: float = sin(float(y) / float(px) * TAU * 1.2 + float(i)) * px * 0.012
+					for x in range(int(x0 + fold + wobble), int(x0 + px * 0.22 + fold + wobble)):
+						if x >= 0 and x < px:
+							img.set_pixel(x, y, Color(1, 1, 1, 0.92))
+			# punch the fold seams back out
+			for i in 2:
+				var sx: int = int(px * (0.375 + 0.25 * float(i)))
+				for y in range(int(px * 0.20), int(px * 0.80)):
+					img.set_pixel(sx, y, Color(1, 1, 1, 0.25))
+		"pin":
+			for y in px:
+				for x in px:
+					var d := Vector2(x, y).distance_to(c) - r * 0.42
+					if d < 0 or (y > int(c.y) and absf(float(x) - c.x) < (float(y) - c.y) * 0.9
+							and y < int(c.y + r)):
+						img.set_pixel(x, y, Color(1, 1, 1, 1))
+		_:
+			return null
+	return ImageTexture.create_from_image(img)
 
 
 func art(name: String) -> Texture2D:

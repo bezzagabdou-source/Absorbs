@@ -11,6 +11,7 @@ const ChaseCameraScript = preload("res://scripts/race/ChaseCamera.gd")
 const AIDriverScript = preload("res://scripts/race/AIDriver.gd")
 const OpenWorldScript = preload("res://scripts/race/OpenWorld.gd")
 const HUD = preload("res://scripts/ui/RaceHUD.gd")
+const MAP_SCRIPT = preload("res://scripts/ui/WorldMap.gd")
 
 var router
 var params: Dictionary = {}
@@ -30,6 +31,7 @@ var player
 var ai_cars: Array = []
 var cam
 var hud
+var world_map
 var post: ColorRect
 var post_mat: ShaderMaterial
 var _damage_flash := 0.0
@@ -337,6 +339,13 @@ func _difficulty_bonus() -> float:
 	return clampf((diff - 1) * 0.03, 0.0, 0.12)
 
 
+func _toggle_map() -> void:
+	if world_map == null:
+		return
+	AudioDirector.play_sfx("ui_click", -16.0)
+	world_map.toggle()
+
+
 func _build_hud() -> void:
 	hud = HUD.new()
 	hud.player = player
@@ -348,6 +357,15 @@ func _build_hud() -> void:
 		hud.accent = builder.accent
 	add_child(hud)
 	hud.pause_pressed.connect(_toggle_pause)
+	# World map — free roam only. It reads the same road samples the collider was
+	# built from, so what it draws is exactly what the player can drive on.
+	if roaming:
+		hud.map_button.visible = true
+		hud.map_pressed.connect(_toggle_map)
+		world_map = MAP_SCRIPT.new()
+		world_map.open_world = open_world
+		world_map.player = player
+		add_child(world_map)
 
 
 func _start_race() -> void:
@@ -418,6 +436,8 @@ func _read_driver_input(delta: float) -> void:
 	var brake = Input.get_action_strength("brake")
 	var nitro = Input.is_action_pressed("nitro")
 	var handbrake = Input.is_action_pressed("handbrake")
+	if roaming and world_map != null and Input.is_action_just_pressed("map"):
+		_toggle_map()
 	if InputMap.has_action("camera") and Input.is_action_just_pressed("camera"):
 		cam.cycle_mode()
 	var mode_sel = str(SettingsStore.get_value("steer_mode", "buttons"))

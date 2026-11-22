@@ -3,6 +3,7 @@ extends Control
 ## minimap, countdown, wrong-way + damage warnings, touch controls.
 
 signal pause_pressed
+signal map_pressed
 
 const ARC_SEGMENTS := 44
 const TouchControlsScript = preload("res://scripts/ui/TouchControls.gd")
@@ -31,6 +32,7 @@ var _steer_touch = 0.0
 var _touch: Control
 var _mobile = true
 var _perf: Label
+var map_button: Button
 
 const SPEEDO_SIZE := 300.0
 const SPEEDO_MARGIN := 46.0
@@ -110,6 +112,12 @@ func _build_top() -> void:
 	var pause = UIStyle.make_icon_button("pause", 74, accent)
 	pause.pressed.connect(func(): pause_pressed.emit())
 	top.add_child(pause)
+	# Free roam is a real world, so it gets a real map. The button is hidden in
+	# circuit races, where a world map would be meaningless.
+	map_button = UIStyle.make_icon_button("map", 74, accent)
+	map_button.pressed.connect(func(): map_pressed.emit())
+	map_button.visible = false
+	top.add_child(map_button)
 
 
 func _build_speedo() -> void:
