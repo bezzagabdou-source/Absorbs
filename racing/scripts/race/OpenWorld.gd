@@ -47,7 +47,6 @@ var _road_body: StaticBody3D
 var debug_flat: bool = false
 var _qa_no_terrain: bool = false
 var _qa_marker: bool = false
-var _qa_std_road: bool = false
 ## Shared QA scratch buffer; the race screen writes it to disk after the probe.
 static var qa_log_lines: PackedStringArray = PackedStringArray()
 
@@ -61,8 +60,6 @@ func build(region_data: Dictionary) -> void:
 			_qa_no_terrain = true
 		if str(arg) == "--qa-marker":
 			_qa_marker = true
-		if str(arg) == "--qa-std-road":
-			_qa_std_road = true
 	# Software GL (CI screenshots, very old phones) cannot rasterise a 40k-triangle
 	# terrain with a multi-octave shader in a reasonable time, so drop the mesh
 	# density there. Geometry that matters for driving is unchanged: height_at()
@@ -372,25 +369,6 @@ func _build_road_network() -> void:
 	mi.mesh = st.commit()
 	mi.layers = 1
 
-	if _qa_std_road:
-		# A/B: identical geometry, plain unshaded material. Separates "the shader
-		# draws nothing" from "the mesh is not there".
-		var plain := StandardMaterial3D.new()
-		plain.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		plain.albedo_color = Color(1.0, 0.2, 1.0)
-		mi.material_override = plain
-		# Decisive burial test: if the tarmac only becomes visible once it is lifted
-		# clear of the ground, the terrain mesh — not the shader — is what hides it.
-		# height_at() is the analytic profile; the RENDERED terrain is that profile
-		# linearly interpolated across a 25 m grid, and between grid vertices the
-		# chord can sit well above the analytic height.
-		for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
-			if str(arg).begins_with("--qa-lift="):
-				mi.position = Vector3(0.0, float(str(arg).split("=")[1]), 0.0)
-		add_child(mi)
-		_build_road_collision(width)
-		_mark_ring_centre()
-		return
 	var mat := ShaderMaterial.new()
 	var sp := "res://shaders/road.gdshader"
 	if ResourceLoader.exists(sp):
@@ -975,102 +953,6 @@ func spawn_transform(index: int = 0) -> Transform3D:
 	# p is already the drivable road surface; a small lift avoids spawning inside
 	# the collider without starting the car in free fall
 	return Transform3D(Basis.looking_at(dir, Vector3.UP), p + Vector3.UP * 0.22)
-
-
-## QA-only: compare the road surface against the ground that should sit under it.
-func qa_height_report() -> void:
-	for k in [0, 48, 96, 144]:
-		var a: float = float(k) / 192.0 * TAU
-		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
-		var x: float = cos(a) * r
-		var z: float = sin(a) * r
-		var road: float = _road_surface_height(a)
-		var terr: float = height_at(x, z)
-		var clear: float = road - terr
-		qa_log_lines.append("[QAH] ang=%.2f road=%.2f terrain=%.2f clearance=%.2f" % [a, road, terr, clear])
-	qa_log_lines.append("[QAH] grid=%d segs=%d points=%d" % [grid, ROAD_SEGMENTS, road_points.size()])
-	qa_log_lines.append("[QAH] first_points=%s %s %s" % [road_points[0], road_points[1], road_points[2]])
-	# Compare every road vertex against the terrain mesh sampled at that exact XZ.
-	# height_at() is what the MESH is built from, so this is the real clearance the
-	# renderer sees, not an analytic ideal.
-	var buried := 0
-	var worst := 1.0e9
-	var worst_at := 0
-	for k in range(road_points.size()):
-		var rp: Vector3 = road_points[k]
-		var gy: float = height_at(rp.x, rp.z)
-		var c: float = rp.y - gy
-		if c < worst:
-			worst = c
-			worst_at = k
-		if c < 0.0:
-			buried += 1
-	qa_log_lines.append("[QAH] road_vs_mesh: buried=%d/%d worst_clearance=%.2f at=%d" % [
-		buried, road_points.size(), worst, worst_at])
-	# What does the terrain MESH actually hold at the road's XZ? Sample the built
-	# geometry rather than height_at(), since only the mesh is rendered.
-	if terrain_mesh_instance != null and terrain_mesh_instance.mesh != null:
-		var tarr: Array = terrain_mesh_instance.mesh.surface_get_arrays(0)
-		var tv: PackedVector3Array = tarr[Mesh.ARRAY_VERTEX]
-		var worst_mesh: float = 1.0e9
-		var worst_mesh_at: Vector3 = Vector3.ZERO
-		var above: int = 0
-		for k in range(road_points.size()):
-			var rp: Vector3 = road_points[k]
-			# nearest terrain vertex
-			var bestd: float = 1.0e20
-			var besty: float = 0.0
-			for vk in range(0, tv.size(), 7):
-				var t: Vector3 = tv[vk]
-				var dd: float = (t.x - rp.x) * (t.x - rp.x) + (t.z - rp.z) * (t.z - rp.z)
-				if dd < bestd:
-					bestd = dd
-					besty = t.y
-			# a vertex up to half a cell away can be above the road
-			if besty > rp.y:
-				above += 1
-			if rp.y - besty < worst_mesh:
-				worst_mesh = rp.y - besty
-				worst_mesh_at = rp
-		qa_log_lines.append("[QAH] mesh_ground: vertices_above_road=%d/%d worst=%.2f at=%s" % [
-			above, road_points.size(), worst_mesh, worst_mesh_at])
-	# is the quad at the spawn actually in the mesh, and which way does it face?
-	var mi2: MeshInstance3D = null
-	for c in get_children():
-		if c is MeshInstance3D and str(c.name) == "Highway":
-			mi2 = c
-	if mi2 != null and mi2.mesh != null:
-		var arr: Array = mi2.mesh.surface_get_arrays(0)
-		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-		var idx = arr[Mesh.ARRAY_INDEX]
-		qa_log_lines.append("[QAH] mesh verts=%d indexed=%s" % [vs.size(), idx is PackedInt32Array])
-		var tri_up := 0
-		var tri_down := 0
-		var near_origin := 0
-		var area_sum := 0.0
-		var i2 := 0
-		var order: Array = []
-		if idx is PackedInt32Array:
-			for k in range((idx as PackedInt32Array).size()):
-				order.append(vs[(idx as PackedInt32Array)[k]])
-		else:
-			for k in range(vs.size()):
-				order.append(vs[k])
-		while i2 + 2 < order.size():
-			var va: Vector3 = order[i2]
-			var vb: Vector3 = order[i2 + 1]
-			var vc: Vector3 = order[i2 + 2]
-			var n: Vector3 = (vb - va).cross(vc - va)
-			area_sum += n.length() * 0.5
-			if n.y > 0.0:
-				tri_up += 1
-			else:
-				tri_down += 1
-			if Vector2(va.x - 651.0, va.z).length() < 30.0:
-				near_origin += 1
-			i2 += 3
-		qa_log_lines.append("[QAH] tris up=%d down=%d verts_near_spawn=%d area=%.0f" % [
-			tri_up, tri_down, near_origin, area_sum])
 
 
 func qa_dump_near(centre: Vector3, radius: float) -> void:

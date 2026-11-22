@@ -30,6 +30,7 @@ Game="*res://scripts/autoload/Game.gd"
 AudioDirector="*res://scripts/autoload/AudioDirector.gd"
 UIStyle="*res://scripts/autoload/UIStyle.gd"
 SceneRouter="*res://scripts/autoload/SceneRouter.gd"
+PerfGovernor="*res://scripts/autoload/PerfGovernor.gd"
 
 [debug]
 
@@ -37,6 +38,10 @@ gdscript/warnings/unsafe_property_access=0
 gdscript/warnings/unsafe_method_access=0
 gdscript/warnings/unsafe_cast=0
 gdscript/warnings/unsafe_call_argument=0
+
+[application]
+
+run/max_fps=120
 
 [display]
 
@@ -123,6 +128,7 @@ pause={
 [physics]
 
 common/physics_ticks_per_second=60
+common/max_physics_steps_per_frame=8
 3d/default_gravity=9.81
 3d/physics_engine="GodotPhysics3D"
 

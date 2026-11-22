@@ -30,6 +30,7 @@ var _drift_score = 0.0
 var _steer_touch = 0.0
 var _touch: Control
 var _mobile = true
+var _perf: Label
 
 const SPEEDO_SIZE := 300.0
 const SPEEDO_MARGIN := 46.0
@@ -47,6 +48,24 @@ func _ready() -> void:
 	add_child(_speedlines)
 	move_child(_speedlines, 0)
 	_build_countdown()
+	_build_perf_readout()
+
+
+## A small, honest frame-rate readout. Players ask "is it really running at 120?"
+## and the only answer worth giving is the measured one, next to the quality tier
+## the governor has settled on.
+func _build_perf_readout() -> void:
+	_perf = Label.new()
+	_perf.add_theme_font_size_override("font_size", 15)
+	_perf.add_theme_color_override("font_color", Color(1, 1, 1, 0.55))
+	_perf.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_perf.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_perf.position = Vector2(-190, -18)
+	_perf.custom_minimum_size = Vector2(180, 0)
+	_perf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if not SettingsStore.get_bool("show_fps", false):
+		_perf.visible = false
+	add_child(_perf)
 
 
 func _build_top() -> void:
@@ -288,6 +307,10 @@ func flash_warning(text: String, color: Color) -> void:
 
 
 func _process(delta: float) -> void:
+	# One readout, one place: the measured frame rate and the quality tier the
+	# governor settled on, so "120 fps" is verifiable rather than a claim.
+	if _perf != null and _perf.visible:
+		_perf.text = "%d FPS · %s" % [int(PerfGovernor.fps), PerfGovernor.label()]
 	if _warn.modulate.a > 0.0:
 		_warn.modulate.a = maxf(0.0, _warn.modulate.a - delta * 1.2)
 

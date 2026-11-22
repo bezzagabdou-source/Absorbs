@@ -279,7 +279,6 @@ func _qa_probe() -> void:
 		player.input_enabled = true
 		player.throttle = 1.0
 	open_world.qa_dump_near(cp, 90.0)
-	open_world.qa_height_report()
 	var fwd: Vector3 = -c.global_transform.basis.z
 	_qa_log("[QAPROBE] cam_fwd=%s pitch=%.2f" % [fwd, c.global_transform.basis.get_euler().x])
 	_qa_flush()
