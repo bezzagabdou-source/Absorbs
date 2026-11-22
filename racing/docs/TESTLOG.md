@@ -250,3 +250,68 @@ Regression tests added: `terrain faces up`, `road above terrain`.
 * **"8K" textures** — not claimed and not shipped. Art is procedurally generated
   at runtime plus small WebP backdrops; the fidelity work is in shaders and
   geometry, which cost VRAM-free ALU instead of bandwidth.
+
+---
+
+# Round 14 — the highway, actually visible
+
+The free-roam capture had been showing sky under the car for several rounds. The
+geometry was proven correct early (`mesh_ground: vertices_above_road=0/192`), and
+a lift sweep settled the burial question decisively:
+
+| Probe | Magenta pixels | Conclusion |
+|---|---|---|
+| road material, no lift | 142 | the mesh renders, but almost entirely outside the frame |
+| road lifted 8 m | 71,373 | when lifted it fills the frame ⇒ it was never buried |
+| road lifted 0 / 1 / 3 m | 918 / 1,015 / 1,072 | lifting changes nothing ⇒ not a depth-fighting or clearance issue |
+
+That is what redirected the work from geometry to **shading and framing**, and it
+was the right call.
+
+## The real defect: the ground shader never compiled
+
+The carriageway had been moved into `terrain.gdshader` so it could not possibly be
+occluded. It still did not appear. Two independent compile errors meant Godot fell
+back to a default material every run:
+
+1. `vec3 road_emission = vec3(0.0);` at **file scope**. Godot only permits
+   uniforms, varyings and constants there; a mutable global is a hard error, so the
+   *entire* shader failed.
+2. `ROUGHNESS = mix(0.95, 0.72, road)` — `road` did not exist; the local is
+   `asphalt`.
+
+A shader that fails to compile is indistinguishable from a geometry bug in a
+screenshot, which is exactly why this cost so many rounds. The fix is small; the
+lesson is not:
+
+* `tools/check_shaders.py` rejects mutable file-scope declarations (instant).
+* `tools/check_shader_ids.py` reports identifiers used but never declared (instant).
+* `qa-roam.yml` now publishes the real console log and only fails on a genuine
+  compile error — and an earlier version of that gate was itself failing on an
+  *empty* log, which hid the evidence for two runs.
+
+## Result
+
+`docs/screenshots/qa_roam_chase.png` — captured from the **actual driving camera**
+(`--qa-chase`), not the intro orbit — now shows the highway as painted tarmac with
+lane dashes, a double centre line, bright edge lines and cyan kerbs, receding into
+the horizon with the car on it.
+
+## Also in this round
+
+* 120 fps target (`run/max_fps=120`), an adaptive quality governor
+  (`PerfGovernor`) that steps terrain density, shadow distance and glow to hold the
+  budget, and an on-screen **measured** frame counter behind a settings toggle.
+* Full-screen world map for free roam: terrain-shaded land, the drivable ring
+  highway, player heading, opened from the HUD or `M`.
+* Four new painted region backdrops, cross-fading behind the title and menu;
+  `UIStyle.art()` now accepts PNG or WebP so new art ships without a conversion step.
+* Baked reflection probe so paint and wet tarmac mirror the world.
+* Retired the road diagnostics (`--qa-std-road`, `--qa-lift`, `qa_height_report`,
+  mesh-analysis blocks) now that the question they existed to answer is settled.
+
+## Still not verified
+
+The 120 fps claim remains a **budget and an adaptation strategy**, not a
+measurement on hardware; CI renders in software and cannot represent a phone GPU.
+The frame counter exists so the number can be checked on a real device in seconds.

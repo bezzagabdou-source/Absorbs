@@ -80,8 +80,14 @@ desktop builds only).
   compatibility backend anyway.
 * One shadow-casting directional light (2 splits, 160 m); lamps and neon are
   unshadowed emissive geometry.
-* `Engine.max_fps` follows the panel refresh rate (120 on a 120 Hz device, with
-  physics raised to 120 Hz to match).
+* `run/max_fps=120` in `project.godot`; physics stays a fixed 60 Hz tick so
+  handling is identical on every device while rendering may run at 120.
+* **`autoload/PerfGovernor.gd`** measures real frame time and moves between four
+  quality steps (ULTRA / HIGH / BALANCED / PERFORMANCE), changing terrain mesh
+  density, shadow distance and glow. It acts only on a sustained miss, at most once
+  every 4 s, so a loading hitch never drops the world's detail. The measured rate
+  and current tier are shown on the HUD behind the `show_fps` setting — the number
+  is there to be checked, not asserted.
 * Quality tiers drive render scale, shadow atlas, MSAA, screen-space AA and
   anisotropic filtering (`SettingsStore._apply_quality`).
 
@@ -93,6 +99,24 @@ desktop builds only).
 * Procedural meshes cached per car archetype; `MultiMeshInstance3D` for props and crowd.
 * Car LOD: high mesh < 60 m, simplified mesh beyond, mesh instance hidden > 220 m.
 * All textures are generated (asphalt, tread, decals) at 512/1024 and mipmapped; no 4K maps.
+
+### The highway
+
+The carriageway is **painted into `shaders/terrain.gdshader`**, not a separate
+ribbon mesh. The shader re-evaluates the same ring function the collider uses
+(`r = 620·(1 + 0.10·sin 3θ + 0.05·cos 5θ)`) and derives lane dashes, a double centre
+line, edge lines and cyan kerbs analytically from the signed radial distance. This
+makes the classic occlusion failure — a decal or strip mesh z-fighting with, or
+sinking under, the ground — impossible by construction. `OpenWorld.gd` sets
+`road_ring_radius`, `road_half_width` and `road_shoulder` before the material is
+compiled for the first time.
+
+Two static gates exist because a shader that fails to compile silently falls back
+to a default material, which in a screenshot is indistinguishable from a geometry
+bug:
+
+* `tools/check_shaders.py` — rejects mutable file-scope declarations.
+* `tools/check_shader_ids.py` — reports identifiers used but never declared.
 
 ## Save data
 
