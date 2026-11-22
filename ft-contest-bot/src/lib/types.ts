@@ -32,13 +32,13 @@ export type Contest = {
  * فأي بلايص (إلا تحيّدت من اللوحة كترجع)، والبوابة كتطبق على كل واحد كيدخل
  * للخاص (جديد كان ولا قديم) فكل رسالة وزر.
  */
-export const PINNED_CHANNELS = ["@mxabdou"];
+export const PINNED_CHANNELS = ["@xxxs_exxx"];
 
 /**
  * 🗑️ قنوات تحيّدت نهائياً من الاشتراك الإجباري — كتتحيّد أوتوماتيكياً من الإعدادات
  * القديمة (قاعدة البيانات) باش ما تبقاش تطّلع فالبوت ولا فاللوحة.
  */
-export const RETIRED_CHANNELS = ["@mosaba9atmx"];
+export const RETIRED_CHANNELS = ["@mosaba9atmx", "@mxabdou"];
 
 export type Settings = {
   /** 🔒 قنوات مقفولة (من الكود + سجل system:locked-channels ف قاعدة البيانات): تتزاد فقط، ما تتحيّدش */
@@ -134,7 +134,7 @@ export const DEFAULT_SETTINGS: Settings = {
   botId: null,
   channelChat: "",
   channelUrl: "",
-  requiredChannels: ["@mxabdou", "@F_5_5_T", "@Ft_efootbal", "@F_M_M_T"],
+  requiredChannels: ["@xxxs_exxx", "@F_5_5_T", "@Ft_efootbal", "@F_M_M_T"],
   supportUsername: OWNER_USERNAME,
   ownerUsername: OWNER_USERNAME,
   logChatId: "",
