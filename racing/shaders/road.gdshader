@@ -4,7 +4,7 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
-uniform vec3 asphalt_color : source_color = vec3(0.215, 0.225, 0.250);
+uniform vec3 asphalt_color : source_color = vec3(0.145, 0.152, 0.172);
 uniform vec3 aggregate_color : source_color = vec3(0.46, 0.47, 0.505);
 uniform vec3 line_color : source_color = vec3(1.0, 1.0, 1.0);
 uniform vec3 neon_a : source_color = vec3(0.13, 0.91, 1.0);

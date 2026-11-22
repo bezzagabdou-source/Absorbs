@@ -122,7 +122,7 @@ void fragment() {
 	ground = mix(ground, road_tint, shoulder * 0.35 * (1.0 - asphalt));
 	ground = mix(ground, road_paint_color, paint);
 	float kerb = 1.0 - smoothstep(0.05, 0.22, abs(wheel - (road_half_width - 0.16)));
-	vec3 road_emission = road_edge_light * kerb * 1.5 + road_paint_color * paint * 0.55;
+	vec3 road_emission = road_edge_light * kerb * 2.2 + road_paint_color * paint * 0.85;
 
 	// Sky bounce. Without this a night scene crushes the whole landscape to pure
 	// black, because the only directional light is a 0.3-energy moon and the
@@ -133,7 +133,7 @@ void fragment() {
 	// Deliberately dim and only faintly blue. The earlier value (0.78, 0.86, 1.05)
 	// at 0.45 energy made the whole plain read as bright blue water and, worse,
 	// out-shone the tarmac — the road has to be the brightest surface in frame.
-	vec3 sky_bounce = mix(vec3(0.34, 0.38, 0.46), vec3(0.46, 0.51, 0.60), terrain_up);
+	vec3 sky_bounce = mix(vec3(0.26, 0.30, 0.40), vec3(0.36, 0.41, 0.52), terrain_up);
 	// emissive bounce is applied on ALBEDO-scaled colour and NOT affected by fog
 	// the way lighting is, so it reads as ground-level ambient instead of haze
 	if (debug_flat > 0.5) {
@@ -141,7 +141,7 @@ void fragment() {
 		EMISSION = vec3(0.0, 1.0, 0.2);
 	} else {
 		ALBEDO = ground;
-		EMISSION = ground * sky_bounce * 0.42 + road_emission;
+		EMISSION = ground * sky_bounce * 0.30 + road_emission;
 	}
 	ROUGHNESS = mix(0.95, 0.72, road) - wetness * 0.35;
 	METALLIC = 0.0;
