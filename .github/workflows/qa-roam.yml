@@ -45,7 +45,7 @@ jobs:
           set -x
           mkdir -p racing/docs/screenshots
           for variant in lift0 lift1 lift3; do
-            extra=""
+            extra="--qa-chase"
             [ "$variant" = "lift0" ] && extra="--qa-std-road --qa-lift=0"
             [ "$variant" = "lift1" ] && extra="--qa-std-road --qa-lift=1"
             [ "$variant" = "lift3" ] && extra="--qa-std-road --qa-lift=3"

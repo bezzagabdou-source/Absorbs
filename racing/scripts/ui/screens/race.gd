@@ -274,6 +274,10 @@ func _qa_probe() -> void:
 	var c: Camera3D = cam.camera()
 	_qa_log("[QAPROBE] cam=%s showcase=%s dist_to_car=%.1fm" % [c.global_position, cam.showcase,
 		c.global_position.distance_to(cp)])
+	if (OS.get_cmdline_args() + OS.get_cmdline_user_args()).has("--qa-chase"):
+		cam.showcase = false
+		player.input_enabled = true
+		player.throttle = 1.0
 	open_world.qa_dump_near(cp, 90.0)
 	open_world.qa_height_report()
 	var fwd: Vector3 = -c.global_transform.basis.z
