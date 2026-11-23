@@ -43,6 +43,13 @@ uniform float night_mode : hint_range(0.0, 1.0) = 0.0;
 uniform float shoulder : hint_range(0.4, 2.5) = 1.35;
 uniform float dither : hint_range(0.0, 0.02) = 0.0035;
 uniform float wet_mode : hint_range(0.0, 1.0) = 0.0;
+// Cheap contact darkening. There is no depth buffer available to a canvas_item
+// shader, so crevices are found from the local luminance gradient instead: a
+// pixel that is darker than its neighbours in every direction sits in a corner
+// or under an overhang, which is exactly where ambient occlusion would darken.
+// This is the "SSAO" the Compatibility renderer cannot give us.
+uniform float contact_ao : hint_range(0.0, 1.0) = 0.55;
+uniform float contact_ao_radius : hint_range(1.0, 8.0) = 3.0;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
@@ -114,6 +121,30 @@ void fragment() {
 		vec3 bright_s = max(streak - vec3(bloom_threshold), vec3(0.0));
 		col += bright * bloom_bleed * 2.1;
 		col += bright_s * bloom_bleed * streak_amount * 1.5;
+	}
+
+	// --- contact shading ----------------------------------------------------
+	// Sampling a ring of neighbours and keeping the BRIGHTEST tells us how much
+	// light reaches this area. A pixel deep in a corner or under a wheel arch is
+	// surrounded by darker pixels, so its own value is close to that maximum and
+	// it stays as it is. A pixel sitting at the edge of a lit surface has bright
+	// neighbours it cannot see, and gets darkened toward its own value — which is
+	// the visual signature of occlusion. Doing it this way (rather than a plain
+	// blur) is what stops the effect from just softening the whole image.
+	if (contact_ao > 0.0) {
+		vec2 px = (1.0 / vec2(textureSize(scene_tex, 0))) * contact_ao_radius;
+		vec3 own = col;
+		float own_l = dot(own, vec3(0.2126, 0.7152, 0.0722));
+		float lit = own_l;
+		for (int i = 0; i < 8; i++) {
+			float a = float(i) * 0.7853982;
+			vec3 nb = texture(scene_tex, uv + vec2(cos(a), sin(a)) * px).rgb;
+			lit = max(lit, dot(nb, vec3(0.2126, 0.7152, 0.0722)));
+		}
+		// only darken where this pixel is DARKER than what surrounds it
+		float occl = clamp((lit - own_l) / max(lit, 0.02), 0.0, 1.0);
+		occl = pow(occl, 1.6);
+		col *= mix(1.0, 1.0 - contact_ao, occl);
 	}
 
 	col *= exposure;

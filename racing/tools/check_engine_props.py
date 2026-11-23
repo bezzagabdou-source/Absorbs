@@ -55,7 +55,6 @@ VALID_ENVIRONMENT = {
     "volumetric_fog_anisotropy", "volumetric_fog_temporal_reprojection_enabled",
     "ssao_enabled", "ssao_radius", "ssao_intensity", "ssao_power", "ssao_detail",
     "ssao_horizon", "ssao_sharpness", "ssao_light_affect", "ssao_ao_channel_affect",
-    "ssao_distance_fade",
     "ssil_enabled", "ssil_radius", "ssil_intensity", "ssil_sharpness",
     "ssil_normal_rejection",
     "ssr_enabled", "ssr_max_steps", "ssr_fade_in", "ssr_fade_out",

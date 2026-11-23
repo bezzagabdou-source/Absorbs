@@ -72,26 +72,23 @@ func _build_viewport() -> void:
 	e.glow_intensity = 0.95
 	e.glow_bloom = 0.14
 	e.glow_hdr_threshold = 1.05
-	# The car sits ON the turntable, and without ambient occlusion it reads as
-	# pasted on top of it: no shadow in the wheel wells, none under the splitter,
-	# none where the sills meet the disc. This one pass is what makes the car
-	# look photographed rather than rendered, and it is the only place in the
-	# game where a single effect changes the whole read of the frame.
-	e.ssao_enabled = true
-	e.ssao_radius = 0.85
-	e.ssao_intensity = 2.6
-	e.ssao_power = 2.0
-	e.ssao_detail = 0.8
-	e.ssao_light_affect = 0.12
-	e.ssao_horizon = 0.04
-
-	# A reflection probe around the turntable: the paint and the glass have
-	# something real to mirror, so the shoulder line picks up the disc and the
-	# studio walls instead of a flat ambient colour.
-	# SSR is Forward+ only; the project renders gl_compatibility on Android and in
-	# CI, where enabling it logs an error on every garage open. The probe below
-	# does the reflection work instead.
-	if RenderingServer.get_current_rendering_method() == "forward_plus":
+	# The car sits ON the turntable, and without contact shading it reads as
+	# pasted on: no shadow in the wheel wells, none under the splitter, none
+	# where the sills meet the disc.
+	#
+	# The Compatibility backend has no SSAO at all, so the cheating version is
+	# used instead: a soft dark disc under the car plus a real shadow-casting key
+	# light. That combination is what actually produces the contact shadow on
+	# this renderer, and it costs one draw call rather than a depth prepass.
+	var forward_plus: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
+	e.ssao_enabled = forward_plus
+	if forward_plus:
+		e.ssao_radius = 0.85
+		e.ssao_intensity = 2.6
+		e.ssao_power = 2.0
+		e.ssao_detail = 0.8
+		e.ssao_light_affect = 0.12
+		e.ssao_horizon = 0.04
 		e.ssr_enabled = true
 		e.ssr_max_steps = 36
 		e.ssr_fade_in = 0.1
@@ -102,6 +99,14 @@ func _build_viewport() -> void:
 	key.light_color = Color(0.9, 0.95, 1.0)
 	key.light_energy = 1.15
 	key.rotation_degrees = Vector3(-32, -140, 0)
+	# Shadows on: this is the contact shadow on the compatibility renderer. Set
+	# to a tight 26 m range so the shadow texels stay small and the car's own
+	# shadow is sharp instead of a fuzzy blob.
+	key.shadow_enabled = true
+	key.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+	key.directional_shadow_max_distance = 26.0
+	key.shadow_bias = 0.02
+	key.shadow_normal_bias = 1.4
 	root.add_child(key)
 	# Studio rig: a warm key from the front-left, a cool fill from the right and a
 	# hard rim from behind. This is how a car is actually lit for a photograph —

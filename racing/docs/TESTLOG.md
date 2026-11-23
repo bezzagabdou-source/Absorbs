@@ -583,3 +583,54 @@ slide left behind.
 
 Gates: 42 files parsed, lint clean, types 42/42, undeclared 42/42, arity 43/43
 (578 functions resolved), presets 2 ABI, 4 shaders clean, physics PASS.
+
+## Round 20 — The renderer supports none of what I enabled
+
+I enabled SSAO, SSIL and SSR to give the world contact shading. All three are
+Forward+ only. This project renders with **gl_compatibility**, where Godot's own
+comparison table lists every one of them as unsupported — and so is volumetric
+fog, decays, and the normal/roughness buffer.
+
+The dangerous part is that assigning them **does not crash**. `ssao_enabled =
+true` on a Compatibility environment is accepted and simply never produces an
+effect. A build can therefore look correctly configured and render none of it.
+The only one that produced a visible error was SSR, which logs a warning.
+
+What actually shipped, after reading the table:
+
+| Feature | Compatibility | What this build does |
+| --- | --- | --- |
+| SSAO | ✗ | hand-written contact darkening in the post shader |
+| SSIL | ✗ | off; ambient bounce comes from `ambient_light_color` |
+| SSR | ✗ | off; `ReflectionProbe` + sky radiance instead |
+| Volumetric fog | ✗ | height fog only (supported) |
+| Glow / tonemap / fog | ✓ | used fully |
+| Depth texture | ✓ | available to spatial shaders |
+
+The contact-shading pass finds crevices from the local luminance maximum over
+an eight-tap ring, which is a legitimate cheap approximation — a pixel darker
+than everything around it is in a corner or under an overhang. Verified
+numerically before shipping:
+
+| case | occlusion | result |
+| --- | --- | --- |
+| flat lit surface | 0.000 | unchanged |
+| corner, dark surrounded by dark | 0.017 | not crushed further |
+| dark pixel beside bright panel | 0.819 | darkened 0.100 → 0.055 |
+| mid grey with a bright neighbour | 0.246 | mild, in band |
+| black pixel in a black cranny | 0.025 | stays in range |
+
+Two more defects found the same way: `reflection_source_size` **is not an
+Environment property in 4.4** (invalid assignment, raises inside the test job),
+and `ssao_distance_fade` — which I put into the new gate's allowlist from
+memory — **does not exist either**. The allowlist was trimmed to properties
+confirmed against the class reference; a permissive list defeats the purpose of
+having a gate.
+
+New gate: `tools/check_engine_props.py`. Proven to catch
+`reflection_source_size` and to ignore the same property name on a
+non-Environment object.
+
+All gates after this round: 44 files parsed, lint clean, types 44/44,
+undeclared 44/44, arity 45/45 (594 functions), engine-props 45/45, shader scope
+4/4, shader identifiers 4/4, presets 2 ABI, physics PASS.

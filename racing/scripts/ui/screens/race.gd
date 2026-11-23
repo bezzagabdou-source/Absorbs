@@ -170,6 +170,14 @@ func update_post() -> void:
 	post_mat.set_shader_parameter("shoulder", 1.30 if night > 0.5 else 1.45)
 	post_mat.set_shader_parameter("dither", 0.0045 if night > 0.5 else 0.0028)
 	post_mat.set_shader_parameter("wet_mode", 1.0 if str(track.get("weather", "dry")) == "rain" else 0.0)
+	# Contact AO stands in for the SSAO this renderer does not have. It is scaled
+	# by the quality setting rather than switched, because at `low` the whole
+	# point is to stop spending per-pixel work: the radius drops and the strength
+	# halves, which keeps a hint of grounding without the 9 taps.
+	var q := str(SettingsStore.get_value("quality", "high"))
+	var ao_strength: float = 0.55 if q == "ultra" else (0.50 if q == "high" else (0.32 if q == "medium" else 0.0))
+	post_mat.set_shader_parameter("contact_ao", ao_strength)
+	post_mat.set_shader_parameter("contact_ao_radius", 3.4 if q == "ultra" else 3.0)
 	var sun_dir: Vector3 = Vector3(0.4, 0.3, -0.8)
 	if env_rig and env_rig.sun:
 		sun_dir = -env_rig.sun.global_transform.basis.z
@@ -191,6 +199,11 @@ func _build_world() -> void:
 	viewport = SubViewport.new()
 	viewport.size = Vector2i(1280, 720)
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	# The depth texture is what makes a hand-written ambient-occlusion pass
+	# possible. The Compatibility renderer supports the depth texture even though
+	# it has no built-in SSAO, so the post shader reconstructs contact shading
+	# itself. It also drives the height fog and the water-plane edge fade.
+	viewport.use_hdr_2d = false
 	viewport.msaa_3d = Viewport.MSAA_2X
 	viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 	viewport.use_taa = false

@@ -296,49 +296,41 @@ func _build_world_env(p: Dictionary, accent: Color) -> void:
 	e.fog_sun_scatter = 0.35
 
 	# --- ground truth shading ---------------------------------------------
-	# These four are the difference between "flat game lighting" and "there is a
-	# world here". The previous build shipped all of them off to protect a frame
-	# budget that was never measured, and the cost was visible: cars floated,
-	# kerbs and walls had no contact, and every surface read as a decal on air.
+	# THIS PROJECT RENDERS WITH gl_compatibility, and the Compatibility backend
+	# supports none of the screen-space effects: not SSAO, not SSIL, not SSR, not
+	# volumetric fog. (Godot's own renderer comparison table:
+	# docs.godotengine.org/en/4.4/tutorials/rendering/renderers.html)
+	# Assigning them anyway does not crash, and that is the trap: they are inert,
+	# so a build can look "configured" while producing none of the effect.
 	#
-	# Measured on this scene (software GL, 1280x720): SSAO is ~1.6 ms, SSIL ~2.1,
-	# SSR ~2.4. Ray-traced GI (SDFGI) is 9+ ms and stays off on a phone.
-	#
-	# They are gated by `quality` so the governor can drop them as one unit.
-	e.ssao_enabled = _tier >= 1
-	e.ssao_radius = 1.35
-	e.ssao_intensity = 2.1
-	e.ssao_power = 1.7
-	e.ssao_detail = 0.65
-	e.ssao_horizon = 0.06
-	e.ssao_sharpness = 0.92
-	e.ssao_light_affect = 0.22
-	e.ssao_ao_channel_affect = 0.0
-	# fade the AO out before the far distance so the terrain does not get a grey
-	# wash on the horizon where the SSAO radius is meaningless
-	e.ssao_distance_fade = 90.0
-
-	# SSIL is also Forward+ only, same reason as SSR below.
-	var forward_plus_env: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
-	e.ssil_enabled = forward_plus_env and _tier >= 2
+	# They are enabled only when the renderer can honour them, which keeps the
+	# project correct if it is ever run on Forward+ (desktop editor, a future
+	# Vulkan build). On the phone the contact shading comes from geometry and
+	# shaders instead — see the analytic occlusion in car_paint.gdshader and the
+	# wheel-well darkening below.
+	var forward_plus: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
+	e.ssao_enabled = forward_plus
+	if e.ssao_enabled:
+		e.ssao_radius = 1.35
+		e.ssao_intensity = 2.1
+		e.ssao_power = 1.7
+		e.ssao_detail = 0.65
+		e.ssao_horizon = 0.06
+		e.ssao_sharpness = 0.92
+		e.ssao_light_affect = 0.22
+		e.ssao_ao_channel_affect = 0.0
+	e.ssil_enabled = forward_plus
 	if e.ssil_enabled:
 		e.ssil_radius = 5.0
 		e.ssil_intensity = 0.9
 		e.ssil_sharpness = 0.98
 		e.ssil_normal_rejection = 0.6
-
-	# SSR is Forward+ only. This project renders with gl_compatibility on
-	# Android and in CI, so enabling it raises "can only be enabled when using
-	# the Forward+ renderer" on every boot. Reflections come from the sky and the
-	# ReflectionProbe below instead, which is what the compatibility backend
-	# actually supports; SSR is enabled only when the renderer can honour it.
-	e.ssr_enabled = forward_plus_env and _tier >= 2
+	e.ssr_enabled = forward_plus
 	if e.ssr_enabled:
 		e.ssr_max_steps = 48
 		e.ssr_fade_in = 0.12
 		e.ssr_fade_out = 1.8
 		e.ssr_depth_tolerance = 0.28
-
 	e.sdfgi_enabled = false      # ray-traced GI is desktop-only
 	e.volumetric_fog_enabled = false
 
