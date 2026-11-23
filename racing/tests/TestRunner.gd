@@ -263,8 +263,10 @@ func _foundation() -> void:
 		_check(shell_aabb.size.y > 0.3, "shell has height " + str(kind))
 		# wheels must sit INSIDE the body's width, not poking out past it
 		var widest: float = shell_aabb.size.x * 0.5
+		# model.wheels holds dictionaries: {"node": Node3D, "spin", "front", ...}
 		for w in model.wheels:
-			var holder: Node3D = w
+			var rec: Dictionary = w
+			var holder: Node3D = rec.get("node") as Node3D
 			if holder == null:
 				continue
 			_check(absf(holder.position.x) <= widest + 0.02,

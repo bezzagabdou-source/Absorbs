@@ -63,7 +63,9 @@ func _ready() -> void:
 	_build_warnings()
 	_speedlines = UIStyle.make_speedlines()
 	add_child(_speedlines)
-	move_child(_speedlines, 0)
+	# must be called on the actual parent, or this raises and aborts
+	if _speedlines != null and _speedlines.get_parent() == self:
+		move_child(_speedlines, 0)
 	_build_countdown()
 	_build_mode_status()
 	_build_perf_readout()

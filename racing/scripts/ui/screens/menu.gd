@@ -24,7 +24,10 @@ func _add_hero() -> void:
 	# the player will actually drive, so the menu sells the world, not a poster.
 	var art = UIStyle.make_crossfade_backdrop(UIStyle.REGION_ART, 7.0)
 	content.add_child(art)
-	move_child(art, 0)
+	# art's parent is `content`, not this screen. Calling move_child on self
+	# raises "Child is not a child of this node" and aborts the rest of the
+	# menu build, which is why the hero block is guarded the same way.
+	content.move_child(art, 0)
 	var title_block = VBoxContainer.new()
 	title_block.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	title_block.offset_left = 84
