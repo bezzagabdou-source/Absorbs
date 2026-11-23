@@ -1,8 +1,8 @@
-=== probe 2026-11-23T10:53:51
+=== probe 2026-11-23T10:58:47
 [QAPROBE] car=(651.0, 5.691842, 0.0) nearest_road=(651.0, 5.471842, 0.0) lateral=0.00m dy=0.22m
 [QAPROBE] cam=(649.2156, 8.086473, -8.06747) showcase=true dist_to_car=8.6m
 [QAPROBE] cam_fwd=(0.222993, -0.21814, 0.950099) pitch=-0.22
-[QADUMP] Highway aabb=[P: (-646.0241, -1.512679, -698.6008), S: (1316.625, 13.04292, 1292.051)] mat=<ShaderMaterial#-9223371979157928462> layers=1
+[QADUMP] Highway aabb=[P: (-646.0241, -1.512679, -698.6008), S: (1316.625, 13.04292, 1292.051)] mat=<ShaderMaterial#-9223371979090819598> layers=1
 [QADUMP] @MeshInstance3D@307 pos=(642.5816, 8.971842, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
 [QADUMP] @MeshInstance3D@308 pos=(642.5816, 12.47184, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
 [QADUMP] @OmniLight3D@309 pos=(642.5816, 12.37184, 1.758025) dist=10.9 aabb_size=(52.0, 52.0, 52.0) visible=true
