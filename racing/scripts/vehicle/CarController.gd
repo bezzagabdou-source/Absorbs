@@ -81,6 +81,12 @@ var tcs_active: bool = false
 var surface_grip: float = 1.0
 var surface_name: String = "tarmac"
 var _slip: float = 0.0                   ## 0..1 true tyre slip, for smoke
+
+## Lateral velocity in the car's own frame, m/s. This is what makes a slide real:
+## the chassis points one way, the mass keeps travelling another, and the gap
+## between them is the slip angle. Without it "drifting" is just a visual lean.
+var lateral_speed: float = 0.0
+var slip_angle: float = 0.0             ## radians between heading and travel
 var _tcs_cut: float = 0.0
 
 ## 0..1 road wetness, pushed in by the weather system. Reduces lateral grip and
@@ -129,14 +135,17 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	# An external driver wins for 150 ms after its last set_inputs() call, so a
 	# desktop build still works on the keyboard while a phone uses the pedals.
-	var external_active: bool = input_enabled \
-		and Time.get_ticks_msec() - _last_external_input_msec < 150
+	# Three states, and the difference matters:
+	#   * input_enabled and no recent set_inputs()  -> player on a keyboard
+	#   * input_enabled and a recent set_inputs()   -> player on touch (the phone)
+	#   * input_enabled == false                    -> this car is driven entirely
+	#     from outside (police cars, and every test). Its inputs come from
+	#     set_inputs() and must NOT be zeroed here; doing that made an
+	#     externally-driven car permanently unable to accelerate.
+	# The only thing that ever has to be forced off is the keyboard reader.
+	var external_active: bool = Time.get_ticks_msec() - _last_external_input_msec < 150
 	if input_enabled and not external_active:
 		_read_input(delta)
-	elif not input_enabled:
-		throttle = 0.0
-		brake_input = 0.0
-		nitro_active = false
 	_update_gearbox(delta)
 	_longitudinal(delta)
 	_lateral(delta)
@@ -223,6 +232,7 @@ func _apply_nitro(hold: bool) -> void:
 
 
 func _update_gearbox(delta: float) -> void:
+	delta = maxf(delta, 0.0001)
 	var kmh = absf(speed) * 3.6
 	var ratios: int = GEAR_RATIOS.size()
 	if manual_gearbox:
@@ -342,14 +352,48 @@ func _lateral(delta: float) -> void:
 	var response: float = (3.2 + grip_factor * 5.0)
 	if signf(steer) != signf(_yaw_rate) and absf(_yaw_rate) > 0.25:
 		response *= 1.55              # counter-steering
-	_yaw_rate = lerpf(_yaw_rate, target_yaw, clampf(delta * response, 0.0, 1.0))
+	var dt: float = maxf(delta, 0.0001)
+	_yaw_rate = lerpf(_yaw_rate, target_yaw, clampf(dt * response, 0.0, 1.0))
 	rotation.y += _yaw_rate * delta
-	# True slip: how far the yaw the car wants exceeds the yaw the tyres can
-	# hold. This drives smoke and marks, so they appear exactly when drifting.
-	var yaw_excess: float = absf(_yaw_rate) - grip_factor * steer_rate * speed_norm
-	_slip = clampf(yaw_excess * 2.2 + (0.45 if handbrake and speed_norm > 0.15 else 0.0), 0.0, 1.0)
-	drift_amount = clampf(absf(_yaw_rate) * speed_norm * (1.0 - grip_factor) * 2.4, 0.0, 1.0)
-	drift_amount = clampf(drift_amount + (0.25 if handbrake and speed_norm > 0.2 else 0.0), 0.0, 1.0)
+
+	# ---- lateral dynamics ---------------------------------------------------
+	# A turning car needs a centripetal force of v * yaw_rate. The tyres can
+	# supply a finite amount; anything beyond that becomes sideways velocity.
+	# This is the whole difference between gripping and sliding, and it is what
+	# the smoke, the marks and the drift score are actually reading.
+	var vf: float = speed
+	var demand: float = _yaw_rate * vf                     # m/s^2 required
+	var capacity: float = grip_factor * 9.81 * 1.45        # m/s^2 available
+	var over: float = absf(demand) - capacity
+	if over > 0.0:
+		# Exceeded: the excess accelerates the mass sideways. The rate is damped
+		# because a tyre that has broken away loses progressively less grip, not
+		# all of it at once — an undamped version made a fast corner turn into a
+		# spin within a second.
+		lateral_speed += signf(demand) * over * dt * 0.55
+	else:
+		# inside the limit: the tyres pull the slide back to zero
+		lateral_speed = move_toward(lateral_speed, 0.0, capacity * dt * 1.9)
+	if handbrake:
+		# A locked rear axle keeps its sideways momentum instead of recovering.
+		# This is a sustained force, not an impulse, so it stays small per tick.
+		lateral_speed += signf(steer) * absf(vf) * 0.16 * dt
+	# Self-aligning torque: a sliding tyre wants to point where the car is going.
+	# Without this the car rotates forever once it lets go, which reads as a bug.
+	if absf(lateral_speed) > 0.2 and absf(steer) < 0.85:
+		var align: float = clampf(absf(lateral_speed) * 0.055, 0.0, 1.4)
+		_yaw_rate = move_toward(_yaw_rate, signf(_yaw_rate) * maxf(0.0, absf(_yaw_rate) - align * dt), 10.0)
+	# Terminal slide: a car cannot travel more than ~40 deg off its heading and
+	# stay on its wheels, so the sideways speed is capped at a fraction of v.
+	var limit: float = absf(vf) * 0.62 + 4.0
+	lateral_speed = clampf(lateral_speed, -limit, limit)
+
+	slip_angle = atan2(lateral_speed, maxf(1.0, absf(vf)))
+	var sideways: float = clampf(absf(lateral_speed) / maxf(6.0, absf(vf)), 0.0, 1.0)
+	# `_slip` is the number every effect reads. It is the real sideways fraction,
+	# softened so a gentle slide still lays a light mark instead of nothing.
+	_slip = clampf(sideways * 1.35, 0.0, 1.0)
+	drift_amount = clampf(sideways * 1.15 + (0.2 if handbrake and speed_norm > 0.2 else 0.0), 0.0, 1.0)
 	if drift_amount > 0.35 and speed > 8.0:
 		drift_time += delta
 	# slight roll/pitch visual on the body node
@@ -362,10 +406,11 @@ func _lateral(delta: float) -> void:
 
 func _apply_motion(_delta: float) -> void:
 	var forward = -global_transform.basis.z
-	var motion = forward * speed
-	# lateral slip vector for drift look
 	var side = global_transform.basis.x
-	motion += side * drift_amount * speed * 0.16 * signf(steer)
+	# The velocity is the sum of the two components the tyre model produced. The
+	# chassis heading and the travel direction are now genuinely different while
+	# the car is sliding, which is what a drift is.
+	var motion = forward * speed + side * lateral_speed
 	velocity = motion
 	_prev_velocity = velocity
 	airborne = not is_on_floor() and global_position.y > 1.0

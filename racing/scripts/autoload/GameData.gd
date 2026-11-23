@@ -298,6 +298,7 @@ const MODES := [
 	{"id": "drag", "name": "DRAG", "desc": "800 m straight · perfect shifts win"},
 	{"id": "drift", "name": "DRIFT", "desc": "2 minutes · link slides · multiply the combo"},
 	{"id": "pursuit", "name": "PURSUIT", "desc": "Survive the police · the longer you run, the more you earn"},
+	{"id": "roam", "name": "FREE ROAM", "desc": "No clock, no rivals · explore the whole region"},
 ]
 
 # ---------------------------------------------------------------- economy

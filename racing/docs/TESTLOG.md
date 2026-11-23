@@ -462,3 +462,38 @@ Unchanged from previous rounds and stated plainly:
 * the police AI is deterministic pursuit, not behaviour-tree traffic AI — it
   chases well and it does not coordinate, and this document says so rather than
   claiming otherwise.
+
+## Round 17 — Tyre model rebuilt (lateral dynamics)
+
+The old "drift" was cosmetic: `_apply_motion` added a sideways offset proportional
+to `drift_amount * sign(steer)`, and `_slip` was a yaw-excess guess. The chassis
+therefore always travelled exactly where it pointed, and a handbrake slide felt
+like the whole car being nudged sideways. It also looked wrong at speed — a fast
+corner produced a slip number with no actual sideways travel behind it.
+
+Replaced with a slip-angle model in `CarController`:
+
+* `lateral_speed` — the mass's sideways velocity in the car's own frame.
+* Per tick the corner needs `yaw_rate * speed` of centripetal force; the tyres can
+  deliver `grip * 9.81 * 1.45`. Any excess accelerates the mass sideways (damped
+  by 0.55, because a tyre that breaks away does not lose all grip at once — an
+  undamped version spun the car inside a second).
+* Handbrake applies a sustained sideways force rather than an impulse.
+* Self-aligning torque pulls the yaw back toward the direction of travel whenever
+  the wheel is not held at full lock, so a slide recovers instead of spinning.
+* Terminal slide is capped at `0.62 * speed + 4 m/s` (about 32°), because a car
+  cannot stay on its wheels at 40°+ and an uncapped value reached 46 m/s.
+* `_slip` now reads the true sideways fraction. `drift_amount` derives from it,
+  so smoke, marks, screech and the drift score all follow real motion.
+
+Verified against the tests the CI runs (Python replay of the exact tick sequence):
+
+| case | lateral | slip | result |
+| --- | --- | --- | --- |
+| 12 m/s, 0.55 steer | 0.00 | 0.00 | grips |
+| 48 m/s, full lock | 27.29 | 0.77 | slides |
+| released after the slide | 0.00 | 0.00 | recovers |
+| 40 m/s handbrake, 10 ticks | — | 0.056 | smokes |
+
+Gates: 42 files parsed, `gdlint scripts tests` clean, `check_types` 42/42,
+`check_undeclared` 42/42, `physics_sim` PASS, presets 2 ABI, 4 shaders clean.

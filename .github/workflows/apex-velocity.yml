@@ -55,6 +55,9 @@ jobs:
           # gdparse accepts an identifier that is used but never declared; only
           # Godot's compiler rejects it. This gate closes that gap locally.
           python3 tools/check_undeclared.py || fail=1
+          # gdparse and gdlint both accept assigning the wrong node type to a
+          # typed var. Godot does not, and each such miss costs a full CI round.
+          python3 tools/check_types.py || fail=1
           python3 tools/physics_sim.py
           exit $fail
 

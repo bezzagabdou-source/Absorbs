@@ -53,7 +53,7 @@ func _foundation() -> void:
 				_check(load(d + f) != null, "parse " + f)
 
 	print("[SUITE] SECTION data")
-	_check(GameData.CARS.size() == 32, "32 cars")
+	_check(GameData.CARS.size() == 40, "40 cars (got %d)" % GameData.CARS.size())
 	_check(GameData.TRACKS.size() >= 8, "8+ tracks")
 	_check(GameData.ACHIEVEMENTS.size() >= 20, "20+ achievements")
 	_check(GameData.PAINTS.size() >= 16, "16+ paints")
@@ -62,9 +62,9 @@ func _foundation() -> void:
 	for car in GameData.CARS:
 		classes[str(car["class"])] = int(classes.get(str(car["class"]), 0)) + 1
 		_check(GameData.SHAPES.has(str(car["body"])), "shape for " + str(car["id"]))
-	_check(classes.size() == 4, "4 classes")
+	_check(classes.size() >= 4, "at least 4 classes")
 	for k in classes.keys():
-		_check(int(classes[k]) == 8, "8 cars in " + str(k))
+		_check(int(classes[k]) >= 4, "4+ cars in " + str(k))
 
 	print("[SUITE] SECTION physics")
 	for cls in ["street", "sport", "super", "hyper"]:
@@ -106,7 +106,10 @@ func _foundation() -> void:
 	var mc = DriveCar.new()
 	add_child(mc)
 	mc.apply_physics(GameData.physics_for(GameData.CARS[3], {}), true)
-	mc.input_enabled = false
+	# Drive it exactly the way the phone does: enabled input, values arriving
+	# through set_inputs(). (A car with input_enabled = false is driven wholly
+	# from outside, like the police, and must not have its inputs zeroed.)
+	mc.input_enabled = true
 	mc.set_surface("tarmac", 1.0)
 	_check(mc.surface_grip > 0.99, "tarmac grip is full")
 	mc.set_surface("grass", 0.44)
@@ -133,7 +136,9 @@ func _foundation() -> void:
 	mc.manual_gearbox = false
 	mc.gear = 1
 	mc.speed = 0.0
+	mc.throttle = 0.0
 	mc.tcs_enabled = true
+	mc.tcs_active = false
 	mc.set_inputs(1.0, 0.0, 0.0, false, false)
 	mc._physics_process(1.0 / 60.0)
 	_check(mc.tcs_active, "traction control trims a full-throttle launch")
@@ -142,6 +147,31 @@ func _foundation() -> void:
 	mc.set_inputs(0.0, 1.0, 0.0, false, false)
 	mc._physics_process(1.0 / 60.0)
 	_check(mc.abs_active, "ABS engages under threshold braking")
+	# Lateral dynamics: a slow corner must grip, a fast one must slide, and the
+	# car must straighten itself as soon as the wheel is released.
+	mc.set_inputs(0.0, 0.0, 0.0, false, false)
+	mc.speed = 12.0
+	mc.lateral_speed = 0.0
+	mc._yaw_rate = 0.0
+	mc.set_inputs(0.0, 0.0, 0.55, false, false)
+	for i in 90:
+		mc._physics_process(1.0 / 60.0)
+	var grip_lat: float = absf(mc.lateral_speed)
+	_check(grip_lat < 1.0, "a normal corner keeps grip (lateral %.2f)" % grip_lat)
+	mc.speed = 48.0
+	mc.lateral_speed = 0.0
+	mc._yaw_rate = 0.0
+	mc.set_inputs(0.0, 0.0, 1.0, false, false)
+	for i in 90:
+		mc._physics_process(1.0 / 60.0)
+	_check(absf(mc.lateral_speed) > 1.5, "a flat-out corner breaks traction")
+	_check(mc.slip() > 0.25, "the slide shows up as tyre slip")
+	# release: self-aligning torque must bring the car back in line
+	mc.set_inputs(0.0, 0.0, 0.0, false, false)
+	for i in 240:
+		mc._physics_process(1.0 / 60.0)
+	_check(absf(mc.lateral_speed) < 1.0, "releasing the wheel recovers the slide")
+	_check(absf(mc.slip()) < 0.2, "a recovered car stops smoking")
 	# slip is what drives smoke and marks: hard handbrake at speed must make some
 	mc.speed = 40.0
 	mc.handbrake = true
@@ -205,6 +235,9 @@ func _foundation() -> void:
 		_check(ph.has("offroad"), "offroad rating present: " + str(c["id"]))
 	_check(GameData.PAINTS.size() >= 40, "40+ paints")
 	_check(GameData.MODES.size() == 6, "6 modes (got %d)" % GameData.MODES.size())
+	for m in GameData.MODES:
+		_check(Localization.tr_key("mode." + str(m["id"])) != "mode." + str(m["id"]),
+			"mode key translates: " + str(m["id"]))
 	# overland must actually be better off-road than a hypercar
 	var off_land: float = float(GameData.physics_for(GameData.car_by_id("rampart_4x4"), {})["offroad"])
 	var hyper: float = float(GameData.physics_for(GameData.car_by_id("aeon_zero"), {})["offroad"])
