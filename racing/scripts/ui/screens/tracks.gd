@@ -9,7 +9,7 @@ var _mode = "circuit"
 var _sel = 0
 var _cards: Array = []
 var _detail: VBoxContainer
-var _mode_row: HBoxContainer
+var _mode_row: GridContainer
 var _start_btn: Button
 
 

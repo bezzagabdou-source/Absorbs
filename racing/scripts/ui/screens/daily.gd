@@ -167,7 +167,9 @@ func _build_missions() -> void:
 		h.add_child(v)
 		v.add_child(UIStyle.make_label(Missions.mission_text(m), "body", 27, Color.WHITE))
 		# progress bar: a background Control with a fill anchored to `ratio`
-		var ratio: float = clampf(float(m.get("progress", 0)) / maxf(1.0, float(m.get("target", 1))), 0.0, 1.0)
+		var target: float = maxf(1.0, float(m.get("target", 1)))
+		var current: float = clampf(float(m.get("progress", 0)), 0.0, target)
+		var ratio: float = current / target
 		var track = Control.new()
 		track.custom_minimum_size = Vector2(0, 12)
 		track.size_flags_horizontal = Control.SIZE_EXPAND_FILL
