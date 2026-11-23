@@ -260,7 +260,19 @@ func _build_body(shape: Dictionary) -> void:
 		var half_w: float = width * 0.5 * taper * hip
 
 		# Profile: low sill, high shoulder, falling away at both ends.
-		var sill_y: float = 0.30 - stance * 0.05
+		#
+		# The sill is the LOWEST point of the body, so it decides how much of
+		# each tyre is hidden. At 0.30 - stance*0.05 it sat at 0.288 m while the
+		# tyre radius is 0.345 m: only 57 mm of a 345 mm wheel was behind the
+		# bodywork, and the other 288 mm hung below the shell. That is why the
+		# car read as a lozenge with wheels bolted underneath instead of a body
+		# sitting on four tyres.
+		#
+		# The sill now rides at the wheel centre line, which is how a real car
+		# looks in profile: the body covers the upper half of the tyre and the
+		# arch (carved below) wraps the rest.
+		var wheel_r: float = float(shape["wheel"])
+		var sill_y: float = wheel_r + 0.012
 		var shoulder_y: float = height * 0.60 + 0.30
 		if t < 0.16:
 			shoulder_y = lerpf(height * 0.40 + 0.16, shoulder_y, pow(t / 0.16, 0.75))
@@ -311,9 +323,41 @@ func _build_body(shape: Dictionary) -> void:
 			var fa: float = exp(-pow((z - axle_span) / 0.72, 2.0))
 			var ra: float = exp(-pow((z + axle_span) / 0.86, 2.0))
 			var flare: float = (fa * 0.85 + ra * 1.0) * clampf(uy * 1.5 - 0.15, 0.0, 1.0)
-			flare *= 0.030 + 0.055 * stance
+			# This coefficient is a MULTIPLIER on half-width, and it used to be
+			# 0.030 + 0.055 * stance = 0.043 on a sport shape. On a 0.97 m
+			# half-width that is 4.2 millimetres of arch flare — invisible. That
+			# is the single reason the shell rendered as a smooth lozenge with
+			# four wheels stuck underneath: there was no haunch over the tyres.
+			# 0.070 + 0.10 * stance gives ~11 cm on a sport car and ~14 cm on a
+			# hypercar, which is what the eye reads as a performance car.
+			flare *= 0.070 + 0.100 * stance
 
+			# --- wheel arch cut --------------------------------------------
+			# The shell has to OPEN over each tyre, otherwise raising the sill
+			# simply hides the wheels inside the body. The cut is a circular
+			# aperture centred on the axle: for a station near an axle, any
+			# surface point below the axle height is pushed inward until it
+			# clears the tyre. `arch` is 1 at the axle and decays with distance
+			# along z, so the opening is exactly wheel-sized.
+			var arch_radius: float = wheel_r + 0.055
+			var arch_now: float = maxf(fa, ra)
 			var x: float = ux * half_w * (1.0 + flare) - signf(ux) * crease * crease_depth
+			if arch_now > 0.05:
+				# distance from the axle centre in the y-z plane
+				var dz_arch: float = z - axle_span
+				if absf(z + axle_span) < absf(dz_arch):
+					dz_arch = z + axle_span
+				var dy_arch: float = y - wheel_r
+				var d_arch: float = sqrt(dz_arch * dz_arch + dy_arch * dy_arch)
+				if d_arch < arch_radius and absf(ux) > 0.55:
+					# inside the aperture: pull the surface in to the well wall
+					var well_x: float = signf(ux) * (half_w * 0.72)
+					var t_in: float = clampf(1.0 - d_arch / arch_radius, 0.0, 1.0)
+					t_in = pow(t_in, 0.55)
+					x = lerpf(x, well_x, t_in)
+					# and lift the lower lip so the opening is round, not square
+					if dy_arch < 0.0:
+						y = lerpf(y, wheel_r - 0.02, t_in * 0.55)
 			ring.append(Vector3(x, y, z))
 		rings.append(ring)
 		ring_zs.append(z)
