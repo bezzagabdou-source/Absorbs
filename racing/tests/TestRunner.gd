@@ -81,6 +81,26 @@ func _foundation() -> void:
 	var stock: Dictionary = GameData.physics_for(GameData.CARS[0], {})
 	_check(float(tuned["top_speed_ms"]) > float(stock["top_speed_ms"]), "upgrades raise top speed")
 
+	# --- the car must actually move -------------------------------------------
+	# The shipped bug: _read_input() polls the keyboard on every physics tick and
+	# overwrote whatever set_inputs() wrote. On a phone there is no keyboard, so
+	# throttle was forced back to zero every tick and the car never moved.
+	print("[SUITE] SECTION drive")
+	var DriveCar = load("res://scripts/vehicle/CarController.gd")
+	var dc = DriveCar.new()
+	add_child(dc)
+	dc.apply_physics(GameData.physics_for(GameData.CARS[0], {}), true)
+	dc.input_enabled = true
+	for i in 60:
+		dc.set_inputs(1.0, 0.0, 0.0, false, false)
+		dc._physics_process(1.0 / 60.0)
+	_check(absf(dc.speed) > 0.5, "car accelerates from set_inputs (touch/AI path)")
+	var moved_speed: float = absf(dc.speed)
+	dc._physics_process(1.0 / 60.0)
+	_check(dc.throttle > 0.5, "throttle survives a physics tick (not reset to zero)")
+	_check(absf(dc.speed) >= moved_speed * 0.5, "speed does not collapse between ticks")
+	dc.queue_free()
+
 	print("[SUITE] SECTION profile")
 	_check(Game.level() >= 1, "level 1+")
 	_check(Game.owned_count() >= 1, "starter car owned")

@@ -40,6 +40,11 @@ var wall_hits = 0
 var laps_completed = 0
 var last_safe_position = Vector3.ZERO
 var input_enabled = true
+## Set whenever an external driver (touch pedals, tilt, steering wheel, AI) calls
+## set_inputs(). Keyboard polling is suppressed while this is recent, because
+## _read_input() runs every physics tick and used to overwrite the touch values
+## with zero — on a phone, which has no keyboard, the car therefore never moved.
+var _last_external_input_msec: int = -100000
 var autopilot = false
 
 var _yaw_rate = 0.0
@@ -87,9 +92,13 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if input_enabled:
+	# An external driver wins for 150 ms after its last set_inputs() call, so a
+	# desktop build still works on the keyboard while a phone uses the pedals.
+	var external_active: bool = input_enabled \
+		and Time.get_ticks_msec() - _last_external_input_msec < 150
+	if input_enabled and not external_active:
 		_read_input(delta)
-	else:
+	elif not input_enabled:
 		throttle = 0.0
 		brake_input = 0.0
 		nitro_active = false
@@ -102,6 +111,7 @@ func _physics_process(delta: float) -> void:
 
 func set_inputs(throttle_v: float, brake_v: float, steer_v: float, nitro: bool,
 		handbrake_v: bool = false) -> void:
+	_last_external_input_msec = Time.get_ticks_msec()
 	throttle = clampf(throttle_v, 0.0, 1.0)
 	brake_input = clampf(brake_v, 0.0, 1.0)
 	if _is_player:

@@ -556,7 +556,10 @@ func _build_scatter() -> void:
 
 
 func _spawn_trees(profile: String, override_count: int = 0) -> void:
-	var count := override_count if override_count > 0 else (900 if profile == "metro" else 1500)
+	# Density is what makes a landscape read as a real place. 900 trees across
+	# 2.4 km left the horizon bare; 2,400 reads as actual forest. They are two
+	# MultiMesh draw calls, so this costs vertices, not CPU or draw calls.
+	var count := override_count if override_count > 0 else (2400 if profile == "metro" else 3200)
 	var trunk_mesh := CylinderMesh.new()
 	trunk_mesh.top_radius = 0.16
 	trunk_mesh.bottom_radius = 0.28

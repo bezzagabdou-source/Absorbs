@@ -389,6 +389,11 @@ func _process(delta: float) -> void:
 		race_time += delta
 		if player and player.input_enabled:
 			_read_driver_input(delta)
+	elif roaming and state != "paused" and player and player.input_enabled:
+		# Free roam never runs a countdown, so it must read the pedals here too.
+		# Only the "racing" branch used to call set_inputs(), which meant the car
+		# could not move at all in roam even with the throttle held down.
+		_read_driver_input(delta)
 	if state != "finished" and state != "paused":
 		for ai in ai_cars:
 			var ctrl = ai["node"]
