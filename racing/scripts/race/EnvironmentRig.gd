@@ -173,10 +173,10 @@ func set_quality_tier(tier: int) -> void:
 	if world_env == null or world_env.environment == null:
 		return
 	var e: Environment = world_env.environment
+	var forward_plus_now: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
 	e.ssao_enabled = _tier >= 1
-	e.ssil_enabled = _tier >= 2
-	e.ssr_enabled = _tier >= 2
-	e.reflection_source_size = 512 if _tier >= 2 else 256
+	e.ssil_enabled = forward_plus_now and _tier >= 2
+	e.ssr_enabled = forward_plus_now and _tier >= 2
 
 
 func _preset_key(env: String, tod: String) -> String:
@@ -318,26 +318,35 @@ func _build_world_env(p: Dictionary, accent: Color) -> void:
 	# wash on the horizon where the SSAO radius is meaningless
 	e.ssao_distance_fade = 90.0
 
-	e.ssil_enabled = _tier >= 2
-	e.ssil_radius = 5.0
-	e.ssil_intensity = 0.9
-	e.ssil_sharpness = 0.98
-	e.ssil_normal_rejection = 0.6
+	# SSIL is also Forward+ only, same reason as SSR below.
+	var forward_plus_env: bool = RenderingServer.get_current_rendering_method() == "forward_plus"
+	e.ssil_enabled = forward_plus_env and _tier >= 2
+	if e.ssil_enabled:
+		e.ssil_radius = 5.0
+		e.ssil_intensity = 0.9
+		e.ssil_sharpness = 0.98
+		e.ssil_normal_rejection = 0.6
 
-	e.ssr_enabled = _tier >= 2
-	e.ssr_max_steps = 48
-	e.ssr_fade_in = 0.12
-	e.ssr_fade_out = 1.8
-	e.ssr_depth_tolerance = 0.28
+	# SSR is Forward+ only. This project renders with gl_compatibility on
+	# Android and in CI, so enabling it raises "can only be enabled when using
+	# the Forward+ renderer" on every boot. Reflections come from the sky and the
+	# ReflectionProbe below instead, which is what the compatibility backend
+	# actually supports; SSR is enabled only when the renderer can honour it.
+	e.ssr_enabled = forward_plus_env and _tier >= 2
+	if e.ssr_enabled:
+		e.ssr_max_steps = 48
+		e.ssr_fade_in = 0.12
+		e.ssr_fade_out = 1.8
+		e.ssr_depth_tolerance = 0.28
 
 	e.sdfgi_enabled = false      # ray-traced GI is desktop-only
 	e.volumetric_fog_enabled = false
 
-	# --- reflection atlas ---------------------------------------------------
-	# 256 px cubemaps make paint and wet tarmac mirror a blur of colour. 512 is
-	# the point where the skyline and the road markings become readable in a
-	# bonnet reflection, which is exactly what sells a car shot.
-	e.reflection_source_size = 512 if _tier >= 2 else 256
+	# --- reflection source ---------------------------------------------------
+	# There is no per-Environment reflection resolution knob in Godot 4.4 (the
+	# atlas is sized project-wide in rendering/reflections), so the quality tier
+	# controls the PROBE instead: the cube map is baked at the size the tier can
+	# afford. See _build_reflection_probe.
 
 	# --- subtle grading (post shader does the heavy lifting) ---------------
 	e.adjustment_enabled = true

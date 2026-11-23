@@ -88,11 +88,14 @@ func _build_viewport() -> void:
 	# A reflection probe around the turntable: the paint and the glass have
 	# something real to mirror, so the shoulder line picks up the disc and the
 	# studio walls instead of a flat ambient colour.
-	e.ssr_enabled = true
-	e.ssr_max_steps = 36
-	e.ssr_fade_in = 0.1
-	e.ssr_fade_out = 1.4
-	e.reflection_source_size = 512
+	# SSR is Forward+ only; the project renders gl_compatibility on Android and in
+	# CI, where enabling it logs an error on every garage open. The probe below
+	# does the reflection work instead.
+	if RenderingServer.get_current_rendering_method() == "forward_plus":
+		e.ssr_enabled = true
+		e.ssr_max_steps = 36
+		e.ssr_fade_in = 0.1
+		e.ssr_fade_out = 1.4
 	env.environment = e
 	root.add_child(env)
 	var key = DirectionalLight3D.new()
@@ -386,6 +389,14 @@ func _select_car(id: String, _idx: int = 0) -> void:
 func _spawn_model(car: Dictionary) -> void:
 	if _car_model and is_instance_valid(_car_model):
 		_car_model.queue_free()
+		_car_model = null
+	# The pivot only exists once the 3D viewport has been built, and it does NOT
+	# exist if this screen was torn down between build() and this call — which is
+	# exactly what happens when the test harness switches screens while the
+	# garage is still constructing. A null parent here used to abort the rest of
+	# the screen setup and leave a half-built UI.
+	if _car_pivot == null or not is_instance_valid(_car_pivot):
+		return
 	var rec: Dictionary = Game.car_record(str(car["id"]))
 	var model = CarModelScript.new()
 	var paint_id = str(rec.get("paint", car.get("paint", "cyan")))
