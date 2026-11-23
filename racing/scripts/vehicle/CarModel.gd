@@ -138,15 +138,24 @@ func _build_materials() -> void:
 		_body_mat.set_shader_parameter("rim_power", 3.4)
 
 	# --- hydrophobic tinted glass -------------------------------------------
+	# At 0.028 albedo the canopy rendered as a solid black hole: no sky in it, no
+	# highlight on it, and no read of a raked windscreen. Real privacy glass is
+	# dark but it still MIRRORS: the cabin should pick up the sky and the key
+	# light as a broad gradient. Raising the albedo, lowering the alpha a little
+	# and driving the rim hard does that on the Compatibility renderer, which has
+	# no environment reflections to do it for us.
 	_glass_mat = StandardMaterial3D.new()
-	_glass_mat.albedo_color = Color(0.028, 0.042, 0.062, 0.86)
-	_glass_mat.metallic = 0.90
-	_glass_mat.roughness = 0.035
+	_glass_mat.albedo_color = Color(0.055, 0.085, 0.125, 0.72)
+	_glass_mat.metallic = 0.95
+	_glass_mat.roughness = 0.055
 	_glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_glass_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_glass_mat.rim_enabled = true
-	_glass_mat.rim = 0.55
-	_glass_mat.rim_tint = 0.85
+	_glass_mat.rim = 0.95
+	_glass_mat.rim_tint = 0.90
+	# specular highlight so the windscreen catches the key light as a streak
+	_glass_mat.metallic_specular = 0.92
+	_glass_mat.emission_enabled = false
 
 	_trim_mat = StandardMaterial3D.new()
 	_trim_mat.albedo_color = Color(0.038, 0.042, 0.052)

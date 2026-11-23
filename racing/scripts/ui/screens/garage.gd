@@ -151,14 +151,18 @@ func _build_viewport() -> void:
 	dm.height = 0.02
 	disc.mesh = dm
 	var dmat = StandardMaterial3D.new()
-	dmat.albedo_color = Color(0.06, 0.22, 0.34, 0.55)
+	dmat.albedo_color = Color(0.04, 0.14, 0.22, 0.55)
 	dmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	dmat.emission_enabled = true
 	dmat.emission = UIStyle.CYAN
-	dmat.emission_energy_multiplier = 0.4
+	dmat.emission_energy_multiplier = 0.30
 	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# The disc sits UNDER the car. Without an explicit render priority it is
+	# treated as transparent geometry and can be drawn after the opaque body,
+	# which is what let the turntable ring appear to cut across the car.
+	dmat.render_priority = -2
 	disc.material_override = dmat
-	disc.position = Vector3(0, -0.02, 0)
+	disc.position = Vector3(0, -0.035, 0)
 	root.add_child(disc)
 	var ring = MeshInstance3D.new()
 	var rmesh = TorusMesh.new()
@@ -170,9 +174,14 @@ func _build_viewport() -> void:
 	rmat.albedo_color = UIStyle.CYAN
 	rmat.emission_enabled = true
 	rmat.emission = UIStyle.CYAN
-	rmat.emission_energy_multiplier = 2.6
+	rmat.emission_energy_multiplier = 1.5
+	# The ring is floor furniture. It must never win a depth contest against the
+	# car, so it is drawn first and at the lowest priority.
+	rmat.render_priority = -3
+	rmat.no_depth_test = false
+	rmat.disable_receive_shadows = true
 	ring.material_override = rmat
-	ring.position = Vector3(0, -0.02, 0)
+	ring.position = Vector3(0, -0.03, 0)
 	root.add_child(ring)
 	_cam = Camera3D.new()
 	_cam.fov = 40.0
