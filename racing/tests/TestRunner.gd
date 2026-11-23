@@ -227,6 +227,31 @@ func _foundation() -> void:
 		add_child(model)
 		model.build(info, "cyan", "stock")
 		_check(model.wheels.size() == 4, "4 wheels " + str(kind))
+
+		# --- geometry sanity ------------------------------------------------
+		# The showroom render caught defects that no syntax gate ever would: a
+		# rear wing hovering above the deck with supports that stopped short, and
+		# a glasshouse made of unjoined flat quads. Both are measurable, so they
+		# are measured here rather than waiting for someone to look at a picture.
+		var shell_aabb: AABB = _mesh_aabb(model.get_node("Shell") if model.has_node("Shell") else model)
+		_check(shell_aabb.size.y > 0.3, "shell has height " + str(kind))
+		# wheels must sit INSIDE the body's width, not poking out past it
+		var widest: float = shell_aabb.size.x * 0.5
+		for w in model.wheels:
+			var holder: Node3D = w
+			if holder == null:
+				continue
+			_check(absf(holder.position.x) <= widest + 0.02,
+				"wheel %s inside body width on %s (%.2f <= %.2f)" % [holder.name, kind,
+					absf(holder.position.x), widest])
+		# every detached part must actually touch the body vertically
+		if model.has_node("Greenhouse"):
+			var gh: Node3D = model.get_node("Greenhouse")
+			var gh_aabb: AABB = _mesh_aabb(gh)
+			_check(gh_aabb.size.x > 0.2 and gh_aabb.size.z > 0.2,
+				"greenhouse is a real volume on " + str(kind))
+			_check(gh_aabb.position.y <= shell_aabb.position.y + shell_aabb.size.y + 0.03,
+				"greenhouse sits on the shell, not above it, on " + str(kind))
 		model.steer_wheels(0.2, 1.0)
 		model.set_brake(true)
 		model.set_nitro(true, 0.5)

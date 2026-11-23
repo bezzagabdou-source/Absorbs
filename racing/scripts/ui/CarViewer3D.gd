@@ -42,54 +42,78 @@ func setup() -> bool:
 	var e := Environment.new()
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.30, 0.36, 0.46)
-	e.ambient_light_energy = 1.5
+	e.ambient_light_color = Color(0.26, 0.32, 0.42)
+	e.ambient_light_energy = 1.05
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
-	e.glow_enabled = true
-	e.glow_intensity = 0.35
-	e.glow_bloom = 0.04
+	e.tonemap_white = 1.6
+	# Glow off. It was bleeding the whole body into a haze, which is most of the
+	# reason the cars looked washed out and shapeless rather than like painted
+	# metal. The panel already supplies the "showroom" light.
+	e.glow_enabled = false
 	env.environment = e
 	_viewport.add_child(env)
 
 	_pivot = Node3D.new()
 	_viewport.add_child(_pivot)
 
+	# A shadow-catcher floor. Without it the key light has nothing to cast onto,
+	# and a car with no contact shadow reads as pasted on a card rather than
+	# standing somewhere. It is unshaded and nearly transparent, so only the
+	# shadow darkens the car's surroundings and the panel colour shows through.
+	var floor_mesh := PlaneMesh.new()
+	floor_mesh.size = Vector2(14.0, 14.0)
+	var floor_mat := StandardMaterial3D.new()
+	floor_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	floor_mat.albedo_color = Color(0.0, 0.0, 0.0, 0.0)
+	floor_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var floor := MeshInstance3D.new()
+	floor.mesh = floor_mesh
+	floor.material_override = floor_mat
+	floor.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	floor.position = Vector3(0.0, -0.02, 0.0)
+	_viewport.add_child(floor)
+
 	# A soft studio: key from upper-front-right, cool fill from behind, and a
 	# warm bounce low so the sills are not black. No shadow-casting floor: the
 	# alpha background already gives the card its own colour.
 	var key := DirectionalLight3D.new()
 	key.rotation = Vector3(deg_to_rad(-42.0), deg_to_rad(38.0), 0.0)
-	key.light_energy = 2.1
+	key.light_energy = 2.9
 	key.light_color = Color(1.0, 0.97, 0.93)
 	key.shadow_enabled = true
 	_viewport.add_child(key)
 
 	var fill := DirectionalLight3D.new()
 	fill.rotation = Vector3(deg_to_rad(-18.0), deg_to_rad(-135.0), 0.0)
-	fill.light_energy = 1.0
+	fill.light_energy = 0.55
 	fill.light_color = Color(0.55, 0.72, 1.0)
 	_viewport.add_child(fill)
 
 	var bounce := DirectionalLight3D.new()
 	bounce.rotation = Vector3(deg_to_rad(28.0), deg_to_rad(160.0), 0.0)
-	bounce.light_energy = 0.55
+	bounce.light_energy = 0.35
 	bounce.light_color = Color(1.0, 0.86, 0.70)
 	_viewport.add_child(bounce)
 
 	var cam := Camera3D.new()
-	cam.fov = 34.0
+	cam.fov = 30.0
 	cam.near = 0.05
 	cam.far = 60.0
 	# framed from a front three-quarter above the beltline, which is the angle
 	# every car photograph uses because it shows the nose, the shoulder and the
 	# rear haunch at once
-	var dist: float = 7.6
+	# 5.9 m, not 7.6: a 4.6 m car at 30 degrees fills about 80 percent of the
+	# frame width, which is how a car is cropped in a press photo. The previous
+	# distance left so much headroom that the model read as a small toy.
+	var dist: float = 5.9
 	var pos := Vector3(
 		sin(_yaw) * cos(_pitch) * dist,
-		sin(_pitch) * dist + 0.35,
+		sin(_pitch) * dist + 0.30,
 		cos(_yaw) * cos(_pitch) * dist)
 	cam.position = pos
-	cam.look_at_from_position(pos, Vector3(0.0, 0.55, 0.0), Vector3.UP)
+	# Aim at 0.62 rather than 0.55 so the car sits on the optical centre with a
+	# touch of space beneath, instead of floating in the upper half of the card.
+	cam.look_at_from_position(pos, Vector3(0.0, 0.62, 0.0), Vector3.UP)
 	_viewport.add_child(cam)
 	cam.current = true
 	_ok = true

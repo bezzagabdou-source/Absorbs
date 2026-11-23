@@ -390,84 +390,135 @@ func _build_glasshouse(shape: Dictionary) -> void:
 	var roof: float = shape["roof"]
 	var c0: float = cabin[0]
 	var c1: float = cabin[1]
+
 	var z_front: float = lerpf(-length * 0.5, length * 0.5, c0)
 	var z_rear: float = lerpf(-length * 0.5, length * 0.5, c1)
-	var w_base: float = width * 0.415
-	var w_top: float = width * 0.355
-	var y_base: float = height * 0.60 + 0.30 + 0.012
+	var y_base: float = height * 0.60 + 0.30 + 0.010
 	var y_top: float = y_base + height * 0.40 * roof
 
-	# windscreen rake: the top edge sits further back than the base
-	var rake: float = (z_rear - z_front) * 0.22
-	var z_top_front: float = z_front + rake * 0.8
-	var z_top_rear: float = z_rear - rake * 0.55
-
+	# The greenhouse is a LOFTED SOLID, not a set of quads.
+	#
+	# The previous version stitched six flat quads around the cabin. Flat quads
+	# meeting at angles leave open gaps at every joint, and because the glass is
+	# dark and alpha-blended, those gaps read as black shards floating over the
+	# lit body — exactly what the showroom render showed.
+	#
+	# Instead: sample cross-sections along the cabin the way the body shell does,
+	# narrow them toward the roof, and close both ends. One continuous surface
+	# with no seams for alpha sorting to expose.
+	var stations := 14
+	var half_w_base: float = width * 0.415
+	var half_w_top: float = width * 0.330
 	var st = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rings: Array = []
 
-	# --- windscreen ---------------------------------------------------------
-	_add_quad(st, Vector3(-w_base, y_base, z_front), Vector3(w_base, y_base, z_front),
-		Vector3(-w_top, y_top, z_top_front), Vector3(w_top, y_top, z_top_front))
-	# --- rear screen --------------------------------------------------------
-	_add_quad(st, Vector3(w_base, y_base, z_rear), Vector3(-w_base, y_base, z_rear),
-		Vector3(w_top, y_top, z_top_rear), Vector3(-w_top, y_top, z_top_rear))
-	# --- left side glass ----------------------------------------------------
-	_add_quad(st, Vector3(-w_base, y_base, z_front + rake * 0.3),
-		Vector3(-w_base, y_base, z_rear - rake * 0.2),
-		Vector3(-w_top, y_top, z_top_front),
-		Vector3(-w_top, y_top, z_top_rear))
-	# --- right side glass ---------------------------------------------------
-	_add_quad(st, Vector3(w_base, y_base, z_rear - rake * 0.2),
-		Vector3(w_base, y_base, z_front + rake * 0.3),
-		Vector3(w_top, y_top, z_top_rear),
-		Vector3(w_top, y_top, z_top_front))
-	# --- roof: two quads so it can crown slightly ---------------------------
-	var crown: float = 0.035
-	var z_mid: float = (z_top_front + z_top_rear) * 0.5
-	# left and right roof halves, sharing the crowned centre line
-	_add_quad(st, Vector3(-w_top, y_top, z_top_front), Vector3(-w_top, y_top, z_top_rear),
-		Vector3(0, y_top + crown, z_top_rear), Vector3(0, y_top + crown, z_top_front))
-	_add_quad(st, Vector3(0, y_top + crown, z_top_front), Vector3(0, y_top + crown, z_top_rear),
-		Vector3(w_top, y_top, z_top_rear), Vector3(w_top, y_top, z_top_front))
+	for i in range(stations + 1):
+		var t: float = float(i) / float(stations)
+		var z: float = lerpf(z_front, z_rear, t)
+		# the cabin narrows toward both ends in plan view, so the A- and C-pillars
+		# converge instead of the roof being a parallel slab
+		var end_taper: float = 1.0
+		if t < 0.22:
+			end_taper = lerpf(0.62, 1.0, pow(t / 0.22, 0.6))
+		elif t > 0.80:
+			end_taper = lerpf(1.0, 0.58, pow((t - 0.80) / 0.20, 0.7))
+		# roof height peaks just behind the A-pillar and falls to the rear screen,
+		# which is the profile cue that separates a supercar from a van
+		var crown_t: float = sin(clampf(t * 1.05, 0.0, 1.0) * PI)
+		var y_roof: float = y_base + (y_top - y_base) * end_taper * (0.72 + 0.28 * crown_t)
+		var hw_t: float = half_w_top * end_taper
+		var hw_b: float = half_w_base * lerpf(1.0, end_taper, 0.65)
+
+		var ring: Array = []
+		var seg := 16
+		for s_i in range(seg):
+			var a: float = float(s_i) / float(seg) * TAU
+			var ca: float = cos(a)
+			var sa: float = sin(a)
+			var ex: float = 0.55
+			var ux: float = signf(ca) * pow(absf(ca), ex)
+			var uy: float = signf(sa) * pow(absf(sa), ex)
+			var y: float = lerpf((y_base + y_roof) * 0.5, y_roof if uy > 0.0 else y_base, absf(uy))
+			var vfrac: float = clampf((y - y_base) / maxf(y_roof - y_base, 0.01), 0.0, 1.0)
+			var x: float = ux * lerpf(hw_b, hw_t, vfrac)
+			if uy > 0.86:
+				y = y_roof
+			ring.append(Vector3(x, y, z))
+		rings.append(ring)
+
+	for r in range(rings.size() - 1):
+		var a_ring: Array = rings[r]
+		var b_ring: Array = rings[r + 1]
+		var n: int = a_ring.size()
+		for k in range(n):
+			var k2: int = (k + 1) % n
+			_add_quad(st, a_ring[k], a_ring[k2], b_ring[k2], b_ring[k])
+
+	# close both ends so the interior is never visible through the alpha
+	for idx in [0, rings.size() - 1]:
+		var flip: bool = idx == 0
+		var pts: Array = rings[idx]
+		var ctr := Vector3.ZERO
+		for pt in pts:
+			ctr += pt
+		ctr /= float(pts.size())
+		for k in range(pts.size()):
+			var k2b: int = (k + 1) % pts.size()
+			if flip:
+				st.add_vertex(ctr)
+				st.add_vertex(pts[k])
+				st.add_vertex(pts[k2b])
+			else:
+				st.add_vertex(ctr)
+				st.add_vertex(pts[k2b])
+				st.add_vertex(pts[k])
 
 	st.generate_tangents()
 	var mi = MeshInstance3D.new()
 	mi.name = "Glass"
 	mi.mesh = st.commit()
 	mi.material_override = _glass_mat
-	mi.layers = 1
-	(_glass_house if _glass_house != null else _body_root).add_child(mi)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gh.add_child(mi)
 
-	# --- pillars in body colour so the greenhouse is not a glass blob -------
-	var pw: float = 0.045
+	# --- painted roof and pillars -------------------------------------------
+	# A glass-only canopy is not what a car looks like: the A-pillars, the
+	# C-pillars and the roof panel itself are body colour. Without them the cabin
+	# reads as a dark hole dropped onto the shell.
+	var z_top_front: float = lerpf(z_front, z_rear, 0.20)
+	var z_top_rear: float = lerpf(z_front, z_rear, 0.80)
+	var roof_panel = _add_box(
+		Vector3(half_w_top * 1.92, 0.030, z_top_rear - z_top_front),
+		Vector3(0.0, y_top, (z_top_front + z_top_rear) * 0.5), _body_mat)
+	if roof_panel != null:
+		roof_panel.name = "Roof"
 	for side in [-1.0, 1.0]:
-		var a_post = _add_box(Vector3(pw, 0.05, z_top_rear - z_top_front),
-			Vector3(w_top * side, y_top + 0.02, (z_top_front + z_top_rear) * 0.5), _body_mat)
-		a_post.name = "RoofRail%s" % ("L" if side < 0 else "R")
-	# b-pillar
-	_add_box(Vector3(pw * 1.6, y_top - y_base, 0.075),
-		Vector3(w_base * 0.985, (y_base + y_top) * 0.5, (z_front + z_rear) * 0.5 + rake * 0.1),
-		_carbon_mat)
+		var ap = _add_box(Vector3(0.045, 0.05, absf(z_top_front - z_front) * 1.35),
+			Vector3(half_w_base * side * 0.93, (y_base + y_top) * 0.5,
+				(z_front + z_top_front) * 0.5), _body_mat)
+		if ap != null:
+			ap.rotation.x = deg_to_rad(-28.0)
+		var cp = _add_box(Vector3(0.045, 0.05, absf(z_rear - z_top_rear) * 1.35),
+			Vector3(half_w_base * side * 0.93, (y_base + y_top) * 0.5,
+				(z_rear + z_top_rear) * 0.5), _body_mat)
+		if cp != null:
+			cp.rotation.x = deg_to_rad(24.0)
 
-	# window trim: thin bright line under the glass (premium car detail)
-	for side in [-1.0, 1.0]:
-		_add_box(Vector3(0.02, 0.022, (z_rear - z_front) * 0.96),
-			Vector3(w_base * side * 1.004, y_base, (z_front + z_rear) * 0.5), _chrome_mat)
+	for side2 in [-1.0, 1.0]:
+		_add_box(Vector3(0.018, 0.016, (z_rear - z_front) * 0.90),
+			Vector3(half_w_base * side2 * 1.002, y_base, (z_front + z_rear) * 0.5), _chrome_mat)
 
-	# roof antenna / shark fin
-	_add_box(Vector3(0.05, 0.075, 0.16), Vector3(0, y_top + 0.055, z_top_rear + 0.14), _trim_mat)
-	# the greenhouse is built; everything after this belongs to the shell again
+	_add_box(Vector3(0.045, 0.065, 0.14), Vector3(0, y_top + 0.045, z_top_rear - 0.10), _trim_mat)
 	_box_target = null
 
 
-## Dark inner wheel wells + arch lips: the single biggest realism win, because
-## it separates the wheel from the body instead of letting them interpenetrate.
 func _build_wheel_arches(shape: Dictionary) -> void:
 	var length: float = shape["length"]
 	var width: float = shape["width"]
 	var radius: float = shape["wheel"]
-	var track: float = width * 0.5 - 0.06
-	var axle_z: float = length * 0.5 - radius - 0.32
+	var track: float = _wheel_track(width)
+	var axle_z: float = _axle_z(length, radius)
 	for front in [true, false]:
 		for side in [-1.0, 1.0]:
 			var z: float = -axle_z if front else axle_z
@@ -543,18 +594,26 @@ func _build_details(shape: Dictionary) -> void:
 
 	# --- rear wing ----------------------------------------------------------
 	if wing > 0.02:
-		var wing_y: float = y_shoulder + height * 0.34 + wing * 0.62
-		var wz: float = length * 0.5 - 0.20
-		# aerofoil: a thin plate with a raised leading edge
-		var foil = _add_box(Vector3(width * 0.90, 0.028, 0.40), Vector3(0, wing_y, wz), _carbon_mat)
-		foil.rotation.x = -0.06
-		foil.name = "WingFoil"
+		var wing_y: float = y_shoulder + height * 0.30 + wing * 0.34
+		var wz: float = length * 0.5 - 0.26
+		# The foil is anchored to the deck, not floating above it. The old version
+		# put the wing at y_shoulder + height*0.34 + wing*0.62 with uprights only
+		# wing*0.55 tall, so the support never reached the body and the wing read
+		# as a plank hovering behind the car in every render.
+		var deck_y: float = y_shoulder - 0.015
+		var upright_h: float = maxf(wing_y - deck_y, 0.06)
 		for side in [-1.0, 1.0]:
-			_add_box(Vector3(0.018, wing * 0.30, 0.36),
-				Vector3(width * 0.45 * side, wing_y + wing * 0.10, wz), _carbon_mat)
-			# uprights
-			_add_box(Vector3(0.035, wing * 0.55, 0.12),
-				Vector3(width * 0.30 * side, wing_y - wing * 0.28, wz), _trim_mat)
+			# upright: from the deck surface all the way up to the foil
+			_add_box(Vector3(0.045, upright_h, 0.10),
+				Vector3(width * 0.30 * side, deck_y + upright_h * 0.5, wz + 0.02), _carbon_mat)
+			# endplate
+			_add_box(Vector3(0.014, 0.035 + upright_h * 0.22, 0.34),
+				Vector3(width * 0.45 * side, wing_y + upright_h * 0.08, wz), _carbon_mat)
+		# aerofoil: a thin plate with a slight angle of attack
+		var foil = _add_box(Vector3(width * 0.90, 0.032, 0.38), Vector3(0, wing_y, wz), _carbon_mat)
+		if foil != null:
+			foil.rotation.x = deg_to_rad(-4.0)
+			foil.name = "WingFoil"
 	else:
 		# boot lip spoiler for the street cars
 		var lip = _add_box(Vector3(width * 0.62, 0.03, 0.13),
@@ -590,6 +649,20 @@ func _resolve_box_parent() -> Node3D:
 	return _box_target if _box_target != null else _body_root
 
 
+## Wheel geometry lives in exactly one place. The body, the arches and the
+## wheels themselves all ask these two functions, so a change to the stance
+## cannot leave the arch wells floating beside the tyres.
+const TYRE_WIDTH := 0.34
+
+
+func _wheel_track(width: float) -> float:
+	return width * 0.5 - TYRE_WIDTH * 0.5 - 0.035
+
+
+func _axle_z(length: float, radius: float) -> float:
+	return length * 0.5 - radius - 0.32
+
+
 func _add_box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var bm = BoxMesh.new()
 	bm.size = size
@@ -608,9 +681,14 @@ func _build_wheels(shape: Dictionary) -> void:
 	var length: float = shape["length"]
 	var width: float = shape["width"]
 	var radius: float = shape["wheel"]
-	var track: float = width * 0.5 - 0.06
-	var axle_z: float = length * 0.5 - radius - 0.32
-	var tyre_w: float = 0.30
+	# Track was width*0.5 - 0.06, which puts the OUTER face of a 0.30 m tyre at
+	# width*0.5 + 0.09 — the wheels stuck out past the bodywork and the arch
+	# flare had nothing to wrap. Pulling the hub inward by half the tyre width
+	# puts the outer sidewall flush with the widest point of the shell, which is
+	# how a performance car actually sits.
+	var tyre_w: float = TYRE_WIDTH
+	var track: float = _wheel_track(width)
+	var axle_z: float = _axle_z(length, radius)
 
 	for front in [true, false]:
 		for side in [-1.0, 1.0]:
