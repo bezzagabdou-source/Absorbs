@@ -885,7 +885,7 @@ func _build_lights(shape: Dictionary) -> void:
 
 	# --- actual light emission ---------------------------------------------
 	var beam = SpotLight3D.new()
-	beam.position = Vector3(0, height * 0.60 + 0.2, -length * 0.5 + 0.1)
+	beam.position = Vector3(0, nose_y + 0.02, -length * 0.5 + 0.1)
 	beam.spot_range = 58.0
 	beam.spot_angle = 34.0
 	beam.light_energy = 5.0
@@ -897,7 +897,7 @@ func _build_lights(shape: Dictionary) -> void:
 
 	# red rear marker glow so the back of the car reads at night
 	var tail_glow = OmniLight3D.new()
-	tail_glow.position = Vector3(0, y + 0.05, length * 0.5 + 0.06)
+	tail_glow.position = Vector3(0, tail_y + 0.05, length * 0.5 + 0.06)
 	tail_glow.light_color = Color(1.0, 0.12, 0.16)
 	tail_glow.light_energy = 0.55
 	tail_glow.omni_range = 2.6

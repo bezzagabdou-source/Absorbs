@@ -170,6 +170,11 @@ USE_PATTERNS = [
     re.compile(r"(?<![\w.])[A-Za-z_]\w*(?=\s*\.[A-Za-z_])"),
     # = x   /  == x  /  += x   where x is not a call and not a number
     re.compile(r"=[=+\-*/]?[ \t]*([A-Za-z_]\w*)(?![\w(])"),
+    # Vector3(0, y + 1, 2)  — a bare identifier used as a call ARGUMENT.
+    # Without this form the gate was blind to exactly the case that broke CI:
+    # `Vector3(0, y + 0.05, ...)` kept using a deleted local `y` and nothing
+    # flagged it, because `y` is neither assigned from nor dotted into.
+    re.compile(r"[(,][ \t]*([A-Za-z_]\w*)[ \t]*[-+*/]"),
 ]
 
 KEYWORDS = BUILTINS
@@ -276,14 +281,80 @@ def main() -> int:
                 tok = m.group(1) if m.groups() else m.group(0)
                 if tok:
                     used.add(tok)
-        known = known_cache | inherited.get(p, set())
+        # lambda parameters are locals too, and they appear inside expressions
+        # rather than at column 0, so pull them out of the whole file
+        lambda_params: set[str] = set()
+        for lam in re.findall(r"\bfunc\s*\(([^)]*)\)", src):
+            lambda_params |= set(re.findall(r"([A-Za-z_]\w*)\s*(?::|,|$)", lam))
+        known = known_cache | inherited.get(p, set()) | lambda_params
         for ident in sorted(used):
-            if ident in known or len(ident) < 3:
+            if ident in known:
                 continue
             if ident[0].isupper():
                 continue          # class / constant or engine type
+            # Short identifiers used to be skipped entirely, and that hid a real
+            # bug: `tail_glow.position = Vector3(0, y + 0.05, ...)` survived the
+            # deletion of the local `y` because a two-character name never
+            # reached this loop, and Godot only caught it at import. Short names
+            # are now checked like any other. They are common as loop counters,
+            # so anything declared by `for`, `var`, or a parameter is in `known`
+            # already; only an undeclared use gets here.
             # locals declared in this file are fine even if the regex missed them
             problems.append(f"{p.relative_to(ROOT)}: '{ident}' is used but never declared")
+
+    # --- function-scoped locals ---------------------------------------------
+    # The loop above is FILE scoped, so a local declared in one function makes
+    # that name valid everywhere in the file. That is why deleting the local `y`
+    # in _build_lights was not caught: `y` is also declared inside _build_body,
+    # so the name resolved and the stale use sailed through to the import step.
+    #
+    # GDScript is function scoped. Re-check each function body against only what
+    # is visible inside it: file-level declarations, its own parameters, and the
+    # locals it declares itself.
+    for path, text in sorted(sources.items()):
+        clean = strip_comments_and_strings(text)
+        # split into top-level blocks by column-0 `func`
+        starts = [m.start() for m in re.finditer(r"(?m)^(?:static\s+)?func\s", clean)]
+        if not starts:
+            continue
+        starts.append(len(clean))
+        # file-level declarations (column 0) plus everything before the first func
+        head = clean[:starts[0]]
+        file_scope = set(declarations(head))
+        file_scope |= set(re.findall(r"(?m)^(?:var|const|signal)\s+([A-Za-z_]\w*)", clean))
+        for idx in range(len(starts) - 1):
+            body = clean[starts[idx]:starts[idx + 1]]
+            sig = re.match(r"(?:static\s+)?func\s+([A-Za-z_]\w*)\s*\(((?:[^()]|\([^()]*\))*)\)",
+                           body, re.S)
+            if not sig:
+                continue
+            fname = sig.group(1)
+            params = set(re.findall(r"([A-Za-z_]\w*)\s*(?::|,|$)", sig.group(2)))
+            # lambda parameters: `func(val: float):` inside a body declares val
+            # for that closure. Godot treats these as real locals, so the gate
+            # must too — `s.value_changed.connect(func(val): ...)` was being
+            # reported as an undeclared identifier.
+            for lam in re.findall(r"\bfunc\s*\(([^)]*)\)", body):
+                params |= set(re.findall(r"([A-Za-z_]\w*)\s*(?::|,|$)", lam))
+            # inherited members from the extends chain (content, router on a
+            # ScreenBase child) are visible here just as they are at file level
+            local_known = (file_scope | inherited.get(path, set()) | params | {fname}
+                           | set(declarations(body)))
+            used: set[str] = set()
+            for pat in USE_PATTERNS:
+                for m in pat.finditer(body):
+                    tok = m.group(1) if m.groups() else m.group(0)
+                    if tok:
+                        used.add(tok)
+            for ident in sorted(used):
+                if ident in local_known or ident in KEYWORDS:
+                    continue
+                if ident[0].isupper():
+                    continue
+                line_no = clean.count("\n", 0, starts[idx]) + 1
+                problems.append(
+                    "%s:%d '%s' is used in %s() but not declared in that function"
+                    % (path.relative_to(ROOT), line_no, ident, fname))
 
     # A function defined twice in one file is a Godot parse error, and the error
     # message names the file rather than the function, which is how a duplicate
