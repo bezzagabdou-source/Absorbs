@@ -3,7 +3,7 @@ extends "res://scripts/ui/ScreenBase.gd"
 ## audio buses, control scheme, tilt sensitivity/invert, assists, language,
 ## vibration and a destructive reset behind a confirm dialog.
 
-const SECTIONS := ["graphics", "audio", "controls", "language", "data"]
+const SECTIONS := ["graphics", "world", "audio", "controls", "language", "data"]
 
 var _tab = "graphics"
 var _nav: VBoxContainer
@@ -56,6 +56,8 @@ func _refresh_nav() -> void:
 			label = Localization.t("settings.graphics")
 		elif sec == "audio":
 			label = Localization.t("settings.audio")
+		elif sec == "world":
+			label = "OPEN WORLD"
 		elif sec == "controls":
 			label = Localization.t("settings.controls")
 		elif sec == "language":
@@ -75,6 +77,8 @@ func _refresh_body() -> void:
 		_graphics()
 	elif _tab == "audio":
 		_audio()
+	elif _tab == "world":
+		_world()
 	elif _tab == "controls":
 		_controls()
 	elif _tab == "language":
@@ -195,11 +199,38 @@ func _controls() -> void:
 	_toggle(_row("VIBRATION", "Haptic feedback on impacts and nitro"),
 		bool(SettingsStore.get_value("vibration", true)), func(v):
 			SettingsStore.set_value("vibration", v))
+	_header("DRIVING MODEL")
+	_choice(_row("TRANSMISSION", "Automatic shifts itself; manual gives you an H-pattern"),
+		["auto", "manual"], str(SettingsStore.get_value("transmission", "auto")), func(v):
+			SettingsStore.set_value("transmission", v)
+			_refresh_body())
+	_toggle(_row("ABS", "Anti-lock brakes — you can still steer while braking hard"),
+		bool(SettingsStore.get_value("abs", true)), func(v):
+			SettingsStore.set_value("abs", v))
+	_toggle(_row("TRACTION CONTROL", "Cuts wheelspin off the line and out of slow corners"),
+		bool(SettingsStore.get_value("tcs", true)), func(v):
+			SettingsStore.set_value("tcs", v))
+
+
+func _world() -> void:
+	_header("OPEN WORLD")
+	_toggle(_row("TRAFFIC", "Moving vehicles on the highway"),
+		bool(SettingsStore.get_value("traffic", true)), func(v):
+			SettingsStore.set_value("traffic", v))
+	_toggle(_row("PEDESTRIANS", "People on the pavements"),
+		bool(SettingsStore.get_value("pedestrians", true)), func(v):
+			SettingsStore.set_value("pedestrians", v))
+	_toggle(_row("DAY / NIGHT", "Sun and moon move through a full cycle in free roam"),
+		bool(SettingsStore.get_value("day_cycle", true)), func(v):
+			SettingsStore.set_value("day_cycle", v))
 
 
 func _language() -> void:
 	_header(Localization.t("settings.language"))
-	for lang in [["en", "ENGLISH"], ["fr", "FRANÇAIS"], ["ar", "العربية"]]:
+	var lang_rows: Array = []
+	for info in Localization.LANGS:
+		lang_rows.append([str(info["code"]), str(info["name"]).to_upper()])
+	for lang in lang_rows:
 		var current = str(SettingsStore.get_value("language", "en")) == lang[0]
 		var b = UIStyle.make_button(lang[1], UIStyle.CYAN, current, 26, 82)
 		var code = str(lang[0])

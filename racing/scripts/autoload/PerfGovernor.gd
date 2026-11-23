@@ -20,10 +20,14 @@ const WARMUP_SECONDS := 3.0
 ## Ordered from best to cheapest. `mesh` maps onto OpenWorld's grid density and
 ## `shadow` onto the direction light's split distances.
 const STEPS := [
-	{"label": "ULTRA", "mesh": 192, "shadow": 180.0, "glow": true, "clouds": 5},
-	{"label": "HIGH", "mesh": 160, "shadow": 140.0, "glow": true, "clouds": 4},
-	{"label": "BALANCED", "mesh": 128, "shadow": 110.0, "glow": true, "clouds": 3},
-	{"label": "PERFORMANCE", "mesh": 96, "shadow": 80.0, "glow": false, "clouds": 3},
+	{"label": "ULTRA", "mesh": 192, "shadow": 180.0, "glow": true, "clouds": 5,
+		"traffic": 1.0, "particles": 1.0, "lod": 1.35, "shadow_size": 4096},
+	{"label": "HIGH", "mesh": 160, "shadow": 140.0, "glow": true, "clouds": 4,
+		"traffic": 0.9, "particles": 0.8, "lod": 1.0, "shadow_size": 2048},
+	{"label": "BALANCED", "mesh": 128, "shadow": 110.0, "glow": true, "clouds": 3,
+		"traffic": 0.65, "particles": 0.6, "lod": 0.8, "shadow_size": 2048},
+	{"label": "PERFORMANCE", "mesh": 96, "shadow": 80.0, "glow": false, "clouds": 3,
+		"traffic": 0.4, "particles": 0.35, "lod": 0.6, "shadow_size": 1024},
 ]
 
 var step: int = 1
@@ -88,6 +92,18 @@ func _apply(new_step: int) -> void:
 	for node in tree.get_nodes_in_group("perf_glow"):
 		if node is CanvasLayer or node is CanvasItem:
 			(node as CanvasItem).visible = bool(cfg["glow"])
+	# Shadow resolution is the single biggest thermal cost on a phone, so it
+	# tracks the quality step rather than sitting at 4096 forever.
+	RenderingServer.directional_shadow_atlas_set_size(int(cfg["shadow_size"]), true)
+	for node in tree.get_nodes_in_group("perf_lod_bias"):
+		if node is Node3D:
+			(node as Node3D).set("lod_bias", float(cfg["lod"]))
+	for node in tree.get_nodes_in_group("perf_traffic"):
+		if node.has_method("set_density_scale"):
+			node.call("set_density_scale", float(cfg["traffic"]))
+	for node in tree.get_nodes_in_group("perf_particles"):
+		if node.has_method("set_particle_scale"):
+			node.call("set_particle_scale", float(cfg["particles"]))
 	quality_step_changed.emit(step, str(cfg["label"]))
 
 

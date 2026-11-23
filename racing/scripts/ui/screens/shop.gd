@@ -31,7 +31,7 @@ func _build_filters() -> void:
 	row.offset_bottom = 248
 	row.add_theme_constant_override("separation", 12)
 	content.add_child(row)
-	for cls in ["all", "street", "sport", "super", "hyper"]:
+	for cls in ["all"] + GameData.CLASSES:
 		var b = UIStyle.make_button(cls.to_upper(), UIStyle.CYAN, cls == _filter, 20, 62)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var c = cls

@@ -320,3 +320,138 @@ func _build_rain() -> void:
 func set_rain_follow(pos: Vector3) -> void:
 	if rain:
 		rain.position = Vector3(pos.x, pos.y + 26.0, pos.z)
+
+
+## ---------------------------------------------------------------------------
+## RUNTIME TIME OF DAY + WEATHER
+## ---------------------------------------------------------------------------
+## The presets above are fixed moods. A free-roam world needs to move through
+## them continuously, so this rebuilds the sky/sun/fog from a [0,1) day fraction
+## (0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset) while reusing the
+## same preset keys the tracks already select.
+
+## Live weather override: "clear", "rain" or "fog". Setting it re-tints the fog
+## and turns the rain emitter on or off without rebuilding the whole rig.
+func set_weather(weather: String) -> void:
+	_wet = weather == "rain"
+	if world_env != null and world_env.environment != null:
+		var e: Environment = world_env.environment
+		match weather:
+			"rain":
+				e.fog_density = maxf(e.fog_density, 0.0042)
+				e.fog_light_color = e.fog_light_color.lerp(Color(0.32, 0.34, 0.38), 0.5)
+			"fog":
+				e.fog_density = maxf(e.fog_density, 0.0055)
+				e.fog_light_color = e.fog_light_color.lerp(Color(0.55, 0.58, 0.62), 0.35)
+			_:
+				e.fog_density = maxf(0.0008, e.fog_density * 0.45)
+	if weather == "rain":
+		if rain == null:
+			_build_rain()
+		rain.emitting = true
+	elif rain != null:
+		rain.emitting = false
+	if sun != null:
+		# overcast light is softer and dimmer; do not multiply repeatedly
+		sun.light_energy = lerpf(sun.light_energy, sun.light_energy * 0.62, 1.0 if _wet else 0.0)
+		_day_key = -1
+
+
+func weather_is_wet() -> bool:
+	return _wet
+
+
+## Move the whole rig to a point on the day. Cheap enough to call every frame:
+## it only writes shader uniforms and light properties, and only the coarse
+## keyframes are recomputed when the hour bucket changes.
+func set_day_fraction(f: float) -> void:
+	var day_key: int = int(f * 24.0)
+	if day_key == _day_key:
+		_update_day_lighting(f)
+		return
+	_day_key = day_key
+	var p: Dictionary = _day_preset(f)
+	_preset_cache = p
+	if sky_mat != null:
+		sky_mat.set_shader_parameter("top_color", p["top"])
+		sky_mat.set_shader_parameter("horizon_color", p["horizon"])
+		sky_mat.set_shader_parameter("ground_color", p["ground"])
+		sky_mat.set_shader_parameter("glow_color", p["glow"])
+		sky_mat.set_shader_parameter("stars", float(p["stars"]))
+		sky_mat.set_shader_parameter("cloudiness", float(p["clouds"]))
+	if world_env != null and world_env.environment != null:
+		var e: Environment = world_env.environment
+		e.ambient_light_color = p["ambient"]
+		e.ambient_light_energy = float(p["ambient_energy"])
+		e.fog_light_color = p["fog"]
+		e.fog_density = float(p["fog_density"])
+		e.glow_intensity = float(p["glow_intensity"])
+	_update_day_lighting(f)
+
+
+var _day_key: int = -1
+var _preset_cache: Dictionary = {}
+
+
+func _update_day_lighting(f: float) -> void:
+	if sun == null or _preset_cache.is_empty():
+		return
+	var sun_angle: float = (f - 0.25) * TAU      ## sunrise at the horizon
+	var elevation: float = sin(sun_angle)
+	var azimuth: float = cos(sun_angle)
+	var dir := Vector3(azimuth * 0.85, maxf(0.06, elevation), -0.35).normalized()
+	sun.position = dir * 100.0
+	sun.look_at(Vector3.ZERO, Vector3.UP)
+	var p: Dictionary = _preset_cache
+	# sunrise / sunset get a warm, low-energy light; noon is white and hard
+	var warm: float = clampf(1.0 - absf(elevation) * 2.2, 0.0, 1.0)
+	var day: float = clampf(elevation, 0.0, 1.0)
+	var color: Color = (p["sun_color"] as Color).lerp(Color(1.0, 0.52, 0.24), warm * 0.8)
+	sun.light_color = color
+	sun.light_energy = lerpf(0.10, float(p["sun_energy"]), clampf(day * 1.6 + 0.15, 0.0, 1.0))
+	if sky_mat != null:
+		sky_mat.set_shader_parameter("sun_dir", dir)
+
+
+## Blend the four anchor presets (night, dawn, day, dusk) into a smooth curve.
+func _day_preset(f: float) -> Dictionary:
+	var night: Dictionary = PRESETS["city_night"]
+	var day: Dictionary = PRESETS["city_day"]
+	var dawn: Dictionary = PRESETS["coast_sunset"]
+	var dusk: Dictionary = PRESETS["canyon_sunset"]
+	var out: Dictionary = {}
+	if f < 0.22:
+		out = _blend(night, night, f / 0.22)
+	elif f < 0.30:
+		out = _blend(night, dawn, (f - 0.22) / 0.08)
+	elif f < 0.42:
+		out = _blend(dawn, day, (f - 0.30) / 0.12)
+	elif f < 0.58:
+		out = _blend(day, day, 0.0)
+	elif f < 0.70:
+		out = _blend(day, dusk, (f - 0.58) / 0.12)
+	elif f < 0.80:
+		out = _blend(dusk, night, (f - 0.70) / 0.10)
+	else:
+		out = _blend(night, night, 0.0)
+	return out
+
+
+func _blend(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
+	t = clampf(t, 0.0, 1.0)
+	var out: Dictionary = {}
+	for k in a.keys():
+		var va = a[k]
+		var vb = b.get(k, va)
+		if va is Color:
+			out[k] = (va as Color).lerp(vb as Color, t)
+		elif va is float or va is int:
+			out[k] = lerpf(float(va), float(vb), t)
+		elif va is Vector3:
+			out[k] = (va as Vector3).lerp(vb as Vector3, t)
+		else:
+			out[k] = va
+	# a blended preset must always carry these two, some anchors omit them
+	if not out.has("ambient_energy"):
+		out["ambient_energy"] = 1.15
+	return out

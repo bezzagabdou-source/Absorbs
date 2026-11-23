@@ -39,6 +39,8 @@ var _damage = 0.0
 var _shapes: Dictionary = {}
 var _body_root: Node3D
 var _paint_shader: Shader
+var _detail_root: Node3D = null
+var _glass_house: Node3D = null
 
 const CAR_PAINT_SHADER := "res://shaders/car_paint.gdshader"
 
@@ -62,6 +64,7 @@ func build(info: Dictionary, paint_id: String = "", rim: String = "") -> void:
 	_body_root.name = "Shell"
 	add_child(_body_root)
 	_build_body(shape)
+	_push_body_size(shape)
 	_build_glasshouse(shape)
 	_build_wheel_arches(shape)
 	_build_details(shape)
@@ -79,6 +82,18 @@ func _set_paint(paint_info: Dictionary) -> void:
 		paint = Color(c).lightened(0.08)
 	else:
 		paint = Color(c)
+
+
+## The paint shader draws shut-lines and the shoulder crease from the car's own
+## dimensions, so every body style gets panel structure in the right place
+## instead of a generic grid. Called once after the shape is chosen.
+func _push_body_size(shape: Dictionary) -> void:
+	if _body_mat == null or _body_mat.shader == null:
+		return
+	_body_mat.set_shader_parameter("body_size", Vector3(
+		float(shape.get("width", 1.9)),
+		float(shape.get("height", 1.2)),
+		float(shape.get("length", 4.6))))
 
 
 func _build_materials() -> void:
@@ -318,6 +333,11 @@ func _add_tri(st: SurfaceTool, p0: Vector3, p1: Vector3, p2: Vector3) -> void:
 
 ## Greenhouse: raked windscreen, side glass with a tumblehome taper, curved roof.
 func _build_glasshouse(shape: Dictionary) -> void:
+	var gh := Node3D.new()
+	gh.name = "Greenhouse"
+	add_child(gh)
+	_glass_house = gh
+	_box_target = gh
 	var length: float = shape["length"]
 	var width: float = shape["width"]
 	var height: float = shape["height"]
@@ -371,7 +391,7 @@ func _build_glasshouse(shape: Dictionary) -> void:
 	mi.mesh = st.commit()
 	mi.material_override = _glass_mat
 	mi.layers = 1
-	_body_root.add_child(mi)
+	(_glass_house if _glass_house != null else _body_root).add_child(mi)
 
 	# --- pillars in body colour so the greenhouse is not a glass blob -------
 	var pw: float = 0.045
@@ -391,6 +411,8 @@ func _build_glasshouse(shape: Dictionary) -> void:
 
 	# roof antenna / shark fin
 	_add_box(Vector3(0.05, 0.075, 0.16), Vector3(0, y_top + 0.055, z_top_rear + 0.14), _trim_mat)
+	# the greenhouse is built; everything after this belongs to the shell again
+	_box_target = null
 
 
 ## Dark inner wheel wells + arch lips: the single biggest realism win, because
@@ -513,6 +535,16 @@ func _build_details(shape: Dictionary) -> void:
 		Vector3(width * 0.5 * 1.004, 0.62, length * 0.32), _chrome_mat)
 
 
+## When set, _add_box parents into this node instead of the shell. Used while
+## building the greenhouse so the whole glass house can be hidden at distance
+## as one unit (see set_lod_detail).
+var _box_target: Node3D = null
+
+
+func _resolve_box_parent() -> Node3D:
+	return _box_target if _box_target != null else _body_root
+
+
 func _add_box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var bm = BoxMesh.new()
 	bm.size = size
@@ -521,7 +553,7 @@ func _add_box(size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	mi.material_override = mat
 	mi.position = pos
 	mi.layers = 1
-	_body_root.add_child(mi)
+	_resolve_box_parent().add_child(mi)
 	return mi
 
 
@@ -743,6 +775,12 @@ func _build_nitro(shape: Dictionary) -> void:
 		_nitro_nodes.append(flame)
 
 
+## Let the shader know how dirty the car is without touching the paint colour.
+func set_dirt(amount: float) -> void:
+	if _body_mat and _body_mat.shader:
+		_body_mat.set_shader_parameter("dirt", clampf(amount, 0.0, 1.0))
+
+
 func set_paint_live(color: Color) -> void:
 	paint = color
 	if _body_mat and _body_mat.shader:
@@ -776,10 +814,31 @@ func set_nitro(on: bool, amount: float = 1.0) -> void:
 func set_damage(amount: float) -> void:
 	_damage = clampf(amount, 0.0, 1.0)
 	if _body_mat and _body_mat.shader:
-		var dirty = paint.darkened(_damage * 0.30).lerp(Color(0.18, 0.16, 0.14), _damage * 0.40)
-		_body_mat.set_shader_parameter("paint_color", dirty)
+		# The shader does the wear now (scorch + roughness scatter + additive
+		# budget), so the base coat stays the true paint colour and undamaged
+		# panels do not drift darker as the car takes a beating elsewhere.
+		_body_mat.set_shader_parameter("damage", _damage)
+		_body_mat.set_shader_parameter("dirt", clampf(_damage * 0.65 + 0.12, 0.0, 1.0))
 	if _body_root:
 		_body_root.rotation.z = sin(_damage * 40.0) * 0.02 * _damage
+
+
+## Level of detail by distance. A car 120 m away does not need its brake
+## calipers, exhaust tips or interior: hiding those subtrees removes the draw
+## calls entirely on mobile instead of paying vertex cost for invisible parts.
+## This is cheaper and more predictable than Godot's automatic LOD, which still
+## submits every surface.
+func set_lod_detail(distance: float) -> void:
+	var near: bool = distance < 55.0
+	var mid: bool = distance < 130.0
+	if _detail_root != null:
+		_detail_root.visible = mid
+	for w in wheels:
+		var holder: Node3D = w.get("node")
+		if holder != null:
+			holder.visible = near or mid
+	if _glass_house != null:
+		_glass_house.visible = mid
 
 
 func steer_wheels(angle_rad: float, spin_amount: float) -> void:

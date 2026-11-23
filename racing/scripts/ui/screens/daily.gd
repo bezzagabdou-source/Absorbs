@@ -8,9 +8,11 @@ var _status: Label
 
 func build() -> void:
 	top_bar(Localization.t("daily.title"))
+	Missions.ensure_missions(Game.data)
 	_build_hero()
 	_build_streak()
 	_build_claim()
+	_build_missions()
 
 
 func _build_hero() -> void:
@@ -119,3 +121,81 @@ func _rebuild() -> void:
 	for c in content.get_children():
 		c.queue_free()
 	build()
+
+
+## Four rotating daily missions with live progress bars. They reset at local
+## midnight and pay out the moment they complete, so this list is a record of
+## what has already been earned as much as it is a to-do list.
+func _build_missions() -> void:
+	var head = UIStyle.make_kicker("DAILY MISSIONS", UIStyle.LIME, 20)
+	head.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	head.offset_left = 96
+	head.offset_top = 740
+	content.add_child(head)
+
+	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	scroll.offset_left = 96
+	scroll.offset_right = -96
+	scroll.offset_top = 776
+	scroll.offset_bottom = -210
+	content.add_child(scroll)
+
+	var box = VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 12)
+	scroll.add_child(box)
+
+	var ms: Array = Missions.missions(Game.data)
+	if ms.is_empty():
+		box.add_child(UIStyle.make_label("No missions today — check back tomorrow.",
+			"body", 26, UIStyle.TEXT_DIM))
+		return
+	for m in ms:
+		var done := bool(m.get("done", false))
+		var accent: Color = UIStyle.LIME if done else UIStyle.CYAN
+		var row := UIStyle.make_glass_panel(18, Color(0.05, 0.08, 0.14, 0.86), 18,
+			0.55 if done else 0.16)
+		row.custom_minimum_size = Vector2(0, 118)
+		var h = HBoxContainer.new()
+		h.add_theme_constant_override("separation", 18)
+		row.add_child(h)
+		var v = VBoxContainer.new()
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", 6)
+		h.add_child(v)
+		v.add_child(UIStyle.make_label(Missions.mission_text(m), "body", 27, Color.WHITE))
+		# progress bar: a background Control with a fill anchored to `ratio`
+		var ratio: float = clampf(float(m.get("progress", 0)) / maxf(1.0, float(m.get("target", 1))), 0.0, 1.0)
+		var track = Control.new()
+		track.custom_minimum_size = Vector2(0, 12)
+		track.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var track_bg = ColorRect.new()
+		track_bg.color = Color(1, 1, 1, 0.10)
+		track_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		track.add_child(track_bg)
+		var fill = ColorRect.new()
+		fill.color = accent
+		fill.anchor_left = 0.0
+		fill.anchor_top = 0.0
+		fill.anchor_bottom = 1.0
+		fill.anchor_right = ratio
+		fill.offset_left = 0
+		fill.offset_top = 0
+		fill.offset_right = 0
+		fill.offset_bottom = 0
+		track.add_child(fill)
+		v.add_child(track)
+		var pct = UIStyle.make_label("%d / %d" % [int(current), int(target)],
+			"numeric", 18, UIStyle.TEXT_DIM)
+		v.add_child(pct)
+		var right = VBoxContainer.new()
+		right.alignment = BoxContainer.ALIGNMENT_CENTER
+		h.add_child(right)
+		right.add_child(UIStyle.make_label(fmt_credits(int(m.get("reward", 0))),
+			"numeric", 26, UIStyle.GOLD, HORIZONTAL_ALIGNMENT_CENTER))
+		var tag = UIStyle.make_kicker("DONE" if done else "IN PROGRESS", accent, 14)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		right.add_child(tag)
+		box.add_child(row)

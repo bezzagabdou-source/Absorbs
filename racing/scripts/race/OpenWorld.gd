@@ -82,6 +82,8 @@ func build(region_data: Dictionary) -> void:
 	add_child(_landmark_root)
 	_build_landmarks()
 	_build_roadside_lighting()
+	_build_median_barrier()
+	_build_kerb_markers()
 	_build_distant_city()
 
 
@@ -462,6 +464,125 @@ func _build_road_collision(width: float) -> void:
 		cs.position = Vector3((p0.x + p1.x) * 0.5, p0.y - 0.5, (p0.z + p1.z) * 0.5)
 		cs.rotation.y = atan2(fwd.x, fwd.z)
 		_road_body.add_child(cs)
+
+
+## A continuous Armco-style median barrier down the centre of the highway.
+##
+## This is a gameplay object, not scenery: without it the ring is one 16 m slab
+## and the player can drive down the wrong side of a "dual carriageway" at 300
+## km/h with nothing to hit. The barrier is one StaticBody3D with a collision box
+## every 8 m plus a single MultiMesh for the visible rail, so the whole 4 km of
+## it costs one draw call and ~500 static boxes.
+func _build_median_barrier() -> void:
+	if road_points.is_empty():
+		return
+	var body := StaticBody3D.new()
+	body.name = "MedianBarrier"
+	body.collision_layer = 1
+	add_child(body)
+	# visible rail: instanced posts + rail segments
+	var post_mesh := BoxMesh.new()
+	post_mesh.size = Vector3(0.10, 0.78, 0.10)
+	var rail_mesh := BoxMesh.new()
+	rail_mesh.size = Vector3(0.06, 0.30, 1.0)
+	var mm_post := MultiMesh.new()
+	mm_post.transform_format = MultiMesh.TRANSFORM_3D
+	mm_post.mesh = post_mesh
+	var mm_rail := MultiMesh.new()
+	mm_rail.transform_format = MultiMesh.TRANSFORM_3D
+	mm_rail.mesh = rail_mesh
+	var step: int = 3
+	var seg_count: int = int(ROAD_SEGMENTS / float(step))
+	mm_post.instance_count = seg_count
+	mm_rail.instance_count = seg_count
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.62, 0.64, 0.66)
+	steel.metallic = 0.85
+	steel.roughness = 0.32
+	var placed := 0
+	for i in range(0, ROAD_SEGMENTS, step):
+		var p0: Vector3 = road_points[i]
+		var p1: Vector3 = road_points[(i + step) % ROAD_SEGMENTS]
+		var mid: Vector3 = (p0 + p1) * 0.5
+		var fwd: Vector3 = p1 - p0
+		if fwd.length() < 0.5:
+			continue
+		# Six gaps, evenly spaced: the barrier divides the carriageways, it does
+		# not seal the player onto a 4 km loop with no way off. Junction gaps are
+		# also where U-turns and the fuel stations live.
+		var arc: float = float(i) / float(ROAD_SEGMENTS)
+		var gap_slot: float = fmod(arc * 6.0, 1.0)
+		if gap_slot < 0.30:
+			continue
+		var yaw: float = atan2(fwd.x, fwd.z)
+		var basis := Basis(Vector3.UP, yaw)
+		mm_post.set_instance_transform(placed, Transform3D(Basis(Vector3.UP, yaw),
+			mid + Vector3.UP * 0.39))
+		# the rail is a stretched box running along the segment
+		var rail_basis := Basis(Vector3.UP, yaw).scaled(Vector3(1.0, 1.0, fwd.length() + 0.2))
+		mm_rail.set_instance_transform(placed, Transform3D(rail_basis, mid + Vector3.UP * 0.62))
+		placed += 1
+		# collision
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(0.30, 1.15, fwd.length() + 0.4)
+		cs.shape = box
+		cs.position = mid + Vector3.UP * 0.55
+		cs.rotation.y = yaw
+		body.add_child(cs)
+	mm_post.instance_count = placed
+	mm_rail.instance_count = placed
+	var post_mi := MultiMeshInstance3D.new()
+	post_mi.name = "BarrierPosts"
+	post_mi.multimesh = mm_post
+	post_mi.material_override = steel
+	post_mi.layers = 1
+	add_child(post_mi)
+	var rail_mi := MultiMeshInstance3D.new()
+	rail_mi.name = "BarrierRail"
+	rail_mi.multimesh = mm_rail
+	rail_mi.material_override = steel
+	rail_mi.layers = 1
+	add_child(rail_mi)
+
+
+## Reflective kerb markers every 24 m: the thing that tells you where the edge of
+## the road is at 300 km/h in the rain. Emissive, instanced, one draw call.
+func _build_kerb_markers() -> void:
+	if road_points.is_empty():
+		return
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.10, 0.22, 0.30)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = mesh
+	var step: int = 4
+	mm.instance_count = int(ROAD_SEGMENTS / float(step)) * 2
+	var idx := 0
+	for i in range(0, ROAD_SEGMENTS, step):
+		var a: float = float(i) / float(ROAD_SEGMENTS) * TAU
+		var r: float = ROAD_RING_RADIUS * (1.0 + 0.10 * sin(a * 3.0) + 0.05 * cos(a * 5.0))
+		var yaw: float = a + PI * 0.5
+		for side in [-1.0, 1.0]:
+			var rr: float = r + side * 9.4
+			var pos := Vector3(cos(a) * rr, 1.15, sin(a) * rr)
+			mm.set_instance_transform(idx, Transform3D(Basis(Vector3.UP, yaw), pos + Vector3.UP * 0.11))
+			# alternate white and amber, which is how European kerbs are marked
+			mm.set_instance_color(idx, Color(1.0, 0.96, 0.86) if idx % 2 == 0 else Color(1.0, 0.66, 0.20))
+			idx += 1
+	mm.instance_count = idx
+	var mi := MultiMeshInstance3D.new()
+	mi.name = "KerbMarkers"
+	mi.multimesh = mm
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.94, 0.80)
+	mat.emission_energy_multiplier = 1.6
+	mi.material_override = mat
+	mi.layers = 1
+	add_child(mi)
 
 
 ## Emit a quad as two triangles that both face up AND tile it exactly.

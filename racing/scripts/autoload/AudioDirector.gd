@@ -5,7 +5,8 @@ extends Node
 const SFX_DIR := "res://assets/audio/sfx/"
 const MUSIC_DIR := "res://assets/audio/music/"
 const SFX_NAMES := ["ui_click", "ui_hover", "ui_confirm", "ui_back", "nitro", "crash", "gear_shift",
-	"purchase", "level_up", "achievement", "countdown_beep", "countdown_go", "tyre_screech", "wind"]
+	"purchase", "level_up", "achievement", "countdown_beep", "countdown_go", "tyre_screech", "wind",
+	"ui_error", "ui_alert", "horn", "fuel_pump", "police_radio"]
 
 var _sfx: Dictionary = {}
 var _music_streams: Dictionary = {}
@@ -18,6 +19,7 @@ var _pool_index = 0
 var engine_player: AudioStreamPlayer
 var screech_player: AudioStreamPlayer
 var wind_player: AudioStreamPlayer
+var _turbo_player: AudioStreamPlayer = null
 
 const POOL_SIZE := 10
 
@@ -106,13 +108,37 @@ func stop_music(fade: float = 0.8) -> void:
 
 
 ## Engine voice: rpm 0..1 maps to pitch 0.55..1.9 and loudness follows throttle.
-func set_engine(rpm_ratio: float, load: float, running: bool = true) -> void:
+## Engine voice. `turbo` (0..1) adds an induction whistle on top of the firing
+## frequency, and `exhaust` (0..1) opens a second, octave-down layer so a hypercar
+## reads as a much bigger engine than a hatchback at the same RPM.
+func set_engine(rpm_ratio: float, load: float, running: bool = true,
+		turbo: float = 0.0, exhaust: float = 0.0) -> void:
 	if engine_player == null:
 		return
 	if not engine_player.playing and running:
 		engine_player.play()
 	engine_player.pitch_scale = lerpf(0.55, 2.05, clampf(rpm_ratio, 0.0, 1.0))
 	engine_player.volume_db = lerpf(-26.0, 1.0, clampf(load, 0.0, 1.0))
+	if turbo > 0.02 or exhaust > 0.02:
+		# second voice: the same loop an octave down + a spool, panned wide
+		if _turbo_player == null:
+			_turbo_player = _make_loop_player("engine_loop", "Engine", -14.0)
+			_turbo_player.pitch_scale = 0.5
+		if not _turbo_player.playing and running:
+			_turbo_player.play()
+		_turbo_player.pitch_scale = lerpf(0.42, 0.72, clampf(exhaust, 0.0, 1.0))
+		_turbo_player.volume_db = lerpf(-40.0, -8.0, clampf(load * 0.5 + turbo * 0.5, 0.0, 1.0))
+	elif _turbo_player != null and _turbo_player.playing:
+		_turbo_player.volume_db = -60.0
+
+
+## Engine off (out of fuel, or the race is over): a soft shutdown rather than
+## a hard cut, which is what a stalled car actually sounds like.
+func engine_off() -> void:
+	if engine_player:
+		engine_player.stop()
+	if _turbo_player:
+		_turbo_player.stop()
 
 
 func set_screech(intensity: float) -> void:

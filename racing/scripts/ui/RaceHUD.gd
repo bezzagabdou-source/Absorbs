@@ -28,11 +28,26 @@ var _speedlines: ColorRect
 var _damage_fill: ColorRect
 var _drift_label: Label
 var _drift_score = 0.0
+var _drift_combo = 0.0          ## running total for the current drift
+var _drift_bank = 0.0           ## already-banked points, survives a spin
+var _drift_mult = 1.0
+var _drift_idle = 0.0           ## seconds since the tyres last let go
+var _drift_best = 0
+var _mode_status: Label
+signal drift_combo_banked(points: int, multiplier: float)
 var _steer_touch = 0.0
 var _touch: Control
 var _mobile = true
 var _perf: Label
 var map_button: Button
+var _fuel_fill: ColorRect
+var _fuel_lbl: Label
+var _heat_lbl: Label
+var _clock_lbl: Label
+var _weather_lbl: Label
+var _shift_lamp: Panel
+var _shift_glow: float = 0.0
+var _living_risk: int = 0
 
 const SPEEDO_SIZE := 300.0
 const SPEEDO_MARGIN := 46.0
@@ -50,6 +65,7 @@ func _ready() -> void:
 	add_child(_speedlines)
 	move_child(_speedlines, 0)
 	_build_countdown()
+	_build_mode_status()
 	_build_perf_readout()
 
 
@@ -109,6 +125,51 @@ func _build_top() -> void:
 	_best_label = UIStyle.make_label("--:--.--", "numeric", 20, UIStyle.TEXT_DIM)
 	tv.add_child(_best_label)
 	top.add_child(time_panel)
+	# --- living world cluster: fuel, wanted stars, clock, weather ----------
+	var life_panel = UIStyle.make_glass_panel(22, Color(0.03, 0.05, 0.09, 0.62), 16, 0.10)
+	var lc = VBoxContainer.new()
+	lc.add_theme_constant_override("separation", 4)
+	life_panel.add_child(lc)
+	var frow = HBoxContainer.new()
+	frow.add_theme_constant_override("separation", 8)
+	frow.add_child(UIStyle.make_kicker("FUEL", accent, 13))
+	var fbar_bg = ColorRect.new()
+	fbar_bg.color = Color(1, 1, 1, 0.12)
+	fbar_bg.custom_minimum_size = Vector2(108, 10)
+	fbar_bg.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var fbar_wrap = Control.new()
+	fbar_wrap.custom_minimum_size = Vector2(108, 10)
+	fbar_wrap.add_child(fbar_bg)
+	_fuel_fill = ColorRect.new()
+	_fuel_fill.color = accent
+	_fuel_fill.position = Vector2.ZERO
+	_fuel_fill.size = Vector2(108, 10)
+	_fuel_fill.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	fbar_wrap.add_child(_fuel_fill)
+	frow.add_child(fbar_wrap)
+	_fuel_lbl = UIStyle.make_label("100%", "numeric", 14, UIStyle.TEXT_DIM)
+	frow.add_child(_fuel_lbl)
+	lc.add_child(frow)
+	var srow = HBoxContainer.new()
+	srow.add_theme_constant_override("separation", 10)
+	_heat_lbl = UIStyle.make_label("", "display", 18, Color(0.45, 0.62, 1.0))
+	srow.add_child(_heat_lbl)
+	_clock_lbl = UIStyle.make_label("", "numeric", 16, UIStyle.TEXT_DIM)
+	srow.add_child(_clock_lbl)
+	_weather_lbl = UIStyle.make_label("", "numeric", 16, UIStyle.TEXT_DIM)
+	srow.add_child(_weather_lbl)
+	lc.add_child(srow)
+	top.add_child(life_panel)
+	# --- shift lamp: only lit while the manual box is between gears ---------
+	_shift_lamp = Panel.new()
+	_shift_lamp.custom_minimum_size = Vector2(14, 74)
+	_shift_lamp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(1.0, 0.55, 0.15)
+	sb.set_corner_radius_all(7)
+	_shift_lamp.add_theme_stylebox_override("panel", sb)
+	_shift_lamp.modulate = Color(1, 1, 1, 0.18)
+	top.add_child(_shift_lamp)
 	var pause = UIStyle.make_icon_button("pause", 74, accent)
 	pause.pressed.connect(func(): pause_pressed.emit())
 	top.add_child(pause)
@@ -240,6 +301,18 @@ func _build_warnings() -> void:
 	add_child(_warn)
 
 
+func _build_mode_status() -> void:
+	_mode_status = UIStyle.make_label("", "numeric", 34, UIStyle.GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_mode_status.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_mode_status.offset_left = -460
+	_mode_status.offset_right = 460
+	_mode_status.offset_top = 96
+	_mode_status.offset_bottom = 146
+	_mode_status.modulate.a = 0.0
+	_mode_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_mode_status)
+
+
 func _build_countdown() -> void:
 	_countdown = UIStyle.make_numeral("3", 220, accent, HORIZONTAL_ALIGNMENT_CENTER)
 	_countdown.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -294,18 +367,62 @@ func tick(delta: float, stats: Dictionary) -> void:
 		target_intensity = minf(1.0, target_intensity + 0.45)
 	var mat: ShaderMaterial = _speedlines.material
 	mat.set_shader_parameter("intensity", lerpf(float(mat.get_shader_parameter("intensity")), target_intensity, delta * 3.0))
+	# --- drift combo ---------------------------------------------------------
+	# A drift earns points per second of slide, and the multiplier climbs for as
+	# long as the player keeps linking slides. After 1.6 s of grip the combo is
+	# banked: points stay, multiplier resets. Hitting a wall calls break_combo().
 	var drift: float = float(stats.get("drift", 0.0))
 	if drift > 0.35:
-		_drift_score += drift * delta * 120.0
-		_drift_label.text = "DRIFT  %d" % int(_drift_score)
+		_drift_idle = 0.0
+		_drift_mult = minf(8.0, _drift_mult + delta * 0.85)
+		_drift_combo += drift * delta * 260.0 * _drift_mult
+		_drift_score = _drift_bank + _drift_combo
+		_drift_label.text = "DRIFT  %d   x%.1f" % [int(_drift_combo), _drift_mult]
+		_drift_label.add_theme_color_override("font_color",
+			UIStyle.GOLD if _drift_mult < 3.0 else
+			(UIStyle.LIME if _drift_mult < 5.0 else UIStyle.CYAN))
 		_drift_label.modulate.a = minf(1.0, _drift_label.modulate.a + delta * 5.0)
 	else:
-		_drift_score = 0.0
-		_drift_label.modulate.a = maxf(0.0, _drift_label.modulate.a - delta * 3.0)
+		_drift_idle += delta
+		if _drift_combo > 0.0 and _drift_idle > 1.6:
+			# bank it
+			_drift_bank += _drift_combo
+			_drift_best = maxi(_drift_best, int(_drift_combo))
+			drift_combo_banked.emit(int(_drift_combo), _drift_mult)
+			_drift_combo = 0.0
+			_drift_mult = 1.0
+		if _drift_combo <= 0.0:
+			_drift_label.modulate.a = maxf(0.0, _drift_label.modulate.a - delta * 3.0)
 	if stats.get("wrong_way", false):
 		flash_warning(Localization.t("hud.wrong_way"), UIStyle.RED)
 	_rpm_arc.queue_redraw()
 	_minimap.queue_redraw()
+
+
+## Persistent status line for the timed modes (drift points, wanted stars,
+## remaining time). Sits under the warning banner so it never covers the road.
+func flash_mode_status(text: String, color: Color) -> void:
+	if _mode_status == null:
+		return
+	_mode_status.text = text
+	_mode_status.add_theme_color_override("font_color", color)
+	_mode_status.modulate.a = 1.0
+
+
+## A wall hit kills the combo before it can be banked: that is the risk/reward of
+## drifting near a barrier, and the reason drifting is a skill rather than a
+## free source of points.
+func break_combo() -> void:
+	if _drift_combo > 0.0:
+		flash_warning("COMBO LOST", UIStyle.RED)
+	_drift_combo = 0.0
+	_drift_mult = 1.0
+	_drift_idle = 0.0
+
+
+## Total drift points earned this run — what the results screen pays out on.
+func drift_total() -> int:
+	return int(_drift_bank + _drift_combo)
 
 
 func flash_warning(text: String, color: Color) -> void:
@@ -399,6 +516,39 @@ func touch_nitro() -> bool:
 	if _touch and _touch.visible:
 		return _touch.nitro_held()
 	return false
+
+
+## Living-world readout: fuel fraction, wanted level, in-game clock, selected
+## gear, whether the manual box is mid-shift, and the current weather.
+func set_living_state(fuel: float, heat: int, clock: String, gear: int,
+		shifting: bool, weather: String) -> void:
+	_living_risk = heat
+	if _fuel_fill != null:
+		_fuel_fill.size.x = 108.0 * clampf(fuel, 0.0, 1.0)
+		_fuel_fill.color = accent if fuel > 0.25 else Color(1.0, 0.35, 0.22)
+	if _fuel_lbl != null:
+		_fuel_lbl.text = "%d%%" % int(round(fuel * 100.0))
+	if _heat_lbl != null:
+		if heat > 0:
+			_heat_lbl.text = "*".repeat(heat)
+			_heat_lbl.modulate = Color(1.0, 0.45, 0.40)
+		else:
+			_heat_lbl.text = ""
+	if _clock_lbl != null:
+		_clock_lbl.text = clock
+	if _weather_lbl != null:
+		match weather:
+			"rain":
+				_weather_lbl.text = "RAIN"
+			"fog":
+				_weather_lbl.text = "FOG"
+			_:
+				_weather_lbl.text = "CLEAR"
+	if _shift_lamp != null:
+		_shift_glow = lerpf(_shift_glow, 1.0 if shifting else 0.0, 0.35)
+		_shift_lamp.modulate = Color(1, 1, 1, 0.18 + 0.82 * _shift_glow)
+	if _gear_label != null:
+		_gear_label.text = "N" if gear <= 0 else str(gear)
 
 
 func set_nitro_charge(v: float) -> void:

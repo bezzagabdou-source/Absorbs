@@ -5,13 +5,15 @@ extends Node
 const SAVE_VERSION := 3
 
 # ---------------------------------------------------------------- classes
-const CLASSES := ["street", "sport", "super", "hyper"]
+const CLASSES := ["street", "sport", "super", "hyper", "overland", "classic"]
 
 const CLASS_INFO := {
 	"street": {"name": "STREET", "label": "Street", "color": Color("22e9ff"), "tier": 1},
 	"sport": {"name": "SPORT", "label": "Sport", "color": Color("65ffaa"), "tier": 2},
 	"super": {"name": "SUPER", "label": "Super", "color": Color("ffb020"), "tier": 3},
 	"hyper": {"name": "HYPER", "label": "Hyper", "color": Color("ff2e93"), "tier": 4},
+	"overland": {"name": "OVERLAND", "label": "Overland", "color": Color("8fd14f"), "tier": 2},
+	"classic": {"name": "CLASSIC", "label": "Classic", "color": Color("d8b06a"), "tier": 3},
 }
 
 ## Body archetypes drive the procedural 3D mesh (see vehicle/CarModel.gd).
@@ -32,6 +34,14 @@ const SHAPES := {
 		"nose": 0.26, "tail": 0.34, "wing": 0.42, "wheel": 0.36, "stance": 0.28, "bevel": 0.24},
 	"hyper": {"length": 4.8, "width": 2.10, "height": 1.04, "cabin": [0.38, 0.60], "roof": 0.90,
 		"nose": 0.20, "tail": 0.28, "wing": 0.62, "wheel": 0.37, "stance": 0.34, "bevel": 0.26},
+	# Overland: tall, boxy, big tyres, long travel. The cabin sits high and the
+	# nose is blunt because that is what an off-roader looks like in profile.
+	"overland": {"length": 5.10, "width": 2.02, "height": 1.92, "cabin": [0.30, 0.86], "roof": 1.0,
+		"nose": 0.62, "tail": 0.70, "wing": 0.0, "wheel": 0.46, "stance": 0.42, "bevel": 0.14},
+	# Classic GT: long bonnet, short deck, thin pillars, small wheels by modern
+	# standards. The proportions are the point.
+	"classic": {"length": 4.42, "width": 1.72, "height": 1.20, "cabin": [0.42, 0.72], "roof": 0.94,
+		"nose": 0.40, "tail": 0.50, "wing": 0.0, "wheel": 0.32, "stance": 0.06, "bevel": 0.26},
 }
 
 ## 32 cars. stats are 0..100: speed, accel, handling, brake, nitro.
@@ -140,6 +150,38 @@ const CARS := [
 	{"id": "aeon_zero", "name": "AEON ZERO", "brand": "Aeon", "class": "hyper", "body": "hyper",
 		"stats": {"speed": 100, "accel": 100, "handling": 92, "brake": 94, "nitro": 100},
 		"price": 1450000, "unlock": 55, "color": "22ffd8", "paint": "void"},
+
+	# ---------------- OVERLAND (4) -------------------------------------------
+	# Slower on tarmac, but they keep their grip on dirt and grass, where every
+	# other class loses more than half of it. That is the whole point of the class.
+	{"id": "rampart_4x4", "name": "RAMPART 4X4", "brand": "Rampart", "class": "overland", "body": "overland",
+		"stats": {"speed": 52, "accel": 55, "handling": 46, "brake": 58, "nitro": 40},
+		"price": 62000, "unlock": 6, "color": "8fd14f", "paint": "lime"},
+	{"id": "mesa_ridge", "name": "MESA RIDGE", "brand": "Mesa", "class": "overland", "body": "overland",
+		"stats": {"speed": 55, "accel": 58, "handling": 48, "brake": 60, "nitro": 43},
+		"price": 78000, "unlock": 10, "color": "c98f4a", "paint": "amber"},
+	{"id": "boulder_x", "name": "BOULDER X", "brand": "Boulder", "class": "overland", "body": "overland",
+		"stats": {"speed": 58, "accel": 61, "handling": 50, "brake": 62, "nitro": 46},
+		"price": 96000, "unlock": 14, "color": "5b6b4a", "paint": "olive"},
+	{"id": "colossus_hd", "name": "COLOSSUS HD", "brand": "Colossus", "class": "overland", "body": "overland",
+		"stats": {"speed": 61, "accel": 64, "handling": 52, "brake": 65, "nitro": 50},
+		"price": 118000, "unlock": 18, "color": "2f3a44", "paint": "gunmetal"},
+
+	# ---------------- CLASSIC (4) --------------------------------------------
+	# Beautiful, quick for their age, and they punish you: no assists help much on
+	# narrow tyres, and the brakes are the worst in the game.
+	{"id": "corsa_1962", "name": "CORSA 1962", "brand": "Corsa", "class": "classic", "body": "classic",
+		"stats": {"speed": 58, "accel": 56, "handling": 44, "brake": 38, "nitro": 34},
+		"price": 84000, "unlock": 8, "color": "b3231f", "paint": "crimson"},
+	{"id": "gran_turismo", "name": "GRAN TURISMO", "brand": "Veloce", "class": "classic", "body": "classic",
+		"stats": {"speed": 63, "accel": 60, "handling": 47, "brake": 41, "nitro": 38},
+		"price": 142000, "unlock": 16, "color": "1f3f6b", "paint": "blue"},
+	{"id": "lm_1969", "name": "LM 1969", "brand": "Veloce", "class": "classic", "body": "classic",
+		"stats": {"speed": 70, "accel": 66, "handling": 52, "brake": 46, "nitro": 44},
+		"price": 265000, "unlock": 26, "color": "f2f4ff", "paint": "pearl"},
+	{"id": "silver_arrow", "name": "SILVER ARROW", "brand": "Argent", "class": "classic", "body": "classic",
+		"stats": {"speed": 74, "accel": 70, "handling": 55, "brake": 49, "nitro": 47},
+		"price": 380000, "unlock": 34, "color": "cfd6e6", "paint": "chrome"},
 ]
 
 # ---------------------------------------------------------------- paints
@@ -176,6 +218,15 @@ const PAINTS := [
 	{"id": "chrome", "name": "Liquid Chrome", "color": "cfd6e6", "price": 16000, "finish": 2},
 	{"id": "midnight", "name": "Midnight", "color": "1b1030", "price": 15000, "finish": 2},
 	{"id": "void", "name": "Void Teal", "color": "22ffd8", "price": 18000, "finish": 2},
+	# --- finishes added for the new classes ----------------------------------
+	{"id": "crimson", "name": "Racing Crimson", "color": "b3231f", "price": 0, "finish": 0},
+	{"id": "gunmetal", "name": "Gunmetal", "color": "2f3a44", "price": 0, "finish": 1},
+	{"id": "olive", "name": "Field Olive", "color": "5b6b4a", "price": 0, "finish": 1},
+	{"id": "british_racing", "name": "Racing Green", "color": "1d4a33", "price": 9800, "finish": 2},
+	{"id": "gulf", "name": "Gulf Blue", "color": "2f7fc4", "price": 11200, "finish": 2},
+	{"id": "ivory", "name": "Aged Ivory", "color": "e8ddc4", "price": 8600, "finish": 1},
+	{"id": "matte_graphite", "name": "Matte Graphite", "color": "3a3d42", "price": 7400, "finish": 1},
+	{"id": "desert_tan", "name": "Desert Tan", "color": "b89a6a", "price": 6800, "finish": 1},
 ]
 
 const RIMS := [
@@ -245,6 +296,8 @@ const MODES := [
 	{"id": "circuit", "name": "CIRCUIT", "desc": "6-car race · 3 laps · first place wins"},
 	{"id": "trial", "name": "TIME TRIAL", "desc": "Solo against the clock · 3 laps"},
 	{"id": "drag", "name": "DRAG", "desc": "800 m straight · perfect shifts win"},
+	{"id": "drift", "name": "DRIFT", "desc": "2 minutes · link slides · multiply the combo"},
+	{"id": "pursuit", "name": "PURSUIT", "desc": "Survive the police · the longer you run, the more you earn"},
 ]
 
 # ---------------------------------------------------------------- economy
@@ -361,7 +414,25 @@ func stat_rating(stats: Dictionary) -> int:
 ## Physical tuning derived from 0..100 stats. Units: m/s, m/s^2, radians.
 func physics_for(car: Dictionary, upgrade_levels: Dictionary) -> Dictionary:
 	var st = tuned_stats(car, upgrade_levels)
+	var cls := str(car.get("class", "street"))
 	var top_kmh = lerpf(168.0, 412.0, pow(float(st["speed"]) / 100.0, 1.35))
+	# Class character, not just a number curve:
+	#  * an overlander has the aerodynamics of a brick, so it loses top end but
+	#    keeps every bit of its torque — it is the fastest thing off the tarmac;
+	#  * a classic has tall gearing and thin tyres: lovely noise, poor brakes.
+	var offroad_rating := 0.0
+	match cls:
+		"overland":
+			top_kmh *= 0.86
+			offroad_rating = 0.92
+		"classic":
+			offroad_rating = 0.35
+		"sport", "super":
+			offroad_rating = 0.28
+		"hyper":
+			offroad_rating = 0.18
+		_:
+			offroad_rating = 0.45
 	var accel = lerpf(4.0, 10.4, pow(float(st["accel"]) / 100.0, 1.6))
 	var grip = lerpf(0.78, 0.96, float(st["handling"]) / 100.0)
 	var brake_decel = lerpf(9.0, 21.0, float(st["brake"]) / 100.0)
@@ -376,6 +447,10 @@ func physics_for(car: Dictionary, upgrade_levels: Dictionary) -> Dictionary:
 		"nitro": nitro_power,
 		"steer": steer,
 		"mass": clampf(lerpf(1250.0, 1580.0, float(st["speed"]) / 100.0), 1100.0, 1700.0),
+		# How much grip the car keeps once it leaves the tarmac. 1.0 = an
+		# overlander that is just as happy in a field; 0.18 = a hypercar that
+		# becomes a sled the moment a wheel touches grass.
+		"offroad": offroad_rating,
 	}
 
 

@@ -64,12 +64,14 @@ func _build_viewport() -> void:
 	# slab over it.
 	e.background_mode = Environment.BG_CANVAS
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.4, 0.5, 0.72)
-	e.ambient_light_energy = 0.70
+	e.ambient_light_color = Color(0.52, 0.56, 0.64)
+	e.ambient_light_energy = 0.85
+	e.ambient_light_sky_contribution = 0.0
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.glow_enabled = true
-	e.glow_intensity = 0.85
-	e.glow_bloom = 0.2
+	e.glow_intensity = 0.95
+	e.glow_bloom = 0.14
+	e.glow_hdr_threshold = 1.05
 	env.environment = e
 	root.add_child(env)
 	var key = DirectionalLight3D.new()
@@ -77,11 +79,29 @@ func _build_viewport() -> void:
 	key.light_energy = 1.15
 	key.rotation_degrees = Vector3(-32, -140, 0)
 	root.add_child(key)
-	var neon = DirectionalLight3D.new()
-	neon.light_color = UIStyle.MAGENTA
-	neon.light_energy = 1.60
-	neon.rotation_degrees = Vector3(-8, 60, 0)
-	root.add_child(neon)
+	# Studio rig: a warm key from the front-left, a cool fill from the right and a
+	# hard rim from behind. This is how a car is actually lit for a photograph —
+	# the old magenta key tinted every paint colour purple and made the whole
+	# garage feel like a nightclub rather than a showroom.
+	var rim = DirectionalLight3D.new()
+	rim.light_color = Color(1.0, 0.93, 0.84)
+	rim.light_energy = 1.55
+	rim.rotation_degrees = Vector3(-14, 22, 0)
+	root.add_child(rim)
+	var back = DirectionalLight3D.new()
+	back.light_color = Color(0.72, 0.84, 1.0)
+	back.light_energy = 1.10
+	back.rotation_degrees = Vector3(-24, 196, 0)
+	root.add_child(back)
+	# floor bounce: a soft upward light so the sills and the underside of the
+	# splitter are not black holes, which is what makes a car look like it is
+	# floating on the turntable
+	var bounce = OmniLight3D.new()
+	bounce.light_color = Color(0.85, 0.88, 1.0)
+	bounce.light_energy = 1.35
+	bounce.omni_range = 9.0
+	bounce.position = Vector3(0, 0.35, 0)
+	root.add_child(bounce)
 	var fill2 = DirectionalLight3D.new()
 	fill2.light_color = UIStyle.CYAN
 	fill2.light_energy = 0.70
@@ -177,11 +197,15 @@ func _build_list() -> void:
 	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	panel.add_child(v)
-	var filters = HBoxContainer.new()
-	filters.add_theme_constant_override("separation", 6)
+	# Seven class chips no longer fit across a phone in one row at a legible
+	# size, so they wrap into a grid of three. tap targets stay 46 px tall.
+	var filters = GridContainer.new()
+	filters.columns = 3
+	filters.add_theme_constant_override("h_separation", 6)
+	filters.add_theme_constant_override("v_separation", 6)
 	v.add_child(filters)
-	for cls in ["all", "street", "sport", "super", "hyper"]:
-		var b = UIStyle.make_button(cls.to_upper(), UIStyle.CYAN, cls == "all", 15, 46)
+	for cls in ["all"] + GameData.CLASSES:
+		var b = UIStyle.make_button(cls.to_upper(), UIStyle.class_color(cls) if cls != "all" else UIStyle.CYAN, cls == _class_filter, 15, 46)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size = Vector2(0, 46)
 		var c = cls

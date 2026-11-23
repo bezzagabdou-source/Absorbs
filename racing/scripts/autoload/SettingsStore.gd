@@ -20,6 +20,16 @@ const DEFAULTS := {
 	"assist": true,
 	"invert_tilt": false,
 	"vibration": true,
+	# --- driving model --------------------------------------------------------
+	# automatic keeps the shipped behaviour; manual gives the player an H-pattern
+	# they have to work, with a real clutch cut on every shift.
+	"transmission": "auto",       # auto | manual
+	"abs": true,                  # anti-lock brakes: steer under full braking
+	"tcs": true,                  # traction control: no wheelspin off the line
+	# --- world ---------------------------------------------------------------
+	"traffic": true,
+	"pedestrians": true,
+	"day_cycle": true,
 }
 
 var values: Dictionary = {}

@@ -12,6 +12,11 @@ extends Control
 ## steer_value(), throttle_value() and nitro_held().
 
 signal wheel_changed(value: float)
+## Manual gearbox paddles: the race screen decides whether they shift anything
+## (they are inert while the box is in automatic).
+signal shift_up_pressed
+signal shift_down_pressed
+signal horn_pressed
 
 const WHEEL_RADIUS := 150.0
 const MAX_WHEEL_ANGLE := 2.2          # radians of visual rotation
@@ -33,13 +38,30 @@ var _nitro_rect := Rect2()
 var _gas_down := false
 var _brake_down := false
 var _accent := Color(0.13, 0.91, 1.0)
+var _paddle_up := Rect2()
+var _paddle_down := Rect2()
+var _horn_rect := Rect2()
+var manual_gearbox: bool = false
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process_input(true)
-	resized.connect(_layout)
+	resized.connect(func():
+		_layout()
+		_layout_paddles())
 	_layout()
+	_layout_paddles()
+
+
+func _layout_paddles() -> void:
+	var vs: Vector2 = get_viewport_rect().size
+	var right: float = vs.x - 30.0
+	var bottom: float = vs.y - 30.0
+	# two stacked paddles, thumb-reachable above the gas pedal
+	_paddle_up = Rect2(right - 96.0, bottom - 300.0, 84.0, 84.0)
+	_paddle_down = Rect2(right - 96.0, bottom - 208.0, 84.0, 84.0)
+	_horn_rect = Rect2(right - 200.0, bottom - 208.0, 84.0, 84.0)
 
 
 func _layout() -> void:
@@ -103,6 +125,15 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch or event is InputEventMouseButton:
 		var pos: Vector2 = event.position
 		var pressed: bool = event.pressed
+		if pressed and manual_gearbox and _paddle_up.has_point(pos):
+			shift_up_pressed.emit()
+			return
+		if pressed and manual_gearbox and _paddle_down.has_point(pos):
+			shift_down_pressed.emit()
+			return
+		if pressed and _horn_rect.has_point(pos):
+			horn_pressed.emit()
+			return
 		if not pressed:
 			_gas_down = false
 			_brake_down = false
@@ -143,9 +174,29 @@ func _in_circle(p: Vector2, c: Vector2, r: float) -> bool:
 
 func _draw() -> void:
 	_draw_wheel()
-	_draw_pedal(_pedal_brake, _brake, Localization.t("hud.brake"), Color(1.0, 0.18, 0.28))
-	_draw_pedal(_pedal_gas, _throttle, Localization.t("hud.accel"), _accent)
 	_draw_nitro()
+	_draw_paddles()
+
+
+func _draw_paddles() -> void:
+	if manual_gearbox:
+		_paddle(_paddle_up, "▲", accent_soft())
+		_paddle(_paddle_down, "▼", accent_soft())
+	_paddle(_horn_rect, "H", Color(1.0, 0.85, 0.55, 0.85))
+
+
+func accent_soft() -> Color:
+	return Color(_accent.r, _accent.g, _accent.b, 0.92)
+
+
+func _paddle(rect: Rect2, glyph: String, col: Color) -> void:
+	draw_rect(rect, Color(0.02, 0.04, 0.07, 0.55), true)
+	draw_rect(rect, col, false, 2.0)
+	var font: Font = ThemeDB.fallback_font
+	var size: int = 34
+	var text_size: Vector2 = font.get_string_size(glyph, HORIZONTAL_ALIGNMENT_CENTER, -1, size)
+	draw_string(font, rect.position + Vector2((rect.size.x - text_size.x) * 0.5,
+		rect.size.y * 0.5 + size * 0.36), glyph, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
 
 
 func _draw_wheel() -> void:

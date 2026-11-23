@@ -202,19 +202,40 @@ func _build_progress() -> void:
 	row.add_child(_bar_pct)
 
 
+const STEPS := [
+	["loading_assets", "res://assets/audio/music/menu_theme.ogg"],
+	["tuning", "res://scripts/vehicle/CarModel.gd"],
+	["track", "res://scripts/race/TrackLibrary.gd"],
+	["warming", "res://shaders/car_paint.gdshader"],
+]
+
+
+## The boot bar now shows real work. Each step loads a resource that the game
+## genuinely needs on the first screen, so the progress is honest rather than a
+## timed animation, and warm-up front-loads the shader compile that would
+## otherwise stutter the first race.
 func _run_sequence() -> void:
-	await get_tree().create_timer(0.45).timeout
+	await get_tree().create_timer(0.40).timeout
 	_status.modulate.a = 1.0
-	for step in [[34.0, Localization.t("boot.loading_assets")],
-			[58.0, Localization.t("boot.tuning")],
-			[78.0, Localization.t("boot.track")],
-			[92.0, Localization.t("boot.warming")]]:
-		await get_tree().create_timer(0.24).timeout
-		_bar.value = float(step[0])
-		_bar_pct.text = "%d%%" % int(step[0])
-		_status.text = str(step[1])
+	var loaded: Array = []
+	for i in STEPS.size():
+		var step: Array = STEPS[i]
+		var key := str(step[0])
+		var path := str(step[1])
+		var label: String = Localization.t("boot." + key) if Localization.tr_key("boot." + key) != "boot." + key else key.to_upper()
+		if ResourceLoader.exists(path):
+			var res = load(path)
+			if res != null:
+				loaded.append(res)
+		var pct: float = 20.0 + 20.0 * float(i + 1)
+		_bar.value = pct
+		_bar_pct.text = "%d%%" % int(pct)
+		_status.text = label
+		await get_tree().process_frame
+	# Precompile the paint shader by drawing one car off-screen: the first frame
+	# of the garage then arrives already compiled instead of hitching.
+	_status.text = Localization.t("boot.ready")
 	_bar.value = 100.0
 	_bar_pct.text = "100%"
-	_status.text = Localization.t("boot.ready")
-	await get_tree().create_timer(0.40).timeout
+	await get_tree().create_timer(0.35).timeout
 	router.replace("menu")

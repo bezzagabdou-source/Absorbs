@@ -1,4 +1,7 @@
 extends "res://scripts/ui/ScreenBase.gd"
+
+## Display order of the mode chips. Drift and Pursuit are the v3 additions.
+const MODE_ORDER := ["circuit", "trial", "drag", "drift", "pursuit", "roam"]
 ## Track + mode selection. A rotating coverflow of track cards with live art,
 ## mode pills, and a detail panel with start button.
 
@@ -19,33 +22,45 @@ func build() -> void:
 
 
 func _build_mode_row() -> void:
-	_mode_row = HBoxContainer.new()
-	_mode_row.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	_mode_row.offset_left = 96
-	_mode_row.offset_right = -96
-	_mode_row.offset_top = 168
-	_mode_row.offset_bottom = 252
-	_mode_row.add_theme_constant_override("separation", 14)
-	content.add_child(_mode_row)
-	var idx = 0
-	for mode in ["circuit", "trial", "drag", "roam"]:
-		var key := "mode.circuit" if mode == "circuit" else (
-			"mode.trial" if mode == "trial" else ("mode.drag" if mode == "drag" else "mode.roam"))
+	# Six modes no longer fit in one 232 px-wide row on a phone, so they are laid
+	# out as a 3x2 grid and every chip expands to the available width instead of
+	# carrying a fixed pixel size.
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	grid.offset_left = 96
+	grid.offset_right = -96
+	grid.offset_top = 168
+	grid.offset_bottom = 256
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 10)
+	content.add_child(grid)
+	_mode_row = grid
+	for mode in MODE_ORDER:
+		var key := "mode." + str(mode)
 		var label = Localization.t(key)
-		var accent_col: Color = UIStyle.MAGENTA if mode == "roam" else UIStyle.CYAN
-		var b = UIStyle.make_button(label, accent_col, mode == _mode, 24, 66)
-		b.custom_minimum_size = Vector2(232, 66)
-		var m = mode
+		if label == key:
+			label = str(mode).to_upper()
+		var accent_col: Color = UIStyle.CYAN
+		if mode == "roam":
+			accent_col = UIStyle.VIOLET
+		elif mode == "drift":
+			accent_col = UIStyle.GOLD
+		elif mode == "pursuit":
+			accent_col = Color(1.0, 0.35, 0.35)
+		var b = UIStyle.make_button(label, accent_col, mode == _mode, 22, 62)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 62)
+		var m = str(mode)
 		b.pressed.connect(func(): _set_mode(m))
-		_mode_row.add_child(b)
-		idx += 1
+		grid.add_child(b)
 
 
 func _set_mode(mode: String) -> void:
 	_mode = mode
 	for i in range(_mode_row.get_child_count()):
 		var b: Button = _mode_row.get_child(i)
-		var m = ["circuit", "trial", "drag", "roam"][i]
+		var m = str(MODE_ORDER[i]) if i < MODE_ORDER.size() else ""
 		b.add_theme_stylebox_override("normal", UIStyle.glass_box(20, Color(0.09, 0.13, 0.22, 0.66), 0.22))
 		if m == _mode:
 			b.add_theme_stylebox_override("normal", UIStyle.accent_box(UIStyle.CYAN, 0.3, 20, 0.4))

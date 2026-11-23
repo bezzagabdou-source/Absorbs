@@ -12,6 +12,9 @@ const AIDriverScript = preload("res://scripts/race/AIDriver.gd")
 const OpenWorldScript = preload("res://scripts/race/OpenWorld.gd")
 const HUD = preload("res://scripts/ui/RaceHUD.gd")
 const MAP_SCRIPT = preload("res://scripts/ui/WorldMap.gd")
+const SkidEffectsScript = preload("res://scripts/race/SkidEffects.gd")
+const TrafficSystemScript = preload("res://scripts/race/TrafficSystem.gd")
+const WorldSystemsScript = preload("res://scripts/race/WorldSystems.gd")
 
 var router
 var params: Dictionary = {}
@@ -51,6 +54,19 @@ var _wrong_way_t = 0.0
 var _finish_delay = 0.0
 var _started_engine = false
 var _touch_steer_smooth = 0.0
+var skid                              ## SkidEffects
+var living                            ## TrafficSystem (traffic + people + police)
+var systems                           ## WorldSystems (fuel, day cycle, weather)
+var _camera_mode: int = 0
+var _shift_flash: float = 0.0
+var _engine_off: bool = false
+var _horn_cd: float = 0.0
+var gameplay_tuning: Dictionary = {}
+var _last_wall_hits: int = 0
+var _mode_timer: float = 0.0
+var _mode_target: float = 0.0
+var _pursuit_survived: float = 0.0
+var _busted: bool = false
 
 
 func _ready() -> void:
@@ -178,7 +194,8 @@ func _build_world() -> void:
 	world = Node3D.new()
 	world.name = "World"
 	viewport.add_child(world)
-	roaming = mode == "roam"
+	# Drift and Pursuit are open-world modes: they need a region, not a circuit.
+	roaming = str(mode) in ["roam", "drift", "pursuit"]
 	if roaming:
 		_build_open_world()
 	else:
@@ -202,6 +219,78 @@ func _build_world() -> void:
 	world.add_child(cam)
 	_spawn_player()
 	_spawn_ai()
+	_build_systems()
+
+
+## Everything that makes the world feel inhabited and alive: tyre marks, smoke,
+## moving traffic, pedestrians, police, fuel, weather and the clock.
+##
+## Each piece is optional at runtime — the quality governor can switch traffic
+## and pedestrians off entirely on a weak device without touching the physics.
+func _build_systems() -> void:
+	# --- surface effects on the player's car ---
+	skid = SkidEffectsScript.new()
+	skid.name = "SkidEffects"
+	world.add_child(skid)
+	skid.bind(player, player.model())
+
+	# --- traffic, pedestrians and police ---
+	var quality := str(SettingsStore.get_value("quality", "high"))
+	if quality != "low":
+		living = TrafficSystemScript.new()
+		living.name = "LivingWorld"
+		world.add_child(living)
+		var region: Dictionary = _roam_region_for()
+		living.build(open_world if roaming else builder, region)
+		living.set_player(player)
+		living.enabled_pedestrians = quality != "medium"
+		living.enabled_traffic = true
+
+	# --- fuel, weather, day cycle ---
+	systems = WorldSystemsScript.new()
+	systems.name = "WorldSystems"
+	add_child(systems)
+	systems.setup(player, env_rig, str(_roam_region_for().get("profile", "metro")))
+	systems.cycle_enabled = roaming
+	if roaming and open_world != null:
+		systems.place_stations(float(open_world.ROAD_RING_RADIUS), 8)
+	elif builder != null:
+		systems.place_stations(float(builder.data.total_length) / TAU, 6)
+	systems.fuel_low.connect(_on_fuel_low)
+	systems.broke_down.connect(_on_broke_down)
+	systems.refuelled.connect(_on_refuelled)
+	if living != null:
+		living.heat_changed.connect(_on_heat_changed)
+		living.police_spotted.connect(_on_police_spotted)
+
+
+func _on_fuel_low() -> void:
+	if hud:
+		hud.flash_warning("FUEL LOW", Color(1.0, 0.72, 0.20))
+
+
+func _on_broke_down() -> void:
+	AudioDirector.play_sfx("ui_error", -8.0)
+	if hud:
+		hud.flash_warning("OUT OF FUEL", Color(1.0, 0.32, 0.24))
+
+
+func _on_refuelled() -> void:
+	AudioDirector.play_sfx("ui_confirm", -8.0)
+	if hud:
+		hud.flash_warning("REFUELLED + REPAIRED", Color(0.45, 1.0, 0.62))
+
+
+func _on_heat_changed(level: int) -> void:
+	if level > 0:
+		AudioDirector.play_sfx("ui_alert", -6.0)
+		if hud:
+			hud.flash_warning("POLICE PURSUIT %d" % level, Color(0.45, 0.62, 1.0))
+
+
+func _on_police_spotted() -> void:
+	if hud:
+		hud.flash_warning("SPOTTED", Color(1.0, 0.35, 0.35))
 
 
 func _spawn_player() -> void:
@@ -209,6 +298,10 @@ func _spawn_player() -> void:
 	if car.is_empty():
 		car = GameData.CARS[0]
 	var physics: Dictionary = Game.physics_for(str(car["id"]))
+	gameplay_tuning = physics.duplicate(true)
+	# how far each upgrade has come, so the engine note and the turbo spool
+	# reflect what the player actually bought
+	gameplay_tuning["turbo_level"] = Game.upgrade_level(str(car["id"]), "turbo")
 	player = CarControllerScript.new()
 	player.name = "PlayerCar"
 	player.collision_layer = 2
@@ -296,7 +389,7 @@ func _spawn_ai() -> void:
 	var count = 5
 	if mode == "drag":
 		count = 1
-	elif mode == "time_trial" or mode == "roam":
+	elif mode in ["time_trial", "trial", "roam", "drift", "pursuit"]:
 		count = 0
 	var used: Array = []
 	for i in range(count):
@@ -366,6 +459,94 @@ func _build_hud() -> void:
 		world_map.open_world = open_world
 		world_map.player = player
 		add_child(world_map)
+	_wire_touch_controls()
+
+
+## The on-screen paddles and horn are drawn by TouchControls but owned here,
+## because only the race screen knows whether a shift is legal right now.
+func _wire_touch_controls() -> void:
+	if hud == null or hud._touch == null:
+		return
+	var touch = hud._touch
+	touch.shift_up_pressed.connect(_on_shift_up)
+	touch.shift_down_pressed.connect(_on_shift_down)
+	touch.horn_pressed.connect(_on_horn)
+	touch.manual_gearbox = player.manual_gearbox if player else false
+	touch.queue_redraw()
+
+
+func _on_shift_up() -> void:
+	if player == null or not player.manual_gearbox:
+		return
+	player.shift_up()
+	AudioDirector.play_sfx("gear_shift", -10.0, 1.05)
+
+
+func _on_shift_down() -> void:
+	if player == null or not player.manual_gearbox:
+		return
+	player.shift_down()
+	AudioDirector.play_sfx("gear_shift", -12.0, 0.92)
+
+
+func _on_horn() -> void:
+	if _horn_cd > 0.0:
+		return
+	_horn_cd = 1.4
+	AudioDirector.play_sfx("horn", -8.0)
+	# A horn is not decoration: it makes nearby pedestrians scatter and raises
+	# the attention of traffic, which is half of what makes a city feel real.
+	if living != null and player != null:
+		var near: float = living.nearest_pedestrian_distance(player.global_position)
+		if near < 26.0:
+			living.bump_pedestrians(player.global_position, 22.0)
+
+
+## Drift and Pursuit are timed, not lapped. This is checked every frame from
+## _process and is separate from the lap logic on purpose: a drift run has no
+## track, and a pursuit is over when the timer expires (escape) or the police
+## stop you (busted).
+func _tick_mode(delta: float) -> void:
+	if state != "racing":
+		return
+	match str(mode):
+		"drift":
+			_mode_timer = maxf(0.0, _mode_timer - delta)
+			if hud != null:
+				hud.flash_mode_status("%s   %d PTS" % [_time_text(_mode_timer), hud.drift_total()],
+					UIStyle.GOLD)
+			if _mode_timer <= 0.0:
+				_finish_race()
+		"pursuit":
+			_mode_timer = maxf(0.0, _mode_timer - delta)
+			_pursuit_survived += delta
+			if hud != null and living != null:
+				hud.flash_mode_status("%s   %d STAR%s   %s" % [
+					_time_text(_mode_timer), living.heat_level,
+					"" if living.heat_level == 1 else "S", _time_text(_pursuit_survived)],
+					Color(1.0, 0.45, 0.40))
+			# busted: the police sit on top of you for three seconds
+			if living != null and living.heat_level >= 4 and not _busted:
+				var caught: bool = false
+				for unit in living.police_units():
+					if is_instance_valid(unit) and unit.global_position.distance_to(player.global_position) < 9.0:
+						caught = true
+						break
+				if caught:
+					_busted = true
+					hud.flash_warning("BUSTED", Color(1.0, 0.25, 0.25))
+					player.input_enabled = false
+					await get_tree().create_timer(1.8).timeout
+					_finish_race()
+					return
+			if _mode_timer <= 0.0:
+				_finish_race()
+
+
+func _time_text(seconds: float) -> String:
+	var m: int = int(seconds / 60.0)
+	var s: float = fmod(seconds, 60.0)
+	return "%d:%05.2f" % [m, s]
 
 
 func _start_race() -> void:
@@ -379,6 +560,14 @@ func _start_race() -> void:
 	state = "racing"
 	race_time = 0.0
 	lap_mark = 0.0
+	_mode_timer = 120.0 if mode == "drift" else 180.0
+	_mode_target = _mode_timer
+	_pursuit_survived = 0.0
+	_busted = false
+	if mode == "pursuit" and living != null:
+		# start the chase with two stars already on you, so the mode opens on the
+		# thing the player came for instead of thirty seconds of empty road
+		living.add_heat(2.0, player.global_position)
 	player.input_enabled = true
 	for ai in ai_cars:
 		ai["node"].input_enabled = true
@@ -412,6 +601,120 @@ func _process(delta: float) -> void:
 	_update_post_live(delta)
 	if player and hud:
 		hud.set_nitro_charge(float(player.nitro_amount))
+	_tick_mode(delta)
+	_tick_lod()
+	_tick_surfaces(delta)
+	_tick_world_systems(delta)
+	_tick_sound(delta)
+	_tick_events()
+
+
+## Distance-based level of detail for every car in the scene. The player is
+## always full detail; rivals and police drop their glass house, wheels and
+## small trim past 55 m and everything but the shell past 130 m. On a phone with
+## six cars this is worth several draw calls per frame, and it costs one
+## distance check per car.
+func _tick_lod() -> void:
+	if player == null or player.model() == null:
+		return
+	for ai in ai_cars:
+		var ctrl = ai.get("node")
+		if ctrl == null or not is_instance_valid(ctrl):
+			continue
+		var m = ctrl.model()
+		if m != null and m.has_method("set_lod_detail"):
+			m.set_lod_detail(ctrl.global_position.distance_to(player.global_position))
+	if living != null:
+		for unit in living.police_units():
+			if is_instance_valid(unit) and unit.model != null:
+				unit.model.set_lod_detail(unit.global_position.distance_to(player.global_position))
+
+
+## What is the tyre actually on? Grass and dirt have far less grip than tarmac,
+## and in the open world that difference is the whole game: cutting a corner
+## across a field should punish you, not reward you.
+func _tick_surfaces(delta: float) -> void:
+	if player == null:
+		return
+	var on_road := true
+	var grip_target: float = 1.0
+	var surface := "tarmac"
+	if roaming and open_world != null:
+		# _road_lateral() returns 0..1 across the 16 m ribbon, so convert back to
+		# metres from the centre-line before deciding the tyre is off the road.
+		var lateral: float = (float(open_world._road_lateral(player.global_position)) - 0.5) * 16.0
+		if absf(lateral) > 8.0:
+			on_road = false
+			surface = "dirt" if str(open_world.region.get("profile", "metro")) == "desert" else "grass"
+			# A hypercar on grass is a sled; an overlander barely notices. This is
+			# what makes the OVERLAND class worth buying.
+			var offroad: float = float(gameplay_tuning.get("offroad", 0.45))
+			grip_target = lerpf(0.42, 0.94, offroad)
+	elif builder != null:
+		var prj: Dictionary = builder.data.project(player.global_position)
+		on_road = float(prj.get("lateral", 0.0)) < float(builder.data.half_width) + 2.0
+		if not on_road:
+			surface = "grass"
+			grip_target = lerpf(0.42, 0.94, float(gameplay_tuning.get("offroad", 0.45)))
+	if systems != null and systems.wetness > 0.15 and on_road:
+		surface = "wet" if surface == "tarmac" else surface
+		grip_target *= lerpf(1.0, 0.72, systems.wetness)
+	var g: float = lerpf(player.surface_grip, grip_target, clampf(delta * 6.0, 0.0, 1.0))
+	player.set_surface(surface, g)
+	if systems != null:
+		player.wetness = systems.wetness
+	# tyre effects follow the true slip, so smoke appears exactly when spinning
+	if skid != null:
+		var speed_norm: float = clampf(player.speed_kmh() / 260.0, 0.0, 1.0)
+		var slip: float = maxf(player.slip(), clampf(player.drift_amount * 0.55, 0.0, 1.0))
+		skid.update_effects(delta, slip, speed_norm, on_road or surface == "dirt")
+
+
+## One-shot things that follow from a physics event rather than a timer: a wall
+## hit ends a drift combo, and a hard enough hit with police about raises the
+## heat. Kept separate from _tick_world_systems so the ordering is obvious.
+func _tick_events() -> void:
+	if player == null:
+		return
+	if player.wall_hits != _last_wall_hits:
+		var delta_hits: int = player.wall_hits - _last_wall_hits
+		_last_wall_hits = player.wall_hits
+		if hud != null:
+			hud.break_combo()
+		if living != null and delta_hits > 0:
+			living.add_heat(float(delta_hits) * 0.22, player.global_position)
+
+
+func _tick_world_systems(delta: float) -> void:
+	if systems != null and player != null:
+		systems.tick(delta, player.throttle, player.nitro_active)
+
+
+
+func _tick_sound(_delta: float) -> void:
+	_horn_cd = maxf(0.0, _horn_cd - _delta)
+	if player == null:
+		return
+	var target: Node3D = player
+	var car: Dictionary = Game.selected_car()
+	var cls := str(car.get("class", "street"))
+	# exhaust note scales with the class, turbo only exists on boosted cars
+	var exhaust: float = {"street": 0.15, "sport": 0.45, "super": 0.75, "hyper": 1.0}.get(cls, 0.3)
+	var turbo: float = 0.0
+	if gameplay_tuning.has("turbo_level"):
+		turbo = clampf(float(gameplay_tuning["turbo_level"]) / 5.0, 0.0, 1.0)
+	var load: float = clampf(player.throttle * 0.85 + absf(player.speed) / 90.0 * 0.25, 0.0, 1.0)
+	AudioDirector.set_engine(player.rpm_ratio(), load, not _engine_off, turbo, exhaust)
+	AudioDirector.set_screech(player.slip() * clampf(player.speed_kmh() / 120.0, 0.0, 1.0))
+	AudioDirector.set_wind(clampf(player.speed_kmh() / 320.0, 0.0, 1.0))
+	if hud != null and hud.has_method("set_living_state"):
+		hud.set_living_state(
+			systems.fuel_ratio() if systems else 1.0,
+			living.heat_level if living else 0,
+			systems.clock_text() if systems else "",
+			player.gear,
+			player.is_shifting(),
+			systems.weather if systems else "clear")
 
 
 ## Drive the speed-reactive parts of the post stack. Kept separate from
@@ -445,6 +748,14 @@ func _read_driver_input(delta: float) -> void:
 		_toggle_map()
 	if InputMap.has_action("camera") and Input.is_action_just_pressed("camera"):
 		cam.cycle_mode()
+		if hud:
+			hud.flash_warning("CAMERA: %s" % cam.mode_name(), Color(0.65, 0.95, 1.0))
+	if InputMap.has_action("shift_up") and Input.is_action_just_pressed("shift_up"):
+		_on_shift_up()
+	if InputMap.has_action("shift_down") and Input.is_action_just_pressed("shift_down"):
+		_on_shift_down()
+	if InputMap.has_action("horn") and Input.is_action_just_pressed("horn"):
+		_on_horn()
 	var mode_sel = str(SettingsStore.get_value("steer_mode", "buttons"))
 	if mode_sel == "wheel":
 		steer = player.steer
@@ -523,7 +834,15 @@ func _finish_race() -> void:
 	if state == "finished":
 		return
 	state = "finished"
+	# In drift/pursuit the clock stopped the run, so race_time was never the run
+	# length; use the mode's own timers for the results table.
+	if mode == "drift":
+		race_time = _mode_target
+	elif mode == "pursuit":
+		race_time = _pursuit_survived
 	player.input_enabled = false
+	if living != null:
+		living.clear_heat()
 	for ai in ai_cars:
 		ai["node"].input_enabled = false
 	AudioDirector.stop_race_audio(1.2)
@@ -532,7 +851,18 @@ func _finish_race() -> void:
 	var pos_bonus = [1.0, 0.72, 0.55, 0.4, 0.3, 0.22]
 	var mult: float = pos_bonus[clampi(car_position - 1, 0, 5)] if mode == "circuit" else 1.0
 	var clean = player.wall_hits == 0
+	# Drift pays per point, pursuit pays for survival time plus stars shaken.
+	var drift_points: int = hud.drift_total() if hud != null else 0
+	if mode == "drift":
+		reward = int(drift_points * 1.15)
+		if reward < 400:
+			reward = 400
+	elif mode == "pursuit":
+		reward = int(_pursuit_survived * 42.0) + (2500 if _busted else 6000)
 	var result: Dictionary = {
+		"drift_points": drift_points,
+		"survived": _pursuit_survived,
+		"busted": _busted,
 		"track": str(track["id"]),
 		"track_name": str(track["name"]),
 		"mode": mode,

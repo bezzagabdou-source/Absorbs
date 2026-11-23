@@ -101,6 +101,57 @@ func _foundation() -> void:
 	_check(absf(dc.speed) >= moved_speed * 0.5, "speed does not collapse between ticks")
 	dc.queue_free()
 
+	# --- transmission, assists and surfaces ----------------------------------
+	print("[SUITE] SECTION drivetrain")
+	var ManualCar = load("res://scripts/vehicle/CarController.gd")
+	var mc = ManualCar.new()
+	add_child(mc)
+	mc.apply_physics(GameData.physics_for(GameData.CARS[3], {}), true)
+	mc.input_enabled = false
+	mc.set_surface("tarmac", 1.0)
+	_check(mc.surface_grip > 0.99, "tarmac grip is full")
+	mc.set_surface("grass", 0.44)
+	_check(mc.surface_grip < 0.5, "grass reduces grip")
+	mc.set_surface("tarmac", 1.0)
+	# automatic still shifts by itself
+	for i in 300:
+		mc.set_inputs(1.0, 0.0, 0.0, false, false)
+		mc._physics_process(1.0 / 60.0)
+	var auto_gear: int = mc.gear
+	_check(auto_gear >= 2, "automatic box climbs gears (got %d)" % auto_gear)
+	# manual holds the gear until told to shift
+	mc.manual_gearbox = true
+	mc.gear = 3
+	for i in 20:
+		mc._physics_process(1.0 / 60.0)
+	_check(mc.gear == 3, "manual box holds its gear")
+	mc.shift_up()
+	_check(mc.is_shifting(), "manual shift engages the clutch cut")
+	for i in 30:
+		mc._physics_process(1.0 / 60.0)
+	_check(mc.gear == 4, "manual shift lands in the next gear (got %d)" % mc.gear)
+	# TCS must trim a first-gear launch, ABS must report while braking hard
+	mc.manual_gearbox = false
+	mc.gear = 1
+	mc.speed = 0.0
+	mc.tcs_enabled = true
+	mc.set_inputs(1.0, 0.0, 0.0, false, false)
+	mc._physics_process(1.0 / 60.0)
+	_check(mc.tcs_active, "traction control trims a full-throttle launch")
+	mc.speed = 30.0
+	mc.abs_enabled = true
+	mc.set_inputs(0.0, 1.0, 0.0, false, false)
+	mc._physics_process(1.0 / 60.0)
+	_check(mc.abs_active, "ABS engages under threshold braking")
+	# slip is what drives smoke and marks: hard handbrake at speed must make some
+	mc.speed = 40.0
+	mc.handbrake = true
+	mc.set_inputs(0.0, 0.0, 0.9, false, true)
+	for i in 10:
+		mc._physics_process(1.0 / 60.0)
+	_check(mc.slip() > 0.05, "tyres report slip while sliding (got %.2f)" % mc.slip())
+	mc.queue_free()
+
 	print("[SUITE] SECTION profile")
 	_check(Game.level() >= 1, "level 1+")
 	_check(Game.owned_count() >= 1, "starter car owned")
@@ -134,6 +185,66 @@ func _foundation() -> void:
 		model.set_nitro(true, 0.5)
 		model.set_damage(0.3)
 		model.queue_free()
+
+	# --- v3 content: classes, cars, paints, missions, i18n --------------------
+	print("[SUITE] SECTION content")
+	_check(GameData.CARS.size() == 40, "40 cars (got %d)" % GameData.CARS.size())
+	_check(GameData.CLASSES.size() == 6, "6 classes (got %d)" % GameData.CLASSES.size())
+	for cls in GameData.CLASSES:
+		_check(GameData.cars_in_class(cls).size() >= 4, "class %s has cars" % cls)
+		_check(GameData.CLASS_INFO.has(cls), "class %s described" % cls)
+	var seen_ids: Dictionary = {}
+	for c in GameData.CARS:
+		_check(not seen_ids.has(str(c["id"])), "car id unique: " + str(c["id"]))
+		seen_ids[str(c["id"])] = true
+		_check(GameData.SHAPES.has(str(c["body"])), "body shape exists: " + str(c["body"]))
+		var pa: Dictionary = GameData.paint_by_id(str(c["paint"]))
+		_check(not pa.is_empty(), "paint exists: " + str(c["paint"]))
+		# every car must produce a usable physics dictionary with a sane top speed
+		var ph: Dictionary = GameData.physics_for(c, {})
+		_check(float(ph["top_speed_ms"]) > 30.0, "top speed sane: " + str(c["id"]))
+		_check(ph.has("offroad"), "offroad rating present: " + str(c["id"]))
+	_check(GameData.PAINTS.size() >= 40, "40+ paints")
+	_check(GameData.MODES.size() == 6, "6 modes (got %d)" % GameData.MODES.size())
+	# overland must actually be better off-road than a hypercar
+	var off_land: float = float(GameData.physics_for(GameData.car_by_id("rampart_4x4"), {})["offroad"])
+	var hyper: float = float(GameData.physics_for(GameData.car_by_id("aeon_zero"), {})["offroad"])
+	_check(off_land > hyper * 2.0, "overland grips off-road far better than a hypercar")
+
+	print("[SUITE] SECTION localisation")
+	_check(Localization.LANGS.size() == 11, "11 languages (got %d)" % Localization.LANGS.size())
+	var original_lang: String = Localization.current
+	for code in ["en", "fr", "ar", "es", "tr", "de", "it", "pt", "ru", "zh", "ja"]:
+		Localization.set_language(code)
+		_check(Localization.t("menu.race") != "", "menu.race translates: " + code)
+		_check(Localization.t("mode.drift") != "mode.drift", "mode.drift translates: " + code)
+	Localization.set_language("ar")
+	_check(Localization.is_rtl(), "Arabic reports RTL")
+	Localization.set_language("en")
+	_check(not Localization.is_rtl(), "English is LTR")
+	Localization.set_language(original_lang)
+
+	print("[SUITE] SECTION missions")
+	Missions.ensure_missions(Game.data)
+	var ms: Array = Missions.missions(Game.data)
+	_check(ms.size() == 4, "4 daily missions (got %d)" % ms.size())
+	# Progress must be recorded on a copy so the player's real profile is
+	# untouched. Drive the *first* mission in the set with a value far past its
+	# target, whatever kind that mission happens to be — the set is rolled per
+	# day, so hard-coding a kind here would pass today and fail tomorrow.
+	var probe: Dictionary = {"daily": {"date": "2099-01-01", "missions": ms.duplicate(true)}}
+	var first_kind: String = str(ms[0].get("kind", ""))
+	var first_target: float = float(ms[0].get("target", 1))
+	var hit: Array = Missions.add_progress(probe, first_kind, first_target * 10.0 + 1000.0)
+	_check(hit.size() >= 1, "mission progress records a completion (%s)" % first_kind)
+	_check(float(hit[0].get("progress", 0)) >= float(hit[0].get("target", 1)),
+		"completed mission is at or past its target")
+	# and a second call must not double-count an already finished mission
+	var again: Array = Missions.add_progress(probe, first_kind, 50.0)
+	_check(again.size() == 0, "a finished mission does not complete twice")
+	var board: Array = Missions.leaderboard(Game.data)
+	_check(board.size() > 3, "leaderboard has entries")
+	_check(Missions.player_rank(Game.data) >= 1, "player is ranked")
 
 	print("[SUITE] SECTION graphics assets")
 	for shader_path in ["res://shaders/car_paint.gdshader", "res://shaders/road.gdshader",

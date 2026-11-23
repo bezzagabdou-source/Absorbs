@@ -64,7 +64,8 @@ func _add_left_column() -> void:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 16)
 	col.add_child(row)
-	for spec in [["shop", Localization.t("menu.shop")], ["achievements", Localization.t("menu.achievements")]]:
+	for spec in [["shop", Localization.t("menu.shop")], ["achievements", Localization.t("menu.achievements")],
+			["leaderboard", "LADDER"]]:
 		var b = UIStyle.make_button(spec[1], UIStyle.VIOLET, false, 22, 72)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.pressed.connect(func(): go(spec[0]))

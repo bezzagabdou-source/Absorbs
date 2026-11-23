@@ -31,3 +31,4 @@ racing/.godot/
 racing/build/
 racing/**/*.import
 racing/screenshots/*.png
+racing/assets/**/_wav/

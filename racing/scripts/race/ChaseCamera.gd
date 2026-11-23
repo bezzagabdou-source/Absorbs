@@ -4,7 +4,7 @@ extends Node3D
 
 var target: Node3D
 var enabled: bool = true
-var mode: int = 0                  # 0 chase, 1 hood
+var mode: int = 0                  # 0 chase, 1 hood, 2 cockpit, 3 cinematic
 var _fov_base: float = 68.0
 # A 4.4 m car needs ~9 m of boom to read as "behind" rather than "on top of";
 # 6.4 m at 68 deg filled a third of the frame with bodywork.
@@ -26,6 +26,7 @@ var showcase: bool = false
 var road_ahead: Vector3 = Vector3.ZERO
 var road_point: Vector3 = Vector3.ZERO
 var _showcase_t: float = 0.0
+var _cine_t: float = 0.0
 
 
 func _ready() -> void:
@@ -78,6 +79,28 @@ func physics_tick(delta: float) -> void:
 		_cam.look_at(target.global_position + forward * 30.0 + Vector3.UP * 0.7, Vector3.UP)
 		_cam.fov = _fov_base + clampf(speed / 22.0, 0.0, 12.0) + _nitro_boost * 6.0
 		_apply_shake(delta, 0.35)
+		return
+	if mode == 2:
+		# Cockpit: the driver's eye, offset left of centre because these are
+		# left-hand-drive cars. Sitting a little high keeps the bonnet in the
+		# bottom of frame, which is what sells the shape of the car.
+		var cockpit: Vector3 = target.global_position + forward * 0.30 + right * -0.34 + Vector3.UP * 1.12
+		_cam.global_position = cockpit
+		var look_c: Vector3 = cockpit + forward * 42.0 - Vector3.UP * 1.15
+		_cam.look_at(look_c, Vector3.UP)
+		_cam.fov = _fov_base - 6.0 + clampf(speed / 26.0, 0.0, 10.0) + _nitro_boost * 5.0
+		_apply_shake(delta, 0.8)
+		return
+	if mode == 3:
+		# Cinematic: a slow crane that lags the car like a replay operator.
+		_cine_t += delta * 0.35
+		var orbit := Vector3(cos(_cine_t) * 8.5, 2.6 + sin(_cine_t * 0.7) * 1.1, sin(_cine_t) * 8.5)
+		var cam_c: Vector3 = target.global_position + orbit
+		_pos_smooth = _pos_smooth.lerp(cam_c, clampf(delta * 2.0, 0.0, 1.0))
+		_cam.global_position = _pos_smooth
+		_cam.look_at(target.global_position + Vector3.UP * 0.8 + forward * 3.0, Vector3.UP)
+		_cam.fov = 52.0
+		_apply_shake(delta, 0.15)
 		return
 	if showcase:
 		# Establishing shot. The old version orbited on a 15 m boom at 6.2 m up,
@@ -137,5 +160,18 @@ func current_camera() -> Camera3D:
 	return _cam
 
 
+## Four cameras: chase, bonnet, cockpit, cinematic.
 func cycle_mode() -> void:
-	mode = 1 - mode
+	mode = (mode + 1) % 4
+
+
+func mode_name() -> String:
+	match mode:
+		1:
+			return "BONNET"
+		2:
+			return "COCKPIT"
+		3:
+			return "CINEMATIC"
+		_:
+			return "CHASE"

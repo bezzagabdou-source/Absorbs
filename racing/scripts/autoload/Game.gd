@@ -393,6 +393,28 @@ func record_race(result: Dictionary) -> void:
 	var prev = float(best.get(tid, 0.0))
 	if bt > 0.0 and (prev <= 0.0 or bt < prev):
 		best[tid] = bt
+
+	# ---- daily missions ----------------------------------------------------
+	# Every mission is driven from the same result dictionary, so a mission can
+	# never disagree with the stat it is measured against.
+	Missions.ensure_missions(data)
+	var finished_position: int = int(result.get("position", 99))
+	var mission_hits: Array = []
+	mission_hits += Missions.add_progress(data, "races", 1.0)
+	if finished_position == 1:
+		mission_hits += Missions.add_progress(data, "wins", 1.0)
+	mission_hits += Missions.add_progress(data, "drift", float(result.get("drift_points", 0)))
+	mission_hits += Missions.add_progress(data, "distance", float(result.get("distance_km", 0.0)))
+	mission_hits += Missions.add_progress(data, "top_speed", float(result.get("top_speed", 0.0)))
+	mission_hits += Missions.add_progress(data, "nitro", float(result.get("nitro_time", 0.0)))
+	mission_hits += Missions.add_progress(data, "pursuit", float(result.get("survived", 0.0)))
+	if bool(result.get("clean_lap", false)):
+		mission_hits += Missions.add_progress(data, "clean", 1.0)
+	for m in mission_hits:
+		# missions pay out immediately: a reward the player has to go and find
+		# on another screen is a reward they will assume did not arrive
+		add_credits(int(m.get("reward", 0)))
+		achievement_unlocked.emit(str(m.get("id", "")))
 	stats_changed.emit()
 	save_profile()
 

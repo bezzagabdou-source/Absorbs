@@ -1411,6 +1411,65 @@ def music_track(name: str, bpm: float, root: int, seed: int, style: str, seconds
     write_ogg_via_wav(name, out * 0.85, os.path.join(ASSETS, "audio", "music", "_wav"))
 
 
+def sfx_ui_error():
+    """Short two-tone descending buzz for a refused action."""
+    t = t_axis(0.38)
+    s = np.sin(2 * np.pi * 320 * t) * env_ad(len(t), 0.004, 1, 2.6)
+    s += np.sin(2 * np.pi * 214 * t) * env_ad(len(t), 0.004, 1, 2.2) * 0.7
+    s += np.sin(2 * np.pi * 640 * t) * env_ad(len(t), 0.002, 1, 6.0) * 0.18
+    return s * 0.32
+
+
+def sfx_ui_alert():
+    """Police siren chirp: a fast two-note wail that cuts through the engine."""
+    t = t_axis(1.6)
+    # two-tone European siren: 960 Hz and 770 Hz alternating at 3.2 Hz
+    toggle = (np.sin(2 * np.pi * 1.6 * t) > 0)
+    f = np.where(toggle, 960.0, 770.0)
+    s = np.sin(2 * np.pi * np.cumsum(f) / SR)
+    s += 0.3 * np.sin(2 * np.pi * np.cumsum(f * 2.0) / SR)
+    e = np.clip(t / 0.12, 0, 1) * np.clip((1.6 - t) / 0.3, 0, 1)
+    return s * e / np.max(np.abs(s * e)) * 0.42
+
+
+def sfx_horn():
+    """Dual-tone car horn, the one thing every driver presses when annoyed."""
+    t = t_axis(0.55)
+    s = np.sin(2 * np.pi * 415 * t) + np.sin(2 * np.pi * 523 * t) * 0.9
+    s += np.sin(2 * np.pi * 830 * t) * 0.25 + np.sin(2 * np.pi * 1046 * t) * 0.18
+    e = np.clip(t / 0.015, 0, 1) * np.clip((0.55 - t) / 0.06, 0, 1)
+    return s * e / np.max(np.abs(s * e)) * 0.38
+
+
+def sfx_fuel_pump():
+    """Mechanical clunk plus a rising fill tone, for the refuel beat."""
+    t = t_axis(1.1)
+    rng = np.random.default_rng(414)
+    clunk = np.zeros(len(t))
+    n = int(SR * 0.05)
+    clunk[:n] = rng.normal(0, 1, n) * np.exp(-np.arange(n) / (n * 0.25))
+    clunk = _lfilter(*_biquad_lowpass(420, 0.9), clunk)
+    whine = np.sin(2 * np.pi * np.cumsum(np.linspace(220, 660, len(t))) / SR) * 0.22
+    whine *= np.clip(t / 0.15, 0, 1) * np.clip((1.1 - t) / 0.2, 0, 1)
+    out = clunk * 0.9 + whine
+    return out / max(1e-6, np.max(np.abs(out))) * 0.45
+
+
+def sfx_police_radio():
+    """Clip of radio chatter: squelch burst plus band-limited noise formants."""
+    t = t_axis(0.9)
+    rng = np.random.default_rng(515)
+    n = rng.normal(0, 1, len(t))
+    voice = _lfilter(*_biquad_bandpass(1350, 1.7), n)
+    voice *= (np.sin(2 * np.pi * 4.5 * t) * 0.4 + 0.6)
+    squelch = np.zeros(len(t))
+    m = int(SR * 0.08)
+    squelch[:m] = rng.normal(0, 1, m) * 0.5
+    out = voice * 0.55 + squelch
+    out *= np.clip((0.9 - t) / 0.15, 0, 1)
+    return out / max(1e-6, np.max(np.abs(out))) * 0.30
+
+
 def build_audio() -> None:
     sfx = {
         "ui_click": sfx_ui_click(), "ui_hover": sfx_ui_hover(), "ui_confirm": sfx_ui_confirm(),
@@ -1418,6 +1477,8 @@ def build_audio() -> None:
         "nitro": sfx_nitro(), "crash": sfx_crash(), "countdown_beep": sfx_countdown_beep(),
         "countdown_go": sfx_countdown_go(), "purchase": sfx_purchase(), "level_up": sfx_level_up(),
         "achievement": sfx_achievement(), "wind": sfx_wind(), "gear_shift": sfx_gear_shift(),
+        "ui_error": sfx_ui_error(), "ui_alert": sfx_ui_alert(), "horn": sfx_horn(),
+        "fuel_pump": sfx_fuel_pump(), "police_radio": sfx_police_radio(),
     }
     out = os.path.join(ASSETS, "audio", "sfx", "_wav")
     for name, s in sfx.items():

@@ -19,6 +19,10 @@ func _ready() -> void:
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(content)
+	# Arabic is right-to-left. Mirroring at the container level means every
+	# screen, every row and every margin flips together instead of each screen
+	# needing its own mirrored layout.
+	UIStyle.apply_rtl(self)
 	build()
 	AudioDirector.play_music("menu_theme")
 	_animate_in()
