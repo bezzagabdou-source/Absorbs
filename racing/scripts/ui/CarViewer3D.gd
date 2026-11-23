@@ -28,7 +28,7 @@ var _yaw: float = -0.62
 var _pitch: float = 0.20
 var _car: Node3D = null
 var _cam: Camera3D = null
-var _cam_dist: float = 5.9
+var _cam_dist: float = 6.6
 var _viewport: SubViewport = null
 var _pivot: Node3D = null
 var _ok: bool = false
@@ -50,7 +50,7 @@ func setup() -> bool:
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.26, 0.32, 0.42)
-	e.ambient_light_energy = 0.55
+	e.ambient_light_energy = 0.70
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_white = 1.6
 	# Glow off. It was bleeding the whole body into a haze, which is most of the
@@ -92,20 +92,20 @@ func setup() -> bool:
 	# pale blob regardless of the paint that was selected. 1.15 + 0.35 + 0.18
 	# gives a brightest linear channel near 0.85: colour survives, and the
 	# falloff across the body still shades the form.
-	key.light_energy = 1.15
+	key.light_energy = 1.55
 	key.light_color = Color(1.0, 0.97, 0.93)
 	key.shadow_enabled = true
 	_viewport.add_child(key)
 
 	var fill := DirectionalLight3D.new()
 	fill.rotation = Vector3(deg_to_rad(-18.0), deg_to_rad(-135.0), 0.0)
-	fill.light_energy = 0.35
+	fill.light_energy = 0.50
 	fill.light_color = Color(0.55, 0.72, 1.0)
 	_viewport.add_child(fill)
 
 	var bounce := DirectionalLight3D.new()
 	bounce.rotation = Vector3(deg_to_rad(28.0), deg_to_rad(160.0), 0.0)
-	bounce.light_energy = 0.18
+	bounce.light_energy = 0.30
 	bounce.light_color = Color(1.0, 0.86, 0.70)
 	_viewport.add_child(bounce)
 

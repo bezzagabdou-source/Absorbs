@@ -59,7 +59,21 @@ float shut_line(float coord, float at, float width) {
 
 void fragment() {
 	vec3 n = normalize(world_normal);
-	float ndv = clamp(dot(n, normalize(VIEW)), 0.0, 1.0);
+	// ndv must be computed in ONE space. world_normal is world-space, but the
+	// VIEW builtin is the view-space vector, so dot(world_normal, VIEW) was
+	// mixing two frames: for a roofline normal (0,1,0) against a view vector
+	// near (0,0,1) the dot product is ~0, which pinned ndv to 0 and therefore
+	// fres to 1.0 across almost the entire body.
+	//
+	// Every term downstream is driven by fres — the clearcoat sheen, the rim
+	// light, the pearl shift, the iridescence — so all of them sat at maximum
+	// at once and the car rendered as a white blob no matter which paint was
+	// selected. The light energies were never the cause; this was.
+	//
+	// The camera's world position is the translation column of INV_VIEW_MATRIX,
+	// which keeps both operands in world space.
+	vec3 cam_world = INV_VIEW_MATRIX[3].xyz;
+	float ndv = clamp(dot(n, normalize(cam_world - world_pos)), 0.0, 1.0);
 	float fres = pow(1.0 - ndv, 5.0);
 
 	// ---- panel structure ---------------------------------------------------
@@ -147,11 +161,21 @@ void fragment() {
 	// dirt and damage scatter the highlight instead of mirroring it
 	ROUGHNESS = clamp(ROUGHNESS + dirt_mask * 0.35 + damage * 0.25, 0.02, 1.0);
 
+	// ---- additive budget ---------------------------------------------------
+	// Four effects were each scaled by their own fresnel term and each tuned as
+	// though it were alone: clearcoat, rim light, flake and iridescence. At
+	// grazing incidence every one of them reaches maximum together, and their
+	// SUM is what turned the body white — not any single term.
+	//
+	// The fix is to share one budget: take the strongest of the three
+	// reflection-like terms rather than summing them, then apply a single
+	// ceiling. A car can only reflect so much light off its own lacquer.
 	float coat = fres * clearcoat * (1.0 - clearcoat_roughness * 0.6);
-	vec3 rim_vec = pow(1.0 - ndv, rim_power) * rim_strength * rim_color * 0.45;
-	vec3 coat_vec = vec3(1.0) * coat * 0.30;
-	// budget the whole additive stack, then scale it back under damage
-	vec3 additive = rim_vec + coat_vec + flake_color * sheen * fres * 0.10;
+	vec3 rim_vec = pow(1.0 - ndv, rim_power) * rim_strength * rim_color * 0.30;
+	vec3 coat_vec = vec3(coat) * 0.16;
+	vec3 flake_vec = flake_color * sheen * fres * 0.05;
+	// max instead of sum: these all describe the same specular layer
+	vec3 additive = max(rim_vec, max(coat_vec, flake_vec));
 	// Iridescence: a thin-film tint that rides the Fresnel term. Only the
 	// hypercars turn this on, and only at the rim, which is where a viewer sees
 	// it on a real pearlescent panel.
@@ -160,9 +184,10 @@ void fragment() {
 			0.5 + 0.5 * cos(fres * 11.0),
 			0.5 + 0.5 * cos(fres * 11.0 + 2.094),
 			0.5 + 0.5 * cos(fres * 11.0 + 4.189));
-		additive += film * iridescence * pow(fres, 1.4) * 0.42;
+		additive = max(additive, film * iridescence * pow(fres, 1.4) * 0.20);
 	}
-	additive += vec3(shoulder * 0.05);
+	additive += vec3(shoulder * 0.03);
 	additive *= (1.0 - damage * 0.55) * (1.0 - line * 0.8);
-	EMISSION = min(additive, vec3(0.85));
+	// hard ceiling: this is an additive term on top of an already-lit surface
+	EMISSION = min(additive, vec3(0.30));
 }
