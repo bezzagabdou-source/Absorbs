@@ -5,7 +5,7 @@ extends Control
 ## every screen headlessly and by the screenshot rig.
 
 const SCREENS := ["boot", "menu", "tracks", "race", "roam", "garage", "shop",
-	"results", "achievements", "daily", "settings", "credits", "profile"]
+	"results", "achievements", "daily", "settings", "credits", "profile", "leaderboard"]
 
 var _fps_accum = 0.0
 var _fps_frames = 0

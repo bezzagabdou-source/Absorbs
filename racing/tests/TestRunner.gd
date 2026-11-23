@@ -103,8 +103,7 @@ func _foundation() -> void:
 
 	# --- transmission, assists and surfaces ----------------------------------
 	print("[SUITE] SECTION drivetrain")
-	var ManualCar = load("res://scripts/vehicle/CarController.gd")
-	var mc = ManualCar.new()
+	var mc = DriveCar.new()
 	add_child(mc)
 	mc.apply_physics(GameData.physics_for(GameData.CARS[3], {}), true)
 	mc.input_enabled = false

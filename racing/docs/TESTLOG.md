@@ -390,3 +390,75 @@ still caught.
 The preset is a first-class source file. It was tracked, but nothing parsed it,
 so a one-line flag decided whether the entire release was usable. Checks belong
 on the artifact and on its configuration, not only on the code that goes into it.
+
+---
+
+# Round 16 — v3.1, "the car actually drives"
+
+The report that mattered was the simplest one possible: **the car does not
+move.** Everything else in this round is secondary to that.
+
+## The bug, and why it survived three releases
+
+`CarController._physics_process()` called `_read_input()` every physics tick.
+`_read_input()` sets `throttle` from `Input.get_action_strength("throttle")`,
+which on a phone with no keyboard is always `0.0`. The touch pedals called
+`set_inputs(...)`, which wrote the correct throttle — and then the very next
+physics tick overwrote it with zero.
+
+So on the one device this game is for, the accelerator was a no-op. Free roam
+had a second, independent version of the same failure: its `_process` branch
+never called `_read_driver_input()` at all, so nothing ever wrote `set_inputs()`
+in that mode regardless of the keyboard.
+
+| Fix | File |
+|---|---|
+| `_last_external_input_msec` stamped by `set_inputs()`; keyboard polling suppressed for 150 ms afterwards | `vehicle/CarController.gd` |
+| free roam now reads the pedals every frame, not only during `state == "racing"` | `ui/screens/race.gd` |
+| regression test: 60 ticks of full throttle through `set_inputs()` must produce speed | `tests/TestRunner.gd`, `[SUITE] SECTION drive` |
+
+The 150 ms window matters: it keeps the desktop keyboard working while making
+touch authoritative whenever it is present, and it means a dropped touch frame
+cannot instantly cut the throttle to zero mid-corner.
+
+## What else was found while testing this
+
+| Finding | Why it mattered | Fix |
+|---|---|---|
+| `_road_lateral()` returns **0..1**, not metres | the surface sampler compared it to `11.0` and so always reported "on road" | convert to metres from the centre-line before the threshold |
+| `gameplay_tuning` was declared and never filled | the engine note and the new off-road model read an empty dictionary | populated from `Game.physics_for()` when the car spawns |
+| drift score decayed to zero the instant you stopped sliding | drifting could never accrue anything | combo with a 1.6 s grace window, multiplier to x8, banked on timeout |
+| the garage keyed the car with **magenta** | every paint colour read violet | relit as a photographic studio: warm key, cool fill, hard rim, floor bounce |
+| the mode row had six 232 px chips | 6 x 232 = 1392 px, overflows a 1080p phone in portrait | 3x2 grid, chips expand to available width |
+| `_add_box` always parented to the shell | the greenhouse could not be hidden at distance, so LOD had nothing to switch | scoped parent while the glass house is built |
+| quality steps only hid glow | the actual phone costs (shadows, traffic, particles) were never scaled | steps now set shadow atlas size, traffic density, particle scale and LOD bias |
+| boot progress was a timed animation | it reported work that had not happened | it now loads four real resources and reports each one |
+
+## Gates
+
+All five run green locally before the push:
+
+```
+undeclared-identifier check: 42 files clean
+shader-scope check: 4 file(s) clean
+shader-identifier check: 4 file(s) clean
+export-preset check: 2 ABI(s) enabled (armeabi-v7a, arm64-v8a), versionCode ok
+physics gate: PASS   (5 classes, 0.0 % target error, 0-100 in 2.8-9.1 s)
+```
+
+Every `.gd` in `scripts/` and `tests/` (52 files) parses with `gdparse`, and a
+cross-file audit confirms every method and signal the race screen calls on the
+new systems exists in the file that owns it (44 methods, 7 signals, all present).
+
+## Still not verified on hardware
+
+Unchanged from previous rounds and stated plainly:
+
+* frame rate is a budget plus an adaptive governor, measured **in the sandbox**,
+  not on a phone;
+* audio is authored and levelled, never monitored through a speaker;
+* the four new sounds are synthesised, so they are clean but not sampled from a
+  real car;
+* the police AI is deterministic pursuit, not behaviour-tree traffic AI — it
+  chases well and it does not coordinate, and this document says so rather than
+  claiming otherwise.
