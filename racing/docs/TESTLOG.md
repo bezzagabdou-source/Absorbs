@@ -544,3 +544,42 @@ and never broke traction. The test now feeds inputs every tick, like the phone.
 | physics_sim | PASS |
 | export presets | 2 ABI |
 | shaders | 4 clean |
+
+## Round 19 — The gate that catches what gdparse cannot
+
+`_hold_inputs(car, speed, steer, ticks)` was rewritten to `(car, steer, ticks)`
+and three call sites still passed four arguments. `gdparse`: clean. `gdlint`:
+clean. Godot: *"Too many arguments for _hold_inputs() call"* — and the entire
+test suite failed to load, costing a full CI cycle that also builds the APK.
+
+Neither syntax tool resolves signatures, so this is permanently invisible to
+both. Added `tools/check_arity.py` to the lint job.
+
+It is scoped per class, not per project. A global name table produced ~120 false
+positives because `build()`, `setup()` and `tick()` exist in many files with
+different signatures; the gate resolves a bare call against the calling file and
+its `extends` chain only. `Foo.bar(...)` calls (autoloads, `class_name`) are
+deliberately not checked — a missed case is cheaper than a blocked build.
+
+Verified both ways:
+
+| probe | expected | got |
+| --- | --- | --- |
+| the real `_hold_inputs` regression | fail, 3 sites | fail, 3 sites |
+| one argument too few | fail | fail |
+| exact arity + optional defaults | pass | pass |
+| string arguments counted correctly | fail only on the bad call | correct |
+| same method name in two classes | resolved per class | correct |
+
+It immediately earned its place: the very next edit to `TestRunner.gd`
+(`_hold_inputs(mc, mc.speed, 0.0, 240)` after the helper lost its speed
+parameter) was caught before a push, not after a CI cycle.
+
+Also fixed in the same block: the recovery assertion was **vacuous**. The
+`_hold_inputs` helper reset `lateral_speed` to zero on entry, and the recovery
+check called exactly that helper, so it would pass no matter what the physics
+did. The reset moved to `_corner_from()`; recovery now observes the state the
+slide left behind.
+
+Gates: 42 files parsed, lint clean, types 42/42, undeclared 42/42, arity 43/43
+(578 functions resolved), presets 2 ABI, 4 shaders clean, physics PASS.

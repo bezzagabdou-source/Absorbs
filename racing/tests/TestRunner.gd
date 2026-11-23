@@ -26,13 +26,25 @@ func _ready() -> void:
 		get_tree().quit(0)
 
 
-## Feed a steering request the way the touch controls do: once per physics tick,
-## for `ticks` ticks, with the throttle closed. Returns nothing; the car is left
-## in whatever state the run produced.
+## Put a car at a given speed and hold a steering request the way the touch
+## controls do: set_inputs() once per physics tick, for `ticks` ticks, throttle
+## closed. The per-tick feed matters — `steer` only slews toward the request, so
+## calling set_inputs() once leaves the car barely turning.
 func _hold_inputs(car, steer_target: float, ticks: int) -> void:
 	for i in ticks:
 		car.set_inputs(0.0, 0.0, steer_target, false, false)
 		car._physics_process(1.0 / 60.0)
+
+
+## Put the car at `car_speed` with no existing slide, then hold a steering
+## request for `ticks` ticks. Separate from _hold_inputs because a reset in the
+## shared helper would also reset the state the RECOVERY check has to observe,
+## making it pass no matter what the physics did.
+func _corner_from(car, car_speed: float, steer_target: float, ticks: int) -> void:
+	car.speed = car_speed
+	car.lateral_speed = 0.0
+	car._yaw_rate = 0.0
+	_hold_inputs(car, steer_target, ticks)
 
 
 func _check(cond: bool, label: String) -> void:
@@ -163,17 +175,16 @@ func _foundation() -> void:
 	# requested value at 0.18 per call. Calling it once with a full lock would
 	# leave steer at 0.18 and the car would simply not be cornering — that is
 	# how the first version of this test passed in Python and failed in Godot.
-	_hold_inputs(mc, 0.0, 0.55, 90)
+	_corner_from(mc, 12.0, 0.55, 90)
 	var grip_lat: float = absf(mc.lateral_speed)
 	_check(grip_lat < 1.0, "a normal corner keeps grip (lateral %.2f)" % grip_lat)
-	mc.speed = 48.0
-	mc.lateral_speed = 0.0
-	mc._yaw_rate = 0.0
-	_hold_inputs(mc, 0.0, 1.0, 90)
+	_corner_from(mc, 48.0, 1.0, 90)
 	_check(absf(mc.lateral_speed) > 1.5, "a flat-out corner breaks traction")
 	_check(mc.slip() > 0.25, "the slide shows up as tyre slip")
-	# release: self-aligning torque must bring the car back in line
-	_hold_inputs(mc, 0.0, 0.0, 240)
+	# release: self-aligning torque must bring the car back in line. Speed is
+	# carried over from the slide (a real car does not stop when you let go), so
+	# the recovery is tested at the speed the slide happened at.
+	_hold_inputs(mc, 0.0, 240)
 	_check(absf(mc.lateral_speed) < 1.0, "releasing the wheel recovers the slide")
 	_check(absf(mc.slip()) < 0.2, "a recovered car stops smoking")
 	# slip is what drives smoke and marks: a handbrake turn at speed must make

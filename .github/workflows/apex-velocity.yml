@@ -58,6 +58,10 @@ jobs:
           # gdparse and gdlint both accept assigning the wrong node type to a
           # typed var. Godot does not, and each such miss costs a full CI round.
           python3 tools/check_types.py || fail=1
+          # arity: a call with the wrong argument count is valid syntax to both
+          # gdparse and gdlint, and only Godot rejects it — which cost a full CI
+          # cycle when a helper was rewritten and three call sites were not.
+          python3 tools/check_arity.py || fail=1
           python3 tools/physics_sim.py
           exit $fail
 
