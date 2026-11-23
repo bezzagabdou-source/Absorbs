@@ -2,6 +2,8 @@ extends "res://scripts/ui/ScreenBase.gd"
 ## Dealership: buy cars with credits. Filter by class, live stat comparison
 ## against the currently selected car, and locked-by-level states.
 
+const CarViewerScript = preload("res://scripts/ui/CarViewer3D.gd")
+
 var _filter = "all"
 var _grid: GridContainer
 var _compare: VBoxContainer
@@ -108,20 +110,32 @@ func _card(car: Dictionary) -> Control:
 	var owned = Game.owns(str(car["id"]))
 	var unlocked = Game.level() >= int(car.get("unlock", 0))
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(336, 246)
+	panel.custom_minimum_size = Vector2(336, 372)
 	panel.add_theme_stylebox_override("panel", UIStyle.glass_box(22, Color(0.05, 0.08, 0.14, 0.78),
 		0.3 if str(car["id"]) == _focus_id else 0.12, 0.25 if str(car["id"]) == _focus_id else 0.0))
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	var v = VBoxContainer.new()
 	v.add_theme_constant_override("separation", 2)
 	panel.add_child(v)
+	# A real car instead of a colour dot. It is static unless the card is the
+	# focused one, because a grid of nine spinning viewports is nine render
+	# passes for something the player is not looking at.
+	var preview = CarViewerScript.new()
+	preview.custom_minimum_size = Vector2(0, 172)
+	preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if preview.setup():
+		preview.auto_spin = str(car["id"]) == _focus_id
+		preview.show_car(car)
+		v.add_child(preview)
+	else:
+		# no 3D context: keep the accent stripe so the card still has colour
+		var dot = ColorRect.new()
+		dot.color = Color(str(car["color"]))
+		dot.custom_minimum_size = Vector2(0, 6)
+		v.add_child(dot)
+
 	var head = HBoxContainer.new()
 	v.add_child(head)
-	var dot = ColorRect.new()
-	dot.color = Color(str(car["color"]))
-	dot.custom_minimum_size = Vector2(10, 10)
-	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head.add_child(dot)
 	var name_lbl = UIStyle.make_label(str(car["name"]), "bold", 26, Color.WHITE)
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(name_lbl)

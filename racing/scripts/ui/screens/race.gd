@@ -155,7 +155,16 @@ func update_post() -> void:
 	post_mat.set_shader_parameter("vignette", 0.46 if night > 0.5 else 0.30)
 	post_mat.set_shader_parameter("aberration", 0.22)
 	post_mat.set_shader_parameter("grain", 0.022)
-	post_mat.set_shader_parameter("bloom_bleed", 0.10)
+	# The v3 post stack: a wider bloom with a real threshold, a lens streak, a
+	# filmic shoulder and enough dither to kill banding in the dark half of a
+	# night frame. Values differ by time of day because the same bloom that makes
+	# neon bleed at night washes out a desert noon.
+	post_mat.set_shader_parameter("bloom_bleed", 0.17 if night > 0.5 else 0.09)
+	post_mat.set_shader_parameter("bloom_threshold", 0.72 if night > 0.5 else 0.92)
+	post_mat.set_shader_parameter("streak_amount", 0.55 if night > 0.5 else 0.28)
+	post_mat.set_shader_parameter("shoulder", 1.30 if night > 0.5 else 1.45)
+	post_mat.set_shader_parameter("dither", 0.0045 if night > 0.5 else 0.0028)
+	post_mat.set_shader_parameter("wet_mode", 1.0 if str(track.get("weather", "dry")) == "rain" else 0.0)
 	var sun_dir: Vector3 = Vector3(0.4, 0.3, -0.8)
 	if env_rig and env_rig.sun:
 		sun_dir = -env_rig.sun.global_transform.basis.z

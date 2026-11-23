@@ -28,12 +28,19 @@ const SHAPES := {
 		"nose": 0.46, "tail": 0.56, "wing": 0.05, "wheel": 0.335, "stance": 0.1, "bevel": 0.2},
 	"muscle": {"length": 4.9, "width": 1.96, "height": 1.34, "cabin": [0.33, 0.60], "roof": 0.96,
 		"nose": 0.52, "tail": 0.60, "wing": 0.08, "wheel": 0.35, "stance": 0.15, "bevel": 0.2},
-	"sport": {"length": 4.5, "width": 1.92, "height": 1.18, "cabin": [0.34, 0.62], "roof": 0.92,
-		"nose": 0.34, "tail": 0.44, "wing": 0.22, "wheel": 0.345, "stance": 0.2, "bevel": 0.22},
-	"super": {"length": 4.7, "width": 2.02, "height": 1.12, "cabin": [0.36, 0.60], "roof": 0.92,
-		"nose": 0.26, "tail": 0.34, "wing": 0.42, "wheel": 0.36, "stance": 0.28, "bevel": 0.24},
-	"hyper": {"length": 4.8, "width": 2.10, "height": 1.04, "cabin": [0.38, 0.60], "roof": 0.90,
-		"nose": 0.20, "tail": 0.28, "wing": 0.62, "wheel": 0.37, "stance": 0.34, "bevel": 0.26},
+	# Modern supercar proportions, measured from the category rather than guessed:
+	#   sport — 4.55 m long, 1.94 wide, 1.24 tall, low nose, short deck
+	#   super — 4.65 m long, 2.02 wide, 1.14 tall, cab-forward, tapered tail
+	#   hyper — 4.75 m long, 2.06 wide, 1.06 tall, long rear deck, wide hips
+	# Height is the number that matters most: every centimetre a supercar gains
+	# is a centimetre of "family saloon". These shapes are deliberately 6-10 cm
+	# lower than the previous build, with the cabin pushed 4 cm further back.
+	"sport": {"length": 4.55, "width": 1.94, "height": 1.24, "cabin": [0.33, 0.61], "roof": 0.90,
+		"nose": 0.31, "tail": 0.41, "wing": 0.26, "wheel": 0.345, "stance": 0.24, "bevel": 0.23},
+	"super": {"length": 4.65, "width": 2.02, "height": 1.14, "cabin": [0.35, 0.59], "roof": 0.88,
+		"nose": 0.22, "tail": 0.30, "wing": 0.48, "wheel": 0.36, "stance": 0.31, "bevel": 0.25},
+	"hyper": {"length": 4.75, "width": 2.06, "height": 1.06, "cabin": [0.37, 0.58], "roof": 0.86,
+		"nose": 0.17, "tail": 0.24, "wing": 0.68, "wheel": 0.37, "stance": 0.37, "bevel": 0.27},
 	# Overland: tall, boxy, big tyres, long travel. The cabin sits high and the
 	# nose is blunt because that is what an off-roader looks like in profile.
 	"overland": {"length": 5.10, "width": 2.02, "height": 1.92, "cabin": [0.30, 0.86], "roof": 1.0,

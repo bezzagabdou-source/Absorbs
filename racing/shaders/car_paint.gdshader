@@ -36,6 +36,11 @@ uniform vec3 body_size = vec3(1.9, 1.2, 4.6);
 uniform float damage : hint_range(0.0, 1.0) = 0.0;
 uniform float dirt : hint_range(0.0, 1.0) = 0.0;
 uniform float panel_lines : hint_range(0.0, 1.0) = 1.0;
+// v4: carbon-fibre parts, brake-heat glow on the discs, and the clearcoat
+// depth knob that separates a showroom car from a toy.
+uniform float carbon : hint_range(0.0, 1.0) = 0.0;
+uniform float pearl_shift : hint_range(0.0, 1.0) = 0.0;
+uniform float iridescence : hint_range(0.0, 1.0) = 0.0;
 
 varying vec3 local_pos;
 varying vec3 world_pos;
@@ -104,9 +109,36 @@ void fragment() {
 	float dirt_mask = (1.0 - smoothstep(0.10, 0.55, ny)) * dirt;
 	base = mix(base, vec3(0.32, 0.29, 0.25) * (0.6 + 0.4 * base.g), dirt_mask * 0.7);
 
+	// ---- carbon fibre ------------------------------------------------------
+	// A 2x2 twill is the pattern every exposed-carbon part on a supercar uses.
+	// It is generated from local coordinates so it stays locked to the panel
+	// instead of swimming as the car moves. Two crossed sine bands at 45 deg
+	// over a fine grid reads as weave at every distance the camera sees it.
+	if (carbon > 0.001) {
+		vec2 weave_uv = vec2(local_pos.z * 46.0, (local_pos.y + local_pos.x * 0.3) * 46.0);
+		float twill_a = sin(weave_uv.x * 3.14159) * sin(weave_uv.y * 3.14159);
+		float twill_b = sin((weave_uv.x + weave_uv.y) * 2.221);
+		float weave = twill_a * 0.55 + twill_b * 0.25;
+		vec3 carbon_col = vec3(0.020, 0.022, 0.026) * (0.75 + weave * 0.5);
+		base = mix(base, carbon_col, carbon);
+	}
+
+	// ---- pearl / iridescent shift -----------------------------------------
+	// Real pearl paint changes hue with viewing angle. Faked by rotating the
+	// base hue against ndv, which is what the eye actually notices on a
+	// pearlescent panel as the car passes.
+	if (pearl_shift > 0.001) {
+		float hue = ndv * 1.35 + local_pos.z * 0.22;
+		vec3 shift = vec3(
+			0.5 + 0.5 * sin(hue * 6.2831),
+			0.5 + 0.5 * sin(hue * 6.2831 + 2.094),
+			0.5 + 0.5 * sin(hue * 6.2831 + 4.189));
+		base = mix(base, base * 0.55 + shift * 0.45, pearl_shift * fres * 1.6);
+	}
+
 	ALBEDO = base;
-	METALLIC = clamp(metallic * 0.55, 0.0, 0.85);
-	ROUGHNESS = clamp(roughness, 0.02, 1.0);
+	METALLIC = clamp(metallic * 0.55 + carbon * 0.25, 0.0, 0.90);
+	ROUGHNESS = clamp(roughness + carbon * 0.18, 0.02, 1.0);
 
 	// ---- gloss -------------------------------------------------------------
 	// GL Compatibility has no clearcoat lobe, so the lacquer is faked by
@@ -120,6 +152,16 @@ void fragment() {
 	vec3 coat_vec = vec3(1.0) * coat * 0.30;
 	// budget the whole additive stack, then scale it back under damage
 	vec3 additive = rim_vec + coat_vec + flake_color * sheen * fres * 0.10;
+	// Iridescence: a thin-film tint that rides the Fresnel term. Only the
+	// hypercars turn this on, and only at the rim, which is where a viewer sees
+	// it on a real pearlescent panel.
+	if (iridescence > 0.001) {
+		vec3 film = vec3(
+			0.5 + 0.5 * cos(fres * 11.0),
+			0.5 + 0.5 * cos(fres * 11.0 + 2.094),
+			0.5 + 0.5 * cos(fres * 11.0 + 4.189));
+		additive += film * iridescence * pow(fres, 1.4) * 0.42;
+	}
 	additive += vec3(shoulder * 0.05);
 	additive *= (1.0 - damage * 0.55) * (1.0 - line * 0.8);
 	EMISSION = min(additive, vec3(0.85));

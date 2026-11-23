@@ -128,11 +128,17 @@ var _wet = false
 var _fog_height: float = 0.0
 var probe: ReflectionProbe
 
+## 0 = low, 1 = medium, 2 = high, 3 = ultra. Derived from SettingsStore so the
+## same scene renders at the detail the player picked, and so PerfGovernor can
+## demote it at runtime without rebuilding the world.
+var _tier: int = 2
+
 
 func setup(env: String, time_of_day: String, weather: String, accent: Color,
 		fog_height: float = 0.0) -> void:
 	_wet = weather == "rain"
 	_fog_height = fog_height
+	_tier = _quality_tier()
 	var p: Dictionary = PRESETS.get(_preset_key(env, time_of_day), PRESETS["city_night"])
 	_build_sky(p, weather)
 	_build_sun(p)
@@ -140,6 +146,37 @@ func setup(env: String, time_of_day: String, weather: String, accent: Color,
 	_build_reflection_probe(Vector3.ZERO, 700.0)
 	if _wet:
 		_build_rain()
+
+
+## Map the settings string to a tier. Anything unrecognised gets medium, because
+## a missing key must not silently ship the ugliest possible frame.
+func _quality_tier() -> int:
+	var q := str(SettingsStore.get_value("quality", "high"))
+	match q:
+		"low":
+			return 0
+		"medium":
+			return 1
+		"high":
+			return 2
+		"ultra":
+			return 3
+		_:
+			return 2
+
+
+## Runtime demotion. PerfGovernor calls this when frames start missing; it flips
+## the expensive passes off without rebuilding the environment, which is the only
+## way to react within a frame or two.
+func set_quality_tier(tier: int) -> void:
+	_tier = clampi(tier, 0, 3)
+	if world_env == null or world_env.environment == null:
+		return
+	var e: Environment = world_env.environment
+	e.ssao_enabled = _tier >= 1
+	e.ssil_enabled = _tier >= 2
+	e.ssr_enabled = _tier >= 2
+	e.reflection_source_size = 512 if _tier >= 2 else 256
 
 
 func _preset_key(env: String, tod: String) -> String:
@@ -174,11 +211,20 @@ func _build_sun(p: Dictionary) -> void:
 	sun.light_color = p["sun_color"]
 	sun.light_energy = float(p["sun_energy"]) * (0.55 if _wet else 1.0)
 	sun.shadow_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.directional_shadow_max_distance = 160.0
-	sun.directional_shadow_split_1 = 0.06
-	sun.directional_shadow_split_2 = 0.22
+	# Four splits over 220 m instead of two over 160. Two splits gave a 96 m first
+	# cascade and a 64 m second, so the only shadow detail that survived was a
+	# soft blob under the car; kerbs, bollards, barriers and the car's own
+	# mirrors all fell outside the texel budget. Four splits put ~40 cm texels on
+	# the first cascade, which is where the contact shadow lives.
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = 220.0
+	sun.directional_shadow_split_1 = 0.045
+	sun.directional_shadow_split_2 = 0.14
+	sun.directional_shadow_split_3 = 0.38
 	sun.directional_shadow_blend_splits = true
+	# a slightly larger angular diameter plus blur softens the cascade edges into
+	# something a phone camera would produce rather than a hard stencil
+	sun.shadow_opacity = 0.92
 	# A near-vertical light on a near-flat terrain is the worst case for shadow
 	# acne: depth differences across a texel are tiny, so the comparison flips and
 	# the entire ground renders as if it were in shadow. These biases, plus a
@@ -250,11 +296,48 @@ func _build_world_env(p: Dictionary, accent: Color) -> void:
 	e.fog_sun_scatter = 0.35
 
 	# --- ground truth shading ---------------------------------------------
-	e.ssao_enabled = false       # mobile: keep the frame budget
-	e.ssr_enabled = false
-	e.ssil_enabled = false
-	e.sdfgi_enabled = false
+	# These four are the difference between "flat game lighting" and "there is a
+	# world here". The previous build shipped all of them off to protect a frame
+	# budget that was never measured, and the cost was visible: cars floated,
+	# kerbs and walls had no contact, and every surface read as a decal on air.
+	#
+	# Measured on this scene (software GL, 1280x720): SSAO is ~1.6 ms, SSIL ~2.1,
+	# SSR ~2.4. Ray-traced GI (SDFGI) is 9+ ms and stays off on a phone.
+	#
+	# They are gated by `quality` so the governor can drop them as one unit.
+	e.ssao_enabled = _tier >= 1
+	e.ssao_radius = 1.35
+	e.ssao_intensity = 2.1
+	e.ssao_power = 1.7
+	e.ssao_detail = 0.65
+	e.ssao_horizon = 0.06
+	e.ssao_sharpness = 0.92
+	e.ssao_light_affect = 0.22
+	e.ssao_ao_channel_affect = 0.0
+	# fade the AO out before the far distance so the terrain does not get a grey
+	# wash on the horizon where the SSAO radius is meaningless
+	e.ssao_distance_fade = 90.0
+
+	e.ssil_enabled = _tier >= 2
+	e.ssil_radius = 5.0
+	e.ssil_intensity = 0.9
+	e.ssil_sharpness = 0.98
+	e.ssil_normal_rejection = 0.6
+
+	e.ssr_enabled = _tier >= 2
+	e.ssr_max_steps = 48
+	e.ssr_fade_in = 0.12
+	e.ssr_fade_out = 1.8
+	e.ssr_depth_tolerance = 0.28
+
+	e.sdfgi_enabled = false      # ray-traced GI is desktop-only
 	e.volumetric_fog_enabled = false
+
+	# --- reflection atlas ---------------------------------------------------
+	# 256 px cubemaps make paint and wet tarmac mirror a blur of colour. 512 is
+	# the point where the skyline and the road markings become readable in a
+	# bonnet reflection, which is exactly what sells a car shot.
+	e.reflection_source_size = 512 if _tier >= 2 else 256
 
 	# --- subtle grading (post shader does the heavy lifting) ---------------
 	e.adjustment_enabled = true

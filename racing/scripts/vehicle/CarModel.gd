@@ -44,8 +44,14 @@ var _glass_house: Node3D = null
 
 const CAR_PAINT_SHADER := "res://shaders/car_paint.gdshader"
 
-# station count for the lofted shell: more stations = smoother silhouette
-const STATIONS := 26
+# Station count for the lofted shell. 26 was chosen when this ran at 30 fps;
+# at 40 the shoulder crease and the wheel-arch flare both resolve instead of
+# faceting, which is the difference between "a car" and "a low-poly car".
+const STATIONS := 40
+
+## Radial resolution of each station. 28 gave visible facets on the shoulders
+## under a rim light, which is exactly where the eye goes on a car.
+const RING_SEGMENTS := 44
 
 
 func build(info: Dictionary, paint_id: String = "", rim: String = "") -> void:
@@ -94,6 +100,23 @@ func _push_body_size(shape: Dictionary) -> void:
 		float(shape.get("width", 1.9)),
 		float(shape.get("height", 1.2)),
 		float(shape.get("length", 4.6))))
+	# Pearl and iridescence belong to the paints that claim them, and to the
+	# hypercars, which are the ones a player stares at. Everything else keeps
+	# the plain coat: turning this on everywhere makes the whole fleet look
+	# like a cosmetics advert and costs two extra sin() per pixel.
+	var cls := str(car_info.get("class", "street"))
+	var pid := str(car_info.get("paint", "cyan"))
+	var pearl := 0.0
+	var irid := 0.0
+	if pid in ["pearl", "glacier", "phantom", "chrome", "arctic"]:
+		pearl = 0.42
+	if pid in ["nebula", "eclipse", "void", "plasma", "neon_pink"]:
+		irid = 0.55
+	if cls == "hyper":
+		irid = maxf(irid, 0.30)
+		pearl = maxf(pearl, 0.18)
+	_body_mat.set_shader_parameter("pearl_shift", pearl)
+	_body_mat.set_shader_parameter("iridescence", irid)
 
 
 func _build_materials() -> void:
@@ -253,7 +276,7 @@ func _build_body(shape: Dictionary) -> void:
 		n_exp = clampf(n_exp, 2.0, 4.2)
 
 		var ring: Array = []
-		var seg: int = 28
+		var seg: int = RING_SEGMENTS
 		for s in range(seg):
 			var a: float = float(s) / float(seg) * TAU
 			# superellipse: |cos|^(2/n) signed, |sin|^(2/n) signed
@@ -262,13 +285,35 @@ func _build_body(shape: Dictionary) -> void:
 			var ex: float = 2.0 / n_exp
 			var ux: float = signf(ca) * pow(absf(ca), ex)
 			var uy: float = signf(sa) * pow(absf(sa), ex)
-			# vertical squash of the lower half gives a flat chassis underside
+			# Vertical squash of the lower half gives a flat chassis underside.
 			var y: float
 			if uy < 0.0:
 				y = lerpf(sill_y, (sill_y + shoulder_y) * 0.5, uy + 1.0)
 			else:
 				y = lerpf((sill_y + shoulder_y) * 0.5, shoulder_y, uy)
-			var x: float = ux * half_w
+
+			# --- shoulder crease -------------------------------------------
+			# A real body panel is not a single smooth ellipse: there is a hard
+			# character line along the shoulder where the upper surface breaks
+			# away from the door skin. Without it the rim light slides over the
+			# body as one continuous gradient and the shell reads as a blob.
+			# `uy` is 0 at the mid-line and 1 at the shoulder, so the crease sits
+			# just under the widest point and pulls the surface in slightly.
+			var crease: float = exp(-pow((uy - 0.62) * 7.0, 2.0))
+			var crease_depth: float = 0.012 + 0.020 * stance
+
+			# --- wheel-arch flare ------------------------------------------
+			# The body swells over each axle. Sampled from the station's own z,
+			# so the flare follows the wheelbase that this shape actually uses
+			# rather than a fixed length. This is the single strongest cue that
+			# a shape is a car and not a lozenge.
+			var axle_span: float = length * 0.5 - float(shape["wheel"]) - 0.32
+			var fa: float = exp(-pow((z - axle_span) / 0.72, 2.0))
+			var ra: float = exp(-pow((z + axle_span) / 0.86, 2.0))
+			var flare: float = (fa * 0.85 + ra * 1.0) * clampf(uy * 1.5 - 0.15, 0.0, 1.0)
+			flare *= 0.030 + 0.055 * stance
+
+			var x: float = ux * half_w * (1.0 + flare) - signf(ux) * crease * crease_depth
 			ring.append(Vector3(x, y, z))
 		rings.append(ring)
 		ring_zs.append(z)
