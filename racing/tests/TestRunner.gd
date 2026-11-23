@@ -26,6 +26,15 @@ func _ready() -> void:
 		get_tree().quit(0)
 
 
+## Feed a steering request the way the touch controls do: once per physics tick,
+## for `ticks` ticks, with the throttle closed. Returns nothing; the car is left
+## in whatever state the run produced.
+func _hold_inputs(car, steer_target: float, ticks: int) -> void:
+	for i in ticks:
+		car.set_inputs(0.0, 0.0, steer_target, false, false)
+		car._physics_process(1.0 / 60.0)
+
+
 func _check(cond: bool, label: String) -> void:
 	checks += 1
 	if cond:
@@ -149,34 +158,32 @@ func _foundation() -> void:
 	_check(mc.abs_active, "ABS engages under threshold braking")
 	# Lateral dynamics: a slow corner must grip, a fast one must slide, and the
 	# car must straighten itself as soon as the wheel is released.
-	mc.set_inputs(0.0, 0.0, 0.0, false, false)
-	mc.speed = 12.0
-	mc.lateral_speed = 0.0
-	mc._yaw_rate = 0.0
-	mc.set_inputs(0.0, 0.0, 0.55, false, false)
-	for i in 90:
-		mc._physics_process(1.0 / 60.0)
+	#
+	# The phone feeds set_inputs() EVERY frame, and steer only slews toward the
+	# requested value at 0.18 per call. Calling it once with a full lock would
+	# leave steer at 0.18 and the car would simply not be cornering — that is
+	# how the first version of this test passed in Python and failed in Godot.
+	_hold_inputs(mc, 0.0, 0.55, 90)
 	var grip_lat: float = absf(mc.lateral_speed)
 	_check(grip_lat < 1.0, "a normal corner keeps grip (lateral %.2f)" % grip_lat)
 	mc.speed = 48.0
 	mc.lateral_speed = 0.0
 	mc._yaw_rate = 0.0
-	mc.set_inputs(0.0, 0.0, 1.0, false, false)
-	for i in 90:
-		mc._physics_process(1.0 / 60.0)
+	_hold_inputs(mc, 0.0, 1.0, 90)
 	_check(absf(mc.lateral_speed) > 1.5, "a flat-out corner breaks traction")
 	_check(mc.slip() > 0.25, "the slide shows up as tyre slip")
 	# release: self-aligning torque must bring the car back in line
-	mc.set_inputs(0.0, 0.0, 0.0, false, false)
-	for i in 240:
-		mc._physics_process(1.0 / 60.0)
+	_hold_inputs(mc, 0.0, 0.0, 240)
 	_check(absf(mc.lateral_speed) < 1.0, "releasing the wheel recovers the slide")
 	_check(absf(mc.slip()) < 0.2, "a recovered car stops smoking")
-	# slip is what drives smoke and marks: hard handbrake at speed must make some
+	# slip is what drives smoke and marks: a handbrake turn at speed must make
+	# some. Inputs are fed per tick like the phone does, otherwise steer never
+	# reaches the requested angle and the car does not actually turn.
 	mc.speed = 40.0
-	mc.handbrake = true
-	mc.set_inputs(0.0, 0.0, 0.9, false, true)
-	for i in 10:
+	mc.lateral_speed = 0.0
+	mc._yaw_rate = 0.0
+	for i in 12:
+		mc.set_inputs(0.0, 0.0, 0.9, false, true)
 		mc._physics_process(1.0 / 60.0)
 	_check(mc.slip() > 0.05, "tyres report slip while sliding (got %.2f)" % mc.slip())
 	mc.queue_free()

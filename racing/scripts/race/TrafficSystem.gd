@@ -29,6 +29,13 @@ const LANE_OFFSET := 9.5            ## metres each side of the ring centre-line
 var world                          ## OpenWorld (for height_at + the ring data)
 var road_points := PackedVector3Array()
 var ring_radius: float = 620.0
+## Length of one lap, in metres. The traffic simulation advances in angle, so it
+## needs this to convert a speed into an angular rate — on a circuit it used to
+## divide by zero and every car's angle became NaN on the first tick.
+var perimeter: float = 620.0 * TAU
+## False when the host is a circuit track rather than the open-world ring, in
+## which case the traffic lanes follow the track's own centreline.
+var ring_host: bool = true
 
 var _traffic: Array = []           ## {angle, dir, speed, lane, model_index}
 var _traffic_mm: MultiMesh
@@ -69,9 +76,28 @@ func build(world_ref, region: Dictionary) -> void:
 	add_to_group("perf_traffic")
 	world = world_ref
 	_rng.seed = int(region.get("seed", 2026)) + 7717
-	ring_radius = float(world.ROAD_RING_RADIUS) if world != null else 620.0
-	if world != null:
+	# Two different hosts reach this function: the open world (which owns the ring
+	# constants and a road_points array) and a circuit track builder (which owns
+	# neither). Reading ROAD_RING_RADIUS off a TrackBuilder threw at build time,
+	# so traffic, pedestrians and police were all dead on every circuit race.
+	# ROAD_RING_RADIUS is a const, which `get()` cannot see, so the host type is
+	# decided by what only the open world provides: a road_points array.
+	ring_host = world != null and world.get("road_points") != null
+	if ring_host:
+		ring_radius = float(world.ROAD_RING_RADIUS)
 		road_points = world.road_points
+		perimeter = maxf(50.0, ring_radius * TAU)
+	else:
+		ring_radius = 620.0
+		# A circuit has its own closed centreline; traffic must drive that, not a
+		# ring that does not exist in this world. Without this every civilian car
+		# sat hundreds of metres off the track, in the void.
+		if world != null and world.get("data") != null:
+			road_points = world.data.points
+			ring_radius = 0.0
+			perimeter = maxf(50.0, _polyline_length())
+		else:
+			perimeter = maxf(50.0, ring_radius * TAU)
 	_build_traffic()
 	_build_pedestrians()
 	_police_root = Node3D.new()
@@ -133,13 +159,64 @@ func _traffic_mesh(variant: int) -> Mesh:
 
 
 func _ring_point(angle: float, lateral: float) -> Vector3:
+	if not ring_host:
+		return _track_point(angle, lateral)
 	var r: float = ring_radius + lateral
 	var x: float = cos(angle) * r
 	var z: float = sin(angle) * r
 	var y: float = 1.15
 	if world != null:
-		y = world._road_surface_height(angle) + float(world.ROAD_LIFT)
+		y = (world._road_surface_height(angle) + float(world.ROAD_LIFT)) if ring_host else 0.0
 	return Vector3(x, y, z)
+
+
+## The centreline parameter (0..TAU) closest to a world point. Used to place
+## police on the road rather than at an arbitrary bearing from the origin.
+func _nearest_angle(p: Vector3) -> float:
+	if ring_host:
+		return fposmod(atan2(p.z, p.x), TAU)
+	var n: int = road_points.size()
+	if n < 2:
+		return 0.0
+	var best: float = 1.0e20
+	var best_i: int = 0
+	for i in n:
+		var d: float = p.distance_squared_to(road_points[i])
+		if d < best:
+			best = d
+			best_i = i
+	return float(best_i) / float(n) * TAU
+
+
+## Total length of the host centreline, used to turn a speed into an angle rate.
+func _polyline_length() -> float:
+	var n: int = road_points.size()
+	var total: float = 0.0
+	for i in n:
+		total += road_points[i].distance_to(road_points[(i + 1) % n])
+	return total
+
+
+## Position on a circuit centreline. `angle` is reused as a 0..TAU parameter so
+## the rest of the traffic simulation (which thinks in angle + direction) works
+## unchanged on a track.
+func _track_point(angle: float, lateral: float) -> Vector3:
+	var n: int = road_points.size()
+	if n < 4:
+		return Vector3(cos(angle) * 620.0, 1.15, sin(angle) * 620.0)
+	var f: float = fposmod(angle / TAU, 1.0) * float(n)
+	var i: int = int(f) % n
+	var t: float = f - floorf(f)
+	var a: Vector3 = road_points[i]
+	var b: Vector3 = road_points[(i + 1) % n]
+	var p: Vector3 = a.lerp(b, t)
+	var dir: Vector3 = (b - a)
+	dir.y = 0.0
+	if dir.length_squared() < 0.0001:
+		return p
+	dir = dir.normalized()
+	var right := Vector3(-dir.z, 0.0, dir.x)
+	return p + right * lateral + Vector3(0.0, 0.75, 0.0)
 
 
 func _process_traffic(delta: float) -> void:
@@ -172,13 +249,13 @@ func _process_traffic(delta: float) -> void:
 			var o: Dictionary = _traffic[j]
 			if float(o["dir"]) != dir:
 				continue
-			var gap: float = wrapf(float(o["angle"]) - ang, -PI, PI) * ring_radius
+			var gap: float = wrapf(float(o["angle"]) - ang, -PI, PI) / TAU * perimeter
 			var closing: float = gap * dir
 			if closing > 0.0 and closing < 13.0:
 				target_speed = minf(target_speed, float(o["speed"]) * 0.6)
 		speed = move_toward(speed, target_speed, delta * 7.0)
 		t["speed"] = speed
-		ang += (speed / ring_radius) * dir * delta
+		ang += (speed / perimeter) * TAU * dir * delta
 		ang = wrapf(ang, 0.0, TAU)
 		t["angle"] = ang
 		var pos := _ring_point(ang, float(t["lane"]))
@@ -256,7 +333,11 @@ func _process_pedestrians(delta: float) -> void:
 		var flee: float = maxf(0.0, float(p["flee"]) - delta * 0.5)
 		p["flee"] = flee
 		var speed: float = float(p["speed"]) * (1.0 + float(p["walk_dir"]) * 0.0)
-		ang += (speed / (ring_radius + absf(lat) * 0.4)) * float(p["walk_dir"]) * delta * (1.0 + flee * 3.0)
+		# Same division-by-zero as the traffic had: on a circuit `ring_radius` is
+		# zero and every pedestrian's angle became NaN, so the crowd disappeared.
+		# Perimeter is the general answer for both worlds.
+		var circum: float = maxf(40.0, perimeter + absf(lat) * 0.4 * TAU)
+		ang += (speed / circum) * TAU * float(p["walk_dir"]) * delta * (1.0 + flee * 3.0)
 		ang = wrapf(ang, 0.0, TAU)
 		p["angle"] = ang
 		var pos := _ring_point(ang, lat)
@@ -300,12 +381,20 @@ func _spawn_police(player_pos: Vector3) -> void:
 		var unit = PoliceUnitScript.new()
 		unit.name = "Police%d" % _police_units.size()
 		_police_root.add_child(unit)
-		var ang: float = atan2(player_pos.z, player_pos.x) + _rng.randf_range(-0.5, 0.5)
+		# Spawn on the host's own centreline, ahead of the player. On the open
+		# world that is the ring's radius; on a circuit `atan2(z, x)` around the
+		# origin has nothing to do with where the road is, and police appeared in
+		# the scenery. Parameterising by the nearest point on the centreline works
+		# for both.
+		var ang: float = _nearest_angle(player_pos) + _rng.randf_range(-0.25, 0.25)
 		var spawn := _ring_point(ang, _rng.randf_range(-14.0, 14.0))
 		# spawn far enough away that they arrive rather than appear on top of you
 		if spawn.distance_to(player_pos) < 90.0:
-			var away: Vector3 = (spawn - player_pos).normalized()
-			spawn = player_pos + away * 130.0
+			var away: Vector3 = (spawn - player_pos)
+			away.y = 0.0
+			if away.length_squared() < 1.0:
+				away = Vector3.FORWARD
+			spawn = player_pos + away.normalized() * 130.0
 		unit.spawn(spawn, 1.0)
 		_police_units.append(unit)
 

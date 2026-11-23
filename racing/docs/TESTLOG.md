@@ -497,3 +497,50 @@ Verified against the tests the CI runs (Python replay of the exact tick sequence
 
 Gates: 42 files parsed, `gdlint scripts tests` clean, `check_types` 42/42,
 `check_undeclared` 42/42, `physics_sim` PASS, presets 2 ABI, 4 shaders clean.
+
+## Round 18 — Four defects that only appear on a real circuit race
+
+CI's import + script-load step caught errors that `gdparse` and `gdlint` cannot
+see, because both are pure syntax tools. All four are the same species: a member
+or a constant assumed to exist on whichever host object happened to be passed in.
+
+1. **`TrackData.half_width` never existed.** `race.gd:_tick_surfaces` read
+   `builder.data.half_width` every frame the car was on a track. `TrackData`
+   stores a per-point `widths` array, so the property access raised
+   *"Invalid access to property or key 'half_width'"* on every tick — the car's
+   surface and grip were never updated on a circuit. Now `widths[idx] * 0.5`,
+   and the comparison is `absf(lateral)` because `project()` returns a signed
+   distance (a car to the LEFT of the line was being called "on road" at any
+   distance).
+2. **`TrafficSystem.build()` was handed a `TrackBuilder`.** It read
+   `world.ROAD_RING_RADIUS` unconditionally, which threw, and the exception
+   aborted the rest of the build: **traffic, pedestrians and police were all
+   dead on every circuit race.** Host type is now decided by probing for
+   `road_points` (a const cannot be seen by `get()`, so probing for the constant
+   itself would not work).
+3. **Division by zero on circuits.** `ring_radius` was set to 0 as a sentinel,
+   but three places still divided by it: traffic angular advance, the
+   following-distance gap, and pedestrian walking. Every civilian car and
+   pedestrian angle became NaN on the first tick. Replaced with `perimeter`,
+   computed from the circuit's own polyline length (or `r * TAU` for the ring).
+4. **Police spawned at an arbitrary bearing.** `atan2(player.z, player.x)` is
+   the ring's parameterisation and means nothing on a circuit; police appeared
+   in the scenery. They now spawn at the nearest point on the host centreline.
+
+Verified numerically: on a 1600 m square circuit and on the 3895 m ring, traffic
+at 20 m/s travels exactly 200 m in 10 s, and the 0.05 rad following gap is 12.7 m
+and 31.0 m respectively (finite and non-zero on both).
+
+Also fixed this round: the lateral-dynamics test called `set_inputs()` once, but
+`steer` only slews 0.18 per call, so the car was steering 0.18 rather than 1.0
+and never broke traction. The test now feeds inputs every tick, like the phone.
+
+| gate | result |
+| --- | --- |
+| gdparse | 42/42 |
+| gdlint scripts tests | clean |
+| check_types | 42/42 |
+| check_undeclared | 42/42 |
+| physics_sim | PASS |
+| export presets | 2 ABI |
+| shaders | 4 clean |

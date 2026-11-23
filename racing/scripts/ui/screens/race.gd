@@ -652,7 +652,12 @@ func _tick_surfaces(delta: float) -> void:
 			grip_target = lerpf(0.42, 0.94, offroad)
 	elif builder != null:
 		var prj: Dictionary = builder.data.project(player.global_position)
-		on_road = float(prj.get("lateral", 0.0)) < float(builder.data.half_width) + 2.0
+		# TrackData stores a per-point WIDTH (not a half-width), so the test is
+		# against half of it plus a small kerb allowance. Reading a `half_width`
+		# member that never existed threw on every frame the car was on a track.
+		var idx: int = clampi(int(prj.get("index", 0)), 0, builder.data.widths.size() - 1)
+		var half: float = builder.data.widths[idx] * 0.5 + 2.0
+		on_road = absf(float(prj.get("lateral", 0.0))) < half
 		if not on_road:
 			surface = "grass"
 			grip_target = lerpf(0.42, 0.94, float(gameplay_tuning.get("offroad", 0.45)))

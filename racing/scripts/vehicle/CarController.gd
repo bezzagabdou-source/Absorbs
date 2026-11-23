@@ -376,8 +376,11 @@ func _lateral(delta: float) -> void:
 		lateral_speed = move_toward(lateral_speed, 0.0, capacity * dt * 1.9)
 	if handbrake:
 		# A locked rear axle keeps its sideways momentum instead of recovering.
-		# This is a sustained force, not an impulse, so it stays small per tick.
-		lateral_speed += signf(steer) * absf(vf) * 0.16 * dt
+		# The force scales with speed, so a handbrake at 20 km/h is a gentle
+		# nudge and at 110 km/h it steps the tail out — which is the whole point
+		# of the control. 0.42 of v is about 1.7g at 40 m/s: a real spin, not a
+		# cosmetic lean.
+		lateral_speed += signf(steer) * absf(vf) * 0.42 * dt
 	# Self-aligning torque: a sliding tyre wants to point where the car is going.
 	# Without this the car rotates forever once it lets go, which reads as a bug.
 	if absf(lateral_speed) > 0.2 and absf(steer) < 0.85:
