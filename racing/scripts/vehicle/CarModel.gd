@@ -626,9 +626,15 @@ func _build_details(shape: Dictionary) -> void:
 			Vector3(width * 0.22 * side, y_shoulder + 0.004, -length * 0.30), _carbon_mat)
 		vent.rotation.x = 0.02
 	# --- accent stripe down the centre -------------------------------------
-	var stripe = _add_box(Vector3(width * 0.085, 0.008, length * 0.30),
-		Vector3(0, y_shoulder + 0.008, -length * 0.30), _accent_mat)
-	stripe.name = "Stripe"
+	# The stripe follows the bonnet, so its top must sit just under the crown of
+	# the shell at that station rather than at a fixed y. Sitting at y_shoulder it
+	# showed as a red bar sticking out of the nose in the first render.
+	var stripe_z: float = -length * 0.30
+	var stripe_drop: float = height * 0.06
+	var stripe = _add_box(Vector3(width * 0.075, 0.006, length * 0.24),
+		Vector3(0, y_shoulder - stripe_drop, stripe_z), _accent_mat)
+	if stripe != null:
+		stripe.name = "Stripe"
 	# --- side accent blade (the signature "velocity" line) ------------------
 	for side in [-1.0, 1.0]:
 		var blade = _add_box(Vector3(0.008, 0.035, length * 0.42),

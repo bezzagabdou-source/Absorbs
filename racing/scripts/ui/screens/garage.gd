@@ -9,7 +9,10 @@ var _car_model: Node3D
 var _cam: Camera3D
 var _yaw = 0.55
 var _pitch = 0.0
-var _dist = 11.5
+# 11.5 m at a 40 degree lens framed a 4.6 m car at about a third of the
+# viewport, which is why the hero shot looked like a toy in an empty hangar.
+# 7.2 fills over half the frame and still leaves room for the turntable ring.
+var _dist = 7.2
 var _dragging = false
 var _class_filter = "all"
 var _car_index = 0
@@ -65,7 +68,7 @@ func _build_viewport() -> void:
 	e.background_mode = Environment.BG_CANVAS
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.52, 0.56, 0.64)
-	e.ambient_light_energy = 0.85
+	e.ambient_light_energy = 0.45
 	e.ambient_light_sky_contribution = 0.0
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.glow_enabled = true
@@ -97,7 +100,10 @@ func _build_viewport() -> void:
 	root.add_child(env)
 	var key = DirectionalLight3D.new()
 	key.light_color = Color(0.9, 0.95, 1.0)
-	key.light_energy = 1.15
+	# Budget: 0.85 + 0.70 + 0.55 + 0.40 + 0.30 = 2.80 total, down from 5.85.
+	# Still bright enough to read as a studio, low enough that a saturated paint
+	# stays saturated instead of clipping to white in the tonemapper.
+	key.light_energy = 0.85
 	key.rotation_degrees = Vector3(-32, -140, 0)
 	# Shadows on: this is the contact shadow on the compatibility renderer. Set
 	# to a tight 26 m range so the shadow texels stay small and the car's own
@@ -114,12 +120,12 @@ func _build_viewport() -> void:
 	# garage feel like a nightclub rather than a showroom.
 	var rim = DirectionalLight3D.new()
 	rim.light_color = Color(1.0, 0.93, 0.84)
-	rim.light_energy = 1.55
+	rim.light_energy = 0.70
 	rim.rotation_degrees = Vector3(-14, 22, 0)
 	root.add_child(rim)
 	var back = DirectionalLight3D.new()
 	back.light_color = Color(0.72, 0.84, 1.0)
-	back.light_energy = 1.10
+	back.light_energy = 0.55
 	back.rotation_degrees = Vector3(-24, 196, 0)
 	root.add_child(back)
 	# floor bounce: a soft upward light so the sills and the underside of the
@@ -127,13 +133,13 @@ func _build_viewport() -> void:
 	# floating on the turntable
 	var bounce = OmniLight3D.new()
 	bounce.light_color = Color(0.85, 0.88, 1.0)
-	bounce.light_energy = 1.35
+	bounce.light_energy = 0.40
 	bounce.omni_range = 9.0
 	bounce.position = Vector3(0, 0.35, 0)
 	root.add_child(bounce)
 	var fill2 = DirectionalLight3D.new()
 	fill2.light_color = UIStyle.CYAN
-	fill2.light_energy = 0.70
+	fill2.light_energy = 0.30
 	fill2.rotation_degrees = Vector3(-50, 160, 0)
 	root.add_child(fill2)
 	_car_pivot = Node3D.new()
@@ -183,10 +189,10 @@ func _on_view_input(event: InputEvent) -> void:
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			_dragging = mb.pressed
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_dist = clampf(_dist - 0.5, 4.4, 12.0)
+			_dist = clampf(_dist - 0.5, 4.2, 12.0)
 			_update_cam()
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_dist = clampf(_dist + 0.5, 4.4, 12.0)
+			_dist = clampf(_dist + 0.5, 4.2, 12.0)
 			_update_cam()
 	elif event is InputEventMouseMotion and _dragging:
 		var mm = event as InputEventMouseMotion
@@ -203,7 +209,7 @@ func _on_view_input(event: InputEvent) -> void:
 func _update_cam() -> void:
 	if _cam == null:
 		return
-	var target: Vector3 = Vector3(0, 0.55, 0)
+	var target: Vector3 = Vector3(0, 0.62, 0)
 	var offset = Vector3(sin(_yaw) * cos(_pitch), 0.32 + sin(_pitch), cos(_yaw) * cos(_pitch)) * _dist
 	_cam.position = target + offset
 	_cam.look_at(target, Vector3.UP)

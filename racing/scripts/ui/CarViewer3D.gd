@@ -16,12 +16,19 @@ extends SubViewportContainer
 const CarModelScript = preload("res://scripts/vehicle/CarModel.gd")
 
 var auto_spin: bool = true
+## Sweep the camera around the car instead of rotating the car itself. A
+## turntable turns the model, which means the lighting changes as it goes and
+## the far side is always facing away; orbiting keeps the key on the car and
+## reveals the profile, the rear three-quarter and the head-on view.
+var orbit: bool = false
 var spin_speed: float = 0.42
 var render_scale: float = 1.0
 var _spin: float = 0.0
 var _yaw: float = -0.62
 var _pitch: float = 0.20
 var _car: Node3D = null
+var _cam: Camera3D = null
+var _cam_dist: float = 5.9
 var _viewport: SubViewport = null
 var _pivot: Node3D = null
 var _ok: bool = false
@@ -43,7 +50,7 @@ func setup() -> bool:
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.26, 0.32, 0.42)
-	e.ambient_light_energy = 1.05
+	e.ambient_light_energy = 0.55
 	e.tonemap_mode = Environment.TONE_MAPPER_ACES
 	e.tonemap_white = 1.6
 	# Glow off. It was bleeding the whole body into a haze, which is most of the
@@ -78,20 +85,27 @@ func setup() -> bool:
 	# alpha background already gives the card its own colour.
 	var key := DirectionalLight3D.new()
 	key.rotation = Vector3(deg_to_rad(-42.0), deg_to_rad(38.0), 0.0)
-	key.light_energy = 2.9
+	# Energy budget, derived rather than tuned by eye: the paint's linear albedo
+	# is ~(0.13, 0.91, 1.0) for cyan, and anything above ~1.0 tonemaps to white.
+	# At key 2.9 + fill 0.55 + bounce 0.35 the green and blue channels landed at
+	# 1.9 and 2.1, i.e. 2-4x over range, which is why every car rendered as a
+	# pale blob regardless of the paint that was selected. 1.15 + 0.35 + 0.18
+	# gives a brightest linear channel near 0.85: colour survives, and the
+	# falloff across the body still shades the form.
+	key.light_energy = 1.15
 	key.light_color = Color(1.0, 0.97, 0.93)
 	key.shadow_enabled = true
 	_viewport.add_child(key)
 
 	var fill := DirectionalLight3D.new()
 	fill.rotation = Vector3(deg_to_rad(-18.0), deg_to_rad(-135.0), 0.0)
-	fill.light_energy = 0.55
+	fill.light_energy = 0.35
 	fill.light_color = Color(0.55, 0.72, 1.0)
 	_viewport.add_child(fill)
 
 	var bounce := DirectionalLight3D.new()
 	bounce.rotation = Vector3(deg_to_rad(28.0), deg_to_rad(160.0), 0.0)
-	bounce.light_energy = 0.35
+	bounce.light_energy = 0.18
 	bounce.light_color = Color(1.0, 0.86, 0.70)
 	_viewport.add_child(bounce)
 
@@ -105,7 +119,7 @@ func setup() -> bool:
 	# 5.9 m, not 7.6: a 4.6 m car at 30 degrees fills about 80 percent of the
 	# frame width, which is how a car is cropped in a press photo. The previous
 	# distance left so much headroom that the model read as a small toy.
-	var dist: float = 5.9
+	var dist: float = _cam_dist
 	var pos := Vector3(
 		sin(_yaw) * cos(_pitch) * dist,
 		sin(_pitch) * dist + 0.30,
@@ -116,6 +130,7 @@ func setup() -> bool:
 	cam.look_at_from_position(pos, Vector3(0.0, 0.62, 0.0), Vector3.UP)
 	_viewport.add_child(cam)
 	cam.current = true
+	_cam = cam
 	_ok = true
 	return true
 
@@ -155,7 +170,16 @@ func _process(delta: float) -> void:
 		return
 	if auto_spin:
 		_spin += delta * spin_speed
-		_pivot.rotation.y = _spin
+		if orbit and _cam != null:
+			var oy: float = _yaw + _spin
+			var d: float = _cam_dist
+			_cam.position = Vector3(
+				sin(oy) * cos(_pitch) * d,
+				sin(_pitch) * d + 0.30,
+				cos(oy) * cos(_pitch) * d)
+			_cam.look_at_from_position(_cam.position, Vector3(0.0, 0.62, 0.0), Vector3.UP)
+		else:
+			_pivot.rotation.y = _spin
 
 
 ## Called by the host when the card is hidden or freed. A SubViewport that stays
