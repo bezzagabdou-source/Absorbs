@@ -93,7 +93,12 @@ void fragment() {
 	// ground was noise that aliased into shimmer as the camera moved. Two extra
 	// octaves, each faded out before it would alias, is the cheap version of a
 	// mip-correct detail map.
-	float cam_dist = length(wpos - CAMERA_POSITION_WORLD);
+	// Godot 4 has no CAMERA_POSITION_WORLD builtin. The camera's world position
+	// is the translation column of INV_VIEW_MATRIX, which is exactly what the
+	// builtin would have returned. (Using a name the compiler does not know
+	// fails the whole shader, not just this line.)
+	vec3 cam_pos = INV_VIEW_MATRIX[3].xyz;
+	float cam_dist = length(wpos - cam_pos);
 	float near_w = 1.0 - smoothstep(18.0, 95.0, cam_dist);
 	float mid_w = 1.0 - smoothstep(90.0, 320.0, cam_dist);
 	float fine = vnoise(wpos.xz * detail_scale * 4.3) * near_w;

@@ -34,6 +34,21 @@ BUILTINS = {
     "SPECULAR_LIGHT", "SSS_STRENGTH", "SSS_TRANSMITTANCE_COLOR", "SSS_TRANSMITTANCE_DEPTH",
     "SSS_TRANSMITTANCE_STRENGTH", "TANGENT", "TANGENT_BINORMAL", "TANGENT_BINORMAL_SIGN",
     "TIME", "TRANSMITTANCE_COLOR", "UV", "VERTEX", "VIEW", "VIEW_MATRIX", "VIEWPORT_SIZE",
+    # Godot 4 spatial builtins missing from the original list. INV_VIEW_MATRIX
+    # is how you recover the camera's world position (its translation column);
+    # the others are the projection/instance matrices a custom spatial shader
+    # legitimately needs. They were generating false failures.
+    # Each of these is documented for Godot 4 spatial shaders:
+    #   INV_VIEW_MATRIX       camera transform inverse; [3].xyz is camera world pos
+    #   INSTANCE_TRANSFORM    per-instance model matrix (vertex)
+    #   MODELVIEW_MATRIX      MODEL_MATRIX pre-multiplied by the view (vertex)
+    #   CAMERA_VISIBLE_LAYERS which layers the camera renders (fragment)
+    #   OUTPUT_IS_SRGB        colour-space of the output buffer (fragment)
+    #   CLIP_SPACE_FAR        far plane in clip space (fragment)
+    #   SCREEN_UV             screen-space UV (fragment)
+    # Deliberately NOT added: names I could not verify.
+    "INV_VIEW_MATRIX", "INSTANCE_TRANSFORM", "MODELVIEW_MATRIX",
+    "CAMERA_VISIBLE_LAYERS", "OUTPUT_IS_SRGB", "CLIP_SPACE_FAR", "SCREEN_UV",
     # functions
     "abs", "acos", "all", "any", "asin", "atan", "ceil", "clamp", "cos", "cosh", "cross",
     "degrees", "determinant", "distance", "dot", "exp", "exp2", "faceforward", "floor",
