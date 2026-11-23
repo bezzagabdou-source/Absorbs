@@ -349,13 +349,18 @@ func _build_body(shape: Dictionary) -> void:
 			# clears the tyre. `arch` is 1 at the axle and decays with distance
 			# along z, so the opening is exactly wheel-sized.
 			var arch_radius: float = wheel_r + 0.055
-			var arch_now: float = maxf(fa, ra)
 			var x: float = ux * half_w * (1.0 + flare) - signf(ux) * crease * crease_depth
-			if arch_now > 0.05:
+			# The cut must be bounded by the aperture itself. Using the Gaussian
+			# `max(fa, ra)` as the gate was wrong: a Gaussian never reaches zero,
+			# so stations at the very nose and tail still passed the test and got
+			# pulled in as well. On the boot render that showed up as the front
+			# arch having eaten half the nose. Gate on the actual distance.
+			var dz_near: float = z - axle_span
+			if absf(z + axle_span) < absf(dz_near):
+				dz_near = z + axle_span
+			if absf(dz_near) < arch_radius + 0.02:
 				# distance from the axle centre in the y-z plane
-				var dz_arch: float = z - axle_span
-				if absf(z + axle_span) < absf(dz_arch):
-					dz_arch = z + axle_span
+				var dz_arch: float = dz_near
 				var dy_arch: float = y - wheel_r
 				var d_arch: float = sqrt(dz_arch * dz_arch + dy_arch * dy_arch)
 				if d_arch < arch_radius and absf(ux) > 0.55:
