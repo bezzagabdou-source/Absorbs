@@ -135,10 +135,15 @@ func _build_post() -> void:
 	post.color = Color(1, 1, 1, 1)
 	post.material = post_mat
 	add_child(post)
-	# the post pass reads the 3D viewport texture directly and must draw last
+	# The post pass reads the 3D viewport texture directly and must draw last.
+	# Both the parameter and the reorder are guarded: without a viewport the rect
+	# still gets added, and calling move_child on a node whose parent was already
+	# freed (which happens when a screen is torn down mid-build) throws
+	# "Child is not a child of this node" and aborts the rest of the setup.
 	if viewport != null:
 		post_mat.set_shader_parameter("scene_tex", viewport.get_texture())
-		move_child(post, get_child_count() - 1)
+		if post.get_parent() == self:
+			move_child(post, get_child_count() - 1)
 	update_post()
 
 

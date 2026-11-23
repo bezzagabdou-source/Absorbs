@@ -24,11 +24,20 @@ var _showroom: Node3D = null
 var _sub: SubViewport = null
 var _vignette: ColorRect = null
 var _logo_block: VBoxContainer = null
+var _built: bool = false
 
 const SEGMENTS := 14
 
 
 func build() -> void:
+	if _built:
+		return
+	_built = true
+	if content == null:
+		content = Control.new()
+		content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		content.mouse_filter = Control.MOUSE_FILTER_PASS
+		add_child(content)
 	AudioDirector.play_music("menu_theme", 0.8, -14.0)
 	_build_backdrop()
 	_build_showroom()
@@ -41,7 +50,14 @@ func build() -> void:
 ## A deep, graded background that stays legible whether or not 3D comes up. Two
 ## stacked gradient bands and a soft horizon glow — no image asset, so it costs
 ## nothing to load and nothing to keep resident.
+## Guard against a second build. ScreenBase calls build() once from _ready(), but
+## this screen starts timers, tweens and a 3D viewport; running it twice would
+## double every one of them. The flag also makes build() safe to call directly
+## from a test harness before the node has entered the tree, which is what the
+## CI "runtime boot" section does.
 func _build_backdrop() -> void:
+	if content == null:
+		return
 	var base := ColorRect.new()
 	base.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	base.color = Color(0.007, 0.009, 0.016)

@@ -88,6 +88,21 @@ void fragment() {
 	float d3 = vnoise(wpos.xy * detail_scale * 0.9);
 	float detail = (d1 * n.y + d2 * abs(n.x) + d3 * abs(n.z));
 
+	// Detail octaves that fade with distance. The previous build sampled the
+	// same two frequencies everywhere, so near ground was too smooth and far
+	// ground was noise that aliased into shimmer as the camera moved. Two extra
+	// octaves, each faded out before it would alias, is the cheap version of a
+	// mip-correct detail map.
+	float cam_dist = length(wpos - CAMERA_POSITION_WORLD);
+	float near_w = 1.0 - smoothstep(18.0, 95.0, cam_dist);
+	float mid_w = 1.0 - smoothstep(90.0, 320.0, cam_dist);
+	float fine = vnoise(wpos.xz * detail_scale * 4.3) * near_w;
+	float micro = vnoise(wpos.xz * detail_scale * 11.7) * near_w * near_w;
+	detail = detail * 0.72 + fine * 0.21 + micro * 0.07;
+	// and a mid-frequency break-up that survives to the horizon, so distant
+	// hills are not a single flat colour
+	detail += (vnoise(wpos.xz * 0.018) - 0.5) * mid_w * 0.16;
+
 	// macro variation at low frequency (biome patches)
 	float macro = fbm(wpos.xz * macro_scale);
 	float macro2 = fbm(wpos.xz * macro_scale * 3.1 + 17.0);
@@ -95,6 +110,14 @@ void fragment() {
 	vec3 ground = mix(grass_color, sand_color, smoothstep(0.42, 0.66, macro));
 	ground = mix(ground, rock_color, smoothstep(rock_slope - 0.12, rock_slope + 0.16, slope));
 	ground *= mix(0.82, 1.12, detail * 0.6 + macro2 * 0.4);
+	// Hue breakup: real grassland is never one green. Two low-frequency offsets
+	// push patches toward yellow-green and blue-green. This is the single
+	// cheapest way to stop a large flat plain reading as a single-colour plane,
+	// which is the biggest tell that a world is small.
+	float patch = fbm(wpos.xz * 0.0042 + 3.7);
+	ground.r *= mix(0.90, 1.14, patch);
+	ground.g *= mix(0.94, 1.10, 1.0 - patch);
+	ground.b *= mix(0.86, 1.02, fbm(wpos.xz * 0.0031 + 11.0));
 
 	// snow settles on flat, high ground
 	float snow = smoothstep(snow_line - 0.06, snow_line + 0.10, terrain_up * 0.65 + wpos.y * 0.00002);

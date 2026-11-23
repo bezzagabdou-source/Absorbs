@@ -790,12 +790,115 @@ func _build_landmarks() -> void:
 	if profile == "metro":
 		_landmark_tower(Vector3(0, height_at(0, 0), 0), 210.0, accent)
 		_landmark_arena(Vector3(ROAD_RING_RADIUS * 0.72, 0, 0), accent)
+		# A city skyline, not a single tower. Twenty-two blocks of varying height
+		# and footprint inside the ring give the horizon real depth: the eye can
+		# judge distance from the way nearer blocks occlude further ones, which is
+		# the entire trick behind a map that feels like it goes on for kilometres.
+		_build_skyline_district(accent)
 	elif profile == "alpine":
 		_landmark_mast(Vector3(0, height_at(0, 0), 0), 150.0, accent)
+		_build_skyline_district(accent, 8, 0.45)
 	elif profile == "desert":
 		_landmark_arena(Vector3(0, height_at(0, 0), 0), Color(1.0, 0.62, 0.22))
+		_build_skyline_district(accent, 10, 0.30)
 	else:
 		_landmark_lighthouse(Vector3(ROAD_RING_RADIUS * 0.8, 0, ROAD_RING_RADIUS * 0.5), accent)
+		_build_skyline_district(accent, 12, 0.55)
+
+
+## A district of blocks around the ring centre. Heights follow a power curve so a
+## few towers dominate and most buildings are low, which is what every real city
+## looks like — a uniform skyline reads as wallpaper.
+##
+## Every building is one MeshInstance with a shared material and an emissive
+## window band, so 22 blocks cost 22 draw calls and no per-frame work. Windows are
+## a shader-free trick: a stack of thin emissive boxes on two faces, merged into
+## the same node.
+func _build_skyline_district(accent: Color, count: int = 22, height_scale: float = 1.0) -> void:
+	var root := Node3D.new()
+	root.name = "Skyline"
+	_landmark_root.add_child(root)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(region.get("seed", 2026)) + 5501
+	var body_mat := StandardMaterial3D.new()
+	body_mat.albedo_color = Color(0.072, 0.080, 0.098)
+	body_mat.metallic = 0.55
+	body_mat.roughness = 0.42
+	var win_mat := StandardMaterial3D.new()
+	win_mat.albedo_color = Color(0.95, 0.92, 0.78)
+	win_mat.emission_enabled = true
+	win_mat.emission = Color(1.0, 0.86, 0.62)
+	win_mat.emission_energy_multiplier = 1.9
+	win_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for i in count:
+		# golden-angle placement: an even spread with no visible rows, and it
+		# never puts two blocks on top of each other
+		var ang: float = float(i) * 2.39996
+		var radius: float = ROAD_RING_RADIUS * rng.randf_range(0.18, 0.86)
+		var px: float = cos(ang) * radius
+		var pz: float = sin(ang) * radius
+		var base_y: float = height_at(px, pz)
+		# power curve: t^2.4 means most blocks are short and a handful tower
+		var t: float = float(i) / float(maxi(1, count - 1))
+		var h: float = lerpf(16.0, 132.0, pow(1.0 - t, 2.4)) * height_scale
+		h *= rng.randf_range(0.72, 1.3)
+		var w: float = rng.randf_range(11.0, 26.0)
+		var d: float = rng.randf_range(11.0, 26.0)
+		var node := Node3D.new()
+		node.position = Vector3(px, base_y, pz)
+		node.rotation.y = ang + rng.randf_range(-0.5, 0.5)
+		root.add_child(node)
+
+		var body := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(w, h, d)
+		body.mesh = bm
+		body.material_override = body_mat
+		body.position = Vector3(0.0, h * 0.5, 0.0)
+		node.add_child(body)
+
+		# window bands on the two faces a driver can actually see from the ring
+		var floors: int = clampi(int(h / 7.0), 2, 18)
+		for f in floors:
+			if rng.randf() < 0.22:
+				continue
+			var band := MeshInstance3D.new()
+			var band_mesh := BoxMesh.new()
+			band_mesh.size = Vector3(w * 1.004, 0.55, d * 1.004)
+			band.mesh = band_mesh
+			band.material_override = win_mat
+			band.position = Vector3(0.0, 3.4 + float(f) * (h / float(floors)), 0.0)
+			node.add_child(band)
+
+		# rooftop beacon on the tall ones only: a scattering of red dots across the
+		# skyline is what makes it read as a city at night rather than a model
+		if h > 70.0 and rng.randf() < 0.7:
+			var lamp := MeshInstance3D.new()
+			var lm := SphereMesh.new()
+			lm.radius = 0.55
+			lm.height = 1.1
+			lm.radial_segments = 6
+			lm.rings = 3
+			lamp.mesh = lm
+			var lm_mat := StandardMaterial3D.new()
+			lm_mat.albedo_color = Color(1.0, 0.22, 0.18)
+			lm_mat.emission_enabled = true
+			lm_mat.emission = Color(1.0, 0.20, 0.16)
+			lm_mat.emission_energy_multiplier = 4.2
+			lm_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			lamp.material_override = lm_mat
+			lamp.position = Vector3(0.0, h + 0.8, 0.0)
+			node.add_child(lamp)
+
+		# one crown light per district, not per building
+		if i == 0:
+			var crown := OmniLight3D.new()
+			crown.position = Vector3(0.0, h * 0.75, 0.0)
+			crown.light_color = accent
+			crown.light_energy = 3.0
+			crown.omni_range = 90.0
+			crown.shadow_enabled = false
+			node.add_child(crown)
 
 
 ## Highway lamp posts: a warm pool of light every ~55 m along the ring, kept as

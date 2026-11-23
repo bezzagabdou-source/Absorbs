@@ -72,6 +72,27 @@ func _build_viewport() -> void:
 	e.glow_intensity = 0.95
 	e.glow_bloom = 0.14
 	e.glow_hdr_threshold = 1.05
+	# The car sits ON the turntable, and without ambient occlusion it reads as
+	# pasted on top of it: no shadow in the wheel wells, none under the splitter,
+	# none where the sills meet the disc. This one pass is what makes the car
+	# look photographed rather than rendered, and it is the only place in the
+	# game where a single effect changes the whole read of the frame.
+	e.ssao_enabled = true
+	e.ssao_radius = 0.85
+	e.ssao_intensity = 2.6
+	e.ssao_power = 2.0
+	e.ssao_detail = 0.8
+	e.ssao_light_affect = 0.12
+	e.ssao_horizon = 0.04
+
+	# A reflection probe around the turntable: the paint and the glass have
+	# something real to mirror, so the shoulder line picks up the disc and the
+	# studio walls instead of a flat ambient colour.
+	e.ssr_enabled = true
+	e.ssr_max_steps = 36
+	e.ssr_fade_in = 0.1
+	e.ssr_fade_out = 1.4
+	e.reflection_source_size = 512
 	env.environment = e
 	root.add_child(env)
 	var key = DirectionalLight3D.new()
