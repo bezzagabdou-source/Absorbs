@@ -5,18 +5,27 @@ WARNING: Could not set V-Sync mode, as changing V-Sync mode is not supported by 
 OpenGL API 4.5 (Core Profile) Mesa 26.0.8-1ubuntu0.3 - Compatibility - Using Device: Mesa - llvmpipe (LLVM 21.1.8, 256 bits)
 
 Movie Maker mode enabled, recording movie at 30 FPS...
-[QAPROBE] car=(651.0, 5.691842, 0.0) nearest_road=(651.0, 5.471842, 0.0) lateral=0.00m dy=0.22m
-[QAPROBE] cam=(649.2156, 8.086473, -8.06747) showcase=true dist_to_car=8.6m
-[QADUMP] Highway aabb=[P: (-646.0241, -1.512679, -698.6008), S: (1316.625, 13.04292, 1292.051)] mat=<ShaderMaterial#-9223371979090819598> layers=1
-[QADUMP] @MeshInstance3D@307 pos=(642.5816, 8.971842, 1.758025) dist=9.2 aabb_size=(0.277128, 7.0, 0.32) visible=true
-[QADUMP] @MeshInstance3D@308 pos=(642.5816, 12.47184, 1.758025) dist=11.0 aabb_size=(1.1, 0.16, 0.34) visible=true
-[QADUMP] @OmniLight3D@309 pos=(642.5816, 12.37184, 1.758025) dist=10.9 aabb_size=(52.0, 52.0, 52.0) visible=true
-[QAPROBE] cam_fwd=(0.222993, -0.21814, 0.950099) pitch=-0.22
+SCRIPT ERROR: Parse Error: Identifier "y" not declared in the current scope.
+          at: GDScript::reload (res://scripts/vehicle/CarModel.gd:900)
+SCRIPT ERROR: Parse Error: Identifier "y" not declared in the current scope.
+          at: GDScript::reload (res://scripts/vehicle/CarModel.gd:900)
+SCRIPT ERROR: Parse Error: Identifier "y" not declared in the current scope.
+          at: GDScript::reload (res://scripts/vehicle/CarModel.gd:900)
+SCRIPT ERROR: Compile Error: Failed to compile depended scripts.
+          at: GDScript::reload (res://scripts/race/PoliceUnit.gd:0)
+SCRIPT ERROR: Compile Error: Failed to compile depended scripts.
+          at: GDScript::reload (res://scripts/race/TrafficSystem.gd:0)
+SCRIPT ERROR: Compile Error: Failed to compile depended scripts.
+          at: GDScript::reload (res://scripts/ui/screens/race.gd:0)
+ERROR: Failed to load script "res://scripts/ui/screens/race.gd" with error "Compilation failed".
+   at: load (modules/gdscript/gdscript.cpp:3022)
+SCRIPT ERROR: Invalid call. Nonexistent function 'new' in base 'GDScript'.
+          at: _spawn_player (res://scripts/ui/screens/race.gd:338)
 ----------------
 Done recording movie at path: /tmp/roam.png
-110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:03.0:27.0 (1% of real-time speed).
-CPU time: 8.16 seconds (average: 74.21 ms/frame)
-GPU time: 11.73 seconds (average: 106.60 ms/frame)
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:51.0 (1% of real-time speed).
+CPU time: 8.10 seconds (average: 73.60 ms/frame)
+GPU time: 11.61 seconds (average: 105.50 ms/frame)
 ----------------
 WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
      at: cleanup (core/object/object.cpp:2378)
