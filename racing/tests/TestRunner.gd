@@ -47,6 +47,32 @@ func _corner_from(car, car_speed: float, steer_target: float, ticks: int) -> voi
 	_hold_inputs(car, steer_target, ticks)
 
 
+## Combined AABB of every MeshInstance3D under `root`, in root-local space.
+## Used to assert real geometry (wheel inside bodywork, greenhouse resting on
+## the shell) instead of only trusting that build() did not crash.
+func _mesh_aabb(root: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for child in root.get_children():
+		if child is MeshInstance3D and (child as MeshInstance3D).mesh != null:
+			var mi := child as MeshInstance3D
+			var box: AABB = mi.mesh.get_aabb()
+			box.position += (mi as Node3D).position
+			if first:
+				out = box
+				first = false
+			else:
+				out = out.merge(box)
+		var nested: AABB = _mesh_aabb(child)
+		if nested.size != Vector3.ZERO:
+			if first:
+				out = nested
+				first = false
+			else:
+				out = out.merge(nested)
+	return out
+
+
 func _check(cond: bool, label: String) -> void:
 	checks += 1
 	if cond:

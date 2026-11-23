@@ -21,6 +21,73 @@ ROOT = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {".godot", "assets", "docs", "tools"}
 
 # function signatures, including ones split over several lines
+# Methods inherited from Node/Control/Object that this project calls without a
+# receiver. Not exhaustive by design — only names that actually appear in the
+# call sites, so the list stays auditable.
+ENGINE_METHODS = {
+    "get_node", "get_parent", "has_node", "add_child", "remove_child", "queue_free",
+    "get_children", "get_child_count", "is_inside_tree", "get_tree", "set_process",
+    "set_physics_process", "set_process_input", "set_process_unhandled_input",
+    "connect", "disconnect", "emit_signal", "call_deferred", "call", "has_method",
+    "set_meta", "get_meta", "has_meta", "remove_meta", "duplicate", "free",
+    "get_class", "is_class", "get_instance_id", "is_queued_for_deletion",
+    "set_anchors_and_offsets_preset", "add_theme_stylebox_override",
+    "add_theme_constant_override", "add_theme_font_size_override",
+    "add_theme_color_override", "add_theme_font_override",
+    "get_theme_color", "get_theme_font", "get_theme_stylebox", "get_theme_constant",
+    "grab_focus", "release_focus", "has_focus", "accept_event",
+    "set_drag_preview", "get_drag_data", "can_drop_data", "drop_data",
+    "look_at", "look_at_from_position", "rotate_x", "rotate_y", "rotate_z",
+    "translate", "translate_object_local", "global_translate", "move_toward",
+    "lerp", "slerp", "bezier_interpolate", "direction_to", "angle_to",
+    "set_shader_parameter", "get_shader_parameter", "set_surface_override_material",
+    "get_surface_override_material", "surface_get_material",
+    "begin", "commit", "generate_normals", "generate_tangents", "add_vertex",
+    "set_normal", "set_uv", "set_color", "set_smooth_group", "index",
+    "bind", "unbind", "is_valid", "get_method", "get_object",
+    "size", "is_empty", "has", "clear", "append", "append_array", "erase",
+    "insert", "remove_at", "pop_back", "pop_front", "find", "rfind", "sort",
+    "sort_custom", "shuffle", "pick_random", "duplicate_deep", "merge",
+    "keys", "values", "get", "set", "get_or_add", "slice", "filter", "map",
+    "reduce", "any", "all", "max_value", "min_value", "bsearch",
+    "to_lower", "to_upper", "strip_edges", "split", "join", "replace",
+    "begins_with", "ends_with", "contains", "substr", "findn", "format",
+    "uri_encode", "uri_decode", "c_escape", "c_unescape", "json_escape",
+    "length", "is_empty", "normalized", "normalize", "dot", "cross",
+    "distance_to", "distance_squared_to", "move_toward", "clamp",
+    "start", "stop", "play", "seek", "is_playing", "set_volume_db",
+    "set_pitch_scale", "set_stream", "set_bus", "set_loop",
+    "create_timer", "reload_current_scene", "change_scene_to_file",
+    "change_scene_to_packed", "quit", "notification",
+    "set_deferred", "get_deferred", "property_list_changed_notify",
+    "set_visible", "show", "hide", "is_visible_in_tree",
+    "set_anchors_preset", "set_offsets_preset", "set_size", "set_position",
+    "set_rotation", "set_scale", "set_modulate", "set_self_modulate",
+    "set_mouse_filter", "set_focus_mode", "set_v_size_flags",
+    "set_h_size_flags", "set_custom_minimum_size",
+    # --- verified from real call sites, not guessed -----------------------
+    # Each of these was reported by this checker and then confirmed to be an
+    # inherited method. Keeping them here rather than silencing the reporter is
+    # the point: the list stays small, auditable, and every entry has a reason.
+    "get_window", "get_global_rect", "get_node_or_null", "move_child",
+    "create_tween", "get_viewport", "get_viewport_rect",
+    "get_physics_process_delta_time", "is_on_floor", "move_and_slide",
+    "get_slide_collision_count", "get_slide_collision",
+    "add_to_group", "remove_from_group", "is_in_group",
+    "queue_redraw", "draw_rect", "draw_string", "draw_circle", "draw_arc",
+    "draw_line", "draw_polyline", "draw_colored_polygon", "draw_texture",
+    "draw_texture_rect", "draw_set_transform", "draw_multiline",
+    # global math helpers
+    "absi", "floorf", "floori", "ceilf", "snappedf", "snappedi", "is_finite",
+    "is_inf", "is_nan", "linear_to_db", "db_to_linear", "lerp_angle",
+    "move_toward", "remap", "ease", "beziert", "pingpong", "posmod",
+    "deg_to_rad", "rad_to_deg", "exp", "log", "asin", "acos", "atan", "atan2",
+    "seed", "randi", "randf", "randomize",
+    "min", "max", "abs", "clamp", "round", "sign",
+}
+
+
+
 FUNC_SIG = re.compile(r"\bfunc\s+[A-Za-z_]\w*\s*\(((?:[^()]|\([^()]*\))*)\)", re.S)
 
 DECL_PATTERNS = [
@@ -260,6 +327,38 @@ def main() -> int:
             if abs(indent - nxt_indent) == 1 and nxt_indent > 0:
                 problems.append("%s:%d comment indent %d does not match code indent %d"
                                 % (path.relative_to(ROOT), i + 1, indent, nxt_indent))
+
+    # --- self method calls ---------------------------------------------------
+    # Godot rejects a call to a method that exists nowhere in the class with
+    # "Function X not found in base self". gdparse and gdlint both accept it, and
+    # the variable gate above only looks at bare identifiers, so a helper that
+    # was referenced but never inserted reached CI and failed the import step.
+    #
+    # Only RECEIVERLESS calls are considered. `obj.foo()` and `self.foo()` may
+    # legitimately target another object or an inherited engine method, so
+    # looking at those would produce a wall of false positives. A bare `foo(`
+    # can only mean "a method on self", which is exactly the failing case.
+    call_re = re.compile(r"(?<![\w.\"'])([A-Za-z_]\w*)\s*\(")
+    all_funcs: set[str] = set()
+    for text in sources.values():
+        all_funcs.update(re.findall(r"\bfunc\s+([A-Za-z_]\w*)", text))
+    # `signal x` declared here and emitted bare is a signal, not a method call
+    for path, text in sorted(sources.items()):
+        local = set(re.findall(r"\bfunc\s+([A-Za-z_]\w*)", text))
+        local_sigs = set(re.findall(r"\bsignal\s+([A-Za-z_]\w*)", text))
+        clean = re.sub(r'"(?:[^"\\]|\\.)*"', '""', text)
+        clean = re.sub(r"'(?:[^'\\]|\\.)*'", "''", clean)
+        clean = re.sub(r"#.*", "", clean)
+        for m in call_re.finditer(clean):
+            name = m.group(1)
+            if name in local or name in local_sigs or name in all_funcs:
+                continue
+            if name in BUILTINS or name in ENGINE_METHODS:
+                continue
+            lineno = clean.count("\n", 0, m.start()) + 1
+            problems.append(
+                "%s:%d calls %s() with no receiver and no definition in this class"
+                % (path.relative_to(ROOT), lineno, name))
 
     if problems:
         print("undeclared identifier(s) found:")
