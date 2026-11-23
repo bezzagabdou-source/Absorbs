@@ -16,9 +16,9 @@ SCRIPT ERROR: Invalid assignment of property or key 'ssao_distance_fade' with va
 [QAPROBE] cam_fwd=(0.222993, -0.21814, 0.950099) pitch=-0.22
 ----------------
 Done recording movie at path: /tmp/roam.png
-110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:51.0 (1% of real-time speed).
-CPU time: 1.92 seconds (average: 17.44 ms/frame)
-GPU time: 11.64 seconds (average: 105.85 ms/frame)
+110 frames at 30 FPS (movie length: 00.0:00.0:03.0), recorded in 00.0:02.0:20.0 (2% of real-time speed).
+CPU time: 1.60 seconds (average: 14.53 ms/frame)
+GPU time: 8.59 seconds (average: 78.10 ms/frame)
 ----------------
 ERROR: Texture with GL ID of 124: leaked 349524 bytes.
    at: ~Utilities (drivers/gles3/storage/utilities.cpp:77)
