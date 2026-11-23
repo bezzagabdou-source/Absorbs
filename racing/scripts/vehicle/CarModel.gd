@@ -393,8 +393,13 @@ func _build_glasshouse(shape: Dictionary) -> void:
 
 	var z_front: float = lerpf(-length * 0.5, length * 0.5, c0)
 	var z_rear: float = lerpf(-length * 0.5, length * 0.5, c1)
-	var y_base: float = height * 0.60 + 0.30 + 0.010
-	var y_top: float = y_base + height * 0.40 * roof
+	# y_base is set BELOW the shoulder line on purpose. The cabin has to start
+	# inside the bodywork: if its base sits exactly at the shell's widest point,
+	# the windscreen and the bonnet meet at a single edge and any difference in
+	# their curvature opens a visible slot. Dropping it 6 cm puts the base
+	# surface inside the shell, so the join is buried rather than exposed.
+	var y_base: float = height * 0.60 + 0.30 - 0.060
+	var y_top: float = height * 0.60 + 0.30 + height * 0.40 * roof
 
 	# The greenhouse is a LOFTED SOLID, not a set of quads.
 	#
@@ -661,6 +666,22 @@ func _resolve_box_parent() -> Node3D:
 const TYRE_WIDTH := 0.34
 
 
+## Height of the body's shoulder line at normalised station `t` along the
+## length. This is the same curve _build_body lofts, extracted so anything that
+## must sit ON the bodywork (lights, vents, stripe, badges) can ask where the
+## surface actually is instead of using a fixed height and floating above the
+## nose once it tapers down.
+func _shoulder_at(t: float, height: float) -> float:
+	var sh: float = height * 0.60 + 0.30
+	var nose_sh: float = height * 0.40 + 0.16
+	var tail_sh: float = height * 0.44 + 0.10
+	if t < 0.16:
+		sh = lerpf(nose_sh, sh, pow(clampf(t / 0.16, 0.0, 1.0), 0.75))
+	elif t > 0.86:
+		sh = lerpf(sh, tail_sh, pow(clampf((t - 0.86) / 0.14, 0.0, 1.0), 1.35))
+	return sh
+
+
 func _wheel_track(width: float) -> float:
 	return width * 0.5 - TYRE_WIDTH * 0.5 - 0.035
 
@@ -825,31 +846,42 @@ func _build_lights(shape: Dictionary) -> void:
 	var length: float = shape["length"]
 	var width: float = shape["width"]
 	var height: float = shape["height"]
-	var y: float = height * 0.60 + 0.14
+	# Lights sit ON the bodywork. The old code used one fixed height for every
+	# lamp, but the shell's shoulder drops steeply over the nose, so the
+	# headlight ended up 0.19 m above the bonnet and its DRL 0.25 m above it:
+	# the white bar that crossed the front of the car in the render.
+	var t_head: float = 0.035
+	var t_tail: float = 0.965
+	var nose_y: float = _shoulder_at(t_head, height) - 0.115
+	var tail_y: float = _shoulder_at(t_tail, height) - 0.075
+	var z_head: float = -length * 0.5 + length * t_head
+	var z_tail: float = length * 0.5 - length * (1.0 - t_tail)
 
 	for side in [-1.0, 1.0]:
 		# --- projector headlight (glass lens + hot core) --------------------
-		var lens = _add_box(Vector3(width * 0.235, 0.085, 0.045),
-			Vector3(width * 0.275 * side, y, -length * 0.5 + 0.035), _head_mat)
-		lens.name = "Headlight%s" % ["L" if side < 0 else "R"]
+		var lens = _add_box(Vector3(width * 0.215, 0.072, 0.050),
+			Vector3(width * 0.255 * side, nose_y, z_head), _head_mat)
+		if lens != null:
+			lens.name = "Headlight%s" % ["L" if side < 0 else "R"]
 		# LED signature: thin strip sweeping along the top of the lamp
-		var drl = _add_box(Vector3(width * 0.245, 0.014, 0.030),
-			Vector3(width * 0.275 * side, y + 0.056, -length * 0.5 + 0.022), _drl_mat)
-		drl.rotation.z = -0.02 * side
+		var drl = _add_box(Vector3(width * 0.225, 0.012, 0.032),
+			Vector3(width * 0.255 * side, nose_y + 0.048, z_head - 0.014), _drl_mat)
+		if drl != null:
+			drl.rotation.z = -0.02 * side
 
-		# --- full-width tail bar -------------------------------------------
-		var tail = _add_box(Vector3(width * 0.30, 0.052, 0.035),
-			Vector3(width * 0.255 * side, y + 0.03, length * 0.5 - 0.018), _tail_mat)
-		tail.name = "Taillight%s" % ["L" if side < 0 else "R"]
+		# --- tail lamps -----------------------------------------------------
+		var tail = _add_box(Vector3(width * 0.275, 0.046, 0.038),
+			Vector3(width * 0.245 * side, tail_y, z_tail), _tail_mat)
+		if tail != null:
+			tail.name = "Taillight%s" % ["L" if side < 0 else "R"]
 		# tail light "hairpin" inner element
-		var hair = _add_box(Vector3(0.030, 0.030, 0.030),
-			Vector3(width * 0.095 * side, y + 0.03, length * 0.5 - 0.02), _tail_mat)
-		hair.rotation.x = 0.0
+		_add_box(Vector3(0.028, 0.026, 0.032),
+			Vector3(width * 0.090 * side, tail_y, z_tail + 0.004), _tail_mat)
 
 	# connecting light bar across the back (modern EV look)
-	_add_box(Vector3(width * 0.19, 0.020, 0.026), Vector3(0, y + 0.03, length * 0.5 - 0.016), _tail_mat)
-	# front light bar across the nose
-	_add_box(Vector3(width * 0.14, 0.012, 0.024), Vector3(0, y + 0.045, -length * 0.5 + 0.02), _drl_mat)
+	_add_box(Vector3(width * 0.165, 0.018, 0.028), Vector3(0, tail_y, z_tail + 0.006), _tail_mat)
+	# front light bar across the nose, flush with the lamps
+	_add_box(Vector3(width * 0.125, 0.011, 0.026), Vector3(0, nose_y + 0.030, z_head - 0.008), _drl_mat)
 
 	# --- actual light emission ---------------------------------------------
 	var beam = SpotLight3D.new()
