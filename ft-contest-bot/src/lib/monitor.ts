@@ -201,8 +201,10 @@ const FEMALE_LATIN_NAMES = new Set([
 ]);
 
 const FEMALE_BIO_PATTERNS = [
-  /(?:^|\s)(?:طالبة|أختكم|اختكم|بنت|فتاة|انثى|أنثى|حساب بنات|ممنوع الخاص|خاص بلوك|لا اقبل خاص|مسلمة وافتخر|اميرة|أميرة|ملكة)(?:\s|$)/i,
-  /\b(?:girl|female|woman|queen|princess|étudiante|femme|fille)\b/i,
+  /(?:^|\s)(?:طالبة|أختكم|اختكم|بنت|بنتة|بنوتة|فتاة|انثى|أنثى|حساب بنات|ممنوع الخاص|خاص بلوك|لا اقبل خاص|مسلمة وافتخر|اميرة|أميرة|ملكة|ملكه|مومس|أم|ام|ماما|زوجة|خطيبة|عروسة|عروسه|مخطوبة|مطلقة|أرملة|سيدة|سيده)(?:\s|$)/i,
+  /\b(?:girl|female|woman|women|queen|princess|princesa|étudiante|etudiante|femme|fille|mom|mommy|single|bnt|bent|bnt\d|girls|sisters|sister)\b/i,
+  /(?:💅|💄|👗|👠|🎀|🌸|🌷|🌹|💐|🧕|👩|👸|💃|🦋|🧿|💍|👰|🤰|🍼|😘|💋|💖|💕|💞|💗|🩷)/u,
+  /(?:بنت|بنات|فتيات|نساء|بنوتات|طالبات)/,
 ];
 
 /** تصنيف احتياطي بالاسم والبايو عند تعذّر مزوّدي الشبكة أو غياب الصورة. */
@@ -244,6 +246,140 @@ export function heuristicClassify(input: {
   }
 
   return null;
+}
+
+/** 👩 أسماء مؤنثة إضافية (عربية/دارجة/خليجية/مغاربية/مصرية/شامية) */
+const EXTRA_FEMALE_ARABIC = [
+  "نورهان", "نورهانة", "ريهام", "شروق", "مي", "ميساء", "ميسم", "مياسة", "يسرى", "يسرا", "لبنى", "لبنة",
+  "سحر", "سحابة", "سناء", "سندس", "سوزان", "سلمى", "سماح", "سماء", "سمر", "سمية", "سنية", "سهى", "سهام",
+  "شادية", "شذى", "شهد", "شهيناز", "شيماء", "شيماء", "صفية", "صليحة", "ضحى", "طاهرة", "عزيزة", "عطية",
+  "علياء", "غادة", "غالية", "فاطيمة", "فدوى", "فرح", "فلة", "فوزية", "قمر", "كاملة", "كوثر", "لطيفة",
+  "لمياء", "لؤلؤة", "ليان", "ماجدة", "مبروكة", "مروة", "مريم", "مزنة", "مشاعل", "مصطفية", "منى", "منية",
+  "منيرة", "مها", "ميادة", "ميار", "نادية", "ناهد", "نجاة", "نجود", "ندى", "نسيمة", "نعيمة", "نفيسة",
+  "نهى", "نوال", "نور", "نورة", "نورا", "نورالهدى", "هاجر", "هالة", "هداية", "هند", "هيفاء", "وداد",
+  "وئام", "وفية", "ياسمينة", "ياقوت", "يمنى", "أمنية", "امنية", "أمل", "أنوار", "انوار", "آمنة", "امنة",
+  "أروى", "اروى", "إسراء", "اسراء", "ألاء", "الاء", "بشرى", "بسمة", "بسمه", "بلقيس", "بدرية", "تهاني",
+  "ثريا", "جواهر", "جميلة", "حسنة", "حفيظة", "حياة", "خديجة", "خلود", "دعاء", "دنيا", "رجاء", "رشيدة",
+  "رفيدة", "رقية", "ريم", "زكية", "زهرة", "زينة", "سارة", "سعاد", "سلوى", "سناء", "سهام", "سيرين",
+  "شمس", "صفاء", "ضحى", "عبير", "عدوية", "عفاف", "علية", "فاطنة", "فريدة", "فاطمة", "فضيلة", "قدرية",
+  "كريمة", "لبابة", "لطيفة", "مباركة", "محبوبة", "مريم", "مسعودة", "مليكة", "منصورة", "منال", "نجية",
+  "نزهة", "نصيرة", "هيبة", "وردة", "وردة", "يسرية", "يومنة", "زهور", "زهرة", "خولة", "خولة", "أنسام",
+  "هبة", "هبة الله", "آية", "اية", "أية", "امل", "ايمان", "إيمان", "ندى", "نَدى", "لينا", "ليندا",
+  "ساره", "سارا", "ماريا", "مارية", "مادلين", "ماديسون", "روان", "روان", "رزان", "رغد", "رهف", "ريتاج",
+  "لمار", "لمى", "لولوة", "لولوه", "لينا", "ليان", "ليليان", "ميار", "ميرا", "ميرال", "نوران", "نورهان",
+  "غيداء", "غزل", "غالية", "فاتن", "فرح", "فريال", "قمر", "كادي", "كريستين", "كوثر", "لارا", "لانا",
+];
+
+/** 👩 أسماء مؤنثة إضافية بالحروف اللاتينية (فرنسية/إنجليزية/ترجمة) */
+const EXTRA_FEMALE_LATIN = [
+  "fatiha", "fadma", "fadwa", "farah", "farida", "fatiha", "fella", "firdaws", "ghada", "ghalia", "ghita",
+  "ghizlane", "ghizlan", "hafida", "hajar", "halima", "hamida", "hasna", "hasnaa", "hayat", "hiba", "hiba",
+  "hind", "hoda", "houda", "ibtihal", "ikhlas", "ilham", "imane", "imene", "inas", "ines", "insaf", "israa",
+  "jamila", "jamyla", "jana", "jihane", "jihan", "kadija", "kamila", "karima", "kawtar", "kawthar", "keltoum",
+  "khadija", "khalida", "khawla", "khaoula", "khouloud", "laila", "lamia", "lamya", "lara", "latifa", "leila",
+  "lina", "linda", "loubna", "lubna", "lujain", "luna", "lydia", "maha", "mahassine", "malak", "malika",
+  "malak", "maha", "manal", "manel", "maram", "mariam", "mariama", "meryem", "meriem", "miriam", "meriem",
+  "meryam", "maha", "meroua", "marwa", "maryem", "mayssae", "maysa", "melissa", "meriem", "meryam", "mimi",
+  "mina", "miriam", "mona", "monia", "mouna", "mounia", "moufida", "naima", "nadia", "nadira", "nadia",
+  "najia", "najwa", "najla", "nawal", "nawel", "naziha", "neda", "nefissa", "nermine", "nesma", "nesrine",
+  "nadia", "nihad", "nihal", "nizar", "nouhaila", "noura", "nour", "nourelhouda", "nourhane", "nourhene",
+  "nouzha", "omaima", "oumaima", "oumaya", "rabab", "rachida", "radhia", "rahma", "rania", "ranya", "rawan",
+  "rayhana", "reem", "rim", "rima", "rim", "rihab", "rokia", "rokia", "roukaya", "rouya", "sabah", "sabrina",
+  "safa", "safaa", "safiya", "sahar", "sajida", "salima", "salma", "selma", "salsabil", "salwa", "samah",
+  "samia", "samira", "sana", "sanaa", "sanae", "sara", "sarah", "saadia", "seham", "shaima", "shaimae",
+  "shahd", "shaimaa", "shayma", "siham", "sihame", "sirine", "soad", "soha", "sondes", "souad", "souhaila",
+  "soukaina", "soulaima", "soumia", "soumaya", "souad", "souhila", "sultana", "tahani", "takwa", "tasnim",
+  "thouraya", "wafaa", "wafa", "wahiba", "warda", "widad", "wissal", "yamina", "yasmina", "yasmin", "yasmine",
+  "yamna", "yosra", "yousra", "zahia", "zahra", "zahraa", "zainab", "zeinab", "zineb", "zohra", "zoubida",
+  "lola", "lili", "lily", "soso", "nounou", "nono", "mama", "mami", "girl", "female", "woman", "queen",
+  "princess", "miss", "madame", "mademoiselle",
+];
+
+for (const name of EXTRA_FEMALE_ARABIC) FEMALE_ARABIC_NAMES.add(name);
+for (const name of EXTRA_FEMALE_LATIN) FEMALE_LATIN_NAMES.add(name);
+FEMALE_ARABIC_NAMES.delete("");
+FEMALE_LATIN_NAMES.delete("");
+
+/** 📷📝 مزوّدو رؤية/تصنيف مجانيون بلا مفاتيح (احتياط أخير) */
+function keylessClassifyCandidates(photo: string | null, text: string): Candidate[] {
+  const out: Candidate[] = [];
+  if (!photo) {
+    // بلا صورة: كنصنّفو بالنص (اسم + يوزر + بايو) عبر مزوّد مجاني بلا مفتاح
+    out.push({
+      provider: "Pollinations (بلا مفتاح · نص فقط)",
+      url: "https://text.pollinations.ai/openai",
+      headers: { "content-type": "application/json" },
+      body: {
+        model: "openai-fast",
+        temperature: 0,
+        max_tokens: 220,
+        messages: [
+          { role: "system", content: CLASSIFY_PROMPT },
+          { role: "user", content: `العضو: ${text || "بدون اسم"}` },
+        ],
+      },
+    });
+    out.push({
+      provider: "LLM7 (بلا مفتاح · نص فقط)",
+      url: "https://api.llm7.io/v1/chat/completions",
+      headers: { "content-type": "application/json" },
+      body: {
+        model: "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 220,
+        messages: [
+          { role: "system", content: CLASSIFY_PROMPT },
+          { role: "user", content: `العضو: ${text || "بدون اسم"}` },
+        ],
+      },
+    });
+    return out;
+  }
+  // Pollinations تدعم صور OpenAI-compatible — نجربو، وإلا فشل كنكملو للاحتياط
+  for (const model of ["openai", "openai-large", "pixtral"]) {
+    out.push({
+      provider: `Pollinations · ${model} (بلا مفتاح)`,
+      url: "https://text.pollinations.ai/openai",
+      headers: { "content-type": "application/json" },
+      body: {
+        model,
+        temperature: 0,
+        max_tokens: 260,
+        messages: [
+          { role: "system", content: CLASSIFY_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `العضو: ${text || "بدون اسم"}` },
+              { type: "image_url", image_url: { url: photo } },
+            ],
+          },
+        ],
+      },
+    });
+  }
+  // LLM7 مجاني بلا مفتاح — بعض الموديلات كتدعم الرؤية
+  out.push({
+    provider: "LLM7 (بلا مفتاح)",
+    url: "https://api.llm7.io/v1/chat/completions",
+    headers: { "content-type": "application/json" },
+    body: {
+      model: "gpt-4o-mini",
+      temperature: 0,
+      max_tokens: 260,
+      messages: [
+        { role: "system", content: CLASSIFY_PROMPT },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `العضو: ${text || "بدون اسم"}` },
+            { type: "image_url", image_url: { url: photo } },
+          ],
+        },
+      ],
+    },
+  });
+  return out;
 }
 
 type Candidate = {
@@ -383,6 +519,8 @@ export function buildClassifyCandidates(input: {
       },
     });
   }
+  // 🆓 مزوّدون مجانيون بلا مفاتيح: كيشتغلو حتى إلا ماكانش أي مفتاح فـ البيئة
+  candidates.push(...keylessClassifyCandidates(dataUrl || null, text));
   return candidates;
 }
 

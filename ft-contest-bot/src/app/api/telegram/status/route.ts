@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
     },
     ai: aiStatus(),
     ...(params.get("ai") === "1" ? { aiLive: await aiPing() } : {}),
+    ...(params.get("screen") ? { screen: await screenPing(params.get("screen") || "") } : {}),
     storage: {
       backend: storage.backend,
       persistent: storage.configured,
@@ -119,5 +120,18 @@ async function aiPing() {
     };
   } catch (error) {
     return { ok: false, provider: null, model: null, ms: Date.now() - started, reply: null, error: String(error).slice(0, 200) };
+  }
+}
+
+/** 🧪 تجربة فحص حساب معيّن (كشف «بنات») — ?screen=<userId> */
+async function screenPing(userId: string) {
+  if (!/^\d{1,20}$/.test(userId)) return { ok: false, error: "حط ?screen=<userId> (أرقام فقط)" };
+  try {
+    const { screenReferralJoiner } = await import("@/lib/referralScreen");
+    const started = Date.now();
+    const verdict = await screenReferralJoiner(userId);
+    return { ok: true, userId, ms: Date.now() - started, ...verdict };
+  } catch (error) {
+    return { ok: false, userId, error: String(error).slice(0, 200) };
   }
 }

@@ -266,32 +266,36 @@ const FALLBACK_MODELS: Record<string, string[]> = {
   github: ["openai/gpt-4o-mini", "gpt-4o-mini"],
 };
 
-/** 🆓 مزوّدون مجانيون بلا مفتاح — احتياط أخير باش AI يخدم دايماً */
+/** 🆓 مزوّدون مجانيون بلا مفتاح — باش الذكاء الاصطناعي يخدم دايماً بلا مفاتيح */
+const pollinations = (model: string): AiProvider => ({
+  id: `pollinations-${model}`,
+  label: `Pollinations · ${model} (مجاني بلا مفتاح)`,
+  kind: "openai",
+  key: "no-key",
+  baseUrl: "https://text.pollinations.ai/openai",
+  model,
+});
+
+const llm7 = (model: string): AiProvider => ({
+  id: `llm7-${model}`,
+  label: `LLM7 · ${model} (مجاني بلا مفتاح)`,
+  kind: "openai",
+  key: "unused",
+  baseUrl: "https://api.llm7.io/v1",
+  model,
+});
+
 export const KEYLESS_PROVIDERS: AiProvider[] = [
-  {
-    id: "pollinations",
-    label: "Pollinations (مجاني بلا مفتاح)",
-    kind: "openai",
-    key: "no-key",
-    baseUrl: "https://text.pollinations.ai/openai",
-    model: "openai",
-  },
-  {
-    id: "llm7",
-    label: "LLM7 (مجاني بلا مفتاح)",
-    kind: "openai",
-    key: "unused",
-    baseUrl: "https://api.llm7.io/v1",
-    model: "gpt-4o-mini",
-  },
-  {
-    id: "pollinations2",
-    label: "Pollinations GPT",
-    kind: "openai",
-    key: "no-key",
-    baseUrl: "https://text.pollinations.ai/openai",
-    model: "openai-fast",
-  },
+  pollinations("openai"),
+  pollinations("openai-fast"),
+  llm7("gpt-4o-mini"),
+  pollinations("mistral"),
+  pollinations("deepseek"),
+  pollinations("qwen-coder"),
+  pollinations("gemini"),
+  llm7("gpt-4.1-nano"),
+  pollinations("nova-fast"),
+  pollinations("openai-large"),
 ];
 
 /** 🤝 توليد مع تجربة المزوّدين بالترتيب (إذا Gemini مزحوم نكمّلو بـ Groq/OpenRouter) */
