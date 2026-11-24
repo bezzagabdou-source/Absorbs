@@ -59,7 +59,16 @@ export async function buildBackup(mode: "meta" | "full" = "full"): Promise<Backu
       usersCount().catch(() => 0),
     ]);
 
-  const reportList = (reports as { reports?: unknown[] })?.reports || [];
+  const rawReports = (reports as { reports?: unknown[] })?.reports || [];
+  // 📸 فـ mode=meta ما كنحفظوش الصور (base64) — كتضخّم الملف بلا فايدة
+  const reportList =
+    mode === "meta"
+      ? rawReports.map((row) => {
+          const copy = { ...(row as Record<string, unknown>) };
+          if (copy.photo) copy.photo = "محذوفة فـ meta";
+          return copy;
+        })
+      : rawReports;
   const [refsCount, claimsCount] = await Promise.all([
     store.zCount("ref:index").catch(() => 0),
     store.zCount("claims:index").catch(() => 0),
