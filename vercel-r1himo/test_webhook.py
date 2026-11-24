@@ -22,6 +22,7 @@ class WebhookTests(unittest.TestCase):
     def setUpClass(cls):
         cls.pg = PostgresServer(Path(tempfile.mkdtemp()) / 'pg')
         os.environ['DATABASE_URL_UNPOOLED'] = cls.pg.get_uri()
+        cls.verified_fixtures = set()
         cls.calls = []
         cls.member_status = {}
         cls.old_rate_limits = (index.rabot.RATE_LIMIT_10S, index.rabot.RATE_LIMIT_60S)
@@ -59,11 +60,18 @@ class WebhookTests(unittest.TestCase):
         self.assertEqual(status, 200, body)
         return json.loads(body)
 
+    def ensure_verified(self, user):
+        if user not in self.verified_fixtures:
+            with index._request_context() as store:
+                store.ex('INSERT INTO human_verification(id,verified) VALUES(?,1) ON CONFLICT(id) DO NOTHING', (user,))
+            self.verified_fixtures.add(user)
     def message(self, uid, text, user=6818164226):
+        self.ensure_verified(user)
         return self.update(uid, {'message': {'message_id':uid, 'chat':{'id':user, 'type':'private'},
                                              'from':{'id':user, 'first_name':'Test'}, 'text':text}})
 
     def callback(self, uid, data, user=6818164226):
+        self.ensure_verified(user)
         return self.update(uid, {'callback_query': {'id':str(uid), 'from':{'id':user,'first_name':'Test'},
             'message':{'message_id':7,'chat':{'id':user,'type':'private'}},'data':data}})
 
@@ -76,6 +84,26 @@ class WebhookTests(unittest.TestCase):
             if markup.get('inline_keyboard'):
                 return [b for row in markup['inline_keyboard'] for b in row]
         return []
+
+    def test_00_verification_persists_across_webhook_requests(self):
+        user=765432198
+        def raw(uid,text):
+            return self.update(uid, {'message':{'message_id':uid,'chat':{'id':user,'type':'private'},'from':{'id':user,'first_name':'Test'},'text':text}})
+        raw(80001,'/start')
+        with index._request_context() as store:
+            row=store.q('SELECT * FROM human_verification WHERE id=?',(user,))[0]
+        self.assertEqual(row['verified'],0)
+        self.update(80002, {'callback_query':{'id':'x','from':{'id':user},'message':{'message_id':1,'chat':{'id':user,'type':'private'}},'data':'products'}})
+        raw(80003,'99')
+        with index._request_context() as store:
+            self.assertEqual(store.q('SELECT attempts FROM human_verification WHERE id=?',(user,))[0]['attempts'],1)
+        raw(80004,str(row['left_num']+row['right_num']))
+        with index._request_context() as store:
+            self.assertEqual(store.q('SELECT verified FROM human_verification WHERE id=?',(user,))[0]['verified'],1)
+        self.assertTrue(any('تم التحقق' in p.get('text','') for p in self.sent('sendMessage')))
+        with index._request_context() as store:
+            store.ex('DELETE FROM users WHERE tg_id=?',(user,))
+            store.ex('DELETE FROM human_verification WHERE id=?',(user,))
 
     def test_01_health_web_removed_auth_and_duplicate(self):
         status, body=self.request('/healthz'); self.assertEqual(status,200); self.assertEqual(json.loads(body),{'ok':True})

@@ -40,9 +40,14 @@ class BotAdminTests(unittest.TestCase):
         self.message(self.buyer, '/start')
     def tearDown(self):
         bot.store.conn.close(); self.tmp.cleanup()
+    def ensure_verified(self, user):
+        # Existing functional tests start with a verified fixture; dedicated tests below exercise the gate.
+        bot.store.ex('INSERT INTO human_verification(id,verified) VALUES(?,1) ON CONFLICT(id) DO NOTHING', (user['id'],))
     def message(self, user, text):
+        self.ensure_verified(user)
         bot.handle_message({'from': user, 'chat': {'id':user['id'], 'type':'private'}, 'message_id':1, 'text':text})
     def callback(self, user, data):
+        self.ensure_verified(user)
         bot.handle_callback({'id':'test', 'from':user, 'data':data,
             'message': {'message_id':2, 'chat':{'id':user['id'], 'type':'private'}}})
     def last_buttons(self):
@@ -51,6 +56,38 @@ class BotAdminTests(unittest.TestCase):
             if markup.get('inline_keyboard'):
                 return [b for row in markup['inline_keyboard'] for b in row]
         return []
+    def test_human_challenge_wrong_lock_expiry_and_link(self):
+        user={'id':987654321, 'first_name':'New'}
+        def raw(text):
+            bot.handle_message({'from':user,'chat':{'id':user['id'],'type':'private'},'message_id':1,'text':text})
+        raw('/start ref_222')
+        row=bot.store.q('SELECT * FROM human_verification WHERE id=?',(user['id'],))[0]
+        self.assertEqual(row['payload'],'ref_222')
+        bot.handle_callback({'id':'x','from':user,'data':'a:new:p','message':{'message_id':2,'chat':{'id':user['id'],'type':'private'}}})
+        self.assertEqual(bot.store.scalar('SELECT COUNT(*) FROM products'),0)
+        for _ in range(3): raw('99')
+        row=bot.store.q('SELECT * FROM human_verification WHERE id=?',(user['id'],))[0]
+        self.assertGreater(row['locked_until'],0)
+        raw(str(row['left_num']+row['right_num']))
+        self.assertFalse(bot.store.q('SELECT verified FROM human_verification WHERE id=?',(user['id'],))[0]['verified'])
+        bot.store.ex('UPDATE human_verification SET locked_until=1 WHERE id=?',(user['id'],))
+        raw('/start')
+        row=bot.store.q('SELECT * FROM human_verification WHERE id=?',(user['id'],))[0]
+        answer=str(row['left_num']+row['right_num']).translate(str.maketrans('0123456789','٠١٢٣٤٥٦٧٨٩'))
+        raw(answer)
+        self.assertEqual(bot.store.q('SELECT verified FROM human_verification WHERE id=?',(user['id'],))[0]['verified'],1)
+        self.assertEqual(bot.store.get_user(user['id'])['referrer_id'],bot.store.get_user(222)['id'])
+        self.assertEqual(bot.store.verify_human(user['id'],'99')[0],'verified')
+
+    def test_challenge_expires_and_refreshes(self):
+        first=bot.store.verify_human(888,'/start product_42',now=1000)
+        self.assertEqual(first[0],'challenge')
+        expired=bot.store.verify_human(888,str(first[1]+first[2]),now=1121)
+        self.assertEqual(expired[0],'challenge')
+        passed=bot.store.verify_human(888,str(expired[1]+expired[2]),now=1122)
+        self.assertEqual(passed[0],'passed')
+        self.assertEqual(passed[3],'product_42')
+
     def test_admin_access_and_navigation(self):
         self.message(self.owner, '/admin')
         data = [b.get('callback_data') for b in self.last_buttons()]
@@ -560,7 +597,10 @@ class StandaloneBootTest(unittest.TestCase):
                 if method=='getMe': result={'id':123,'username':'TestBot'}
                 elif method=='getChatMember': result={'status':'member'}
                 elif method=='getUpdates':
-                    if not Handler.sent:
+                    if getattr(Handler,'answer',None):
+                        answer=Handler.answer; Handler.answer=None
+                        result=[{'update_id':11,'message':{'message_id':2,'from':{'id':111,'first_name':'Owner'},'chat':{'id':111,'type':'private'},'text':answer}}, {'update_id':12,'message':{'message_id':3,'from':{'id':111,'first_name':'Owner'},'chat':{'id':111,'type':'private'},'text':'/admin'}}]
+                    elif not Handler.sent:
                         Handler.sent=True
                         result=[{'update_id':10,'message':{'message_id':1,'from':{'id':111,'first_name':'Owner'},'chat':{'id':111,'type':'private'},'text':'/admin'}}]
                     else: result=[]
@@ -568,6 +608,9 @@ class StandaloneBootTest(unittest.TestCase):
                     result={'message_id':1}
                     if method=='sendMessage':
                         received.append(body)
+                        import re
+                        match=re.search(r'([0-9]+) \+ ([0-9]+)',body.get('text',''))
+                        if match: Handler.answer=str(int(match.group(1))+int(match.group(2)))
                         if 'لوحة التحكم داخل البوت' in body.get('text',''): done.set()
                 data=json.dumps({'ok':True,'result':result}).encode()
                 self.send_response(200); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)

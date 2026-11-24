@@ -519,6 +519,17 @@ CREATE TABLE IF NOT EXISTS vip_purchases (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS human_verification (
+    id INTEGER PRIMARY KEY,
+    verified INTEGER NOT NULL DEFAULT 0,
+    left_num INTEGER NOT NULL DEFAULT 0,
+    right_num INTEGER NOT NULL DEFAULT 0,
+    expires INTEGER NOT NULL DEFAULT 0,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until INTEGER NOT NULL DEFAULT 0,
+    payload TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS inbound_rate_limits (
     id INTEGER PRIMARY KEY,
     window10 INTEGER NOT NULL,
@@ -1132,6 +1143,51 @@ class Store:
                 row=self.conn.execute('SELECT count10,count60 FROM inbound_rate_limits WHERE id=?',(tg_id,)).fetchone()
                 self.conn.commit()
                 return row['count10'] <= RATE_LIMIT_10S and row['count60'] <= RATE_LIMIT_60S
+            except Exception:
+                self.conn.rollback()
+                raise
+
+    def verify_human(self, tg_id, text=None, now=None):
+        """Return (status, a, b, payload); serialize attempts across workers."""
+        now = int(time.time() if now is None else now)
+        payload = ''
+        if text:
+            parts = text.split(maxsplit=1)
+            if len(parts) == 2 and parts[0].split('@')[0] == '/start' and re.fullmatch(r'(?:(?:ref|product)_[0-9]{1,18}|panel)', parts[1]):
+                payload = parts[1]
+        with self.lock:
+            try:
+                self._begin_financial()
+                self.conn.execute('INSERT INTO human_verification(id) VALUES(?) ON CONFLICT(id) DO UPDATE SET id=human_verification.id', (tg_id,))
+                row = self.conn.execute('SELECT * FROM human_verification WHERE id=?' + self._financial_lock_suffix(), (tg_id,)).fetchone()
+                if row['verified']:
+                    self.conn.commit()
+                    return ('verified', 0, 0, '')
+                if payload:
+                    self.conn.execute('UPDATE human_verification SET payload=? WHERE id=?', (payload, tg_id))
+                else:
+                    payload = row['payload']
+                if row['locked_until'] > now:
+                    self.conn.commit()
+                    return ('locked', 0, 0, '')
+                if row['expires'] <= now or not row['left_num'] or row['locked_until']:
+                    a, b = secrets.randbelow(9)+1, secrets.randbelow(9)+1
+                    self.conn.execute('UPDATE human_verification SET left_num=?,right_num=?,expires=?,attempts=0,locked_until=0 WHERE id=?', (a,b,now+120,tg_id))
+                    self.conn.commit()
+                    return ('challenge', a, b, '')
+                a,b = row['left_num'],row['right_num']
+                if text is None or text.startswith('/'):
+                    self.conn.commit()
+                    return ('challenge', a, b, '')
+                if re.fullmatch(r'\d{1,2}',text) and int(text) == a+b:
+                    self.conn.execute("UPDATE human_verification SET verified=1,payload='' WHERE id=?", (tg_id,))
+                    self.conn.commit()
+                    return ('passed', a, b, payload)
+                attempts = row['attempts']+1
+                locked = now+60 if attempts >= 3 else 0
+                self.conn.execute('UPDATE human_verification SET attempts=?,locked_until=? WHERE id=?', (attempts,locked,tg_id))
+                self.conn.commit()
+                return ('locked' if locked else 'wrong', a, b, '')
             except Exception:
                 self.conn.rollback()
                 raise
@@ -2686,6 +2742,22 @@ def on_update(update):
 #  MESSAGE HANDLER
 # ----------------------------------------------------------------------------
 
+def human_gate(user, text=None):
+    status, a, b, payload = store.verify_human(user['tg_id'], text)
+    if status == 'verified':
+        return 'verified', ''
+    if status == 'passed':
+        safe_send(user['tg_id'], '✅ تم التحقق.' if lang_of(user) == 'ar' else '✅ Verified.')
+        return 'passed', payload
+    if status == 'locked':
+        message = '⏳ محاولات كثيرة. حاول بعد دقيقة.' if lang_of(user) == 'ar' else '⏳ Too many attempts. Try again in a minute.'
+    else:
+        prefix = ('❌ إجابة خاطئة. ' if lang_of(user) == 'ar' else '❌ Wrong answer. ') if status == 'wrong' else ''
+        message = prefix + (('🔐 للتحقق، أرسل ناتج: %d + %d = ؟' if lang_of(user) == 'ar' else '🔐 To verify, send the answer: %d + %d = ?') % (a,b))
+    safe_send(user['tg_id'], message)
+    return 'blocked', ''
+
+
 def handle_message(msg):
     chat = msg.get("chat") or {}
     if chat.get("type") != "private":
@@ -2701,6 +2773,12 @@ def handle_message(msg):
 
     if user.get("banned") and not is_owner_user(user):
         return safe_send(tg_id, "🚫 " + ("تم حظر حسابك." if lang == "ar" else "Your account is banned."))
+
+    verification, payload = human_gate(user, text)
+    if verification == 'blocked':
+        return
+    if verification == 'passed':
+        text = '/start' + (' ' + payload if payload else '')
 
     joined, check_error = membership_check(tg_id)
     if not joined:
@@ -3072,6 +3150,9 @@ def handle_callback(cb):
     if user.get("banned") and not is_owner_user(user):
         return
     if (msg.get("chat") or {}).get("type") != "private":
+        return
+    verification, _ = human_gate(user)
+    if verification != 'verified':
         return
     joined, check_error = membership_check(user["tg_id"])
     if not joined:
