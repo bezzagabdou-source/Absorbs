@@ -249,8 +249,7 @@ function homeKeyboard(settings: Settings, contests: Contest[]): InlineKeyboard {
   // 🏠 أزرار فقط: المسابقات / حسابي / رابط الإحالة — بلا أي زر زايد
   // 🏠 النسخة المضمونة: المسابقات / حسابي / رابط الإحالة — وزاد غير: خدمات + معلومات البوت
   const rows: Button[][] = [
-    [{ text: `📌 ${START_ACTION_TEXT}`, url: START_ACTION_URL }],
-    [{ text: `🤖 ${START_BOOST_TEXT}`, url: START_BOOST_URL }],
+    ...START_LINKS.map((link) => [{ text: `${link.icon} ${link.text}`, url: link.url }]),
     [{ text: "🔥 مميزات وأدوات البوت", callback_data: "more" }],
     [
       { text: "🎁 المسابقات", callback_data: "home_list" },
@@ -608,21 +607,19 @@ export async function aiAnswer(
 /* ───────────────────────────── screens ───────────────────────────── */
 
 /** 📌 رسالة البداية — كتبعت لكل واحد كيضغط /start (قبل أي شاشة، خاص فقط) */
+/** 📌🤖 روابط الدخول الاختيارية (إلا كانت فارغة فـ types.ts ما كتطبعش والو) */
+const START_LINKS: { icon: string; text: string; url: string }[] = [
+  { icon: "📌", text: START_ACTION_TEXT, url: START_ACTION_URL },
+  { icon: "🤖", text: START_BOOST_TEXT, url: START_BOOST_URL },
+].filter((link) => String(link.text || "").trim() && /^https?:\/\//i.test(String(link.url || "").trim()));
+
 async function sendStartAction(chatId: number | string): Promise<void> {
-  const text = [
-    `📌 <b>${START_ACTION_TEXT}</b>`,
-    START_ACTION_URL,
-    "",
-    `🤖 <b>${START_BOOST_TEXT}</b>`,
-    START_BOOST_URL,
-  ].join("\n");
+  if (!START_LINKS.length) return; // ماكاينش روابط مضافة → ماكنصيفطوش رسالة فارغة
+  const text = START_LINKS.map((link) => `${link.icon} <b>${link.text}</b>\n${link.url}`).join("\n\n");
   await sendMessage(
     chatId,
     text,
-    keyboard([
-      [{ text: `📌 ${START_ACTION_TEXT}`, url: START_ACTION_URL }],
-      [{ text: `🤖 ${START_BOOST_TEXT}`, url: START_BOOST_URL }],
-    ]),
+    keyboard(START_LINKS.map((link) => [{ text: `${link.icon} ${link.text}`, url: link.url }])),
   ).catch(() => undefined);
 }
 
