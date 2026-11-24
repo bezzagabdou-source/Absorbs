@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { aiStatus } from "@/lib/ai";
+import { aiStatus, aiGenerateWithFallback } from "@/lib/ai";
 import { ensureBotReady } from "@/lib/botSetup";
 import { listContests } from "@/lib/contests";
 import { getStore, storageInfo } from "@/lib/store";
@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
  * يصلح لتفتحه من المتصفح وتشوف سبب عدم عمل البوت.
  */
 export async function GET(request: NextRequest) {
-  const force = new URL(request.url).searchParams.get("fix") === "1";
+  const params = new URL(request.url).searchParams;
+  const force = params.get("fix") === "1";
   const status = await ensureBotReady({ force });
   const [contests, users, claims, storage] = await Promise.all([
     listContests(),
@@ -78,6 +79,7 @@ export async function GET(request: NextRequest) {
       autoFixedNow: status.fixed,
     },
     ai: aiStatus(),
+    ...(params.get("ai") === "1" ? { aiLive: await aiPing() } : {}),
     storage: {
       backend: storage.backend,
       persistent: storage.configured,
@@ -100,4 +102,22 @@ export async function GET(request: NextRequest) {
     details: status.details,
     checkedAt: new Date().toISOString(),
   });
+}
+
+/** 🧪 تجربة حقيقية لمزوّد الذكاء الاصطناعي: واش المفتاح خدام ولا لا */
+async function aiPing() {
+  const started = Date.now();
+  try {
+    const res = await aiGenerateWithFallback({ prompt: "رد بكلمة واحدة فقط: ok", maxTokens: 12 });
+    return {
+      ok: res.ok,
+      provider: res.provider || null,
+      model: res.model || null,
+      ms: Date.now() - started,
+      reply: String(res.text || "").slice(0, 60) || null,
+      error: res.error ? String(res.error).slice(0, 200) : null,
+    };
+  } catch (error) {
+    return { ok: false, provider: null, model: null, ms: Date.now() - started, reply: null, error: String(error).slice(0, 200) };
+  }
 }
