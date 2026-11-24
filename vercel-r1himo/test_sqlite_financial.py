@@ -59,6 +59,46 @@ class SQLiteFinancialTests(unittest.TestCase):
         self.assertEqual(sum(r is not None for r in results), 1)
         self.assertAlmostEqual(self.db.get_user(99123)['balance'], 10)
 
+    def test_purchase_token_single_use_concurrent_and_rollback(self):
+        self.db.add_stock_lines(self.pid,['second'])
+        nonce='a'*32
+        results=self.race(lambda db: db.purchase_atomic(99123,self.pid,1,0,3,nonce))
+        self.assertEqual(sum('order_id' in r for r in results),1)
+        self.assertEqual(sum(r.get('error')=='duplicate' for r in results),1)
+        self.assertEqual(self.db.get_user(99123)['balance'],7)
+        self.assertEqual(self.db.product_stock(self.pid),1)
+        self.assertEqual(self.db.scalar('SELECT COUNT(*) FROM purchase_tokens'),1)
+        self.db.conn.execute("CREATE TRIGGER fail_token BEFORE INSERT ON purchase_tokens BEGIN SELECT RAISE(ABORT,'test'); END")
+        self.db.conn.commit()
+        with self.assertRaises(Exception): self.db.purchase_atomic(99123,self.pid,1,0,3,'b'*32)
+        self.assertEqual(self.db.get_user(99123)['balance'],7)
+        self.assertEqual(self.db.product_stock(self.pid),1)
+        self.assertEqual(self.db.scalar('SELECT COUNT(*) FROM orders'),1)
+
+    def test_two_deposits_cannot_approve_same_proof(self):
+        second=self.db.get_or_create_user({'id':99124,'first_name':'Other'})
+        ids=[self.db.create_deposit(self.user['id'],5,'bep20','  0xABC123 '),
+             self.db.create_deposit(second['id'],5,'BEP20','0xabc123')]
+        stores=[Store(self.path),Store(self.path)]
+        barrier=threading.Barrier(2); results=[]; errors=[]
+        def worker(i):
+            try:
+                barrier.wait(timeout=10); results.append(stores[i].review_deposit(ids[i],'approved'))
+            except Exception as e: errors.append(e)
+            finally: stores[i].conn.close()
+        threads=[threading.Thread(target=worker,args=(i,)) for i in range(2)]
+        for t in threads: t.start()
+        for t in threads: t.join(20)
+        self.assertFalse(errors,errors); self.assertEqual(sum(r is not None for r in results),1)
+        self.assertEqual(self.db.get_user(99123)['balance']+self.db.get_user(99124)['balance'],15)
+        self.assertEqual(self.db.scalar('SELECT COUNT(*) FROM approved_deposit_proofs'),1)
+        # Historic approved data must be respected even without a proof-table row.
+        old=self.db.create_deposit(self.user['id'],1,'binance','HISTORIC')
+        self.db.ex("UPDATE deposits SET status='approved' WHERE id=?",(old,))
+        newer=self.db.create_deposit(second['id'],1,'binance','historic')
+        self.assertIsNone(self.db.review_deposit(newer,'approved'))
+        self.assertEqual(self.db.get_deposit(newer)['status'],'pending')
+
     def test_discount_is_used_by_transaction(self):
         self.db.set_setting('discount_percent', '20')
         result = self.db.purchase_atomic(99123, self.pid, 1, 0)

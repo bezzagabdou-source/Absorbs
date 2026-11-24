@@ -127,7 +127,7 @@ class PostgresStore(rabot.Store):
             out.write(value.encode('utf-8'))
             if out.tell() > limit:
                 raise ValueError('backup is too large')
-        tables = ('settings', 'categories', 'products', 'stock_items', 'buttons', 'users', 'orders', 'deposits', 'vip_purchases', 'favorites', 'broadcasts')
+        tables = ('settings', 'categories', 'products', 'stock_items', 'buttons', 'users', 'orders', 'deposits', 'vip_purchases', 'favorites', 'broadcasts', 'approved_deposit_proofs', 'purchase_tokens')
         write('{"format":"r1himo-data-v1","tables":{')
         for ti, table in enumerate(tables):
             if ti: write(',')

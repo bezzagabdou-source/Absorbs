@@ -89,6 +89,45 @@ class PostgreSQLTests(unittest.TestCase):
             self.assertTrue(other.allow_inbound(939393939,now=1203))
         finally: other.close()
 
+    def test_036_purchase_token_and_deposit_proof_compete(self):
+        user=self.store.get_or_create_user({'id':975310,'first_name':'Buyer'})
+        other=self.store.get_or_create_user({'id':975311,'first_name':'Other'})
+        self.store.adjust_balance(975310,30)
+        pid=self.store.add_product({'name':'Protected','price':3})
+        self.store.add_stock_lines(pid,['secret1','secret2'])
+        barrier=threading.Barrier(2); results=[]; errors=[]
+        def buy():
+            db=PostgresStore(self.url)
+            try:
+                barrier.wait(timeout=10); results.append(db.purchase_atomic(975310,pid,1,0,3,'c'*32))
+            except Exception as exc: errors.append(exc)
+            finally: db.close()
+        threads=[threading.Thread(target=buy) for _ in range(2)]
+        for t in threads: t.start()
+        for t in threads: t.join(20)
+        self.assertFalse(errors,errors)
+        self.assertEqual(sum('order_id' in r for r in results),1)
+        self.assertEqual(sum(r.get('error')=='duplicate' for r in results),1)
+        self.assertEqual(self.store.get_user(975310)['balance'],27)
+        ids=[self.store.create_deposit(user['id'],4,'bep20','0xABCD'),self.store.create_deposit(other['id'],4,'bep20','0xabcd')]
+        barrier=threading.Barrier(2); results=[]; errors=[]
+        def approve(i):
+            db=PostgresStore(self.url)
+            try:
+                barrier.wait(timeout=10); results.append(db.review_deposit(ids[i],'approved'))
+            except Exception as exc: errors.append(exc)
+            finally: db.close()
+        threads=[threading.Thread(target=approve,args=(i,)) for i in range(2)]
+        for t in threads: t.start()
+        for t in threads: t.join(20)
+        self.assertFalse(errors,errors)
+        self.assertEqual(sum(r is not None for r in results),1)
+        self.assertEqual(self.store.get_user(975310)['balance']+self.store.get_user(975311)['balance'],31)
+        self.assertEqual(self.store.scalar('SELECT COUNT(*) FROM approved_deposit_proofs'),1)
+        exported=json.loads(self.store.export_backup())
+        self.assertIn('purchase_tokens',exported['tables'])
+        self.assertIn('approved_deposit_proofs',exported['tables'])
+
     def test_04_persistence(self):
         self.store.set_setting('test_persistence', 'saved')
         other = PostgresStore(self.url)

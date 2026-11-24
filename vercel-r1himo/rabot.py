@@ -485,6 +485,23 @@ CREATE TABLE IF NOT EXISTS deposits (
     reviewed_at TEXT DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS approved_deposit_proofs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    method TEXT NOT NULL,
+    proof TEXT NOT NULL,
+    deposit_id INTEGER NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    UNIQUE(method, proof)
+);
+
+CREATE TABLE IF NOT EXISTS purchase_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,
+    order_id INTEGER NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS favorites (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -1119,9 +1136,11 @@ class Store:
                 self.conn.rollback()
                 raise
 
-    def purchase_atomic(self, tg_id, product_id, qty, referral_percent, expected_total=None):
-        """Commit debit, order, stock and referral credit together, or none."""
+    def purchase_atomic(self, tg_id, product_id, qty, referral_percent, expected_total=None, nonce=None):
+        """Commit debit, order, stock and one-use purchase token together, or none."""
         qty = to_int(qty, 0)
+        if nonce is not None and (not isinstance(nonce,str) or not re.fullmatch(r'(?:[a-f0-9]{10}|[a-f0-9]{32})',nonce)):
+            return {'error':'invalid'}
         if qty < 1 or qty > 100:
             return {"error": "invalid"}
         with self.lock:
@@ -1134,6 +1153,9 @@ class Store:
                     self.conn.rollback()
                     return {"error": "invalid"}
                 product, user = dict(product), dict(user)
+                if nonce and self.conn.execute('SELECT id FROM purchase_tokens WHERE token=?', (nonce,)).fetchone():
+                    self.conn.rollback()
+                    return {'error':'duplicate'}
                 price = round(to_float(product.get("price"), 0), 2)
                 if not math.isfinite(price) or price < 0:
                     self.conn.rollback()
@@ -1160,6 +1182,9 @@ class Store:
                 cur = self.conn.execute("INSERT INTO orders(user_id,product_id,product_name,qty,unit_price,total,status,delivery,note,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                     (user["id"], product_id, product["name"], qty, price, total, "pending", "", "", now, now))
                 oid = cur.lastrowid
+                if nonce:
+                    self.conn.execute('INSERT INTO purchase_tokens(token,user_id,order_id,created_at) VALUES(?,?,?,?)',
+                                      (nonce,user['id'],oid,now))
                 delivery_parts = []
                 for row in stock:
                     updated = self.conn.execute("UPDATE stock_items SET used=1,order_id=? WHERE id=? AND used=0", (oid, row["id"]))
@@ -1185,8 +1210,11 @@ class Store:
                 return {"product": product, "user": user, "order_id": oid, "total": total, "delivery": delivery,
                         "balance_after": round(to_float(user["balance"], 0) - total, 2), "status": "delivered",
                         "referrer_id": referrer_id, "commission": commission}
-            except Exception:
+            except Exception as exc:
                 self.conn.rollback()
+                if nonce and type(exc).__name__ in ('IntegrityError','UniqueViolation'):
+                    if self.conn.execute('SELECT id FROM purchase_tokens WHERE token=?',(nonce,)).fetchone():
+                        self.conn.rollback(); return {'error':'duplicate'}
                 raise
 
     def deliver_pending_atomic(self, oid):
@@ -1364,6 +1392,7 @@ class Store:
     def review_deposit(self, did, status, note=""):
         if status not in ("approved", "rejected"):
             return None
+        proof = None
         with self.lock:
             try:
                 self._begin_financial()
@@ -1375,6 +1404,18 @@ class Store:
                 amount = to_float(dep.get("amount"), 0)
                 if status == "approved" and (not math.isfinite(amount) or amount <= 0):
                     raise ValueError("invalid deposit amount")
+                if status == 'approved':
+                    method = str(dep.get('method') or '').strip().lower()
+                    txid = str(dep.get('txid') or '').strip().lower()
+                    if not method or not txid:
+                        self.conn.rollback(); return None
+                    proof = (method,txid)
+                    # Historic approvals predate the proof table; refuse their reuse too.
+                    old = self.conn.execute("SELECT id FROM deposits WHERE status='approved' AND LOWER(TRIM(method))=? AND LOWER(TRIM(txid))=? AND id<>? LIMIT 1", (method,txid,did)).fetchone()
+                    used = self.conn.execute('SELECT id FROM approved_deposit_proofs WHERE method=? AND proof=?',proof).fetchone()
+                    if old or used:
+                        self.conn.rollback(); return None
+                    self.conn.execute('INSERT INTO approved_deposit_proofs(method,proof,deposit_id,created_at) VALUES(?,?,?,?)', (method,txid,did,now_iso()))
                 cur = self.conn.execute("UPDATE deposits SET status=?,note=?,reviewed_at=? WHERE id=? AND status='pending'",
                                         (status, note, now_iso(), did))
                 if not cur.rowcount:
@@ -1386,8 +1427,12 @@ class Store:
                         raise RuntimeError("deposit owner missing")
                 self.conn.commit()
                 return dep
-            except Exception:
+            except Exception as exc:
                 self.conn.rollback()
+                # Competing approvals of the same proof: the unique index decides.
+                if proof and type(exc).__name__ in ('IntegrityError','UniqueViolation'):
+                    if self.conn.execute('SELECT id FROM approved_deposit_proofs WHERE method=? AND proof=?',proof).fetchone():
+                        self.conn.rollback(); return None
                 raise
 
     # ------------------------------------------------------------------
@@ -1812,7 +1857,7 @@ def quantity_preview(user, product_id, qty, edit=None):
     if not p or not p.get('visible') or not 1 <= qty <= 100 or store.available_stock(p)<qty:
         text='⚠️ المنتج غير متاح أو المخزون غير كافٍ.' if lang == 'ar' else '⚠️ Product unavailable or insufficient stock.'
         return safe_send(user['tg_id'],text)
-    unit=unit_price(p,user,qty); total=round(unit*qty,2); nonce=secrets.token_hex(5)
+    unit=unit_price(p,user,qty); total=round(unit*qty,2); nonce=secrets.token_hex(16)
     state_set(user['tg_id'],'quantity_confirm',product_id=p['id'],qty=qty,total=total,nonce=nonce,expires=time.time()+600)
     text=('🛒 <b>%s</b> × %d\nسعر القطعة: %s\nالإجمالي: <b>%s</b>\nتأكيد الشراء من الرصيد؟' if lang == 'ar' else
           '🛒 <b>%s</b> × %d\nUnit price: %s\nTotal: <b>%s</b>\nConfirm purchase from wallet?') % (esc(p['name']),qty,price_str(unit),price_str(total))
@@ -2298,13 +2343,15 @@ def orders_text(user, page=0):
 #  PURCHASE
 # ============================================================================
 
-def deliver_order(user, product, qty=1, expected_total=None):
+def deliver_order(user, product, qty=1, expected_total=None, nonce=None):
     """Charge balance, take stock, deliver. Returns (ok, message)."""
     lang = lang_of(user)
-    result = store.purchase_atomic(user["tg_id"], product["id"], qty, store.get_int("referral_percent", 10), expected_total)
+    result = store.purchase_atomic(user["tg_id"], product["id"], qty, store.get_int("referral_percent", 10), expected_total, nonce)
     error = result.get("error")
     if error == "invalid":
         return False, "❌ المنتج غير متاح." if lang == "ar" else "❌ Product unavailable."
+    if error == "duplicate":
+        return False, "⚠️ تم استخدام تأكيد الشراء مسبقاً." if lang == "ar" else "⚠️ This purchase confirmation was already used."
     if error == "price_changed":
         return False, "⚠️ تغير السعر؛ أعد اختيار الكمية قبل الشراء." if lang == "ar" else "⚠️ Price changed; choose quantity again."
     if error == "delivery_too_long":
@@ -3143,7 +3190,7 @@ def handle_callback(cb):
         state_clear(user['tg_id'])
         p=store.product_by_id(st['product_id'])
         if not p: return safe_send(chat_id, '❌ المنتج غير متاح.')
-        ok, payload=deliver_order(user,p,st['qty'],st['total'])
+        ok, payload=deliver_order(user,p,st['qty'],st['total'],st['nonce'])
         body, markup = payload if isinstance(payload, tuple) else (str(payload), None)
         return safe_edit(chat_id,message_id,body,markup) if message_id else safe_send(chat_id,body,markup)
 
@@ -3221,7 +3268,7 @@ def handle_callback(cb):
                 return safe_send(chat_id,'⚠️ لا يمكن الموافقة: لم يؤكد Binance دفع هذه الفاتورة بالمبلغ والعملة المطلوبين، أو الاتصال غير متاح.')
             dep = store.review_deposit(did, "approved", "approved via bot")
             if not dep:
-                return safe_edit(chat_id, message_id, "⚠️ تمت مراجعة طلب الشحن مسبقاً.")
+                return safe_edit(chat_id, message_id, "⚠️ الطلب مُراجع أو رقم العملية مستخدم؛ تحقق يدوياً قبل الموافقة.")
             target = store.get_user_by_id(dep["user_id"])
             if target:
                 notify_public_event("deposit", target, deposit=dep)

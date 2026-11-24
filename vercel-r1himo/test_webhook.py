@@ -463,4 +463,31 @@ class WebhookTests(unittest.TestCase):
 
 
 
+    def test_13_purchase_replay_even_if_runtime_state_was_restored(self):
+        buyer=737373737
+        self.message(23000,'/start',user=buyer)
+        with index._request_context() as st:
+            pid=st.add_product({'name':'Replay protected','price':4,'visible':1})
+            st.add_stock_lines(pid,['item1','item2'])
+            st.adjust_balance(buyer,20)
+        self.callback(23001,'qty:%d' % pid,user=buyer)
+        self.callback(23002,'qtypick:%d:1' % pid,user=buyer)
+        confirm=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        with index._request_context():
+            saved=dict(index.rabot.state_get(buyer))
+        self.calls.clear(); self.callback(23003,confirm,user=buyer)
+        with index._request_context() as st:
+            self.assertEqual(st.get_user(buyer)['balance'],16)
+            self.assertEqual(len(st.user_orders(st.get_user(buyer)['id'])),1)
+            # Emulates a stale saved runtime state after an interruption.
+            index.rabot.STATE[buyer]=saved
+        self.calls.clear(); self.callback(23004,confirm,user=buyer)
+        with index._request_context() as st:
+            self.assertEqual(st.get_user(buyer)['balance'],16)
+            self.assertEqual(st.product_stock(pid),1)
+            self.assertEqual(len(st.user_orders(st.get_user(buyer)['id'])),1)
+        self.assertFalse(any(p.get('chat_id')==-1004365740808 for p in self.sent('sendMessage')))
+
+
+
 if __name__ == '__main__': unittest.main()
