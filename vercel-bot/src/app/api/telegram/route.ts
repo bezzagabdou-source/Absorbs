@@ -5,8 +5,8 @@ import { authorized } from "@/lib/admin-auth";
 
 const TOKEN = process.env.BOT_TOKEN || "9169731361:AAGdtx1soQWt2GIdcq23_vSyS1XfLcIH0NQ";
 const API = `https://api.telegram.org/bot${TOKEN}`;
-const REQUIRED_CHANNEL = "@mxabdou";
-const REQUIRED_CHANNEL_URL = "https://t.me/mxabdou";
+const REQUIRED_CHANNEL = "@xxxs_exxx";
+const REQUIRED_CHANNEL_URL = "https://t.me/xxxs_exxx";
 
 async function isSubscribed(userId: number | string) {
   try {
@@ -19,7 +19,7 @@ async function isSubscribed(userId: number | string) {
   }
 }
 
-const subscriptionPrompt = `🔒 <b>الاشتراك في القناة مطلوب لاستخدام البوت</b>\n\nاشترك في قناة @mxabdou، ثم اضغط «تحققت من الاشتراك».`;
+const subscriptionPrompt = `🔒 <b>الاشتراك في القناة مطلوب لاستخدام البوت</b>\n\nاشترك في قناة @xxxs_exxx، ثم اضغط «تحققت من الاشتراك».`;
 const subscriptionMenu = {
   inline_keyboard: [
     [{ text: "📢 اشترك في القناة", url: REQUIRED_CHANNEL_URL, style: "success" }],
