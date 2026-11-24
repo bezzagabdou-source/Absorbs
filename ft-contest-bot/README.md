@@ -90,7 +90,7 @@
 
 ### 2) أنشئ المشروع في Vercel
 
-1. **Add New → Project → Import** ريبو `bezzagabdou-source/Absorbs`.
+1. **Add New → Project → Import** المستودع ديالك (GitHub) اللي فيه هاد الكود.
 2. في **Root Directory** اكتب: `ft-contest-bot` (مهم جداً).
 3. Framework: **Next.js** (يُكتشف تلقائياً) — Build: `next build`.
 4. قبل Deploy أضف متغيرات البيئة:

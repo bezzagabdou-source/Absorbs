@@ -6,7 +6,7 @@
 
 كل القيم الحساسة تُضبط في Vercel كـ Sensitive، ولا تُكتب في المستودع أو المحادثة.
 
-- `AGENT_GITHUB_REPOSITORY`: افتراضياً `bezzagabdou-source/Absorbs` أو بيانات مستودع Vercel.
+- `AGENT_GITHUB_REPOSITORY`: مستودعك بصيغة `owner/repo` (مثال: `myuser/my-bot`). إلا ما ضبطتيهش كيتاخد من بيانات مستودع Vercel تلقائياً.
 - `AGENT_GITHUB_BRANCH`: الفرع المخصص للوكيل؛ إن لم يُضبط يُستخدم `VERCEL_GIT_COMMIT_REF`. القراءة العامة تعمل بلا اعتماد، أما إنشاء الالتزامات فيتطلب `AGENT_GITHUB_TOKEN` بصلاحيات محدودة لهذا المستودع.
 - `AGENT_VERCEL_TOKEN`, `AGENT_VERCEL_TEAM_ID`, `AGENT_VERCEL_BOT_PROJECT_ID`, `AGENT_VERCEL_PANEL_PROJECT_ID`: مطلوبة للنشر أو الاستعلام عن حالته/أحداث البناء؛ رقم الفريق اختياري إذا كان نطاق الحساب الافتراضي صحيحاً.
 - `AGENT_BACKUP_KEY`: مفتاح ثابت لتشفير المسودات والنسخ؛ عند غيابه يُستخدم `SESSION_SECRET`. تغيير المفتاح دون ترحيل النسخ يجعلها غير قابلة للقراءة.

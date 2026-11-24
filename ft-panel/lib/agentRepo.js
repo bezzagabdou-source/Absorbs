@@ -6,7 +6,9 @@ const audit = require('./agentAudit');
 const MAX_FILE = 250_000;
 const MAX_WORKSPACE = 4_000_000;
 function config() {
-  const repository = process.env.AGENT_GITHUB_REPOSITORY || [process.env.VERCEL_GIT_REPO_OWNER || 'bezzagabdou-source', process.env.VERCEL_GIT_REPO_SLUG || 'Absorbs'].join('/');
+  const owner = process.env.VERCEL_GIT_REPO_OWNER || '';
+  const slug = process.env.VERCEL_GIT_REPO_SLUG || '';
+  const repository = process.env.AGENT_GITHUB_REPOSITORY || (owner && slug ? `${owner}/${slug}` : '');
   const parts = repository.split('/');
   const branch = process.env.AGENT_GITHUB_BRANCH || process.env.VERCEL_GIT_COMMIT_REF || '';
   if (parts.length !== 2 || parts.some(p => !/^[A-Za-z0-9_.-]{1,100}$/.test(p)) || !branch || branch.length > 200 || !/^[A-Za-z0-9_./-]+$/.test(branch) || branch.includes('..') || branch.startsWith('/') || branch.endsWith('/')) {
