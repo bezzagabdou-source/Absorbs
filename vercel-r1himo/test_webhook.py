@@ -24,6 +24,8 @@ class WebhookTests(unittest.TestCase):
         os.environ['DATABASE_URL_UNPOOLED'] = cls.pg.get_uri()
         cls.calls = []
         cls.member_status = {}
+        cls.old_rate_limits = (index.rabot.RATE_LIMIT_10S, index.rabot.RATE_LIMIT_60S)
+        index.rabot.RATE_LIMIT_10S = index.rabot.RATE_LIMIT_60S = 10000
         cls.old_call = index.rabot.Telegram.call
         def fake_call(tg, method, timeout=30, **params):
             cls.calls.append((method, params))
@@ -42,6 +44,7 @@ class WebhookTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.http.shutdown(); cls.http.server_close(); cls.thread.join()
         index.rabot.Telegram.call = cls.old_call
+        index.rabot.RATE_LIMIT_10S, index.rabot.RATE_LIMIT_60S = cls.old_rate_limits
         cls.pg.cleanup()
 
     def request(self, path, data=None, headers=None):
@@ -75,7 +78,10 @@ class WebhookTests(unittest.TestCase):
         return []
 
     def test_01_health_web_removed_auth_and_duplicate(self):
-        status, body=self.request('/healthz'); self.assertEqual(status,200); self.assertTrue(json.loads(body)['ok'])
+        status, body=self.request('/healthz'); self.assertEqual(status,200); self.assertEqual(json.loads(body),{'ok':True})
+        url=os.environ.pop('DATABASE_URL_UNPOOLED')
+        try: self.assertEqual(self.request('/healthz')[0],200)  # liveness does not touch PostgreSQL
+        finally: os.environ['DATABASE_URL_UNPOOLED']=url
         self.assertEqual(self.request('/api?__path=healthz')[0],200)
         for path in ('/', '/panel', '/login', '/panel/activate-bot'):
             self.assertEqual(self.request(path)[0],404)
@@ -99,6 +105,8 @@ class WebhookTests(unittest.TestCase):
         self.callback(116,'a:toggle:p:%d:visible' % pid)
         with index._request_context(): index.rabot.store.adjust_balance(222,10)
         self.calls.clear(); self.callback(117,'confirm:%d' % pid,user=222)
+        confirm=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(125,confirm,user=222)
         self.assertIn('تم تسليم طلبك', self.sent('editMessageText')[-1]['text'])
         with index._request_context():
             self.assertEqual(index.rabot.store.product_stock(pid),0)
@@ -219,6 +227,8 @@ class WebhookTests(unittest.TestCase):
         self.callback(911, 'a:toggle:p:%d:visible' % pid)
         with index._request_context(): self.assertEqual(index.rabot.store.product_stock(pid), 3)
         self.calls.clear(); self.callback(912, 'confirm:%d' % pid, user=user)
+        confirm=next(b['callback_data'] for b in self.buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(913,confirm,user=user)
         with index._request_context():
             order=index.rabot.store.user_orders(index.rabot.store.get_user(user)['id'])[0]
             self.assertEqual(order['delivery'], ' first\nsecret\n')
@@ -412,6 +422,44 @@ class WebhookTests(unittest.TestCase):
         self.calls.clear(); self.callback(1608,'joincheck',user=newcomer)
         self.assertIn('qty:%d' % recent,[b.get('callback_data') for b in self.buttons()])
         self.assertNotIn('private-pg-stock',str(self.calls))
+
+
+
+    def test_12_webhook_security_silent_flood_and_replay(self):
+        uid=707070707
+        token=index.webhook_secret()
+        headers={'X-Telegram-Bot-Api-Secret-Token':token,'Content-Type':'application/json'}
+        self.assertEqual(self.request('/api/telegram',b'{}',{'X-Telegram-Bot-Api-Secret-Token':'wrong'})[0],403)
+        self.assertEqual(self.request('/api/telegram',b'{',headers)[0],400)
+        self.assertEqual(self.request('/api/telegram',json.dumps({'update_id':2**63}).encode(),headers)[0],400)
+        self.assertEqual(self.request('/api/telegram',b'x'*(256*1024+1),headers)[0],400)
+        self.calls.clear()
+        original_time=index.rabot.time.time
+        index.rabot.RATE_LIMIT_10S=18; index.rabot.RATE_LIMIT_60S=80
+        try:
+            index.rabot.time.time=lambda:1203.0
+            self.message(21000,'/start',user=uid)
+            self.message(21000,'/start',user=uid)  # replay must not consume another quota
+            for i in range(1,25): self.message(21000+i,'/start',user=uid)
+            sends=[p for p in self.sent('sendMessage') if p.get('chat_id')==uid]
+            self.assertEqual(len(sends),18)
+            self.assertFalse(any('limit' in str(p).lower() for p in sends))
+            self.message(21050,'/start',user=uid+1)
+            self.assertEqual(len([p for p in self.sent('sendMessage') if p.get('chat_id')==uid+1]),1)
+            with index._request_context() as st:
+                count=st.one('SELECT count10 FROM inbound_rate_limits WHERE id=?',(uid,))
+                self.assertEqual(count['count10'],25)
+            index.rabot.time.time=lambda:1211.0
+            self.message(21051,'/start',user=uid)
+            self.assertEqual(len([p for p in self.sent('sendMessage') if p.get('chat_id')==uid]),19)
+            self.calls.clear()
+            self.update(21052,{'message':{'message_id':1,'chat':{'id':uid,'type':'private'},'from':{'id':uid+123},'text':'/admin'}})
+            self.update(21053,{'message':{'message_id':1,'chat':{'id':uid,'type':'private'},'from':{'id':uid},'text':'x'*4097}})
+            self.update(21054,{'callback_query':{'id':'x','from':{'id':uid},'message':{'message_id':1,'chat':{'id':uid,'type':'private'}},'data':'x'*65}})
+            self.assertFalse(self.calls)
+        finally:
+            index.rabot.time.time=original_time
+            index.rabot.RATE_LIMIT_10S=index.rabot.RATE_LIMIT_60S=10000
 
 
 

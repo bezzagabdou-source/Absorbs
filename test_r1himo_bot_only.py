@@ -77,6 +77,8 @@ class BotAdminTests(unittest.TestCase):
         self.assertEqual(bot.store.product_by_id(pid)['price'],5.25)
         bot.store.adjust_balance(222,10)
         self.callback(self.buyer,'confirm:%d' % pid)
+        confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(self.buyer,confirm)
         self.assertEqual(bot.store.product_stock(pid),0)
         self.assertEqual(bot.store.get_user(222)['balance'],4.75)
         order=bot.store.user_orders(bot.store.get_user(222)['id'])[0]
@@ -167,6 +169,8 @@ class BotAdminTests(unittest.TestCase):
         self.callback(self.owner, 'a:toggle:p:%d:visible' % pid)
         bot.store.adjust_balance(222, 1)
         bot.tg.calls.clear(); self.callback(self.buyer, 'confirm:%d' % pid)
+        confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(self.buyer,confirm)
         order = bot.store.user_orders(bot.store.get_user(222)['id'])[0]
         self.assertEqual(order['delivery'], ' /secret\nline 2\n')
         events = [p for m,p in bot.tg.calls if m == 'sendMessage' and p.get('chat_id') == -1004365740808]
@@ -473,6 +477,45 @@ class BotAdminTests(unittest.TestCase):
         bot.store.set_setting('bot_username','invalid@evil.com')
         self.callback(self.buyer,'view:%d' % newest)
         self.assertFalse(any('share/url?' in b.get('url','') for b in self.last_buttons()))
+
+    def test_silent_rate_limit_and_input_validation(self):
+        valid={'update_id':1,'message':{'from':self.buyer,'chat':{'id':222,'type':'private'},'message_id':1,'text':'/start'}}
+        self.assertEqual(bot.incoming_actor(valid),222)
+        def upd(uid, text='/start'):
+            return {'update_id':uid,'message':{'from':self.buyer,'chat':{'id':222,'type':'private'},'message_id':1,'text':text}}
+        original_time=bot.time.time
+        try:
+            bot.time.time=lambda:1203.0
+            bot.tg.calls.clear()
+            for i in range(25): bot.on_update(upd(i+1))
+            sends=[p for m,p in bot.tg.calls if m=='sendMessage' and p.get('chat_id')==222]
+            self.assertEqual(len(sends),18)
+            self.assertFalse(any('limit' in str(p).lower() for p in sends))
+            other={'update_id':90,'message':{'from':self.owner,'chat':{'id':111,'type':'private'},'message_id':1,'text':'/start'}}
+            bot.on_update(other)
+            self.assertEqual(len([p for m,p in bot.tg.calls if m=='sendMessage' and p.get('chat_id')==111]),1)
+            bot.time.time=lambda:1211.0
+            bot.on_update(upd(91))
+            self.assertEqual(len([p for m,p in bot.tg.calls if m=='sendMessage' and p.get('chat_id')==222]),19)
+        finally: bot.time.time=original_time
+        for mutation in (
+            {'update_id':2**63,'message':valid['message']},
+            {'update_id':1,'message':{'from':self.buyer,'chat':{'id':999,'type':'private'},'message_id':1,'text':'hi'}},
+            upd(2,'x'*4097), upd(3,'\ud800'),
+            {'update_id':4,'callback_query':{'id':'x','from':self.buyer,'message':{'chat':{'id':222,'type':'private'},'message_id':2},'data':'x'*65}},
+            {'update_id':5,'message':valid['message'],'callback_query':{}},
+        ): self.assertIsNone(bot.incoming_actor(mutation))
+
+    def test_old_buy_button_never_charges_without_new_confirmation(self):
+        pid=bot.store.add_product({'name':'product','price':5,'visible':1})
+        bot.store.add_stock_lines(pid,['one','two']); bot.store.adjust_balance(222,20)
+        for _ in range(10): self.callback(self.buyer,'confirm:%d' % pid)
+        self.assertEqual(bot.store.get_user(222)['balance'],20)
+        self.assertEqual(len(bot.store.user_orders(bot.store.get_user(222)['id'])),0)
+        confirm=next(b['callback_data'] for b in self.last_buttons() if b.get('callback_data','').startswith('qtybuy:'))
+        self.callback(self.buyer,confirm); self.callback(self.buyer,confirm)
+        self.assertEqual(bot.store.get_user(222)['balance'],15)
+        self.assertEqual(len(bot.store.user_orders(bot.store.get_user(222)['id'])),1)
 
     def test_backup_contains_sqlite_snapshot(self):
         original = bot.urllib.request.urlopen

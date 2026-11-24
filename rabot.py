@@ -502,6 +502,14 @@ CREATE TABLE IF NOT EXISTS vip_purchases (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS inbound_rate_limits (
+    id INTEGER PRIMARY KEY,
+    window10 INTEGER NOT NULL,
+    count10 INTEGER NOT NULL,
+    window60 INTEGER NOT NULL,
+    count60 INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS broadcasts (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     text       TEXT DEFAULT '',
@@ -1089,6 +1097,27 @@ class Store:
 
     def _financial_lock_suffix(self):
         return ""
+
+    def allow_inbound(self, tg_id, now=None):
+        """Silent per-account fixed-window limits; atomic across database sessions."""
+        now = time.time() if now is None else now
+        w10, w60 = int(now // 10), int(now // 60)
+        with self.lock:
+            try:
+                self._begin_financial()
+                self.conn.execute(
+                    "INSERT INTO inbound_rate_limits(id,window10,count10,window60,count60) VALUES(?,?,1,?,1) "
+                    "ON CONFLICT(id) DO UPDATE SET "
+                    "count10=CASE WHEN inbound_rate_limits.window10=? THEN CASE WHEN inbound_rate_limits.count10<10000 THEN inbound_rate_limits.count10+1 ELSE 10000 END ELSE 1 END, "
+                    "count60=CASE WHEN inbound_rate_limits.window60=? THEN CASE WHEN inbound_rate_limits.count60<10000 THEN inbound_rate_limits.count60+1 ELSE 10000 END ELSE 1 END, "
+                    "window10=?,window60=?",
+                    (tg_id,w10,w60,w10,w60,w10,w60))
+                row=self.conn.execute('SELECT count10,count60 FROM inbound_rate_limits WHERE id=?',(tg_id,)).fetchone()
+                self.conn.commit()
+                return row['count10'] <= RATE_LIMIT_10S and row['count60'] <= RATE_LIMIT_60S
+            except Exception:
+                self.conn.rollback()
+                raise
 
     def purchase_atomic(self, tg_id, product_id, qty, referral_percent, expected_total=None):
         """Commit debit, order, stock and referral credit together, or none."""
@@ -2554,8 +2583,48 @@ COMMANDS = {
 }
 
 
+RATE_LIMIT_10S = 18
+RATE_LIMIT_60S = 80
+
+
+def incoming_actor(update):
+    """Accept only bounded private text/callback updates for their own chat."""
+    if not isinstance(update,dict): return None
+    mid=update.get('update_id')
+    if type(mid) is not int or not 0 <= mid < 2**63: return None
+    if ('message' in update)==('callback_query' in update): return None
+    event=update.get('message') if 'message' in update else update.get('callback_query')
+    if not isinstance(event,dict): return None
+    frm=event.get('from')
+    if not isinstance(frm,dict): return None
+    uid=frm.get('id')
+    if type(uid) is not int or not 0 < uid < 2**63 or frm.get('is_bot') is True: return None
+    for field in ('username','first_name','last_name','language_code'):
+        value=frm.get(field)
+        if value is not None and (not isinstance(value,str) or len(value)>256): return None
+    msg=event if 'message' in update else event.get('message')
+    if not isinstance(msg,dict): return None
+    chat=msg.get('chat')
+    if not isinstance(chat,dict) or chat.get('type')!='private' or type(chat.get('id')) is not int or chat['id']!=uid: return None
+    message_id=msg.get('message_id')
+    if type(message_id) is not int or not 0 < message_id < 2**63: return None
+    try:
+        if 'message' in update:
+            text=event.get('text')
+            if not isinstance(text,str) or len(text)>4096 or len(text.encode('utf-8'))>16384: return None
+        else:
+            data=event.get('data'); cb_id=event.get('id')
+            if not isinstance(data,str) or not 1<=len(data.encode('utf-8'))<=64: return None
+            if not isinstance(cb_id,str) or not 1<=len(cb_id)<=256: return None
+    except UnicodeError:
+        return None
+    return uid
+
+
 def on_update(update):
     try:
+        actor=incoming_actor(update)
+        if actor is None or not store.allow_inbound(actor): return
         if "message" in update:
             handle_message(update["message"])
         elif "callback_query" in update:
@@ -3079,19 +3148,9 @@ def handle_callback(cb):
         return safe_edit(chat_id,message_id,body,markup) if message_id else safe_send(chat_id,body,markup)
 
     if head == "confirm":
+        # Legacy buttons only open a fresh one-item confirmation, never debit directly.
         pid = to_int(parts[1] if len(parts) > 1 else 0, 0)
-        p = store.product_by_id(pid)
-        if not p:
-            return safe_edit(chat_id, message_id, "❌")
-        ok, payload = deliver_order(user, p, 1)
-        if isinstance(payload, tuple) and len(payload) == 2:
-            body, markup = payload
-        else:
-            body = str(payload)
-            markup = inline_keyboard([[_btn(t("lbl_close", lang), "default")]])
-        if message_id:
-            return safe_edit(chat_id, message_id, body, markup)
-        return safe_send(chat_id, body, markup)
+        return quantity_preview(user,pid,1,edit=message_id)
 
     if head == "offers":
         return show_offers(user, edit=message_id)

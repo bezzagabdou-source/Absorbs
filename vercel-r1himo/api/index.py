@@ -91,21 +91,30 @@ class handler(BaseHTTPRequestHandler):
             return self._simple(404, {'ok': False, 'error': 'not found'})
         if (route == '/healthz' and method != 'GET') or (route == '/api/telegram' and method != 'POST'):
             return self._simple(405, {'ok': False})
+        # Public liveness must not expose store data or acquire the DB/advisory lock.
+        if route == '/healthz':
+            return self._simple(200, {'ok': True})
         update = None
         if route == '/api/telegram':
-            supplied = self.headers.get('X-Telegram-Bot-Api-Secret-Token', '')
+            tokens = self.headers.get_all('X-Telegram-Bot-Api-Secret-Token', [])
+            supplied = tokens[0] if len(tokens) == 1 else ''
             secret = webhook_secret()
-            if not secret or not hmac.compare_digest(secret, supplied):
+            if not secret or not supplied.isascii() or not hmac.compare_digest(secret, supplied):
                 return self._simple(403, {'ok': False})
             try:
-                size = int(self.headers.get('Content-Length', '0'))
-                if size <= 0 or size > 1024 * 1024:
+                lengths = self.headers.get_all('Content-Length', [])
+                if len(lengths) != 1 or not lengths[0].isdigit():
+                    raise ValueError('invalid content length')
+                size = int(lengths[0])
+                if size <= 0 or size > 256 * 1024:
                     raise ValueError('invalid body size')
                 update = json.loads(self.rfile.read(size))
-                if not isinstance(update, dict) or type(update.get('update_id')) is not int:
+                if not isinstance(update, dict) or type(update.get('update_id')) is not int or not 0 <= update['update_id'] < 2**63:
                     raise ValueError('invalid update')
-            except (ValueError, TypeError, UnicodeError):
+            except (ValueError, TypeError, UnicodeError, RecursionError):
                 return self._simple(400, {'ok': False})
+            if rabot.incoming_actor(update) is None:
+                return self._simple(200, {'ok': True})
         try:
             with _request_context() as store:
                 if update is not None:
@@ -116,10 +125,7 @@ class handler(BaseHTTPRequestHandler):
                     # commit can still lose an update; see README limitations.
                     raw.commit()
                     if claimed:
-                        if 'message' in update:
-                            rabot.handle_message(update['message'])
-                        elif 'callback_query' in update:
-                            rabot.handle_callback(update['callback_query'])
+                        rabot.on_update(update)
                     result = {'ok': True}
                 else:
                     result = {'ok': True, 'app': rabot.APP_NAME, 'version': rabot.APP_VERSION,

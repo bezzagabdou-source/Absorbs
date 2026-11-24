@@ -66,6 +66,29 @@ class PostgreSQLTests(unittest.TestCase):
         self.assertEqual(sorted(result, key=lambda item: item is None), ['one-secret', None])
         self.assertEqual(self.store.product_stock(pid), 0)
 
+    def test_035_concurrent_rate_limit_is_atomic(self):
+        import rabot
+        barrier=threading.Barrier(2); results=[]; errors=[]
+        def send():
+            db=PostgresStore(self.url)
+            try:
+                barrier.wait(timeout=10)
+                for i in range(15): results.append(db.allow_inbound(929292929,now=1203))
+            except Exception as exc: errors.append(exc)
+            finally: db.close()
+        threads=[threading.Thread(target=send) for _ in range(2)]
+        for t in threads: t.start()
+        for t in threads: t.join(20)
+        self.assertFalse(errors,errors)
+        self.assertEqual(len(results),30)
+        self.assertEqual(sum(results),rabot.RATE_LIMIT_10S)
+        other=PostgresStore(self.url)
+        try:
+            self.assertFalse(other.allow_inbound(929292929,now=1203))
+            self.assertTrue(other.allow_inbound(929292929,now=1211))
+            self.assertTrue(other.allow_inbound(939393939,now=1203))
+        finally: other.close()
+
     def test_04_persistence(self):
         self.store.set_setting('test_persistence', 'saved')
         other = PostgresStore(self.url)
