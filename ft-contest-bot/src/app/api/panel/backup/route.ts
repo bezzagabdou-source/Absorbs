@@ -35,6 +35,8 @@ function authorized(request: NextRequest): boolean {
   return allowed.some((key) => safeEqual(key, given));
 }
 
+const LATEST_HINT = "النسخة محفوظة فـ system:backup:latest — حمّلها بـ ?latest=1";
+
 function modeOf(request: NextRequest): "meta" | "full" {
   const url = new URL(request.url);
   return url.searchParams.get("mode") === "meta" ? "meta" : "full";
@@ -43,6 +45,11 @@ function modeOf(request: NextRequest): "meta" | "full" {
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ ok: false, error: "مفتاح غير صالح" }, { status: 401 });
   const url = new URL(request.url);
+  // 💾 ?save=1 → تخزين نسخة داخل قاعدة البيانات (بدون تحميل الملف) — كتستعمل للنسخ اليدوية
+  if (url.searchParams.get("save") === "1") {
+    const saved = await saveSnapshot(modeOf(request));
+    return NextResponse.json({ ok: true, saved, latest: LATEST_HINT });
+  }
   if (url.searchParams.get("latest") === "1") {
     const snapshot = await latestSnapshot();
     if (!snapshot) return NextResponse.json({ ok: false, error: "ما كايناش نسخة محفوظة — دير POST أولاً" }, { status: 404 });
