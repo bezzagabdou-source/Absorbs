@@ -128,10 +128,25 @@ export type ClassifyResult = {
   error?: string;
 };
 
-const CLASSIFY_PROMPT = `أنت مراقب آلي لدخول الأعضاء. افحص صورة العضو وبياناته (الاسم، @username، البايو) وحدد هل هو امرأة (female) أم رجل (male).
-أجبه فقط بـ JSON بهذه الصيغة بالضبط (بلا أي نص إضافي):
-{"gender":"female"|"male"|"unknown","confidence":رقم بين 0 و 1,"evidence":"سبب قصير بالعربية"}
-إلا كانت الصورة أو البيانات لا تكفي للحكم، أرجع {"gender":"unknown","confidence":0,"evidence":"لا دليل كافٍ"}.`;
+const CLASSIFY_PROMPT = `أنت مراقب آلي دقيق لدخول الأعضاء فبوت مسابقات مغربي/جزائري (جمهور عربي). مهمتك: تحديد هل صاحب الحساب امرأة (female) أم رجل (male) أم ما كاينش دليل كافٍ (unknown).
+
+فحص بمستويات، سطّر كل واحدة على حدة:
+1) صورة البروفايل: الوجه، الشعر، المكياج، الحجاب/النقاب، اللباس، الوضعية، الإطار، الفلاتر. صورة أنثى واضحة = دليل قوي. صورة رجل واضحة = دليل قوي. أنمي/شعار/منظر/بدون صورة = بلا دليل.
+2) الاسم (الأول + العائلة): الأسماء المؤنثة العربية/الأمازيغية/الفرنسية (فاطمة، سارة، مريم، خديجة، نور، سلمى، شيماء، مروة، إكرام، نسرين، ياسمين، منال، إيمان، حنان، نادية، ليلى، زهراء، ملاك، لينا، رانيا، داليا، أسماء، حفصة، حبيبة، زينب، رقية، سميرة، كريمة، لطيفة، جميلة، نوال، فريدة، سميرة، أمينة، هدى، إلهام، سناء، وفاء، صفاء، رجاء، سعاد، خولة، أمال، نجلاء، بشرى، سهام، ثريا … / Fatima, Sara, Sarah, Mariam, Meriem, Khadija, Nour, Salma, Chaimae, Marwa, Ikram, Nisrine, Yasmine, Manal, Imane, Hanane, Nadia, Leila, Zahra, Malak, Lina, Rania, Dalia, Asmae, Hafsa, Habiba, Zineb, Soukaina, Oumaima, Hind, Houda, Ilham, Sanae, Wafa, Souad, Khawla, Amal, Najla, Bouchra, Souhaila, Rim, Rym, Chaima, Aya, Douae, Tasmime …).
+3) @username: كلمات مؤنثة داخلة فيه (ex: sarah_99, girl, female, queen, princess, mama, bnt, bent).
+4) البايو (bio): كلمات مثل «بنت، فتاة، أنثى، طالبة، مسلمة وافتخر، أميرة، ملكة، ممنوع الخاص، خاص مقفل، girl, female, woman, queen, princess, étudiante».
+5) السياق: الحساب كيدخّل بنات فالإحالات (شغل «تيم بنات»)، صور نمطية فاشلة، إسم + صورة أنثى = احتمال كبير.
+
+قواعد الحكم:
+- دليل قوي (صورة أنثى واضحة أو اسم مؤنث + صورة/بايو مؤنث) → female و confidence بين 0.75 و 0.98.
+- دليل واحد متوسط (اسم مؤنث فقط أو بايو مؤنث فقط) → female و confidence بين 0.6 و 0.75.
+- دليل ضعيف ولا متضارب (اسم مذكر + صورة غامضة) → male و confidence أقل من 0.6، ولا unknown.
+- ما تخمّنش من العمر ولا من الجنسية. ما تعتمدش على لون الجلد. ما تعتبرش الحجاب وحده دليل مطلق إلا مع دليل آخر.
+- «نور»، «أمل»، «هدى» أسماء مشتركة: إلا ما كاينش دليل آخر → unknown.
+
+أجبه فقط بـ JSON نقي بهذه الصيغة بالضبط، بلا أي علامات كود وبلا أي نص زائد:
+{"gender":"female"|"male"|"unknown","confidence":رقم بين 0 و 1,"evidence":"سبب قصير جداً بالعربية (أقل من 12 كلمة)"}
+إلا ما كفاش الدليل: {"gender":"unknown","confidence":0,"evidence":"لا دليل كافٍ"}.`;
 
 function parseClassifyText(raw: string): { gender: ClassifyResult["gender"]; confidence: number; evidence: string } | null {
   let text = String(raw || "").trim();

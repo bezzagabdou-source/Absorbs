@@ -49,6 +49,18 @@ export async function guardReferralCredit(
     const { latestReportFor } = await import("./monitor");
     const report = await latestReportFor(joinerId);
     if (report && report.gender === "female") await revokeCreditsFor(joinerId);
+    // ⛔ فحص فوري (اسم/بايو/صورة + ذكاء اصطناعي): إلا طلع بنت → كنرجّعو الإحالة دغيا
+    const { screenReferralJoiner } = await import("./referralScreen");
+    const verdict = await screenReferralJoiner(joinerId);
+    if (verdict.blocked) {
+      const revoked = await revokeCreditsFor(joinerId);
+      await pushAdminLog({
+        at: Date.now(),
+        op: "referral_screened",
+        detail: `إحالة مرفوضة فوراً: ${credit.inviterId} ← ${joinerId} (${verdict.provider || "فحص"} · ${Math.round(verdict.confidence * 100)}% · ${verdict.evidence || "بلا دليل"}); تراجع ${revoked}`,
+        via: "ai",
+      }).catch(() => undefined);
+    }
   } catch (error) {
     console.error("[referralGuard] guard failed", joinerId, error);
   }

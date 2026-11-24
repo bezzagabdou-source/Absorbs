@@ -50,6 +50,19 @@ export async function registerGeneralReferral(from: TgUser, inviterId: string) {
   // 🛡️ إلا كان محسوباً قبل من رابط مسابقة → ما نعاودوش
   const already = new Set((await recentReferrals(500).catch(() => [])).map((row) => row.joinerId));
   if (already.has(joinerId)) return null;
+  // ⛔ فحص الحساب اللي دخل: إلا كان «بنت» (اسم/بايو/صورة/ذكاء اصطناعي) → ما تتحسبش الإحالة أصلاً
+  const { screenReferralJoiner } = await import("./referralScreen");
+  const verdict = await screenReferralJoiner(joinerId);
+  if (verdict.blocked) {
+    const { pushAdminLog } = await import("./rewards");
+    await pushAdminLog({
+      at: Date.now(),
+      op: "referral_rejected",
+      detail: `إحالة مرفوضة: ${inviterId} ← ${joinerId} (${verdict.provider || "فحص"} · ${Math.round(verdict.confidence * 100)}% · ${verdict.evidence || "بلا دليل"})`,
+      via: "ai",
+    }).catch(() => undefined);
+    return null;
+  }
   // 🆕 عضو ما معروفش: نسجلوه بحال بقية الدخول (بدل ما نعيطو لـ register ديال البوت)
   if (!(await getUser(joinerId))) {
     await store.set(`user:${joinerId}`, joiner);

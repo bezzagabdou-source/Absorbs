@@ -6,6 +6,9 @@ import { getStore, storageInfo } from "@/lib/store";
 import { reactionStickers, stickerId, stickerStyleOn } from "@/lib/emoji";
 import { getRememberedSticker } from "@/lib/telegram";
 import { usersCount } from "@/lib/users";
+import { getSettings } from "@/lib/settings";
+import { channelUrl, requiredChannelsOf } from "@/lib/bot";
+import { tgCall } from "@/lib/telegram";
 import { referralCheck } from "@/lib/referralsDiag";
 
 export const runtime = "nodejs";
@@ -25,8 +28,42 @@ export async function GET(request: NextRequest) {
     storageInfo(),
   ]);
 
+  // 🔒 فحص قنوات الاشتراك الإجباري: موجودة؟ البوت أدمن فيها؟
+  const gate: { chat: string; url: string; ok: boolean; title: string | null; error: string | null; admin: boolean | null }[] = [];
+  try {
+    const settings = await getSettings();
+    const required = requiredChannelsOf(settings);
+    const meRes = await tgCall<{ id: number }>("getMe");
+    const botUserId = meRes.ok ? Number(meRes.result?.id) || 0 : 0;
+    const results = await Promise.all(
+      required.map(async (chat) => {
+        const res = await tgCall<{ title?: string; username?: string }>("getChat", { chat_id: chat });
+        const me = botUserId
+          ? await tgCall<{ status?: string }>("getChatMember", { chat_id: chat, user_id: botUserId }).catch(() => null)
+          : null;
+        return {
+          chat,
+          url: channelUrl(chat),
+          ok: Boolean(res.ok),
+          title: res.ok ? res.result?.title || null : null,
+          error: res.ok ? null : res.description || "تعذّر الوصول للقناة (البوت ماشي عضو/أدمن أو القناة تحيّدت)",
+          admin: me && me.ok ? ["administrator", "creator"].includes(String(me.result?.status)) : null,
+        };
+      }),
+    );
+    gate.push(...results);
+  } catch {
+    /* الفحص اختياري */
+  }
+
   return NextResponse.json({
     ok: status.botOk && status.webhookMatches,
+    gate: {
+      count: gate.length,
+      channels: gate.map((c) => c.chat),
+      allReachable: gate.every((c) => c.ok),
+      checks: gate,
+    },
     bot: {
       tokenConfigured: status.tokenConfigured,
       connected: status.botOk,
