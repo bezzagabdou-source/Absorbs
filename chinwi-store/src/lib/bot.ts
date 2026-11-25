@@ -181,6 +181,9 @@ async function sendSubscriptionGate(
     link(`📣 اشترك في ${ch.title || ch.chat}`, ch.url || `https://t.me/${ch.chat.replace(/^@/, "")}`),
   ]);
   rows.push([link(`💬 الدعم`, `https://t.me/${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`)]);
+  // 👍 منشور «توثيق فيسبوك» — يظهر كزر فقط؛ لا يمكن التحقق منه برمجياً لذلك لا يؤثر على بوابة الاشتراك
+  const fbUrl = settingString(s, "fb_verify_url", "").trim();
+  if (fbUrl) rows.push([link(`👍 علّق على منشور فيسبوك`, fbUrl)]);
   rows.push([b(`🔄 تحقق من الاشتراك`, "chk")]);
 
   const text = [
@@ -194,6 +197,7 @@ async function sendSubscriptionGate(
     }),
     "━━━━━━━━━━━━━━━",
     "⚡️ الاشتراك يمنحك: أسعار خاصة، عروض حصرية، ودعماً أسرع.",
+    ...(fbUrl ? ["👍 <b>توثيق فيسبوك</b>: دخل المنشور و<b>علّق</b> باش توثقو صفحتنا 🙏"] : []),
     "👇 بعد ما تشترك اضغط <b>«🔄 تحقق من الاشتراك»</b>",
   ].join("\n");
   await sendMessage(chatId, text, kb(rows));

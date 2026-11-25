@@ -161,7 +161,7 @@ await check("seed: الأقسام والمحافظ والقنوات", async () =
     assert.ok(String(bySlug[slug] ?? "").endsWith("-poster.jpg"), `${slug}=${bySlug[slug]}`);
   }
   const channels = await db.query("select chat from channels order by sort");
-  assert.deepEqual(channels.rows.map((r) => r.chat), ["@chinwichi", "@ft_H_N_O", "@CHNawaa", "@C_2_2_H"]);
+  assert.deepEqual(channels.rows.map((r) => r.chat), ["@ft_H_N_O", "@CHNawaa", "@C_2_2_H"]);
   const prizes = await db.query("select title, points from prizes order by points");
   assert.ok(prizes.rowCount >= 4, `جوائز=${prizes.rowCount}`);
   const cheap = prizes.rows.find((r) => String(r.title).includes("وساطة"));
@@ -183,8 +183,9 @@ await check("start: بوابة الاشتراك الإجباري (أزرار ا�
   const gate = await waitForMessage(555, (m) => (m.text ?? "").includes("الاشتراك إجباري"));
   assert.ok(hasButton(gate, "ft_H_N_O"));
   assert.ok(hasButton(gate, "CHNawaa"));
-  assert.ok(hasButton(gate, "CHINWICHI"));
+  assert.ok(!hasButton(gate, "CHINWICHI"), "chinwichi معطّلة وخرجت من البوابة");
   assert.ok(hasButton(gate, "C_2_2_H"));
+  assert.ok(hasButton(gate, "فيسبوك"), "زر توثيق فيسبوك ظاهر");
   assert.ok(hasButton(gate, "تحقق من الاشتراك"));
   const state = await mockState();
   assert.ok(!state.sent.some((m) => (m.text ?? "").includes("اختر القسم")), "يجب ألا تظهر القائمة قبل الاشتراك");

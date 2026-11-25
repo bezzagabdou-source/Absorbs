@@ -348,6 +348,8 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   currency: "دج",
   owner_username: "F_Q_Q_T",
   support_username: "F_Q_Q_T",
+  // رابط منشور «توثيق فيسبوك» — زر يظهر في بوابة الاشتراك (فارغ = مخفي)
+  fb_verify_url: "https://www.facebook.com/share/1JQMvSpra3/",
   owner_chat_id: 0,
   require_subscription: true,
   // حسابات معفاة من بوابة الاشتراك الإجباري
@@ -593,12 +595,6 @@ export async function ensureGameCatalog(): Promise<void> {
   await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'efootball'", ["/catalog/pes-poster.jpg"]);
   await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'freefire'", ["/catalog/freefire-poster.jpg"]);
   await pool().query("UPDATE categories SET image_url = $1 WHERE slug = 'tiktok'", ["/catalog/tiktok-poster.jpg"]);
-  // 📣 قناة الاشتراك الإجباري الجديدة @chinwichi (مع بقاء القناتين السابقتين)
-  await pool().query(
-    `INSERT INTO channels (chat, title, url, sort, active)
-     VALUES ('@chinwichi', 'قناة CHINWICHI', 'https://t.me/chinwichi', 1, true)
-     ON CONFLICT (chat) DO UPDATE SET title = EXCLUDED.title, url = EXCLUDED.url, active = true`,
-  );
   // 🎁 جوائز المسابقات — تُزرع مرة واحدة فقط (لا نلمس جوائز المالك)
   await pool().query(
     `INSERT INTO prizes (title, points, icon, note, sort)
@@ -1021,6 +1017,11 @@ async function migrateOnce(query: Query): Promise<void> {
     );
   });
 
+  // 🚫 @chinwichi خرجت من الاشتراك الإجباري — طلب المالك (تبقى في اللوحة، معطّلة، يمكن حذفها من هناك)
+  await bump("migr_remove_chinwichi_v1", async () => {
+    await query("UPDATE channels SET active = false WHERE chat = '@chinwichi'");
+  });
+
   // 📣 قناة الاشتراك الإجباري @C_2_2_H — طلب المالك (تُضاف مرة واحدة؛ بعدها التفعيل/الإيقاف من اللوحة)
   await bump("migr_force_channel_c2h_v1", async () => {
     await query(
@@ -1049,7 +1050,6 @@ async function migrateOnce(query: Query): Promise<void> {
 }
 
 const SEED_CHANNELS = [
-  { chat: "@chinwichi", title: "قناة CHINWICHI", url: "https://t.me/chinwichi", sort: 1 },
   { chat: "@ft_H_N_O", title: "قناة ft_H_N_O", url: "https://t.me/ft_H_N_O", sort: 2 },
   { chat: "@CHNawaa", title: "قناة CHNawaa", url: "https://t.me/CHNawaa", sort: 3 },
   { chat: "@C_2_2_H", title: "قناة C_2_2_H", url: "https://t.me/C_2_2_H", sort: 4 },
@@ -1127,7 +1127,7 @@ async function seedWithin(query: Query): Promise<void> {
   }
 
   // نقيس القنوات الأصلية فقط: مهاجرة migr_force_channel_c2h_v1 قد تزرع C_2_2_H قبل هذا الفحص — وإلا لن تُزرع القنوات الثلاث
-  const chRow = await query("SELECT count(*)::text AS count FROM channels WHERE chat IN ('@chinwichi', '@ft_H_N_O', '@CHNawaa')");
+  const chRow = await query("SELECT count(*)::text AS count FROM channels WHERE chat IN ('@ft_H_N_O', '@CHNawaa')");
   if (Number((chRow.rows[0] as { count?: string } | undefined)?.count ?? 0) === 0) {
     for (const c of SEED_CHANNELS) {
       await query("INSERT INTO channels (chat, title, url, sort) VALUES ($1,$2,$3,$4) ON CONFLICT (chat) DO NOTHING", [
