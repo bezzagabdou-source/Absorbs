@@ -1,0 +1,36 @@
+name: Neon keep-alive
+
+# نبضة كل 5 دقائق توقف Neon from autosuspend (free tier يطفّي الحوسبة بعد ~5 دقايق خمول).
+# ملاحظة: الجداول الزمنية تشتغل فقط من الـ default branch (main) — بعد الدمج تشغل تلقائياً.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /api/keepalive (SELECT 1 على Neon)
+        run: |
+          ok=0
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /tmp/keepalive.json -w "%{http_code}" --max-time 25 https://chinwi-store.vercel.app/api/keepalive || echo 000)
+            echo "attempt $i -> HTTP $code $(cat /tmp/keepalive.json 2>/dev/null)"
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 6
+          done
+          # Fallback: إن لم تُنشر نسخة /api/keepalive بعد، نلمس الصفحة الرئيسية
+          if [ "$ok" = "0" ]; then
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 25 https://chinwi-store.vercel.app/ || echo 000)
+            echo "fallback homepage -> HTTP $code"
+          fi
+          exit 0

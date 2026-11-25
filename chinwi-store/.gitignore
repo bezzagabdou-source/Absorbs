@@ -1,0 +1,7 @@
+node_modules
+.next
+.env
+.env.local
+
+# ذاكرة المهندس AI (مولّدة تلقائياً)
+src/lib/codebase.generated.ts
