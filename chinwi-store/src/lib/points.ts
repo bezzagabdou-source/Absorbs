@@ -1,4 +1,4 @@
-import { getSetting, log, one, q } from "./db";
+import { getSetting, log, one, q, tx } from "./db";
 
 /**
  * points.ts — المسابقات ونقاط الإحالة
@@ -92,20 +92,27 @@ export async function creditReferral(
 ): Promise<{ ok: boolean; reason?: string }> {
   if (!inviterId || !inviteeId) return { ok: false, reason: "معرّف غير صالح" };
   if (Number(inviterId) === Number(inviteeId)) return { ok: false, reason: "لا يمكن إحالة نفسك" };
-  const inviter = await one<{ tg_id: string }>("SELECT tg_id FROM users WHERE tg_id = $1", [inviterId]);
-  if (!inviter) return { ok: false, reason: "صاحب الإحالة غير موجود" };
-  const inserted = await one<{ id: number }>(
-    `INSERT INTO referrals (inviter_id, invitee_id, points) VALUES ($1,$2,$3)
-     ON CONFLICT (invitee_id) DO NOTHING RETURNING id`,
-    [inviterId, inviteeId, Math.max(1, Math.round(points))],
-  );
-  if (!inserted) return { ok: false, reason: "هذا المستخدم مسجّل بإحالة سابقاً" };
-  await q("UPDATE users SET points = points + $2, referrals_count = referrals_count + 1 WHERE tg_id = $1", [
-    inviterId,
-    Math.max(1, Math.round(points)),
-  ]);
-  await q("UPDATE users SET joined_from = $2 WHERE tg_id = $1", [inviteeId, `ref:${inviterId}`]);
-  await log("referral_credited", { inviter: inviterId, invitee: inviteeId, points }, "success", String(inviterId));
+  const amount = Math.max(1, Math.round(points));
+  const credited = await tx(async ({ query }) => {
+    // Serialize credits per inviter across serverless instances, not just in memory.
+    await query("SELECT pg_advisory_xact_lock($1::bigint)", [inviterId]);
+    const inviter = await query("SELECT tg_id FROM users WHERE tg_id = $1 AND is_blocked = false", [inviterId]);
+    if (!inviter.rows.length) return false;
+    const invitee = await query("SELECT joined_from, is_blocked FROM users WHERE tg_id = $1 FOR UPDATE", [inviteeId]);
+    if (!invitee.rows.length || invitee.rows[0].is_blocked || invitee.rows[0].joined_from !== `pending_ref:${inviterId}`) return false;
+    const recent = await query("SELECT count(*)::int AS n FROM referrals WHERE inviter_id = $1 AND created_at > now() - interval '1 day'", [inviterId]);
+    if (Number(recent.rows[0].n) >= 10) return false;
+    const inserted = await query(
+      "INSERT INTO referrals (inviter_id, invitee_id, points) VALUES ($1,$2,$3) ON CONFLICT (invitee_id) DO NOTHING RETURNING id",
+      [inviterId, inviteeId, amount],
+    );
+    if (!inserted.rows.length) return false;
+    await query("UPDATE users SET points = points + $2, referrals_count = referrals_count + 1 WHERE tg_id = $1", [inviterId, amount]);
+    await query("UPDATE users SET joined_from = $2 WHERE tg_id = $1", [inviteeId, `ref:${inviterId}`]);
+    return true;
+  });
+  if (!credited) return { ok: false, reason: "الإحالة غير مؤهلة أو بلغت الحد اليومي" };
+  await log("referral_credited", { inviter: inviterId, invitee: inviteeId, points: amount }, "success", String(inviterId));
   return { ok: true };
 }
 
@@ -197,17 +204,18 @@ export async function decideRedemption(
   status: "approved" | "rejected",
   note?: string,
 ): Promise<RedemptionRow | null> {
-  const current = await one<RedemptionRow>("SELECT * FROM redemptions WHERE id = $1", [id]);
-  if (!current) return null;
-  if (current.status !== "pending") return current;
-  const updated = await one<RedemptionRow>(
-    "UPDATE redemptions SET status = $2, note = $3, updated_at = now() WHERE id = $1 RETURNING *",
-    [id, status, note ?? null],
-  );
-  if (status === "rejected") {
-    await q("UPDATE users SET points = points + $2 WHERE tg_id = $1", [current.user_id, current.points]);
-  }
-  await log("redemption_decided", { id, status }, status === "approved" ? "success" : "warn", "admin");
+  const updated = await tx(async ({ query }) => {
+    const result = await query("SELECT * FROM redemptions WHERE id = $1 FOR UPDATE", [id]);
+    const current = result.rows[0] as RedemptionRow | undefined;
+    if (!current || current.status !== "pending") return current ?? null;
+    const changed = await query(
+      "UPDATE redemptions SET status = $2, note = $3, updated_at = now() WHERE id = $1 RETURNING *",
+      [id, status, note ?? null],
+    );
+    if (status === "rejected") await query("UPDATE users SET points = points + $2 WHERE tg_id = $1", [current.user_id, current.points]);
+    return changed.rows[0] as RedemptionRow;
+  });
+  if (updated) await log("redemption_decided", { id, status: updated.status }, status === "approved" ? "success" : "warn", "admin");
   return updated;
 }
 

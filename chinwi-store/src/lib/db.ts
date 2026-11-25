@@ -1017,6 +1017,12 @@ async function migrateOnce(query: Query): Promise<void> {
     );
   });
 
+  // تصفير لمرة واحدة؛ نحتفظ بسجل الإحالات ونلغي الطلبات المعلقة دون إعادة الرصيد القديم.
+  await bump("migr_points_reset_antifraud_v1", async () => {
+    await query("UPDATE redemptions SET status = 'cancelled', note = 'إلغاء عند تصفير النقاط', updated_at = now() WHERE status = 'pending'");
+    await query("UPDATE users SET points = 0 WHERE points <> 0");
+  });
+
   // 🚫 @chinwichi خرجت من الاشتراك الإجباري — طلب المالك (تبقى في اللوحة، معطّلة، يمكن حذفها من هناك)
   await bump("migr_remove_chinwichi_v1", async () => {
     await query("UPDATE channels SET active = false WHERE chat = '@chinwichi'");

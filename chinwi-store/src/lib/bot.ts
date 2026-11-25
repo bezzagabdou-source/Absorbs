@@ -219,6 +219,20 @@ function isGateExempt(s: SettingsMap, userId: number, user: UserRow | null): boo
   return Boolean(un) && list.includes(un);
 }
 
+// Credit only after an actual membership check, never the gate's admin bypass.
+async function creditVerifiedReferral(user: UserRow, from: TgUser, s: SettingsMap): Promise<void> {
+  const match = (user.joined_from ?? "").match(/^pending_ref:(\d+)$/);
+  if (!match || from.is_bot || !settingBool(s, "referral_enabled", true)) return;
+  const channels = await listChannels(true);
+  if (!channels.length) return; // fail closed when verification is unavailable
+  const state = await subscriptionState(from.id, channels);
+  if (!state.ok || state.unverifiable.length) return;
+  const inviterId = Number(match[1]);
+  const per = Math.max(1, settingNumber(s, "points_per_referral", 1));
+  const res = await creditReferral(inviterId, from.id, per);
+  if (res.ok) await sendMessage(inviterId, `🎉 <b>دخل شخص جديد من رابطك!</b>\n👤 ${mentions(from)}\n⭐️ +${per} نقطة`, kb([[b(`📊 نقاطي`, "mypoints")], [b(`🏠 الرئيسية`, "home")]])).catch(() => null);
+}
+
 async function guardSubscription(
   chatId: number,
   userId: number,
@@ -1275,7 +1289,11 @@ async function route(update: TgUpdate): Promise<void> {
   if (!msg || !msg.from) return;
   if (msg.chat.type !== "private") return;
   const from = msg.from;
-  const user = await upsertUser(from);
+  const startMatch = (msg.text ?? "").trim().match(/^\/start(?:@\w+)?\s+ref_(\d+)$/i);
+  const proposedInviter = startMatch ? Number(startMatch[1]) : 0;
+  const source = settingBool(s, "referral_enabled", true) && Number.isSafeInteger(proposedInviter) && proposedInviter > 0 && proposedInviter !== from.id && !from.is_bot
+    ? `pending_ref:${proposedInviter}` : "bot";
+  const user = await upsertUser(from, source);
 
   if (user.is_blocked && !isAdminUser(user)) return;
 
@@ -1347,27 +1365,8 @@ async function route(update: TgUpdate): Promise<void> {
     const payload = rest.join(" ").trim();
 
     if (cmd === "/start") {
-      // 🎁 إحالة: /start ref_123456 — تُحتسب قبل بوابة الاشتراك حتى لا تضيع
-      if (payload.startsWith("ref_")) {
-        const inviterId = Number(payload.slice(4));
-        if (inviterId && inviterId !== from.id && settingBool(s, "referral_enabled", true)) {
-          const per = Math.max(1, settingNumber(s, "points_per_referral", 1));
-          const res = await creditReferral(inviterId, from.id, per);
-          if (res.ok) {
-            await sendMessage(
-              inviterId,
-              [
-                "🎉 <b>دخل شخص جديد من رابطك!</b>",
-                "",
-                `👤 ${mentions(from)}`,
-                `⭐️ +${per} نقطة — رصيدك الآن يُحدَّث في «المسابقات».`,
-              ].join("\n"),
-              kb([[b(`📊 نقاطي`, "mypoints")], [b(`🏠 الرئيسية`, "home")]]),
-            ).catch(() => null);
-          }
-        }
-      }
       if (!(await guardSubscription(chatId, from.id, s, user))) return;
+      await creditVerifiedReferral(user, from, s);
       await clearUserState(from.id);
       if (payload.startsWith("p_")) {
         const id = Number(payload.slice(2));
@@ -2003,6 +2002,7 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
       const channels = await listChannels(true);
       const state = await subscriptionState(from.id, channels);
       if (state.ok && state.unverifiable.length === 0) {
+        await creditVerifiedReferral(user, from, s);
         await answerCallback(cq.id, "✅ تم التحقق — أهلاً بك!", true);
         await clearUserState(from.id);
         await sendMainMenu(chatId, s, user);

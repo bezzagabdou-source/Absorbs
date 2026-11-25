@@ -898,6 +898,7 @@ await check("api: الإذاعة لا تفشل وتصنّف المحظورين",
 await check("contest: الدخول من رابط إحالة يمنح صاحب الرابط نقطة ويظهر في اللوحة", async () => {
   const joiner = { id: 4242, is_bot: false, first_name: "مدعو", username: "invited_dz", language_code: "ar" };
   await db.query("DELETE FROM referrals WHERE invitee_id = 4242");
+  await db.query("DELETE FROM users WHERE tg_id = 4242");
   await db.query("UPDATE users SET points = 0, referrals_count = 0 WHERE tg_id = 555");
   await membership({ "@chinwichi": "member", "@ft_H_N_O": "member", "@CHNawaa": "member", "@C_2_2_H": "member" });
   await resetSent();
@@ -917,6 +918,26 @@ await check("contest: الدخول من رابط إحالة يمنح صاحب ا
   await sleep(800);
   const u2 = (await db.query("select points from users where tg_id = 555")).rows[0];
   assert.equal(Number(u2.points), 1, "لا تُحتسب مرتين");
+});
+
+await check("contest: لا نقاط قبل التحقق ولا إحالة لمستخدم قديم", async () => {
+  const fresh = { id: 4243, is_bot: false, first_name: "مدعو جديد" };
+  const old = { id: 4244, is_bot: false, first_name: "مستخدم قديم" };
+  await db.query("DELETE FROM referrals WHERE invitee_id IN (4243,4244)");
+  await db.query("DELETE FROM users WHERE tg_id IN (4243,4244)");
+  await membership({ "@ft_H_N_O": "left", "@CHNawaa": "member", "@C_2_2_H": "member" });
+  await sendUpdate(msg(fresh, "/start ref_555"));
+  await sleep(800);
+  assert.equal((await db.query("SELECT * FROM referrals WHERE invitee_id=4243")).rows.length, 0);
+  await membership({ "@ft_H_N_O": "member", "@CHNawaa": "member", "@C_2_2_H": "member" });
+  await sendUpdate(msg(fresh, "/start"));
+  await sleep(800);
+  assert.equal((await db.query("SELECT * FROM referrals WHERE invitee_id=4243")).rows.length, 1);
+  await sendUpdate(msg(old, "/start"));
+  await sleep(800);
+  await sendUpdate(msg(old, "/start ref_555"));
+  await sleep(800);
+  assert.equal((await db.query("SELECT * FROM referrals WHERE invitee_id=4244")).rows.length, 0);
 });
 
 await check("contest: لوحة التحكم تعرض الإحالات ومن أحضر من", async () => {
