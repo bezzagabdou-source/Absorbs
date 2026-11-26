@@ -13,21 +13,8 @@ const GROUPS: NavGroup[] = [
     title: "القيادة",
     items: [
       { href: "/admin", label: "لوحة القيادة", icon: "📊", badge: true },
-      { href: "/admin/analytics", label: "التحليلات", icon: "📈" },
-      { href: "/admin/orders", label: "الطلبات", icon: "🧾", badge: true },
       { href: "/admin/tasks", label: "مهام المالك", icon: "🗒" },
       { href: "/admin/activity", label: "الأشخاص النشطون", icon: "👀" },
-      { href: "/admin/search", label: "البحث الشامل", icon: "🔎" },
-      { href: "/admin/tools", label: "أدوات سريعة", icon: "🧰" },
-    ],
-  },
-  {
-    title: "المتجر",
-    items: [
-      { href: "/admin/products", label: "المنتجات", icon: "📦" },
-      { href: "/admin/categories", label: "الأقسام", icon: "🗂" },
-      { href: "/admin/wallets", label: "طرق الدفع", icon: "💳" },
-      { href: "/admin/coupons", label: "أكواد الخصم", icon: "🎟" },
     ],
   },
   {
@@ -36,8 +23,6 @@ const GROUPS: NavGroup[] = [
       { href: "/admin/users", label: "المستخدمون", icon: "👥" },
       { href: "/admin/contests", label: "المسابقات والإحالات", icon: "🎉" },
       { href: "/admin/contact", label: "بوت تواصل — المالك", icon: "💬" },
-      { href: "/admin/reviews", label: "التقييمات", icon: "⭐️" },
-      { href: "/admin/faq", label: "الأسئلة الشائعة", icon: "❓" },
     ],
   },
   {

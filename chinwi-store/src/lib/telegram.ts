@@ -422,14 +422,13 @@ export async function setWebhook(url: string, secret: string): Promise<boolean> 
   }
 }
 
-export async function setMyCommands(): Promise<void> {
+export async function setMyCommands(): Promise<boolean> {
   try {
     await tg("setMyCommands", {
       commands: [
         { command: "start", description: "🏠 القائمة الرئيسية" },
-        { command: "shop", description: "🛍 المتجر والعروض" },
-        { command: "usd", description: "💵 بيع دولار للمالك" },
-        { command: "orders", description: "🧾 طلباتي" },
+        { command: "contest", description: "🏆 المسابقات والبطولات" },
+        { command: "points", description: "⭐️ نقاطي وإحالاتي" },
         { command: "support", description: "💬 الدعم الفني" },
         { command: "account", description: "👤 حسابي" },
         { command: "admin", description: "🛡 لوحة الإدارة (للمالك)" },
@@ -438,8 +437,10 @@ export async function setMyCommands(): Promise<void> {
     });
     // لا تطبيق مصغّر: زر المتجر يُلغى ويبقى زر القائمة العادي (commands)
     await tg("setChatMenuButton", { menu_button: { type: "commands" } }).catch(() => {});
+    return true;
   } catch (err) {
     console.error("[telegram] setMyCommands failed", err);
+    return false;
   }
 }
 

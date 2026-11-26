@@ -39,11 +39,17 @@ export type RedemptionRow = {
   first_name?: string | null;
 };
 
+// إخفاء جوائز الشحن والبطاقات القديمة دون حذف السجلات.
+export function isContestPrize(prize: { title: string; note: string | null }): boolean {
+  return !/(شحن|فليكسي|فلكسي|رصيد|بطاق|كارت|كرت|كروت|جواهر|شدات|كوينز|free\s*fire|pubg|efootball|flexy|top[ -]?up|recharge|gift\s*card)/i.test(`${prize.title} ${prize.note ?? ""}`);
+}
+
 export async function listPrizes(activeOnly = false): Promise<PrizeRow[]> {
-  return q<PrizeRow>(
+  const prizes = await q<PrizeRow>(
     `SELECT p.*, (SELECT count(*) FROM redemptions r WHERE r.prize_id = p.id)::int AS claims
      FROM prizes p ${activeOnly ? "WHERE p.active = true" : ""} ORDER BY p.points ASC, p.sort ASC, p.id ASC`,
   );
+  return prizes.filter(isContestPrize);
 }
 
 export async function createPrize(input: {
@@ -166,7 +172,7 @@ export async function redeemPrize(
   prizeId: number,
 ): Promise<{ ok: boolean; reason?: string; redemption?: RedemptionRow }> {
   const prize = await one<PrizeRow>("SELECT * FROM prizes WHERE id = $1 AND active = true", [prizeId]);
-  if (!prize) return { ok: false, reason: "الجائزة غير متوفرة" };
+  if (!prize || !isContestPrize(prize)) return { ok: false, reason: "الجائزة غير متوفرة" };
   const user = await one<{ points: string }>("SELECT points FROM users WHERE tg_id = $1", [userId]);
   const balance = Number(user?.points ?? 0);
   if (balance < Number(prize.points)) {

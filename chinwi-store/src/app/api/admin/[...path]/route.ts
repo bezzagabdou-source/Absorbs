@@ -61,6 +61,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+// حفظ السجلات القديمة للنسخ الاحتياطي، مع إغلاق واجهات المتجر التشغيلية.
+const REMOVED_STORE_ROUTES = new Set(["products", "categories", "orders", "wallets", "coupons"]);
+
 /* ───────────────────────── أدوات ───────────────────────── */
 
 function bad(message: string, status = 400): NextResponse {
@@ -498,6 +501,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ path: string[] 
   const url = new URL(req.url);
 
   if (!(await authed())) return bad("unauthorized", 401);
+  if (REMOVED_STORE_ROUTES.has(seg[0])) return bad("المتجر متوقف", 410);
 
   try {
     await ensureDb();
@@ -1018,6 +1022,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ path: string[]
   }
 
   if (!(await authed())) return bad("unauthorized", 401);
+  if (REMOVED_STORE_ROUTES.has(seg[0])) return bad("المتجر متوقف", 410);
 
   try {
     await ensureDb();
@@ -1683,6 +1688,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ path: string
   if (!(await authed())) return bad("unauthorized", 401);
   await ensureDb();
   const seg = path ?? [];
+  if (REMOVED_STORE_ROUTES.has(seg[0])) return bad("المتجر متوقف", 410);
   if (seg[0] === "products" && seg[1]) {
     await deleteProduct(num(seg[1]));
     return NextResponse.json({ ok: true });

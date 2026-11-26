@@ -1,0 +1,47 @@
+// Run only against the isolated local mock stack (npm run dev:all).
+import assert from 'node:assert/strict';
+import { Client } from 'pg';
+const base='http://127.0.0.1:3100', mock='http://127.0.0.1:4001';
+const db=new Client({connectionString:'postgresql://postgres@127.0.0.1:5432/postgres?sslmode=disable'}); await db.connect();
+const post=async (url, body, headers={})=>fetch(url,{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body)});
+const user={id:804321,is_bot:false,first_name:'Tester',username:'contest_tester'};
+let id=150000;
+const msg=text=>({update_id:++id,message:{message_id:id,from:user,chat:{id:user.id,type:'private'},date:Math.floor(Date.now()/1000),text}});
+const cb=data=>({update_id:++id,callback_query:{id:`test-${id}`,from:user,data,message:{message_id:1,chat:{id:user.id,type:'private'},date:Math.floor(Date.now()/1000)}}});
+const send=body=>post(base+'/api/telegram/webhook',body,{'x-telegram-bot-api-secret-token':'testsecret'});
+const reset=()=>fetch(mock+'/__reset',{method:'POST'});
+async function find(check){for(let i=0;i<60;i++){const state=await fetch(mock+'/__state').then(r=>r.json());const item=state.sent.find(check);if(item)return item;await new Promise(r=>setTimeout(r,200));}throw Error('Expected message not received');}
+await fetch(base+'/api/health');
+await post(mock+'/__membership',{'@ft_H_N_O':'member','@CHNawaa':'member','@C_2_2_H':'member'});
+await reset();await send(msg('/start'));
+const menu=await find(m=>m.chat_id===user.id && (m.text||'').includes('مسابقات CHINWI'));
+const buttons=menu.reply_markup.inline_keyboard.flat().map(b=>b.text).join(' ');
+assert.match(buttons,/المسابقات/);assert.match(buttons,/نقاطي/);assert.doesNotMatch(buttons,/شحن|متجر|دولار|بطاقات|طلباتي/);
+await reset();await send(cb('contest'));await find(m=>m.chat_id===user.id && (m.text||'').includes('رابطك الخاص'));
+await reset();await send(cb('prizes'));const prizes=await find(m=>m.chat_id===user.id && ((m.text||'').includes('الجوائز واستبدال النقاط')||(m.text||'').includes('لا توجد جوائز')));assert.doesNotMatch(prizes.text,/فليكسي|شحن|بطاق/);
+const target=(await db.query("SELECT id FROM prizes WHERE title LIKE '%فليكسي%' LIMIT 1")).rows[0];
+await db.query('UPDATE users SET points=100 WHERE tg_id=$1',[user.id]);const before=(await db.query('SELECT count(*)::int n FROM redemptions WHERE user_id=$1',[user.id])).rows[0].n;
+await send(cb(`prizebuy:${target.id}`));await new Promise(r=>setTimeout(r,700));assert.equal((await db.query('SELECT count(*)::int n FROM redemptions WHERE user_id=$1',[user.id])).rows[0].n,before);assert.equal(Number((await db.query('SELECT points FROM users WHERE tg_id=$1',[user.id])).rows[0].points),100);
+const old=(await db.query('SELECT count(*)::int n FROM orders WHERE user_id=$1',[user.id])).rows[0].n;
+for(const data of ['games','buy:1','cat:1','usd','usdr:250','pay:1'])await send(cb(data));
+await send(msg('/start p_1'));await send(msg('/shop'));await new Promise(r=>setTimeout(r,1000));assert.equal((await db.query('SELECT count(*)::int n FROM orders WHERE user_id=$1',[user.id])).rows[0].n,old);
+await db.query('DELETE FROM daily_gifts WHERE user_id=$1',[user.id]);
+await reset();await send(cb('dailygift'));await find(m=>m.chat_id===user.id && (m.text||'').includes('هديتك اليومية وصلت'));
+// A new invitee earns the inviter points only after verified channel membership.
+const invitee={id:804322,is_bot:false,first_name:'Invitee',username:'contest_invitee'};
+await db.query('DELETE FROM referrals WHERE invitee_id=$1',[invitee.id]);
+await db.query('DELETE FROM users WHERE tg_id=$1',[invitee.id]);
+await post(mock+'/__membership',{'@ft_H_N_O':'left'});
+const referralMsg=(text)=>({update_id:++id,message:{message_id:id,from:invitee,chat:{id:invitee.id,type:'private'},date:Math.floor(Date.now()/1000),text}});
+const pointsBefore=Number((await db.query('SELECT points FROM users WHERE tg_id=$1',[user.id])).rows[0].points);
+await send(referralMsg(`/start ref_${user.id}`));await new Promise(r=>setTimeout(r,500));
+assert.equal(Number((await db.query('SELECT points FROM users WHERE tg_id=$1',[user.id])).rows[0].points),pointsBefore);
+await post(mock+'/__membership',{'@ft_H_N_O':'member'});
+await reset();await send({update_id:++id,callback_query:{id:`ref-${id}`,from:invitee,data:'chk',message:{message_id:1,chat:{id:invitee.id,type:'private'},date:Math.floor(Date.now()/1000)}}});
+await find(m=>m.chat_id===user.id && (m.text||'').includes('دخل شخص جديد'));
+assert.ok(Number((await db.query('SELECT points FROM users WHERE tg_id=$1',[user.id])).rows[0].points)>pointsBefore);
+const login=await post(base+'/api/admin/login',{password:'TestPass123'});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie').split(';')[0];
+const products=await fetch(base+'/api/admin/products',{headers:{cookie}});assert.equal(products.status,410);
+const dashboard=await fetch(base+'/admin/products',{headers:{cookie},redirect:'manual'});assert.equal(dashboard.status,307);assert.match(dashboard.headers.get('location'),/admin\/contests/);
+const contest=await fetch(base+'/api/admin/contests',{headers:{cookie}}).then(r=>r.json());assert.ok(Array.isArray(contest.prizes));assert.ok(contest.prizes.every(p=>!p.title.includes('فليكسي')));
+await db.end();console.log('PASS: contest menu, legacy shop routes, prize protection, points, admin');

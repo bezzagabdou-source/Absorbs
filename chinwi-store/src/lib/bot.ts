@@ -189,14 +189,14 @@ async function sendSubscriptionGate(
   const text = [
     "🔒 <b>الاشتراك إجباري — خطوة واحدة فقط</b>",
     "━━━━━━━━━━━━━━━",
-    "🎁 باش تستفيد من <b>كل</b> خدمات المتجر، اشترك في القنوات التالية 👇",
+    "🏆 للمشاركة في المسابقات، اشترك في القنوات التالية 👇",
     "",
     ...channels.map((ch) => {
       const bad = state.missing.includes(ch);
       return `${bad ? "📣" : "✅"} <b>${escapeHtml(ch.title || ch.chat)}</b>${bad ? " — <i>لم تشترك بعد</i>" : ""}`;
     }),
     "━━━━━━━━━━━━━━━",
-    "⚡️ الاشتراك يمنحك: أسعار خاصة، عروض حصرية، ودعماً أسرع.",
+    "⚡️ الاشتراك يتيح لك المشاركة في المسابقات وجمع النقاط.",
     ...(fbUrl ? ["👍 <b>توثيق فيسبوك</b>: دخل المنشور و<b>علّق</b> باش توثقو صفحتنا 🙏"] : []),
     "👇 بعد ما تشترك اضغط <b>«🔄 تحقق من الاشتراك»</b>",
   ].join("\n");
@@ -288,47 +288,22 @@ function priceLabel(p: ProductRow, s: SettingsMap): string {
 /* ───────────────────────── القوائم ───────────────────────── */
 
 async function sendMainMenu(chatId: number, s: SettingsMap, user: UserRow | null, editFrom?: number, withBanner = false): Promise<void> {
-  const cats = await listCategories({ activeOnly: true });
-  const bySlug = (slug: string): CategoryRow | undefined => cats.find((c) => c.slug === slug);
   const support = settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "");
-
-  const rows: InlineButton[][] = [];
-  rows.push([b(`🎮 شحن الألعاب الرقمية`, "games")]);
-  const tg = bySlug("telegram");
-  if (tg) rows.push([b(`🌟 شحن تليجرام بريموم`, `cat:${tg.id}`)]);
-  const tt = bySlug("tiktok");
-  if (tt) rows.push([b(`🎵 شحن عملات تيك توك`, `cat:${tt.id}`)]);
-  const digital = bySlug("digital");
-  if (digital) rows.push([b(`🤖 المنتجات الرقمية والذكاء الاصطناعي`, `cat:${digital.id}`)]);
-  rows.push([b(`🔥 الأكثر مبيعاً`, "top"), b(`🔍 بحث`, "search")]);
-  rows.push([b(`💵 بيع وشراء الدولار للمتجر`, "usd")]);
-  rows.push([b(`🎉 المسابقات وجمع النقاط`, "contest", "primary")]);
-  rows.push([b(`🧾 طلباتي`, "orders"), b(`👤 حسابي`, "account")]);
-  rows.push([link(`🔗 بوت تواصل`, `https://t.me/chinwicontactbot`), link(`📞 الدعم الفني وتواصل مع المالك`, `https://t.me/${support}`, "danger")]);
+  const rows: InlineButton[][] = [
+    [b(`🏆 المسابقات والبطولات`, "contest", "primary")],
+    [b(`📊 نقاطي وإحالاتي`, "mypoints"), b(`🥇 المتصدرون`, "topref")],
+    [link(`📞 الدعم الفني`, `https://t.me/${support}`)],
+  ];
   if (isAdminUser(user)) rows.push([b(`🛡 لوحة الإدارة`, "adm")]);
-
   const text = [
-    `👑 <b>${escapeHtml(settingString(s, "store_name", "CHINWI STORE"))}</b>  ✨`,
-    `<i>${escapeHtml(settingString(s, "store_tagline", ""))}</i>`,
-    "━━━━━━━━━━━━━━━",
-    settingString(s, "welcome_text", ""),
-    "",
-    `📣 ${escapeHtml(settingString(s, "announcement", ""))}`,
-    "━━━━━━━━━━━━━━━",
-    `👤 مرحباً <b>${mentions(user ?? { id: chatId } as TgUser)}</b> — نوّرت المتجر 🌟`,
-    "🎯 <b>اختر القسم الذي تريده 👇</b>",
+    "🏆 <b>مسابقات CHINWI</b>",
+    `👤 مرحباً <b>${mentions(user ?? { id: chatId } as TgUser)}</b>`,
+    "🎯 شارك في المسابقات واجمع النقاط من الإحالات والهدية اليومية.",
+    "اختر القسم 👇",
   ].join("\n");
 
   void editFrom;
-  if (withBanner) {
-    const banner = imgUrl(settingString(s, "banner_image", "/catalog/banner.jpg"));
-    try {
-      await sendPhoto(chatId, { url: banner }, text, kb(rows));
-      return;
-    } catch {
-      /* لو رفض تيليجرام الصورة/الوصف نرسل نصاً */
-    }
-  }
+  void withBanner;
   await sendMessage(chatId, text, kb(rows));
 }
 
@@ -419,7 +394,7 @@ async function sendContest(chatId: number, s: SettingsMap, user: UserRow | null)
   const text = [
     `🎉 <b>${escapeHtml(settingString(s, "contest_title", "مسابقات CHINWI STORE"))}</b>`,
     "━━━━━━━━━━━━━━━",
-    settingString(s, "contest_text", ""),
+    "شارك في المسابقات والبطولات، وادعُ أصحابك لجمع النقاط 🎯",
     "━━━━━━━━━━━━━━━",
     enabled
       ? [
@@ -1044,19 +1019,19 @@ async function supportScreen(chatId: number, s: SettingsMap): Promise<void> {
       "",
       "فريقنا متواجد لخدمتك في أي وقت ⏱",
       "",
-      "• مشكلة في الطلب؟ أرسل رقم الطلب.",
-      "• استفسار عن منتج؟ اكتب اسمه.",
+      "• استفسار عن المسابقات أو النقاط؟ تواصل معنا.",
       `• أو راسلنا مباشرة: @${handle}`,
     ].join("\n"),
     kb([
       [b(`✍️ اكتب رسالتك للمالك`, "msgowner")],
-      [link(`🔗 بوت تواصل`, `https://t.me/chinwicontactbot`), link(`💬 محادثة مباشرة`, `https://t.me/${handle}`)],
+      [link(`💬 محادثة مباشرة`, `https://t.me/${handle}`)],
       [b(`🔙 رجوع`, "home")],
     ]),
   );
 }
 
 async function accountScreen(chatId: number, user: UserRow, s: SettingsMap): Promise<void> {
+  void s;
   await sendMessage(
     chatId,
     [
@@ -1065,14 +1040,12 @@ async function accountScreen(chatId: number, user: UserRow, s: SettingsMap): Pro
       `🆔 المعرف: <code>${user.tg_id}</code>`,
       `👤 الاسم: ${mentions(user as unknown as TgUser)}`,
       `📅 عضو منذ: ${shortDate(user.created_at)}`,
-      `🧾 عدد الطلبات: <b>${user.orders_count}</b>`,
-      `💰 إجمالي الشراء: <b>${money(user.total_spent, settingString(s, "currency", "دج"))}</b>`,
       `⭐️ نقاط المسابقات: <b>${user.points ?? 0}</b>`,
       `👥 الإحالات: <b>${user.referrals_count ?? 0}</b>`,
       user.is_blocked ? "\n🔴 حسابك محظور — تواصل مع الدعم." : "",
     ].join("\n"),
     kb([
-      [b(`🎉 المسابقات ونقاطي`, "contest"), b(`🧾 طلباتي`, "orders")],
+      [b(`🎉 المسابقات ونقاطي`, "contest")],
       [b(`💬 الدعم`, "support")],
       [b(`🔙 رجوع`, "home")],
     ]),
@@ -1111,41 +1084,14 @@ async function myOrders(chatId: number, userId: number, s: SettingsMap): Promise
 /* ───────────────────────── لوحة إدارة البوت ───────────────────────── */
 
 async function adminPanel(chatId: number, s: SettingsMap): Promise<void> {
-  const stats = await one<{ users: string; pending: string; revenue: string; today: string }>(
-    `SELECT (SELECT count(*) FROM users)::text AS users,
-      (SELECT count(*) FROM orders WHERE status='awaiting_review')::text AS pending,
-      (SELECT COALESCE(sum(amount),0) FROM orders WHERE status IN ('approved','delivered'))::text AS revenue,
-      (SELECT count(*) FROM orders WHERE created_at > now() - interval '24 hours')::text AS today`,
-  );
-  const text = [
-    "🛡 <b>لوحة تحكم البوت</b>",
-    "",
-    `👥 المستخدمون: <b>${Number(stats?.users ?? 0)}</b>`,
-    `🟡 إيصالات بانتظار المراجعة: <b>${Number(stats?.pending ?? 0)}</b>`,
-    `🧾 طلبات اليوم: <b>${Number(stats?.today ?? 0)}</b>`,
-    `💰 إجمالي المبيعات: <b>${money(stats?.revenue ?? 0, settingString(s, "currency", "دج"))}</b>`,
-    "",
-    "اختر العملية 👇",
-  ].join("\n");
-  await sendMessage(
-    chatId,
-    text,
-    kb([
-      [b(`📩 الإيصالات المعلّقة`, "adm:pending")],
-      [b(`📊 إحصائيات`, "adm:stats"), b(`👥 المستخدمون`, "adm:users")],
-      [b(`📢 إذاعة جماعية`, "adm:broadcast")],
-      [b(`🧾 آخر الطلبات`, "adm:orders")],
-      [
-        b(
-          `${settingBool(s, "require_subscription", true) ? G : R} اشتراك إجباري`,
-          "adm:togsub",
-        ),
-        b(`${settingBool(s, "maintenance", false) ? R : G} وضع الصيانة`, "adm:togmaint"),
-      ],
-      [b(`👁 معاينة بوابة الاشتراك`, "adm:gateprev")],
-      [b(`🔙 إغلاق`, "home")],
-    ]),
-  );
+  const stats = await one<{ users: string }>("SELECT count(*)::text AS users FROM users");
+  await sendMessage(chatId, `🛡 <b>لوحة المسابقات</b>\n👥 المستخدمون: <b>${Number(stats?.users ?? 0)}</b>`, kb([
+    [b("🏆 المسابقات", "contest"), b("👥 المستخدمون", "adm:users")],
+    [b("📢 إذاعة جماعية", "adm:broadcast")],
+    [b(`${settingBool(s, "require_subscription", true) ? G : R} اشتراك إجباري`, "adm:togsub"), b(`${settingBool(s, "maintenance", false) ? R : G} وضع الصيانة`, "adm:togmaint")],
+    [b("👁 معاينة بوابة الاشتراك", "adm:gateprev")],
+    [b("🔙 إغلاق", "home")],
+  ]));
 }
 
 async function adminStats(chatId: number, s: SettingsMap): Promise<void> {
@@ -1357,7 +1303,9 @@ async function route(update: TgUpdate): Promise<void> {
   const chatId = msg.chat.id;
 
   // حالات المحادثة أولاً (إيصال / بيانات / كمية دولار …)
-  if (user.state && await handleState(user, msg, s, chatId)) return;
+  if (user.state && /^(receipt:|field:|usd:|rej_reason:|admin_add_product|coupon)/.test(user.state)) {
+    await clearUserState(from.id);
+  } else if (user.state && await handleState(user, msg, s, chatId)) return;
 
   if (text.startsWith("/")) {
     const [cmdRaw, ...rest] = text.split(/\s+/);
@@ -1368,40 +1316,17 @@ async function route(update: TgUpdate): Promise<void> {
       if (!(await guardSubscription(chatId, from.id, s, user))) return;
       await creditVerifiedReferral(user, from, s);
       await clearUserState(from.id);
-      if (payload.startsWith("p_")) {
-        const id = Number(payload.slice(2));
-        if (id) {
-          await sendProduct(chatId, id, s);
-          return;
-        }
-      }
-      if (payload.startsWith("cat_")) {
-        const id = Number(payload.slice(4));
-        if (id) {
-          await sendCategory(chatId, id, s);
-          return;
-        }
-      }
       await sendMainMenu(chatId, s, user, undefined, true);
       return;
     }
-    if (cmd === "/shop") {
-      if (!(await guardSubscription(chatId, from.id, s, user))) return;
-      await sendShop(chatId, s);
-      return;
-    }
-    if (cmd === "/usd") {
-      await showUsdIntro(chatId, s);
+    if (["/shop", "/usd", "/orders", "/coupon"].includes(cmd)) {
+      await sendMessage(chatId, "المتجر وخدمات الشحن توقفت. شارك في المسابقات واجمع النقاط 🏆", kb([[b("🏆 المسابقات", "contest")]]));
       return;
     }
     if (cmd === "/contest" || cmd === "/points" || cmd === "/referral" || cmd === "/invite") {
       if (!(await guardSubscription(chatId, from.id, s, user))) return;
       if (cmd === "/points") await sendMyPoints(chatId, user, s);
       else await sendContest(chatId, s, user);
-      return;
-    }
-    if (cmd === "/orders") {
-      await myOrders(chatId, from.id, s);
       return;
     }
     if (cmd === "/support") {
@@ -1470,48 +1395,8 @@ async function route(update: TgUpdate): Promise<void> {
       await sendMessage(chatId, `⭐️ <b>آراء زبائننا</b>\n━━━━━━━━━━━━━━━\n${body}`, kb([[b(`🛍 المتجر`, "home")]]));
       return;
     }
-    if (cmd === "/coupon") {
-      const code = payload.trim().toUpperCase();
-      if (!code) {
-        await sendMessage(chatId, "🎟 اكتب الكود هكذا: <code>/coupon CHINWI10</code>");
-        return;
-      }
-      const c = await one<{ code: string; kind: string; amount: number; uses: number; max_uses: number; active: boolean; expires_at: string | null }>(
-        "SELECT * FROM coupons WHERE code = $1 AND active = true",
-        [code],
-      );
-      const expired = c?.expires_at ? new Date(c.expires_at).getTime() < Date.now() : false;
-      const exhausted = Boolean(c && c.max_uses > 0 && c.uses >= c.max_uses);
-      if (!c || expired || exhausted) {
-        await sendMessage(chatId, "❌ الكود غير صالح أو منتهي.", kb([[b(`🛍 المتجر`, "home")]]));
-        return;
-      }
-      await setUserState(from.id, "coupon", { code: c.code, kind: c.kind, amount: Number(c.amount) });
-      const label = c.kind === "percent" ? `خصم ${c.amount}%` : `خصم ${money(Number(c.amount), settingString(s, "currency", "دج"))}`;
-      await sendMessage(
-        chatId,
-        `🎟 <b>تم تفعيل الكود</b> ${escapeHtml(c.code)}\n✅ ${label} — يُطبَّق على طلبك القادم.`,
-        kb([[b(`🛍 تسوّق الآن`, "home")]]),
-      );
-      return;
-    }
     await sendMainMenu(chatId, s, user);
     return;
-  }
-
-  // نص حر: بحث في المنتجات أو إرسال للمالك
-  if (text.length >= 2) {
-    const found = await listProducts({ search: text, activeOnly: true, limit: 6 });
-    if (found.length) {
-      const rows = found.map((p) => [b(`${priceShort(p, s)}`, `prd:${p.id}`)]);
-      rows.push([b(`🏠 القائمة`, "home")]);
-      await sendMessage(
-        chatId,
-        `🔎 نتائج البحث عن «${escapeHtml(text)}»:\nاختر المنتج 👇`,
-        kb(rows),
-      );
-      return;
-    }
   }
 
   await sendMainMenu(chatId, s, user);
@@ -1521,20 +1406,9 @@ function helpText(s: SettingsMap): string {
   return [
     "ℹ️ <b>المساعدة</b>",
     "",
-    "🛍 <b>/shop</b> — عرض أقسام المتجر",
-    "💵 <b>/usd</b> — بيع الدولار للمالك",
-    "🎉 <b>/contest</b> — المسابقات وجوائز النقاط",
-    "⭐️ <b>/points</b> — نقاطي ورابط الإحالة",
-    "🧾 <b>/orders</b> — متابعة طلباتك",
+    "🏆 <b>/contest</b> — المسابقات والبطولات",
+    "⭐️ <b>/points</b> — نقاطي وإحالاتي",
     "💬 <b>/support</b> — التواصل مع الدعم",
-    "👤 <b>/account</b> — معلومات حسابك",
-    "",
-    "💡 <b>كيف أشتري؟</b>",
-    "1. اختر القسم ثم العرض.",
-    "2. أدخل معلوماتك (آيدي اللاعب…).",
-    "3. حوّل المبلغ عبر إحدى الوسائل.",
-    "4. أرسل صورة الإيصال هنا.",
-    "5. يتواصل معك المالك ويُنفّذ الطلب فوراً.",
     "",
     `📞 الدعم: @${settingString(s, "support_username", "F_Q_Q_T").replace(/^@/, "")}`,
   ].join("\n");
@@ -1758,6 +1632,13 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
   const data = cq.data ?? "";
   const [head, a1, a2] = data.split(":");
 
+  // تعطيل أزرار الشراء القديمة الموجودة في رسائل تيليجرام.
+  const removed = new Set(["games", "top", "search", "cat", "prd", "buy", "ask", "pay", "pw", "paid", "cancel", "orders", "ord", "usd", "usdr", "admo", "apv", "rej", "dlv"]);
+  if (removed.has(head) || (head === "adm" && ["pending", "orders", "stats"].includes(a1))) {
+    await answerCallback(cq.id, "المتجر وخدمات الشحن توقفت", true);
+    return;
+  }
+
   switch (head) {
     case "nop": {
       await answerCallback(cq.id, "💡 اضغط على زر الاسم لفتح العرض");
@@ -1866,6 +1747,11 @@ async function onCallback(cq: TgCallbackQuery, s: SettingsMap): Promise<void> {
     case "prizebuy": {
       if (!settingBool(s, "referral_enabled", true)) {
         await answerCallback(cq.id, "نظام النقاط متوقف مؤقتاً", true);
+        return;
+      }
+      const available = (await listPrizes(true)).find((p) => p.id === Number(a1));
+      if (!available) {
+        await answerCallback(cq.id, "الجائزة غير متوفرة", true);
         return;
       }
       const res = await redeemPrize(from.id, Number(a1));

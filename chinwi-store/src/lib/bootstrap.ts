@@ -37,6 +37,11 @@ export async function bootstrap(): Promise<{
   const me = await getMe();
   if (!me) return { db: true, bot: false, webhook: "", error: "تعذّر قراءة بيانات البوت (توكن غير صالح؟)" };
 
+  // تحديث قائمة أوامر تيليجرام مرة واحدة حتى لو كان الويبهوك الحالي صحيحاً.
+  if (!(await getSetting<boolean>("contest_only_commands_v1").catch(() => false))) {
+    if (await setMyCommands()) await setSetting("contest_only_commands_v1", true).catch(() => {});
+  }
+
   // نحفظ يوزرنيم البوت حتى تستخدمه الصفحة العامة ولوحة التحكم في روابط t.me
   if (me.username) {
     const savedName = await getSetting<string>("bot_username").catch(() => "");
